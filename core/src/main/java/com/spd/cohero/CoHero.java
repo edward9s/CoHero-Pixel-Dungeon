@@ -30,6 +30,7 @@ public final class CoHero {
     private static Bundle companionState;
     private static boolean selectingCompanion;
     private static boolean openingCompanionSelection;
+    private static boolean companionDeathEndedRun;
 
     private CoHero() {
     }
@@ -44,6 +45,7 @@ public final class CoHero {
         companionSelection = null;
         companionState = null;
         selectingCompanion = false;
+        companionDeathEndedRun = false;
     }
 
     public static boolean onHeroSelectionConfirmed(HeroClass selectedClass) {
@@ -54,6 +56,7 @@ public final class CoHero {
         if (!selectingCompanion) {
             playerSelection = selectedClass;
             companionState = null;
+            companionDeathEndedRun = false;
             selectingCompanion = true;
             openingCompanionSelection = true;
             GamesInProgress.selectedClass = null;
@@ -140,6 +143,7 @@ public final class CoHero {
         playerSelection = null;
         selectingCompanion = false;
         openingCompanionSelection = false;
+        companionDeathEndedRun = false;
     }
 
     public static void storeLevelMobs(Bundle bundle, String key, Collection<Mob> mobs) {
@@ -157,7 +161,8 @@ public final class CoHero {
             return;
         }
 
-        if (companionClass() == null) {
+        HeroClass heroClass = companionClass();
+        if (heroClass == null) {
             throw new IllegalStateException("CoHero run has no selected companion class");
         }
 
@@ -175,6 +180,8 @@ public final class CoHero {
         CompanionHero companion = new CompanionHero();
         if (companionState != null) {
             companion.restoreFromBundle(companionState);
+        } else {
+            CompanionStartingEquipment.initialize(companion, heroClass);
         }
         companion.enterLevel(spawn);
         GameScene.add(companion);
@@ -233,6 +240,14 @@ public final class CoHero {
             }
         }
         return false;
+    }
+
+    static void markCompanionDeathGameOver() {
+        companionDeathEndedRun = true;
+    }
+
+    public static boolean companionDeathEndedRun() {
+        return companionDeathEndedRun;
     }
 
     private static String companionClassKey() {
