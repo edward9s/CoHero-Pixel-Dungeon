@@ -2,9 +2,11 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Belongings;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.bags.Bag;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
@@ -107,7 +109,7 @@ public class WndCompanionInventory extends Window {
                     returnToPlayer(wand);
                     refreshWandButtons();
                 } else if (index == inventory.wands().size() && inventory.hasWandSpace()) {
-                    chooseWand(this);
+                    chooseWand();
                 }
             }
 
@@ -122,14 +124,11 @@ public class WndCompanionInventory extends Window {
         };
 
         button.setRect(col * (SLOT + GAP), startY + row * (SLOT + GAP), SLOT, SLOT);
-        button.slot().name = "cohero_wand_" + index;
         button.item(wandItemFor(index));
         add(button);
     }
 
     private void refreshWandButtons() {
-        // Rebuilding the window is intentionally avoided. ItemButton references are not retained,
-        // so close/reopen after a removal that shifts slots. This keeps slot identity deterministic.
         hide();
         GameScene.show(new WndCompanionInventory(companion));
     }
@@ -149,6 +148,11 @@ public class WndCompanionInventory extends Window {
             @Override
             public String textPrompt() {
                 return selectPrompt(type);
+            }
+
+            @Override
+            public Class<? extends Bag> preferredBag() {
+                return Belongings.Backpack.class;
             }
 
             @Override
@@ -191,11 +195,16 @@ public class WndCompanionInventory extends Window {
         });
     }
 
-    private void chooseWand(ItemButton button) {
+    private void chooseWand() {
         GameScene.selectItem(new WndBag.ItemSelector() {
             @Override
             public String textPrompt() {
                 return selectWandPrompt();
+            }
+
+            @Override
+            public Class<? extends Bag> preferredBag() {
+                return Belongings.Backpack.class;
             }
 
             @Override
@@ -209,7 +218,6 @@ public class WndCompanionInventory extends Window {
                     return;
                 }
                 inventory.addWand((Wand) item);
-                button.item(item);
                 refreshWandButtons();
             }
         });
