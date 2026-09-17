@@ -11,8 +11,9 @@ Key ideas:
 - The companion moves and explores autonomously.
 - Either hero dying ends the run.
 - The player cannot stop the companion from progressing.
-- The player has only coarse influence over companion combat behaviour.
-- Companion behaviour should be driven primarily by available equipment and capabilities rather than hard-coded class logic.
+- The player does not issue movement or combat commands to the companion; inventory and equipment allocation are the control interface.
+- Companion combat behaviour is driven primarily by currently available equipment, target properties, range, and damage rather than hard-coded class logic.
+- The companion should avoid intentionally waking sleeping enemies when a reasonable route can keep its distance.
 - The project should remain close enough to upstream Shattered Pixel Dungeon to follow future releases and, where practical, support an SMM-like injection path into compatible forks.
 
 See [docs/DESIGN.zh-TW.md](docs/DESIGN.zh-TW.md) for the current design consensus and unresolved questions.
