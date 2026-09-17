@@ -1,0 +1,72 @@
+name: Build CoHero
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout CoHero source
+        uses: actions/checkout@v4
+        with:
+          path: cohero
+
+      - name: Resolve latest Shattered Pixel Dungeon release
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=$(curl -fsSL https://api.github.com/repos/00-Evan/shattered-pixel-dungeon/releases/latest \
+            | python -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Using SPD $TAG"
+
+      - name: Checkout Shattered Pixel Dungeon
+        uses: actions/checkout@v4
+        with:
+          repository: 00-Evan/shattered-pixel-dungeon
+          ref: ${{ steps.upstream.outputs.tag }}
+          path: spd
+
+      - name: Verify CoHero source isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/verify_source_layout.py cohero
+
+      - name: Overlay CoHero source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a cohero/core/. spd/core/
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile Android and desktop
+        working-directory: spd
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew android:assembleDebug :desktop:release
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CoHero-SPD-${{ steps.upstream.outputs.tag }}
+          path: |
+            spd/android/build/outputs/apk/debug/*.apk
+            spd/desktop/build/libs/*.jar
+          if-no-files-found: error
