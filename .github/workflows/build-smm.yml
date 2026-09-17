@@ -106,6 +106,10 @@ jobs:
           python cohero/scripts/patch_shared_strength.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/potions/PotionOfStrength.java \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/potions/elixirs/ElixirOfMight.java
+          python cohero/scripts/patch_consumable_owners.py \
+            spd_src/core/src/main/java
+          python cohero/scripts/verify_consumable_owners.py \
+            spd_src/core/src/main/java
           python cohero/scripts/patch_wndgame.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
 
