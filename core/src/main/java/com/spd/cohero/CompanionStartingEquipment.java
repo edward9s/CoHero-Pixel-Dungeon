@@ -81,7 +81,7 @@ final class CompanionStartingEquipment {
 
         switch (heroClass) {
             case WARRIOR:
-                companion.belongings.weapon = new WornShortsword().identify();
+                (companion.belongings.weapon = new WornShortsword()).identify();
                 collect(companion, new ThrowingStone().identify());
                 if (companion.belongings.armor != null) {
                     companion.belongings.armor.affixSeal(new BrokenSeal());
@@ -91,28 +91,28 @@ final class CompanionStartingEquipment {
                 break;
 
             case MAGE:
-                companion.belongings.weapon = new MagesStaff(new WandOfMagicMissile()).identify();
+                (companion.belongings.weapon = new MagesStaff(new WandOfMagicMissile())).identify();
                 new ScrollOfUpgrade().identify();
                 new PotionOfLiquidFlame().identify();
                 break;
 
             case ROGUE:
-                companion.belongings.weapon = new Dagger().identify();
-                companion.belongings.artifact = new CloakOfShadows().identify();
+                (companion.belongings.weapon = new Dagger()).identify();
+                (companion.belongings.artifact = new CloakOfShadows()).identify();
                 collect(companion, new ThrowingKnife().identify());
                 new ScrollOfMagicMapping().identify();
                 new PotionOfInvisibility().identify();
                 break;
 
             case HUNTRESS:
-                companion.belongings.weapon = new Gloves().identify();
+                (companion.belongings.weapon = new Gloves()).identify();
                 collect(companion, new SpiritBow().identify());
                 new PotionOfMindVision().identify();
                 new ScrollOfLullaby().identify();
                 break;
 
             case DUELIST:
-                companion.belongings.weapon = new Rapier().identify();
+                (companion.belongings.weapon = new Rapier()).identify();
                 ThrowingSpike spikes = new ThrowingSpike();
                 spikes.quantity(2).identify();
                 collect(companion, spikes);
@@ -121,8 +121,8 @@ final class CompanionStartingEquipment {
                 break;
 
             case CLERIC:
-                companion.belongings.weapon = new Cudgel().identify();
-                companion.belongings.artifact = new HolyTome().identify();
+                (companion.belongings.weapon = new Cudgel()).identify();
+                (companion.belongings.artifact = new HolyTome()).identify();
                 new PotionOfPurity().identify();
                 new ScrollOfRemoveCurse().identify();
                 break;
