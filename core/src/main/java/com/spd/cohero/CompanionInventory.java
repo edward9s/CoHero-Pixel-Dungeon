@@ -158,6 +158,7 @@ public final class CompanionInventory {
         if (previous != null && !addToBackpack(previous)) {
             throw new IllegalStateException("Armor swap could not return previous armor to backpack");
         }
+        owner.updateArmorSprite();
         return true;
     }
 
@@ -214,6 +215,7 @@ public final class CompanionInventory {
         if (!addToBackpack(previous)) {
             throw new IllegalStateException("Backpack capacity changed during armor unequip");
         }
+        owner.updateArmorSprite();
         return true;
     }
 
@@ -274,9 +276,11 @@ public final class CompanionInventory {
         if (backpack.size() > BACKPACK_CAPACITY) {
             throw new IllegalStateException("CoHero save contains too many backpack slots: " + backpack.size());
         }
+        owner.updateArmorSprite();
     }
 
     void rebuildPassiveEffects() {
+        owner.updateArmorSprite();
         rebuildRingBuffs();
         rebuildWandCharging();
     }
