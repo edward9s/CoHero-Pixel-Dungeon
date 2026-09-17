@@ -45,6 +45,13 @@ jobs:
           set -euo pipefail
           cp -a cohero/core/. spd/core/
 
+      - name: Patch CoHero integration seam
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/patch_gamescene.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
