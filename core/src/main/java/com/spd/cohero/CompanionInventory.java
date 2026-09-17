@@ -1,10 +1,12 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
@@ -16,19 +18,21 @@ import java.util.List;
 /**
  * CoHero-owned inventory model.
  *
- * This intentionally does not reuse Hero/Belongings. The companion only supports the item
- * categories that have explicit CoHero semantics: one melee weapon, one armor, two rings and
- * wands. Artifacts, trinkets and consumables are not accepted here.
+ * The companion has a normal 20-slot backpack plus explicit equipment slots. Only weapons,
+ * armor, rings and wands are accepted. Artifacts, trinkets, consumables and bags are rejected.
+ * This intentionally does not reuse Hero/Belongings, whose owner is hard-wired to Hero.
  */
 public final class CompanionInventory {
 
-    public static final int MAX_WANDS = 20;
+    public static final int BACKPACK_CAPACITY = 20;
 
+    private static final int FORMAT_VERSION = 2;
+    private static final String FORMAT = "cohero_inventory_format";
     private static final String WEAPON = "cohero_weapon";
     private static final String ARMOR = "cohero_armor";
     private static final String RING_ONE = "cohero_ring_one";
     private static final String RING_TWO = "cohero_ring_two";
-    private static final String WANDS = "cohero_wands";
+    private static final String BACKPACK = "cohero_backpack";
 
     private final CompanionHero owner;
 
@@ -36,7 +40,7 @@ public final class CompanionInventory {
     private Armor armor;
     private Ring ringOne;
     private Ring ringTwo;
-    private final ArrayList<Wand> wands = new ArrayList<>();
+    private final ArrayList<Item> backpack = new ArrayList<>();
 
     CompanionInventory(CompanionHero owner) {
         if (owner == null) {
@@ -61,101 +65,214 @@ public final class CompanionInventory {
         return ringTwo;
     }
 
-    public List<Wand> wands() {
-        return Collections.unmodifiableList(wands);
+    public List<Item> backpack() {
+        return Collections.unmodifiableList(backpack);
     }
 
-    public boolean hasWandSpace() {
-        return wands.size() < MAX_WANDS;
+    public boolean canAddToBackpack(Item item) {
+        if (!supported(item)) {
+            return false;
+        }
+        if (backpack.contains(item)) {
+            return true;
+        }
+        if (item.stackable) {
+            for (Item existing : backpack) {
+                if (item.isSimilar(existing)) {
+                    return true;
+                }
+            }
+        }
+        return backpack.size() < BACKPACK_CAPACITY;
     }
 
-    public void equipWeapon(MeleeWeapon value) {
+    public boolean addToBackpack(Item item) {
+        if (item == null) {
+            throw new IllegalArgumentException("item must not be null");
+        }
+        if (!supported(item)) {
+            throw new IllegalArgumentException("Unsupported CoHero item: " + item.getClass().getName());
+        }
+        if (backpack.contains(item)) {
+            return true;
+        }
+
+        if (item.stackable) {
+            for (Item existing : backpack) {
+                if (item.isSimilar(existing)) {
+                    existing.merge(item);
+                    return true;
+                }
+            }
+        }
+
+        if (backpack.size() >= BACKPACK_CAPACITY) {
+            return false;
+        }
+
+        backpack.add(item);
+        if (item instanceof Wand) {
+            ((Wand) item).charge(owner);
+        }
+        return true;
+    }
+
+    public Item removeFromBackpack(Item item) {
+        if (item == null || !backpack.remove(item)) {
+            return null;
+        }
+        if (item instanceof Wand) {
+            ((Wand) item).stopCharging();
+        }
+        return item;
+    }
+
+    public boolean equipWeapon(MeleeWeapon value) {
+        if (value == null || !backpack.contains(value)) {
+            throw new IllegalArgumentException("Weapon must be in the CoHero backpack before equipping");
+        }
+        if (weapon != null && cannotUnequip(weapon)) {
+            return false;
+        }
+
+        removeFromBackpack(value);
+        MeleeWeapon previous = weapon;
         weapon = value;
+        if (previous != null && !addToBackpack(previous)) {
+            throw new IllegalStateException("Weapon swap could not return previous weapon to backpack");
+        }
+        return true;
     }
 
-    public void equipArmor(Armor value) {
+    public boolean equipArmor(Armor value) {
+        if (value == null || !backpack.contains(value)) {
+            throw new IllegalArgumentException("Armor must be in the CoHero backpack before equipping");
+        }
+        if (armor != null && cannotUnequip(armor)) {
+            return false;
+        }
+
+        removeFromBackpack(value);
+        Armor previous = armor;
         armor = value;
+        if (previous != null && !addToBackpack(previous)) {
+            throw new IllegalStateException("Armor swap could not return previous armor to backpack");
+        }
+        return true;
     }
 
-    public void equipRingOne(Ring value) {
-        ringOne = value;
+    public boolean equipRing(Ring value, int slot) {
+        if (slot != 1 && slot != 2) {
+            throw new IllegalArgumentException("Ring slot must be 1 or 2");
+        }
+        if (value == null || !backpack.contains(value)) {
+            throw new IllegalArgumentException("Ring must be in the CoHero backpack before equipping");
+        }
+
+        Ring previous = slot == 1 ? ringOne : ringTwo;
+        if (previous != null && cannotUnequip(previous)) {
+            return false;
+        }
+
+        removeFromBackpack(value);
+        if (slot == 1) {
+            ringOne = value;
+        } else {
+            ringTwo = value;
+        }
+        if (previous != null && !addToBackpack(previous)) {
+            throw new IllegalStateException("Ring swap could not return previous ring to backpack");
+        }
         rebuildRingBuffs();
+        return true;
     }
 
-    public void equipRingTwo(Ring value) {
-        ringTwo = value;
-        rebuildRingBuffs();
-    }
-
-    public MeleeWeapon removeWeapon() {
-        MeleeWeapon result = weapon;
+    public boolean unequipWeaponToBackpack() {
+        if (weapon == null) {
+            return true;
+        }
+        if (cannotUnequip(weapon) || !canAddToBackpack(weapon)) {
+            return false;
+        }
+        MeleeWeapon previous = weapon;
         weapon = null;
-        return result;
+        if (!addToBackpack(previous)) {
+            throw new IllegalStateException("Backpack capacity changed during weapon unequip");
+        }
+        return true;
     }
 
-    public Armor removeArmor() {
-        Armor result = armor;
+    public boolean unequipArmorToBackpack() {
+        if (armor == null) {
+            return true;
+        }
+        if (cannotUnequip(armor) || !canAddToBackpack(armor)) {
+            return false;
+        }
+        Armor previous = armor;
         armor = null;
-        return result;
+        if (!addToBackpack(previous)) {
+            throw new IllegalStateException("Backpack capacity changed during armor unequip");
+        }
+        return true;
     }
 
-    public Ring removeRingOne() {
-        Ring result = ringOne;
-        ringOne = null;
+    public boolean unequipRingToBackpack(int slot) {
+        if (slot != 1 && slot != 2) {
+            throw new IllegalArgumentException("Ring slot must be 1 or 2");
+        }
+        Ring previous = slot == 1 ? ringOne : ringTwo;
+        if (previous == null) {
+            return true;
+        }
+        if (cannotUnequip(previous) || !canAddToBackpack(previous)) {
+            return false;
+        }
+
+        if (slot == 1) {
+            ringOne = null;
+        } else {
+            ringTwo = null;
+        }
+        if (!addToBackpack(previous)) {
+            throw new IllegalStateException("Backpack capacity changed during ring unequip");
+        }
         rebuildRingBuffs();
-        return result;
+        return true;
     }
 
-    public Ring removeRingTwo() {
-        Ring result = ringTwo;
-        ringTwo = null;
-        rebuildRingBuffs();
-        return result;
-    }
-
-    public void addWand(Wand wand) {
-        if (wand == null) {
-            throw new IllegalArgumentException("wand must not be null");
-        }
-        if (!hasWandSpace()) {
-            throw new IllegalStateException("CoHero wand inventory is full");
-        }
-        if (wands.contains(wand)) {
-            throw new IllegalStateException("Wand is already in the CoHero inventory");
-        }
-        wands.add(wand);
-        wand.charge(owner);
-    }
-
-    public Wand removeWand(int index) {
-        Wand wand = wands.remove(index);
-        wand.stopCharging();
-        return wand;
+    public boolean cannotUnequip(Item item) {
+        return item != null && item.cursed && owner.buff(MagicImmune.class) == null;
     }
 
     void storeInBundle(Bundle bundle) {
+        bundle.put(FORMAT, FORMAT_VERSION);
         bundle.put(WEAPON, weapon);
         bundle.put(ARMOR, armor);
         bundle.put(RING_ONE, ringOne);
         bundle.put(RING_TWO, ringTwo);
-        bundle.put(WANDS, wands);
+        bundle.put(BACKPACK, backpack);
     }
 
     void restoreFromBundle(Bundle bundle) {
+        if (!bundle.contains(FORMAT) || bundle.getInt(FORMAT) != FORMAT_VERSION) {
+            throw new IllegalStateException("Unsupported CoHero inventory save format");
+        }
+
         weapon = (MeleeWeapon) bundle.get(WEAPON);
         armor = (Armor) bundle.get(ARMOR);
         ringOne = (Ring) bundle.get(RING_ONE);
         ringTwo = (Ring) bundle.get(RING_TWO);
 
-        wands.clear();
-        for (Bundlable value : bundle.getCollection(WANDS)) {
-            if (!(value instanceof Wand)) {
-                throw new IllegalStateException("CoHero save contains a non-wand in wand inventory");
+        backpack.clear();
+        for (Bundlable value : bundle.getCollection(BACKPACK)) {
+            if (!(value instanceof Item) || !supported((Item) value)) {
+                throw new IllegalStateException("CoHero save contains an unsupported backpack item");
             }
-            wands.add((Wand) value);
+            backpack.add((Item) value);
         }
-        if (wands.size() > MAX_WANDS) {
-            throw new IllegalStateException("CoHero save contains too many wands: " + wands.size());
+        if (backpack.size() > BACKPACK_CAPACITY) {
+            throw new IllegalStateException("CoHero save contains too many backpack slots: " + backpack.size());
         }
     }
 
@@ -165,8 +282,6 @@ public final class CompanionInventory {
     }
 
     private void rebuildRingBuffs() {
-        // Ring.activate(Char) is already Char-generic. Rebuilding instead of reaching into the
-        // Ring's protected buff field also makes save/load and same-type double rings deterministic.
         ArrayList<Buff> existing = new ArrayList<>(owner.buffs());
         for (Buff buff : existing) {
             if (buff instanceof Ring.RingBuff) {
@@ -190,14 +305,17 @@ public final class CompanionInventory {
             }
         }
 
-        for (Wand wand : wands) {
-            wand.stopCharging();
-            wand.charge(owner);
+        for (Item item : backpack) {
+            if (item instanceof Wand) {
+                Wand wand = (Wand) item;
+                wand.stopCharging();
+                wand.charge(owner);
+            }
         }
     }
 
     static boolean supported(Item item) {
-        return item instanceof MeleeWeapon
+        return item instanceof Weapon
                 || item instanceof Armor
                 || item instanceof Ring
                 || item instanceof Wand;
