@@ -10,6 +10,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
+import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
@@ -183,6 +184,12 @@ public class CompanionHero extends DirectableAlly {
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
 
+        // If the player is already waiting on the exit, reaching an adjacent rally cell should
+        // immediately use the player's normal transition flow.
+        if (CoHero.tryAutoExit(this)) {
+            return true;
+        }
+
         if (paralysed > 0) {
             spend(TICK);
             return true;
@@ -197,6 +204,7 @@ public class CompanionHero extends DirectableAlly {
                     spend(1 / speed());
                     Dungeon.level.updateFieldOfView(this, fieldOfView);
                     revealVisibleCells();
+                    CoHero.tryAutoExit(this);
                     return moveSprite(oldPos, pos);
                 }
             }
@@ -208,11 +216,19 @@ public class CompanionHero extends DirectableAlly {
         }
 
         int exit = Dungeon.level.exit();
-        if (isKnown(exit)) {
-            explorationTarget = exit;
+        LevelTransition exitTransition = isKnown(exit) ? Dungeon.level.getTransition(exit) : null;
+        if (exitTransition != null && exitTransition.type == LevelTransition.Type.REGULAR_EXIT) {
+            if (CoHero.isAdjacentToTransition(pos, exitTransition)) {
+                explorationTarget = pos;
+                spend(TICK);
+                return true;
+            }
+
+            explorationTarget = chooseExitWaitingCell(exitTransition);
         } else if (explorationTarget == -1
                 || explorationTarget == pos
                 || !Dungeon.level.passable[explorationTarget]
+                || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
                 || !isSleepSafe(explorationTarget)) {
             explorationTarget = chooseExplorationTarget();
         }
@@ -223,10 +239,13 @@ public class CompanionHero extends DirectableAlly {
 
             Dungeon.level.updateFieldOfView(this, fieldOfView);
             revealVisibleCells();
+            CoHero.tryAutoExit(this);
             return moveSprite(oldPos, pos);
         }
 
-        explorationTarget = chooseExplorationTarget();
+        explorationTarget = exitTransition != null
+                ? chooseExitWaitingCell(exitTransition)
+                : chooseExplorationTarget();
         spend(TICK);
         return true;
     }
@@ -324,10 +343,40 @@ public class CompanionHero extends DirectableAlly {
         return true;
     }
 
+    private int chooseExitWaitingCell(LevelTransition transition) {
+        int bestCell = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (!Dungeon.level.passable[cell]
+                    || transition.inside(cell)
+                    || !CoHero.isAdjacentToTransition(cell, transition)
+                    || !isSleepSafe(cell)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != this) {
+                continue;
+            }
+
+            int distance = Dungeon.level.distance(pos, cell);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestCell = cell;
+            }
+        }
+
+        return bestCell;
+    }
+
     private int chooseExplorationTarget() {
         int exit = Dungeon.level.exit();
         if (isKnown(exit)) {
-            return exit;
+            LevelTransition transition = Dungeon.level.getTransition(exit);
+            if (transition != null && transition.type == LevelTransition.Type.REGULAR_EXIT) {
+                return chooseExitWaitingCell(transition);
+            }
         }
 
         ArrayList<Integer> unknown = new ArrayList<>();
