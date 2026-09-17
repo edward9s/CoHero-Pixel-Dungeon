@@ -7,6 +7,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
+import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
@@ -20,14 +22,28 @@ import java.util.ArrayList;
 public class CompanionHero extends DirectableAlly {
 
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
+    private static final String INVENTORY = "cohero_inventory";
 
     private int explorationTarget = -1;
+    private final CompanionInventory inventory = new CompanionInventory(this);
 
     {
         spriteClass = CompanionHeroSprite.class;
         HT = HP = 20;
         defenseSkill = 5;
         attacksAutomatically = false;
+    }
+
+    public CompanionInventory inventory() {
+        return inventory;
+    }
+
+    public MeleeWeapon weapon() {
+        return inventory.weapon();
+    }
+
+    public Armor armor() {
+        return inventory.armor();
     }
 
     @Override
@@ -40,6 +56,10 @@ public class CompanionHero extends DirectableAlly {
     public void storeInBundle(Bundle bundle) {
         super.storeInBundle(bundle);
         bundle.put(EXPLORATION_TARGET, explorationTarget);
+
+        Bundle inventoryBundle = new Bundle();
+        inventory.storeInBundle(inventoryBundle);
+        bundle.put(INVENTORY, inventoryBundle);
     }
 
     @Override
@@ -48,6 +68,10 @@ public class CompanionHero extends DirectableAlly {
         explorationTarget = bundle.contains(EXPLORATION_TARGET)
                 ? bundle.getInt(EXPLORATION_TARGET)
                 : -1;
+
+        if (bundle.contains(INVENTORY)) {
+            inventory.restoreFromBundle(bundle.getBundle(INVENTORY));
+        }
     }
 
     void enterLevel(int cell) {
@@ -67,6 +91,75 @@ public class CompanionHero extends DirectableAlly {
         movingToDefendPos = false;
         state = WANDERING;
         timeToNow();
+
+        // Recreate item-owned buffs against this live Char after save restoration / floor transfer.
+        inventory.rebuildPassiveEffects();
+    }
+
+    @Override
+    protected boolean canAttack(Char enemy) {
+        return weapon() != null && (super.canAttack(enemy) || weapon().canReach(this, enemy.pos));
+    }
+
+    @Override
+    public int attackSkill(Char target) {
+        int accuracy = super.attackSkill(target);
+        if (weapon() != null) {
+            accuracy = Math.round(accuracy * weapon().accuracyFactor(this, target));
+        }
+        return accuracy;
+    }
+
+    @Override
+    public int damageRoll() {
+        return weapon() == null ? super.damageRoll() : weapon().damageRoll(this);
+    }
+
+    @Override
+    public float attackDelay() {
+        float delay = super.attackDelay();
+        if (weapon() != null) {
+            delay *= weapon().delayFactor(this);
+        }
+        return delay;
+    }
+
+    @Override
+    public int attackProc(Char enemy, int damage) {
+        damage = super.attackProc(enemy, damage);
+        if (weapon() != null) {
+            damage = weapon().proc(this, enemy, damage);
+        }
+        return damage;
+    }
+
+    @Override
+    public int defenseSkill(Char enemy) {
+        int defense = super.defenseSkill(enemy);
+        if (defense != 0 && armor() != null) {
+            defense = Math.round(armor().evasionFactor(this, defense));
+        }
+        return defense;
+    }
+
+    @Override
+    public int drRoll() {
+        int dr = super.drRoll();
+        if (armor() != null) {
+            dr += Random.NormalIntRange(armor().DRMin(), armor().DRMax());
+        }
+        if (weapon() != null) {
+            dr += Random.NormalIntRange(0, weapon().defenseFactor(this));
+        }
+        return dr;
+    }
+
+    @Override
+    public int defenseProc(Char enemy, int damage) {
+        if (armor() != null) {
+            damage = armor().proc(enemy, this, damage);
+        }
+        return super.defenseProc(enemy, damage);
     }
 
     @Override
@@ -95,7 +188,8 @@ public class CompanionHero extends DirectableAlly {
                 }
             }
 
-            // With no combat capability yet, never deliberately walk closer to a visible awake enemy.
+            // Combat AI is intentionally still separate from inventory support. Until it is added,
+            // never deliberately walk closer to a visible awake enemy.
             spend(TICK);
             return true;
         }
