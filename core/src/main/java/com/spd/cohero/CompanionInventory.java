@@ -18,15 +18,16 @@ import java.util.List;
 /**
  * CoHero-owned inventory model.
  *
- * The companion has a normal 20-slot backpack plus explicit equipment slots. Only weapons,
- * armor, rings and wands are accepted. Artifacts, trinkets, consumables and bags are rejected.
+ * The companion has a normal 20-slot backpack plus explicit equipment slots. Supported combat
+ * equipment is weapon, armor, rings and wands. A small fail-closed set of consumables is also
+ * accepted through CompanionItemUse. Artifacts, trinkets, bags and unknown consumables are rejected.
  * This intentionally does not reuse Hero/Belongings, whose owner is hard-wired to Hero.
  */
 public final class CompanionInventory {
 
     public static final int BACKPACK_CAPACITY = 20;
 
-    private static final int FORMAT_VERSION = 2;
+    private static final int FORMAT_VERSION = 3;
     private static final String FORMAT = "cohero_inventory_format";
     private static final String WEAPON = "cohero_weapon";
     private static final String ARMOR = "cohero_armor";
@@ -67,6 +68,10 @@ public final class CompanionInventory {
 
     public List<Item> backpack() {
         return Collections.unmodifiableList(backpack);
+    }
+
+    boolean containsInBackpack(Item item) {
+        return item != null && backpack.contains(item);
     }
 
     public boolean canAddToBackpack(Item item) {
@@ -125,6 +130,27 @@ public final class CompanionInventory {
             ((Wand) item).stopCharging();
         }
         return item;
+    }
+
+    void consumeOne(Item item) {
+        if (!containsInBackpack(item)) {
+            throw new IllegalArgumentException("Item must be in the CoHero backpack before consumption");
+        }
+        if (!CompanionItemUse.supported(item)) {
+            throw new IllegalArgumentException("Item is not a supported CoHero consumable: "
+                    + item.getClass().getName());
+        }
+        if (item.quantity() <= 0) {
+            throw new IllegalStateException("CoHero consumable has invalid quantity: " + item.quantity());
+        }
+
+        if (item.quantity() == 1) {
+            if (removeFromBackpack(item) == null) {
+                throw new IllegalStateException("CoHero consumable disappeared during consumption");
+            }
+        } else {
+            item.quantity(item.quantity() - 1);
+        }
     }
 
     public boolean equipWeapon(MeleeWeapon value) {
@@ -323,6 +349,7 @@ public final class CompanionInventory {
         return item instanceof Weapon
                 || item instanceof Armor
                 || item instanceof Ring
-                || item instanceof Wand;
+                || item instanceof Wand
+                || CompanionItemUse.supported(item);
     }
 }
