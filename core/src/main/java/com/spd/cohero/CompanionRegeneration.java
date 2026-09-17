@@ -1,6 +1,7 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Regeneration;
 import com.watabou.utils.Bundle;
 
 /**
@@ -14,6 +15,10 @@ public final class CompanionRegeneration extends Buff {
 
     private float partialRegen;
 
+    {
+        actPriority = HERO_PRIO - 1;
+    }
+
     @Override
     public boolean act() {
         if (!(target instanceof CompanionHero)) {
@@ -25,7 +30,7 @@ public final class CompanionRegeneration extends Buff {
             return true;
         }
 
-        if (target.HP < target.HT) {
+        if (Regeneration.regenOn() && target.HP < target.HT) {
             partialRegen += 1f / REGENERATION_DELAY;
             if (partialRegen >= 1f) {
                 int heal = (int) partialRegen;
