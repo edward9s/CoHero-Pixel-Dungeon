@@ -74,7 +74,7 @@ jobs:
           chmod +x ./gradlew
           ./gradlew :android:assembleRelease :desktop:release
 
-      - name: Prepare artifacts
+      - name: Determine artifact names
         shell: bash
         run: |
           set -euo pipefail
@@ -86,22 +86,44 @@ jobs:
           test -n "$JAR" -a -f "$JAR"
 
           BASE_NAME="CoHero-SPD-${{ steps.upstream.outputs.tag }}"
-          mkdir -p out
-          cp "$APK" "out/${BASE_NAME}.apk"
-          cp "$JAR" "out/${BASE_NAME}.jar"
 
+          echo "SOURCE_JAR=$JAR" >> "$GITHUB_ENV"
           echo "BASE_NAME=$BASE_NAME" >> "$GITHUB_ENV"
+          echo "OUTPUT_APK=${BASE_NAME}.apk" >> "$GITHUB_ENV"
+          echo "OUTPUT_JAR=${BASE_NAME}.jar" >> "$GITHUB_ENV"
 
-      - name: Upload APK
+      - name: Install Android build tools for signer
+        shell: bash
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
+
+      - name: Sign Android APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign
+        with:
+          releaseDirectory: spd/android/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cp "${{ steps.sign.outputs.signedReleaseFile }}" "out/$OUTPUT_APK"
+          cp "$SOURCE_JAR" "out/$OUTPUT_JAR"
+
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BASE_NAME }}-APK
-          path: out/${{ env.BASE_NAME }}.apk
+          path: out/${{ env.OUTPUT_APK }}
           if-no-files-found: error
 
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BASE_NAME }}-JAR
-          path: out/${{ env.BASE_NAME }}.jar
+          path: out/${{ env.OUTPUT_JAR }}
           if-no-files-found: error
