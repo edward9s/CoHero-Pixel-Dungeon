@@ -91,6 +91,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python cohero/scripts/patch_mob_exp.py \
+            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java
           python cohero/scripts/patch_wndgame.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
           python cohero/scripts/patch_smm_longpress.py \
