@@ -52,16 +52,29 @@ jobs:
           python cohero/scripts/patch_app_package.py spd/build.gradle
           python cohero/scripts/patch_gamescene.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java
+          python cohero/scripts/patch_hero_sprite.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/sprites/HeroSprite.java
           python cohero/scripts/patch_hero_transition.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
           python cohero/scripts/patch_hero_select.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/HeroSelectScene.java
           python cohero/scripts/patch_dungeon_save.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/Dungeon.java
-          python cohero/scripts/patch_level_mobs.py \
+          python cohero/scripts/patch_item_context.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/Item.java
+          python cohero/scripts/patch_wndbag_owner.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndBag.java
+          python cohero/scripts/patch_wnduseitem_owner.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndUseItem.java
+          python cohero/scripts/patch_level_companion_chasm.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java
+          python cohero/scripts/patch_mob_companion_target.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java
           python cohero/scripts/patch_mob_exp.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java
+          python cohero/scripts/patch_shared_strength.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/potions/PotionOfStrength.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/potions/elixirs/ElixirOfMight.java
           python cohero/scripts/patch_wndgame.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
 
