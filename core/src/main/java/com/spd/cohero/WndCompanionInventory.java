@@ -16,6 +16,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ItemButton;
+import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
@@ -57,9 +58,18 @@ public class WndCompanionInventory extends Window {
         addEquipmentButton(2, equipmentY, SlotType.RING_ONE);
         addEquipmentButton(3, equipmentY, SlotType.RING_TWO);
 
+        RedButton addItem = new RedButton(addItemText()) {
+            @Override
+            protected void onClick() {
+                selectItemFromHero();
+            }
+        };
+        addItem.setRect(0, equipmentY + SLOT + 4, WIDTH, 16);
+        add(addItem);
+
         RenderedTextBlock backpackLabel = PixelScene.renderTextBlock(backpackText(), 7);
         backpackLabel.maxWidth(WIDTH);
-        backpackLabel.setPos(0, equipmentY + SLOT + 5);
+        backpackLabel.setPos(0, addItem.bottom() + 3);
         add(backpackLabel);
 
         float backpackY = backpackLabel.bottom() + 2;
@@ -158,11 +168,6 @@ public class WndCompanionInventory extends Window {
     }
 
     private void selectItemFromHero() {
-        if (inventory.backpack().size() >= CompanionInventory.BACKPACK_CAPACITY) {
-            GLog.w(backpackFullText());
-            return;
-        }
-
         GameScene.selectItem(new WndBag.ItemSelector() {
             @Override
             public String textPrompt() {
@@ -371,11 +376,17 @@ public class WndCompanionInventory extends Window {
         return "Equipment: weapon / armor / ring / ring";
     }
 
+    private String addItemText() {
+        if (Messages.lang() == Languages.CHI_TRAD) return "從玩家背包加入物品";
+        if (Messages.lang() == Languages.CHI_SMPL) return "从玩家背包加入物品";
+        return "Add item from hero";
+    }
+
     private String backpackText() {
         String count = inventory.backpack().size() + "/" + CompanionInventory.BACKPACK_CAPACITY;
-        if (Messages.lang() == Languages.CHI_TRAD) return "背包 " + count + "（點空格加入物品）";
-        if (Messages.lang() == Languages.CHI_SMPL) return "背包 " + count + "（点空格加入物品）";
-        return "Backpack " + count + " (tap an empty slot to add)";
+        if (Messages.lang() == Languages.CHI_TRAD) return "背包 " + count;
+        if (Messages.lang() == Languages.CHI_SMPL) return "背包 " + count;
+        return "Backpack " + count;
     }
 
     private String selectBackpackItemPrompt() {
