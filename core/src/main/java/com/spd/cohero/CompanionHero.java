@@ -30,6 +30,7 @@ public class CompanionHero extends Hero {
 
     public CompanionHero() {
         super();
+        alignment = Alignment.ALLY;
         damageInterrupt = false;
     }
 
