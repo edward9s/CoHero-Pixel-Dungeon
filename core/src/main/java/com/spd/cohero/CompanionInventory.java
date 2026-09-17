@@ -2,11 +2,13 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
@@ -167,6 +169,7 @@ public final class CompanionInventory {
         if (previous != null && !addToBackpack(previous)) {
             throw new IllegalStateException("Weapon swap could not return previous weapon to backpack");
         }
+        rebuildWandCharging();
         return true;
     }
 
@@ -184,7 +187,7 @@ public final class CompanionInventory {
         if (previous != null && !addToBackpack(previous)) {
             throw new IllegalStateException("Armor swap could not return previous armor to backpack");
         }
-        owner.updateArmorSprite();
+        rebuildArmorEffects();
         return true;
     }
 
@@ -226,6 +229,7 @@ public final class CompanionInventory {
         if (!addToBackpack(previous)) {
             throw new IllegalStateException("Backpack capacity changed during weapon unequip");
         }
+        rebuildWandCharging();
         return true;
     }
 
@@ -241,7 +245,7 @@ public final class CompanionInventory {
         if (!addToBackpack(previous)) {
             throw new IllegalStateException("Backpack capacity changed during armor unequip");
         }
-        owner.updateArmorSprite();
+        rebuildArmorEffects();
         return true;
     }
 
@@ -306,9 +310,17 @@ public final class CompanionInventory {
     }
 
     void rebuildPassiveEffects() {
-        owner.updateArmorSprite();
+        rebuildArmorEffects();
         rebuildRingBuffs();
         rebuildWandCharging();
+    }
+
+    private void rebuildArmorEffects() {
+        Buff.detach(owner, BrokenSeal.WarriorShield.class);
+        if (armor != null && armor.checkSeal() != null) {
+            armor.activate(owner);
+        }
+        owner.updateArmorSprite();
     }
 
     private void rebuildRingBuffs() {
@@ -342,6 +354,9 @@ public final class CompanionInventory {
                 wand.stopCharging();
                 wand.charge(owner);
             }
+        }
+        if (weapon instanceof MagesStaff) {
+            ((MagesStaff) weapon).applyWandChargeBuff(owner);
         }
     }
 
