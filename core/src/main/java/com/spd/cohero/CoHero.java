@@ -190,12 +190,49 @@ public final class CoHero {
         CompanionHero companion = findCompanion();
         boolean ready = companion != null
                 && companion.isAlive()
-                && transition.inside(companion.pos);
+                && isAdjacentToTransition(companion.pos, transition);
 
         if (!ready) {
             GLog.i(CoHeroMessages.get("exit_required"));
         }
         return ready;
+    }
+
+    static boolean tryAutoExit(CompanionHero companion) {
+        if (companion == null
+                || !companion.isAlive()
+                || Dungeon.hero == null
+                || !Dungeon.hero.isAlive()
+                || Dungeon.level == null
+                || Dungeon.level.locked) {
+            return false;
+        }
+
+        LevelTransition transition = Dungeon.level.getTransition(Dungeon.hero.pos);
+        if (transition == null
+                || transition.type != LevelTransition.Type.REGULAR_EXIT
+                || !transition.inside(Dungeon.hero.pos)
+                || !isAdjacentToTransition(companion.pos, transition)) {
+            return false;
+        }
+
+        return Dungeon.level.activateTransition(Dungeon.hero, transition);
+    }
+
+    static boolean isAdjacentToTransition(int cell, LevelTransition transition) {
+        if (transition == null || transition.inside(cell)) {
+            return false;
+        }
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent >= 0
+                    && adjacent < Dungeon.level.length()
+                    && transition.inside(adjacent)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String companionClassKey() {
