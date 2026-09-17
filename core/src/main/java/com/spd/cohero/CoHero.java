@@ -377,6 +377,26 @@ public final class CoHero {
         return context != null ? context : Dungeon.hero;
     }
 
+    /**
+     * Stock item actions for the owning Hero, with only direct map-target combat control removed
+     * from the autonomous companion. Potions, scrolls, equipment and non-targeted item actions stay
+     * native. Combat targeting remains the AI controller's job.
+     */
+    public static ArrayList<String> itemActions(Item item, Hero owner) {
+        if (item == null || owner == null) {
+            throw new IllegalArgumentException("item action arguments must not be null");
+        }
+
+        ArrayList<String> actions = new ArrayList<>(item.actions(owner));
+        if (owner instanceof CompanionHero) {
+            actions.remove(Item.AC_THROW);
+            if (item.usesTargeting && item.defaultAction() != null) {
+                actions.remove(item.defaultAction());
+            }
+        }
+        return actions;
+    }
+
     public static void appendTransferAction(Item item, Hero owner, ArrayList<String> actions) {
         if (item == null || owner == null || actions == null) {
             throw new IllegalArgumentException("transfer action arguments must not be null");
