@@ -8,9 +8,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
-import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
@@ -46,10 +45,24 @@ public class CompanionHero extends DirectableAlly {
         return inventory.armor();
     }
 
+    int armorTier() {
+        Armor armor = armor();
+        if (armor instanceof ClassArmor) {
+            return 6;
+        }
+        return armor == null ? 0 : armor.tier;
+    }
+
+    void updateArmorSprite() {
+        if (sprite instanceof CompanionHeroSprite) {
+            ((CompanionHeroSprite) sprite).updateArmor();
+        }
+    }
+
     @Override
     public String name() {
         HeroClass heroClass = CoHero.companionClass();
-        return heroClass == null ? "companion hero" : heroClass.title();
+        return heroClass == null ? CoHeroMessages.get("companion.name") : heroClass.title();
     }
 
     @Override
@@ -228,24 +241,10 @@ public class CompanionHero extends DirectableAlly {
     }
 
     private String companionDeathMessage(Object cause) {
-        String killer = null;
         if (cause instanceof Char && cause != this) {
-            killer = ((Char) cause).name();
+            return CoHeroMessages.get("companion.killed_by", ((Char) cause).name());
         }
-
-        if (Messages.lang() == Languages.CHI_TRAD) {
-            return killer == null
-                    ? "你的夥伴英雄死亡了。"
-                    : killer + "殺死了你的夥伴英雄。";
-        }
-        if (Messages.lang() == Languages.CHI_SMPL) {
-            return killer == null
-                    ? "你的伙伴英雄死亡了。"
-                    : killer + "杀死了你的伙伴英雄。";
-        }
-        return killer == null
-                ? "Your companion hero has died."
-                : "Your companion hero was killed by " + killer + ".";
+        return CoHeroMessages.get("companion.died");
     }
 
     private void revealVisibleCells() {
