@@ -1,6 +1,5 @@
 package com.spd.cohero;
 
-import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
@@ -17,9 +16,9 @@ import java.util.List;
 /**
  * CoHero-owned inventory model.
  *
- * This intentionally does not reuse Hero/Belongings.  The companion only supports the item
+ * This intentionally does not reuse Hero/Belongings. The companion only supports the item
  * categories that have explicit CoHero semantics: one melee weapon, one armor, two rings and
- * wands.  Artifacts, trinkets and consumables are not accepted here.
+ * wands. Artifacts, trinkets and consumables are not accepted here.
  */
 public final class CompanionInventory {
 
@@ -158,8 +157,6 @@ public final class CompanionInventory {
         if (wands.size() > MAX_WANDS) {
             throw new IllegalStateException("CoHero save contains too many wands: " + wands.size());
         }
-
-        rebuildPassiveEffects();
     }
 
     void rebuildPassiveEffects() {
@@ -168,7 +165,7 @@ public final class CompanionInventory {
     }
 
     private void rebuildRingBuffs() {
-        // Ring.activate(Char) is already Char-generic.  Rebuilding instead of reaching into the
+        // Ring.activate(Char) is already Char-generic. Rebuilding instead of reaching into the
         // Ring's protected buff field also makes save/load and same-type double rings deterministic.
         ArrayList<Buff> existing = new ArrayList<>(owner.buffs());
         for (Buff buff : existing) {
