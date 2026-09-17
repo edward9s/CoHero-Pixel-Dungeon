@@ -6,6 +6,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
+import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
+import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
 import com.watabou.noosa.Game;
@@ -63,7 +65,19 @@ public final class CoHero {
     }
 
     public static String heroSelectionTitle(String stockTitle) {
-        return stockTitle + (selectingCompanion ? " 2/2" : " 1/2");
+        if (Messages.lang() == Languages.CHI_TRAD) {
+            return selectingCompanion
+                    ? "選擇你的夥伴英雄 — 2/2"
+                    : "選擇你的英雄 — 1/2";
+        }
+        if (Messages.lang() == Languages.CHI_SMPL) {
+            return selectingCompanion
+                    ? "选择你的伙伴英雄 — 2/2"
+                    : "选择你的英雄 — 1/2";
+        }
+        return selectingCompanion
+                ? "Choose your companion hero — 2/2"
+                : "Choose your hero — 1/2";
     }
 
     public static HeroClass companionClass() {
