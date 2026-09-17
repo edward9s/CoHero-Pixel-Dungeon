@@ -299,6 +299,7 @@ public final class CompanionInventory {
         if (ringTwo != null) {
             ringTwo.activate(owner);
         }
+        owner.updateHT(false);
     }
 
     private void rebuildWandCharging() {
