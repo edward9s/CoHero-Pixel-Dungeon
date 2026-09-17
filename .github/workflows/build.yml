@@ -60,6 +60,8 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/Dungeon.java
           python cohero/scripts/patch_level_mobs.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java
+          python cohero/scripts/patch_wndgame.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
 
       - name: Patch CoHero messages
         shell: bash
@@ -130,12 +132,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BASE_NAME }}-APK
-          path: out/${{ env.OUTPUT_APK }}
+          path: out/${{ env.OUTPUT_APK }}.apk
           if-no-files-found: error
 
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BASE_NAME }}-JAR
-          path: out/${{ env.OUTPUT_JAR }}
+          path: out/${{ env.OUTPUT_JAR }}.jar
           if-no-files-found: error
