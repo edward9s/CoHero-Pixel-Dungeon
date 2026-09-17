@@ -3,6 +3,7 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.watabou.utils.PathFinder;
 
@@ -28,10 +29,8 @@ public final class CoHero {
             return;
         }
 
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob instanceof CompanionHero) {
-                return;
-            }
+        if (findCompanion() != null) {
+            return;
         }
 
         int spawn = findSpawnCell();
@@ -43,6 +42,33 @@ public final class CoHero {
         companion.pos = spawn;
         GameScene.add(companion);
         Dungeon.level.occupyCell(companion);
+    }
+
+    /**
+     * Regular downward progression is unavailable until the autonomous
+     * companion is physically inside the same exit transition.
+     *
+     * Other transition types retain upstream behavior.
+     */
+    public static boolean canUseTransition(LevelTransition transition) {
+        if (transition == null || transition.type != LevelTransition.Type.REGULAR_EXIT) {
+            return true;
+        }
+
+        CompanionHero companion = findCompanion();
+        return companion != null && companion.isAlive() && transition.inside(companion.pos);
+    }
+
+    private static CompanionHero findCompanion() {
+        if (Dungeon.level == null) {
+            return null;
+        }
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob instanceof CompanionHero) {
+                return (CompanionHero) mob;
+            }
+        }
+        return null;
     }
 
     private static int findSpawnCell() {
