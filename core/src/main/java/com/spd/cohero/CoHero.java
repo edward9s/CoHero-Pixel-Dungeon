@@ -173,7 +173,9 @@ public final class CoHero {
             throw new IllegalStateException("CoHero run has no selected companion class");
         }
 
-        if (findCompanion() != null) {
+        CompanionHero existing = findCompanion();
+        if (existing != null) {
+            CompanionLongPress.ensureInstalled();
             return;
         }
 
@@ -189,6 +191,7 @@ public final class CoHero {
         companion.enterLevel(spawn);
         GameScene.add(companion);
         Dungeon.level.occupyCell(companion);
+        CompanionLongPress.ensureInstalled();
     }
 
     public static boolean canUseTransition(LevelTransition transition) {
@@ -221,7 +224,7 @@ public final class CoHero {
         return COMPANION_CLASS_KEY_PREFIX + GamesInProgress.curSlot;
     }
 
-    private static CompanionHero findCompanion() {
+    static CompanionHero findCompanion() {
         if (Dungeon.level == null) {
             return null;
         }
