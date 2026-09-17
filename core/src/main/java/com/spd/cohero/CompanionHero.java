@@ -274,6 +274,14 @@ public class CompanionHero extends DirectableAlly {
     }
 
     @Override
+    public int glyphLevel(Class<? extends Armor.Glyph> cls) {
+        if (armor() != null && armor().hasGlyph(cls, this)) {
+            return Math.max(super.glyphLevel(cls), armor().buffedLvl());
+        }
+        return super.glyphLevel(cls);
+    }
+
+    @Override
     public float speed() {
         float speed = super.speed();
         int encumbrance = armorEncumbrance();
