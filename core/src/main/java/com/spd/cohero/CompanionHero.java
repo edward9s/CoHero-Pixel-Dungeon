@@ -4,25 +4,16 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
-import com.shatteredpixel.shatteredpixeldungeon.sprites.GhostSprite;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
 
-/**
- * Autonomous second hero prototype.
- *
- * This first playable version deliberately focuses on movement and failure:
- * the companion explores on its own, heads to a discovered exit, reveals the
- * cells it sees, and ends the run if it dies. Inventory-driven combat is added
- * later rather than being mixed into the movement prototype.
- */
 public class CompanionHero extends DirectableAlly {
 
     private int explorationTarget = -1;
 
     {
-        spriteClass = GhostSprite.class;
+        spriteClass = CompanionHeroSprite.class;
         HT = HP = 20;
         defenseSkill = 5;
         attacksAutomatically = false;
@@ -54,7 +45,6 @@ public class CompanionHero extends DirectableAlly {
         if (explorationTarget != -1 && getCloser(explorationTarget)) {
             spend(1 / speed());
 
-            // getCloser() moved us after the first FOV calculation.
             Dungeon.level.updateFieldOfView(this, fieldOfView);
             revealVisibleCells();
             return moveSprite(oldPos, pos);
@@ -69,8 +59,6 @@ public class CompanionHero extends DirectableAlly {
     public void die(Object cause) {
         super.die(cause);
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
-            // Companion death is an unconditional run loss; bypass Ankh-style
-            // resurrection because the dead character is the companion.
             Hero.reallyDie(CompanionHero.class);
         }
     }
