@@ -1,5 +1,6 @@
 package com.spd.cohero;
 
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.HeroSprite;
@@ -27,9 +28,34 @@ public class CompanionHeroSprite extends CharSprite {
         }
 
         texture(heroClass.spritesheet());
+        updateArmor(0);
+    }
 
-        TextureFilm film = new TextureFilm(
-                HeroSprite.tiers(), 0, FRAME_WIDTH, FRAME_HEIGHT);
+    @Override
+    public void link(Char ch) {
+        if (!(ch instanceof CompanionHero)) {
+            throw new IllegalArgumentException("CompanionHeroSprite can only link to CompanionHero");
+        }
+        super.link(ch);
+        updateArmor();
+    }
+
+    public void updateArmor() {
+        if (ch == null) {
+            return;
+        }
+        if (!(ch instanceof CompanionHero)) {
+            throw new IllegalStateException("CompanionHeroSprite is linked to a non-companion Char");
+        }
+        updateArmor(((CompanionHero) ch).armorTier());
+    }
+
+    private void updateArmor(int tier) {
+        if (tier < 0 || tier > 6) {
+            throw new IllegalArgumentException("Unsupported companion armor tier: " + tier);
+        }
+
+        TextureFilm film = new TextureFilm(HeroSprite.tiers(), tier, FRAME_WIDTH, FRAME_HEIGHT);
 
         idle = new Animation(1, true);
         idle.frames(film, 0, 0, 0, 1, 0, 0, 1, 1);
