@@ -1,9 +1,13 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
+import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
+import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
@@ -59,8 +63,30 @@ public class CompanionHero extends DirectableAlly {
     public void die(Object cause) {
         super.die(cause);
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
-            Hero.reallyDie(CompanionHero.class);
+            GLog.n(companionDeathMessage(cause));
+            Hero.reallyDie(cause);
         }
+    }
+
+    private String companionDeathMessage(Object cause) {
+        String killer = null;
+        if (cause instanceof Char && cause != this) {
+            killer = ((Char) cause).name();
+        }
+
+        if (Messages.lang() == Languages.CHI_TRAD) {
+            return killer == null
+                    ? "你的夥伴英雄死亡了。"
+                    : killer + "殺死了你的夥伴英雄。";
+        }
+        if (Messages.lang() == Languages.CHI_SMPL) {
+            return killer == null
+                    ? "你的伙伴英雄死亡了。"
+                    : killer + "杀死了你的伙伴英雄。";
+        }
+        return killer == null
+                ? "Your companion hero has died."
+                : "Your companion hero was killed by " + killer + ".";
     }
 
     private void revealVisibleCells() {
