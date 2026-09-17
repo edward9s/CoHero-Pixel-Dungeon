@@ -111,6 +111,10 @@ public class CompanionHero extends DirectableAlly {
         HP = Math.min(HP, HT);
     }
 
+    void spendItemUseTime() {
+        spend(TICK);
+    }
+
     int armorTier() {
         Armor armor = armor();
         if (armor instanceof ClassArmor) {
