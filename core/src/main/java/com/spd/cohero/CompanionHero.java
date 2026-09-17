@@ -3,16 +3,20 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.watabou.utils.Bundle;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
 
 public class CompanionHero extends DirectableAlly {
+
+    private static final String EXPLORATION_TARGET = "cohero_exploration_target";
 
     private int explorationTarget = -1;
 
@@ -21,6 +25,45 @@ public class CompanionHero extends DirectableAlly {
         HT = HP = 20;
         defenseSkill = 5;
         attacksAutomatically = false;
+    }
+
+    @Override
+    public String name() {
+        HeroClass heroClass = CoHero.companionClass();
+        return heroClass == null ? "companion hero" : heroClass.title();
+    }
+
+    @Override
+    public void storeInBundle(Bundle bundle) {
+        super.storeInBundle(bundle);
+        bundle.put(EXPLORATION_TARGET, explorationTarget);
+    }
+
+    @Override
+    public void restoreFromBundle(Bundle bundle) {
+        super.restoreFromBundle(bundle);
+        explorationTarget = bundle.contains(EXPLORATION_TARGET)
+                ? bundle.getInt(EXPLORATION_TARGET)
+                : -1;
+    }
+
+    void enterLevel(int cell) {
+        if (!isAlive()) {
+            throw new IllegalStateException("Cannot move a dead CoHero companion to a new level");
+        }
+
+        pos = cell;
+        explorationTarget = -1;
+        target = -1;
+        enemy = null;
+        enemyID = -1;
+        enemySeen = false;
+        alerted = false;
+        path = null;
+        defendingPos = -1;
+        movingToDefendPos = false;
+        state = WANDERING;
+        timeToNow();
     }
 
     @Override
