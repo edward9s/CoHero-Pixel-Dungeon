@@ -94,6 +94,14 @@ jobs:
           python cohero/scripts/patch_smm_longpress.py \
             spd_src/core/src/main/java/com/spd/mod/mechanics/ModAssassinate.java
 
+      - name: Patch CoHero messages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/patch_messages.py \
+            spd_src/core/src/main/assets/messages/misc \
+            cohero/messages
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
