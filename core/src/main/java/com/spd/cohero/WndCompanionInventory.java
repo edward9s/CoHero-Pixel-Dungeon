@@ -10,7 +10,6 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
@@ -42,13 +41,13 @@ public class WndCompanionInventory extends Window {
         this.companion = companion;
         this.inventory = companion.inventory();
 
-        RenderedTextBlock title = PixelScene.renderTextBlock(titleText(), 9);
+        RenderedTextBlock title = PixelScene.renderTextBlock(text("inventory.title"), 9);
         title.hardlight(TITLE_COLOR);
         title.maxWidth(WIDTH);
         title.setPos(0, 1);
         add(title);
 
-        RenderedTextBlock equipmentLabel = PixelScene.renderTextBlock(equipmentText(), 7);
+        RenderedTextBlock equipmentLabel = PixelScene.renderTextBlock(text("inventory.equipment"), 7);
         equipmentLabel.setPos(0, title.bottom() + 4);
         add(equipmentLabel);
 
@@ -58,7 +57,7 @@ public class WndCompanionInventory extends Window {
         addEquipmentButton(2, equipmentY, SlotType.RING_ONE);
         addEquipmentButton(3, equipmentY, SlotType.RING_TWO);
 
-        RedButton addItem = new RedButton(addItemText()) {
+        RedButton addItem = new RedButton(text("inventory.add_item")) {
             @Override
             protected void onClick() {
                 selectItemFromHero();
@@ -67,7 +66,8 @@ public class WndCompanionInventory extends Window {
         addItem.setRect(0, equipmentY + SLOT + 4, WIDTH, 16);
         add(addItem);
 
-        RenderedTextBlock backpackLabel = PixelScene.renderTextBlock(backpackText(), 7);
+        RenderedTextBlock backpackLabel = PixelScene.renderTextBlock(
+                text("inventory.backpack", inventory.backpack().size(), CompanionInventory.BACKPACK_CAPACITY), 7);
         backpackLabel.maxWidth(WIDTH);
         backpackLabel.setPos(0, addItem.bottom() + 3);
         add(backpackLabel);
@@ -168,10 +168,13 @@ public class WndCompanionInventory extends Window {
     }
 
     private void selectItemFromHero() {
+        // A WndBag is another window. Close this snapshot first so a fresh inventory window
+        // cannot end up stacked over a stale one after the selection callback.
+        hide();
         GameScene.selectItem(new WndBag.ItemSelector() {
             @Override
             public String textPrompt() {
-                return selectBackpackItemPrompt();
+                return text("inventory.select_item");
             }
 
             @Override
@@ -220,9 +223,9 @@ public class WndCompanionInventory extends Window {
         if (item instanceof MeleeWeapon || item instanceof Armor || item instanceof Ring) {
             GameScene.show(new WndOptions(
                     item.title(),
-                    backpackActionPrompt(),
-                    equipText(),
-                    giveToHeroText()) {
+                    text("inventory.action_prompt"),
+                    text("inventory.equip"),
+                    text("inventory.give_to_hero")) {
                 @Override
                 protected void onSelect(int index) {
                     if (index == 0) {
@@ -235,8 +238,8 @@ public class WndCompanionInventory extends Window {
         } else if (item instanceof Weapon || item instanceof Wand) {
             GameScene.show(new WndOptions(
                     item.title(),
-                    backpackActionPrompt(),
-                    giveToHeroText()) {
+                    text("inventory.action_prompt"),
+                    text("inventory.give_to_hero")) {
                 @Override
                 protected void onSelect(int index) {
                     if (index == 0) {
@@ -287,9 +290,9 @@ public class WndCompanionInventory extends Window {
 
         GameScene.show(new WndOptions(
                 ring.title(),
-                chooseRingSlotPrompt(),
-                ringSlotText(1, inventory.ringOne()),
-                ringSlotText(2, inventory.ringTwo())) {
+                text("inventory.choose_ring_slot"),
+                text("inventory.ring_slot", 1, inventory.ringOne().title()),
+                text("inventory.ring_slot", 2, inventory.ringTwo().title())) {
             @Override
             protected void onSelect(int index) {
                 equipRingInto(ring, index + 1);
@@ -334,7 +337,7 @@ public class WndCompanionInventory extends Window {
         if (item != null && inventory.cannotUnequip(item)) {
             GLog.w(Messages.get(EquipableItem.class, "unequip_cursed"));
         } else {
-            GLog.w(backpackFullText());
+            GLog.w(text("inventory.backpack_full"));
         }
     }
 
@@ -364,71 +367,8 @@ public class WndCompanionInventory extends Window {
         GameScene.show(new WndCompanionInventory(companion));
     }
 
-    private String titleText() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "夥伴英雄背包";
-        if (Messages.lang() == Languages.CHI_SMPL) return "伙伴英雄背包";
-        return "Companion Inventory";
-    }
-
-    private String equipmentText() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "裝備：武器 / 護甲 / 戒指 / 戒指";
-        if (Messages.lang() == Languages.CHI_SMPL) return "装备：武器 / 护甲 / 戒指 / 戒指";
-        return "Equipment: weapon / armor / ring / ring";
-    }
-
-    private String addItemText() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "從玩家背包加入物品";
-        if (Messages.lang() == Languages.CHI_SMPL) return "从玩家背包加入物品";
-        return "Add item from hero";
-    }
-
-    private String backpackText() {
-        String count = inventory.backpack().size() + "/" + CompanionInventory.BACKPACK_CAPACITY;
-        if (Messages.lang() == Languages.CHI_TRAD) return "背包 " + count;
-        if (Messages.lang() == Languages.CHI_SMPL) return "背包 " + count;
-        return "Backpack " + count;
-    }
-
-    private String selectBackpackItemPrompt() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "選擇要交給夥伴英雄的武器、護甲、戒指或法杖";
-        if (Messages.lang() == Languages.CHI_SMPL) return "选择要交给伙伴英雄的武器、护甲、戒指或法杖";
-        return "Choose a weapon, armor, ring, or wand for your companion";
-    }
-
-    private String backpackActionPrompt() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "要怎麼處理這件物品？";
-        if (Messages.lang() == Languages.CHI_SMPL) return "要怎么处理这件物品？";
-        return "What should the companion do with this item?";
-    }
-
-    private String equipText() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "裝備";
-        if (Messages.lang() == Languages.CHI_SMPL) return "装备";
-        return "Equip";
-    }
-
-    private String giveToHeroText() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "交還玩家";
-        if (Messages.lang() == Languages.CHI_SMPL) return "交还玩家";
-        return "Give to hero";
-    }
-
-    private String chooseRingSlotPrompt() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "兩個戒指槽都已使用。要替換哪一枚？";
-        if (Messages.lang() == Languages.CHI_SMPL) return "两个戒指槽都已使用。要替换哪一枚？";
-        return "Both ring slots are occupied. Which ring should be replaced?";
-    }
-
-    private String ringSlotText(int slot, Ring ring) {
-        if (Messages.lang() == Languages.CHI_TRAD) return "戒指 " + slot + "：" + ring.title();
-        if (Messages.lang() == Languages.CHI_SMPL) return "戒指 " + slot + "：" + ring.title();
-        return "Ring " + slot + ": " + ring.title();
-    }
-
-    private String backpackFullText() {
-        if (Messages.lang() == Languages.CHI_TRAD) return "夥伴英雄的背包已滿。";
-        if (Messages.lang() == Languages.CHI_SMPL) return "伙伴英雄的背包已满。";
-        return "The companion's backpack is full.";
+    private static String text(String key, Object... args) {
+        return CoHeroMessages.get(key, args);
     }
 
     private enum SlotType {
