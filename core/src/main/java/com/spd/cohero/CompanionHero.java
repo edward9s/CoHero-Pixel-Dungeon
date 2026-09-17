@@ -1,15 +1,18 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
@@ -79,12 +82,31 @@ public class CompanionHero extends DirectableAlly {
             return true;
         }
 
+        ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
+        if (!visibleThreats.isEmpty()) {
+            int escapeStep = chooseEscapeStep(visibleThreats);
+            if (escapeStep != -1) {
+                int oldPos = pos;
+                if (getCloser(escapeStep)) {
+                    spend(1 / speed());
+                    Dungeon.level.updateFieldOfView(this, fieldOfView);
+                    revealVisibleCells();
+                    return moveSprite(oldPos, pos);
+                }
+            }
+
+            // With no combat capability yet, never deliberately walk closer to a visible awake enemy.
+            spend(TICK);
+            return true;
+        }
+
         int exit = Dungeon.level.exit();
         if (isKnown(exit)) {
             explorationTarget = exit;
         } else if (explorationTarget == -1
                 || explorationTarget == pos
-                || !Dungeon.level.passable[explorationTarget]) {
+                || !Dungeon.level.passable[explorationTarget]
+                || !isSleepSafe(explorationTarget)) {
             explorationTarget = chooseExplorationTarget();
         }
 
@@ -147,6 +169,68 @@ public class CompanionHero extends DirectableAlly {
         }
     }
 
+    private ArrayList<Mob> visibleAwakeEnemies() {
+        ArrayList<Mob> result = new ArrayList<>();
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob != this
+                    && mob.alignment == Alignment.ENEMY
+                    && mob.isAlive()
+                    && mob.invisible <= 0
+                    && fieldOfView[mob.pos]
+                    && mob.state != mob.SLEEPING) {
+                result.add(mob);
+            }
+        }
+        return result;
+    }
+
+    private int chooseEscapeStep(ArrayList<Mob> threats) {
+        int currentDistance = nearestThreatDistance(pos, threats);
+        int bestCell = -1;
+        int bestDistance = currentDistance;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = pos + offset;
+            if (cell < 0
+                    || cell >= Dungeon.level.length()
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || !isSleepSafe(cell)) {
+                continue;
+            }
+
+            int distance = nearestThreatDistance(cell, threats);
+            if (distance > bestDistance) {
+                bestDistance = distance;
+                bestCell = cell;
+            }
+        }
+
+        return bestCell;
+    }
+
+    private int nearestThreatDistance(int cell, ArrayList<Mob> threats) {
+        int nearest = Integer.MAX_VALUE;
+        for (Mob threat : threats) {
+            nearest = Math.min(nearest, Dungeon.level.distance(cell, threat.pos));
+        }
+        return nearest;
+    }
+
+    private boolean isSleepSafe(int cell) {
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob != this
+                    && mob.alignment == Alignment.ENEMY
+                    && mob.isAlive()
+                    && mob.state == mob.SLEEPING
+                    && fieldOfView[mob.pos]
+                    && Dungeon.level.distance(cell, mob.pos) <= 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private int chooseExplorationTarget() {
         int exit = Dungeon.level.exit();
         if (isKnown(exit)) {
@@ -159,7 +243,8 @@ public class CompanionHero extends DirectableAlly {
                     && Dungeon.level.passable[cell]
                     && Dungeon.level.discoverable[cell]
                     && !Dungeon.level.visited[cell]
-                    && !Dungeon.level.mapped[cell]) {
+                    && !Dungeon.level.mapped[cell]
+                    && isSleepSafe(cell)) {
                 unknown.add(cell);
             }
         }
