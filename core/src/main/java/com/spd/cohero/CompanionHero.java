@@ -255,6 +255,7 @@ public class CompanionHero extends DirectableAlly {
         super.die(cause);
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
             GLog.n(companionDeathMessage(cause));
+            CoHero.markCompanionDeathGameOver();
             Hero.reallyDie(cause);
         }
     }
