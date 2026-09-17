@@ -16,6 +16,9 @@ import com.watabou.utils.Bundle;
 import com.watabou.utils.GameSettings;
 import com.watabou.utils.PathFinder;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 public final class CoHero {
 
     public static final String VERSION = "0.0.1-dev";
@@ -149,6 +152,16 @@ public final class CoHero {
         playerSelection = null;
         selectingCompanion = false;
         openingCompanionSelection = false;
+    }
+
+    public static void storeLevelMobs(Bundle bundle, String key, Collection<Mob> mobs) {
+        ArrayList<Mob> storedMobs = new ArrayList<>();
+        for (Mob mob : mobs) {
+            if (!(mob instanceof CompanionHero)) {
+                storedMobs.add(mob);
+            }
+        }
+        bundle.put(key, storedMobs);
     }
 
     public static void onGameSceneReady() {
