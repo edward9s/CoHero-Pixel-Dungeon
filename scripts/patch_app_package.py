@@ -8,32 +8,15 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
-variants = (
-    (
-        "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon'",
-        "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon.cohero'",
-    ),
-    (
-        "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon.mod'",
-        "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon.mod.cohero'",
-    ),
-)
+old = "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon'"
+new = "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon.cohero'"
 
-for _, patched in variants:
-    if patched in text:
-        raise SystemExit(f"CoHero app package is already present: {patched}")
+if new in text:
+    raise SystemExit("CoHero app package is already present")
 
-matches = []
-for original, patched in variants:
-    count = text.count(original)
-    if count > 1:
-        raise SystemExit(f"expected at most one appPackageName anchor for {original!r}, found {count}")
-    if count == 1:
-        matches.append((original, patched))
+count = text.count(old)
+if count != 1:
+    raise SystemExit(f"expected exactly one upstream appPackageName anchor, found {count}")
 
-if len(matches) != 1:
-    raise SystemExit(f"expected exactly one supported appPackageName anchor, found {len(matches)}")
-
-original, patched = matches[0]
-path.write_text(text.replace(original, patched, 1), encoding="utf-8")
-print(f"patched {path}: {patched}")
+path.write_text(text.replace(old, new, 1), encoding="utf-8")
+print(f"patched {path}: com.shatteredpixel.shatteredpixeldungeon.cohero")
