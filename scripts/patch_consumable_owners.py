@@ -80,6 +80,13 @@ replace_all_hero_with_cur_user(
     "com/shatteredpixel/shatteredpixeldungeon/items/scrolls/ScrollOfTransmutation.java",
     17,
 )
+patch_exact(
+    "com/shatteredpixel/shatteredpixeldungeon/items/scrolls/ScrollOfTransmutation.java",
+    "result.collect()",
+    "result.collect(curUser.belongings.backpack)",
+    2,
+    "transmutation result owner",
+)
 replace_all_hero_with_cur_user(
     "com/shatteredpixel/shatteredpixeldungeon/items/scrolls/exotic/ScrollOfMetamorphosis.java",
     7,
