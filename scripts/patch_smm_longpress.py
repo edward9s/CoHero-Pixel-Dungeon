@@ -8,7 +8,7 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 old = """            for (Mob mob : Dungeon.level.mobs.toArray(new Mob[0])) {\n                if (mob.sprite != null && mob.sprite.overlapsPoint(p.x, p.y)) {\n"""
-new = """            for (Mob mob : Dungeon.level.mobs.toArray(new Mob[0])) {\n                if (mob instanceof com.spd.cohero.CompanionHero) {\n                    continue;\n                }\n                if (mob.sprite != null && mob.sprite.overlapsPoint(p.x, p.y)) {\n"""
+new = """            for (Mob mob : Dungeon.level.mobs.toArray(new Mob[0])) {\n                if (mob instanceof com.spd.cohero.CoHeroAlly) {\n                    continue;\n                }\n                if (mob.sprite != null && mob.sprite.overlapsPoint(p.x, p.y)) {\n"""
 
 if new in text:
     raise SystemExit("CoHero SMM long-press guard is already present")

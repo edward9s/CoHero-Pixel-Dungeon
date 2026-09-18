@@ -204,7 +204,7 @@ final class CompanionLongPress {
                 return;
             }
 
-            CompanionHero companion = CoHero.findCompanion();
+            CoHeroAlly companion = CoHero.findCompanion();
             if (companion == null
                     || !companion.isAlive()
                     || !normalMapMode(selector)
@@ -233,7 +233,7 @@ final class CompanionLongPress {
                     && PointF.distance(press.current, press.start) > dragThreshold;
         }
 
-        private boolean hitsCompanion(CompanionHero companion, PointF screenPos) {
+        private boolean hitsCompanion(CoHeroAlly companion, PointF screenPos) {
             if (screenPos == null || companion.sprite == null) {
                 return false;
             }

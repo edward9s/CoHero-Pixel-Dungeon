@@ -74,7 +74,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 目前正式方向是：
 
-> `CompanionHero` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
+> `CoHeroAlly` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
 
 不把 SPD 全面改造成 multi-Hero 架構，也不透過切換 `Dungeon.hero` 來讓原版系統誤以為 CoHero 是玩家 Hero。
 
@@ -195,7 +195,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 - Hero 背包中的消耗品 → 效果作用於 Hero。
 - CoHero 背包中的消耗品 → 效果作用於 CoHero。
 
-這是玩法語意，不代表必須讓所有 SPD 物品 API 原生接受 `CompanionHero`。
+這是玩法語意，不代表必須讓所有 SPD 物品 API 原生接受 `CoHeroAlly`。
 
 若原版效果核心已接受 `Char`，直接重用；若原版入口硬綁 `Hero`，則在 CoHero 層建立明確 adapter，重現同一效果，而不是大量修改 SPD。
 

@@ -113,7 +113,7 @@ public final class CoHero {
         }
         bundle.put(SAVE_COMPANION_CLASS, heroClass.name());
 
-        CompanionHero companion = findCompanion();
+        CoHeroAlly companion = findCompanion();
         if (companion != null && companion.isAlive()) {
             Bundle state = new Bundle();
             companion.storeInBundle(state);
@@ -152,7 +152,7 @@ public final class CoHero {
     public static void storeLevelMobs(Bundle bundle, String key, Collection<Mob> mobs) {
         ArrayList<Mob> storedMobs = new ArrayList<>();
         for (Mob mob : mobs) {
-            if (!(mob instanceof CompanionHero)) {
+            if (!(mob instanceof CoHeroAlly)) {
                 storedMobs.add(mob);
             }
         }
@@ -169,7 +169,7 @@ public final class CoHero {
             throw new IllegalStateException("CoHero run has no selected companion class");
         }
 
-        CompanionHero existing = findCompanion();
+        CoHeroAlly existing = findCompanion();
         if (existing != null) {
             CompanionLongPress.ensureInstalled();
             return;
@@ -180,7 +180,7 @@ public final class CoHero {
             throw new IllegalStateException("CoHero could not find a spawn cell next to the hero");
         }
 
-        CompanionHero companion = new CompanionHero();
+        CoHeroAlly companion = new CoHeroAlly();
         if (companionState != null) {
             companion.restoreFromBundle(companionState);
         } else {
@@ -194,8 +194,8 @@ public final class CoHero {
 
     /** Returns the level used by stock Mob EXP eligibility for the character credited with the kill. */
     public static int killLevel(Object cause) {
-        if (cause instanceof CompanionHero) {
-            return ((CompanionHero) cause).level();
+        if (cause instanceof CoHeroAlly) {
+            return ((CoHeroAlly) cause).level();
         }
         if (Dungeon.hero == null) {
             throw new IllegalStateException("Enemy EXP requested without Dungeon.hero");
@@ -212,7 +212,7 @@ public final class CoHero {
     }
 
     /**
-     * Awards stock enemy EXP to the credited hero. Only direct CompanionHero kills are redirected
+     * Awards stock enemy EXP to the credited hero. Only direct CoHeroAlly kills are redirected
      * here for now; item/DoT ownership will be added together with ranged combat attribution.
      */
     public static void awardKillExp(Mob enemy, Object cause, int exp) {
@@ -223,8 +223,8 @@ public final class CoHero {
             throw new IllegalArgumentException("exp must not be negative");
         }
 
-        if (cause instanceof CompanionHero) {
-            CompanionHero companion = (CompanionHero) cause;
+        if (cause instanceof CoHeroAlly) {
+            CoHeroAlly companion = (CoHeroAlly) cause;
             if (exp > 0 && companion.sprite != null) {
                 companion.sprite.showStatusWithIcon(
                         CharSprite.POSITIVE,
@@ -252,7 +252,7 @@ public final class CoHero {
             return true;
         }
 
-        CompanionHero companion = findCompanion();
+        CoHeroAlly companion = findCompanion();
         boolean ready = companion != null
                 && companion.isAlive()
                 && isAdjacentToTransition(companion.pos, transition);
@@ -263,7 +263,7 @@ public final class CoHero {
         return ready;
     }
 
-    static boolean tryAutoExit(CompanionHero companion) {
+    static boolean tryAutoExit(CoHeroAlly companion) {
         if (companion == null
                 || !companion.isAlive()
                 || Dungeon.hero == null
@@ -312,13 +312,13 @@ public final class CoHero {
         return COMPANION_CLASS_KEY_PREFIX + GamesInProgress.curSlot;
     }
 
-    static CompanionHero findCompanion() {
+    static CoHeroAlly findCompanion() {
         if (Dungeon.level == null) {
             return null;
         }
         for (Mob mob : Dungeon.level.mobs) {
-            if (mob instanceof CompanionHero) {
-                return (CompanionHero) mob;
+            if (mob instanceof CoHeroAlly) {
+                return (CoHeroAlly) mob;
             }
         }
         return null;

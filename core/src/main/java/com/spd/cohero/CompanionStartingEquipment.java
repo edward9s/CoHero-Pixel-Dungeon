@@ -24,7 +24,7 @@ final class CompanionStartingEquipment {
     private CompanionStartingEquipment() {
     }
 
-    static void initialize(CompanionHero companion, HeroClass heroClass) {
+    static void initialize(CoHeroAlly companion, HeroClass heroClass) {
         if (companion == null || heroClass == null) {
             throw new IllegalArgumentException("companion and heroClass must not be null");
         }

@@ -23,7 +23,7 @@ import com.watabou.utils.Random;
 
 import java.util.ArrayList;
 
-public class CompanionHero extends DirectableAlly {
+public class CoHeroAlly extends DirectableAlly {
 
     private static final int PROGRESSION_FORMAT_VERSION = 1;
 
@@ -39,7 +39,7 @@ public class CompanionHero extends DirectableAlly {
     private final CompanionInventory inventory = new CompanionInventory(this);
 
     {
-        spriteClass = CompanionHeroSprite.class;
+        spriteClass = CoHeroAllySprite.class;
         HT = HP = 20;
         attacksAutomatically = false;
     }
@@ -124,8 +124,8 @@ public class CompanionHero extends DirectableAlly {
     }
 
     void updateArmorSprite() {
-        if (sprite instanceof CompanionHeroSprite) {
-            ((CompanionHeroSprite) sprite).updateArmor();
+        if (sprite instanceof CoHeroAllySprite) {
+            ((CoHeroAllySprite) sprite).updateArmor();
         }
     }
 

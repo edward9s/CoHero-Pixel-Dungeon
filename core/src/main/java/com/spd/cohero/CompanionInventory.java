@@ -37,7 +37,7 @@ public final class CompanionInventory {
     private static final String RING_TWO = "cohero_ring_two";
     private static final String BACKPACK = "cohero_backpack";
 
-    private final CompanionHero owner;
+    private final CoHeroAlly owner;
 
     private MeleeWeapon weapon;
     private Armor armor;
@@ -45,7 +45,7 @@ public final class CompanionInventory {
     private Ring ringTwo;
     private final ArrayList<Item> backpack = new ArrayList<>();
 
-    CompanionInventory(CompanionHero owner) {
+    CompanionInventory(CoHeroAlly owner) {
         if (owner == null) {
             throw new IllegalArgumentException("owner must not be null");
         }

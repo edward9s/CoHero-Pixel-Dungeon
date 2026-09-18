@@ -21,7 +21,7 @@ public final class CompanionRegeneration extends Buff {
 
     @Override
     public boolean act() {
-        if (!(target instanceof CompanionHero)) {
+        if (!(target instanceof CoHeroAlly)) {
             throw new IllegalStateException("CompanionRegeneration attached to non-CoHero target");
         }
 

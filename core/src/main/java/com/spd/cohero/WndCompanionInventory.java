@@ -31,10 +31,10 @@ public class WndCompanionInventory extends Window {
     private static final int GAP = 3;
     private static final int COLS = 5;
 
-    private final CompanionHero companion;
+    private final CoHeroAlly companion;
     private final CompanionInventory inventory;
 
-    public WndCompanionInventory(CompanionHero companion) {
+    public WndCompanionInventory(CoHeroAlly companion) {
         if (companion == null || !companion.isAlive()) {
             throw new IllegalArgumentException("companion must be alive");
         }

@@ -33,7 +33,7 @@ final class CompanionItemUse {
                 || item instanceof PotionOfStrength;
     }
 
-    static void use(CompanionHero companion, Item item) {
+    static void use(CoHeroAlly companion, Item item) {
         if (companion == null || !companion.isAlive()) {
             throw new IllegalArgumentException("companion must be alive");
         }
@@ -67,7 +67,7 @@ final class CompanionItemUse {
         Catalog.countUse(item.getClass());
     }
 
-    private static void useHealing(CompanionHero companion, PotionOfHealing potion) {
+    private static void useHealing(CoHeroAlly companion, PotionOfHealing potion) {
         potion.identify();
         PotionOfHealing.cure(companion);
 
@@ -80,7 +80,7 @@ final class CompanionItemUse {
         }
     }
 
-    private static void useExperience(CompanionHero companion, PotionOfExperience potion) {
+    private static void useExperience(CoHeroAlly companion, PotionOfExperience potion) {
         potion.identify();
         int amount = companion.maxExp();
         if (companion.sprite != null) {
@@ -93,7 +93,7 @@ final class CompanionItemUse {
         companion.earnExp(amount, PotionOfExperience.class);
     }
 
-    private static void useStrength(CompanionHero companion, PotionOfStrength potion) {
+    private static void useStrength(CoHeroAlly companion, PotionOfStrength potion) {
         potion.identify();
         if (Dungeon.hero == null) {
             throw new IllegalStateException("CoHero strength potion used without Dungeon.hero");

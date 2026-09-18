@@ -13,18 +13,18 @@ import com.watabou.utils.PointF;
  * It uses the selected HeroClass spritesheet, but deliberately does not use
  * HeroSprite itself because HeroSprite is hard-wired to Dungeon.hero.
  */
-public class CompanionHeroSprite extends CharSprite {
+public class CoHeroAllySprite extends CharSprite {
 
     private static final int FRAME_WIDTH = 12;
     private static final int FRAME_HEIGHT = 15;
     private static final int RUN_FRAMERATE = 20;
 
-    public CompanionHeroSprite() {
+    public CoHeroAllySprite() {
         super();
 
         HeroClass heroClass = CoHero.companionClass();
         if (heroClass == null) {
-            throw new IllegalStateException("CompanionHeroSprite has no selected HeroClass");
+            throw new IllegalStateException("CoHeroAllySprite has no selected HeroClass");
         }
 
         texture(heroClass.spritesheet());
@@ -33,8 +33,8 @@ public class CompanionHeroSprite extends CharSprite {
 
     @Override
     public void link(Char ch) {
-        if (!(ch instanceof CompanionHero)) {
-            throw new IllegalArgumentException("CompanionHeroSprite can only link to CompanionHero");
+        if (!(ch instanceof CoHeroAlly)) {
+            throw new IllegalArgumentException("CoHeroAllySprite can only link to CoHeroAlly");
         }
         super.link(ch);
         updateArmor();
@@ -44,10 +44,10 @@ public class CompanionHeroSprite extends CharSprite {
         if (ch == null) {
             return;
         }
-        if (!(ch instanceof CompanionHero)) {
-            throw new IllegalStateException("CompanionHeroSprite is linked to a non-companion Char");
+        if (!(ch instanceof CoHeroAlly)) {
+            throw new IllegalStateException("CoHeroAllySprite is linked to a non-companion Char");
         }
-        updateArmor(((CompanionHero) ch).armorTier());
+        updateArmor(((CoHeroAlly) ch).armorTier());
     }
 
     private void updateArmor(int tier) {
