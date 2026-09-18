@@ -10,6 +10,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 
@@ -72,6 +73,26 @@ public final class CompanionInventory {
         return Collections.unmodifiableList(backpack);
     }
 
+    public List<MissileWeapon> missileWeapons() {
+        ArrayList<MissileWeapon> result = new ArrayList<>();
+        for (Item item : backpack) {
+            if (item instanceof MissileWeapon) {
+                result.add((MissileWeapon) item);
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public List<Wand> wands() {
+        ArrayList<Wand> result = new ArrayList<>();
+        for (Item item : backpack) {
+            if (item instanceof Wand) {
+                result.add((Wand) item);
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
+
     boolean containsInBackpack(Item item) {
         return item != null && backpack.contains(item);
     }
@@ -132,6 +153,26 @@ public final class CompanionInventory {
             ((Wand) item).stopCharging();
         }
         return item;
+    }
+
+    MissileWeapon takeOneMissile(MissileWeapon source) {
+        if (source == null || !backpack.contains(source)) {
+            throw new IllegalArgumentException("Missile weapon must be in the CoHero backpack");
+        }
+
+        if (source.quantity() > 1) {
+            Item split = source.split(1);
+            if (!(split instanceof MissileWeapon)) {
+                throw new IllegalStateException("Missile stack could not split one projectile");
+            }
+            return (MissileWeapon) split;
+        }
+
+        Item removed = removeFromBackpack(source);
+        if (!(removed instanceof MissileWeapon)) {
+            throw new IllegalStateException("Missile weapon disappeared during throw");
+        }
+        return (MissileWeapon) removed;
     }
 
     public boolean equipWeapon(MeleeWeapon value) {

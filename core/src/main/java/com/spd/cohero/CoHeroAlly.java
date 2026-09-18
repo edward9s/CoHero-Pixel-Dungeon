@@ -4,33 +4,55 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
+import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
+import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.DamageWand;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFrost;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfMagicMissile;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
+import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
+import com.shatteredpixel.shatteredpixeldungeon.effects.MagicMissile;
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class CoHeroAlly extends DirectableAlly {
 
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
     private static final String INVENTORY = "cohero_inventory";
+    private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
+    private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
 
     private int explorationTarget = -1;
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
+    private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
+    private MissileWeapon activeMissileWeapon;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -105,6 +127,17 @@ public class CoHeroAlly extends DirectableAlly {
         Bundle inventoryBundle = new Bundle();
         inventory.storeInBundle(inventoryBundle);
         bundle.put(INVENTORY, inventoryBundle);
+
+        long[] thrownIDs = new long[thrownOutstanding.size()];
+        int[] thrownCounts = new int[thrownOutstanding.size()];
+        int thrownIndex = 0;
+        for (Map.Entry<Long, Integer> entry : thrownOutstanding.entrySet()) {
+            thrownIDs[thrownIndex] = entry.getKey();
+            thrownCounts[thrownIndex] = entry.getValue();
+            thrownIndex++;
+        }
+        bundle.put(THROWN_SET_IDS, thrownIDs);
+        bundle.put(THROWN_SET_COUNTS, thrownCounts);
     }
 
     @Override
@@ -119,6 +152,20 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (bundle.contains(INVENTORY)) {
             inventory.restoreFromBundle(bundle.getBundle(INVENTORY));
+        }
+
+        thrownOutstanding.clear();
+        if (bundle.contains(THROWN_SET_IDS) || bundle.contains(THROWN_SET_COUNTS)) {
+            long[] thrownIDs = bundle.getLongArray(THROWN_SET_IDS);
+            int[] thrownCounts = bundle.getIntArray(THROWN_SET_COUNTS);
+            if (thrownIDs.length != thrownCounts.length) {
+                throw new IllegalStateException("Corrupt CoHero thrown-weapon tracking");
+            }
+            for (int i = 0; i < thrownIDs.length; i++) {
+                if (thrownCounts[i] > 0) {
+                    thrownOutstanding.put(thrownIDs[i], thrownCounts[i]);
+                }
+            }
         }
     }
 
@@ -166,6 +213,10 @@ public class CoHeroAlly extends DirectableAlly {
         return armor() == null ? 0 : Math.max(0, armor().STRReq() - STR());
     }
 
+    private Weapon attackingWeapon() {
+        return activeMissileWeapon != null ? activeMissileWeapon : weapon();
+    }
+
     @Override
     protected boolean canAttack(Char enemy) {
         return weapon() != null && (super.canAttack(enemy) || weapon().canReach(this, enemy.pos));
@@ -173,14 +224,20 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public int attackSkill(Char target) {
+        return attackSkillWith(attackingWeapon(), target);
+    }
+
+    private int attackSkillWith(Weapon attackWeapon, Char target) {
         float accuracy = 9 + level();
         accuracy *= RingOfAccuracy.accuracyMultiplier(this);
 
-        if (weapon() != null) {
-            accuracy *= weapon().accuracyFactor(this, target);
-            int encumbrance = weaponEncumbrance();
-            if (encumbrance > 0) {
-                accuracy /= Math.pow(1.5, encumbrance);
+        if (attackWeapon != null) {
+            accuracy *= attackWeapon.accuracyFactor(this, target);
+            if (attackWeapon == weapon()) {
+                int encumbrance = weaponEncumbrance();
+                if (encumbrance > 0) {
+                    accuracy /= Math.pow(1.5, encumbrance);
+                }
             }
         }
         return Math.round(accuracy);
@@ -188,12 +245,13 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public int damageRoll() {
-        if (weapon() == null) {
+        Weapon attackWeapon = attackingWeapon();
+        if (attackWeapon == null) {
             return super.damageRoll();
         }
 
-        int damage = weapon().damageRoll(this);
-        int excessStrength = STR() - weapon().STRReq();
+        int damage = attackWeapon.damageRoll(this);
+        int excessStrength = STR() - attackWeapon.STRReq();
         if (excessStrength > 0) {
             damage += Random.NormalIntRange(0, excessStrength);
         }
@@ -203,14 +261,27 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public float attackDelay() {
         float delay = super.attackDelay();
-        if (weapon() != null) {
-            delay *= weapon().delayFactor(this);
-            int encumbrance = weaponEncumbrance();
-            if (encumbrance > 0) {
-                delay *= Math.pow(1.2, encumbrance);
+        Weapon attackWeapon = attackingWeapon();
+        if (attackWeapon != null) {
+            delay *= attackWeapon.delayFactor(this);
+            if (attackWeapon == weapon()) {
+                int encumbrance = weaponEncumbrance();
+                if (encumbrance > 0) {
+                    delay *= Math.pow(1.2, encumbrance);
+                }
             }
         }
         return delay;
+    }
+
+    @Override
+    public void hitSound(float pitch) {
+        Weapon attackWeapon = attackingWeapon();
+        if (attackWeapon != null) {
+            attackWeapon.hitSound(pitch);
+        } else {
+            super.hitSound(pitch);
+        }
     }
 
     @Override
@@ -270,8 +341,9 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public int attackProc(Char enemy, int damage) {
         damage = super.attackProc(enemy, damage);
-        if (weapon() != null) {
-            damage = weapon().proc(this, enemy, damage);
+        Weapon attackWeapon = attackingWeapon();
+        if (attackWeapon != null) {
+            damage = attackWeapon.proc(this, enemy, damage);
         }
         return damage;
     }
@@ -307,6 +379,12 @@ public class CoHeroAlly extends DirectableAlly {
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (!visibleThreats.isEmpty()) {
+            Mob combatTarget = nearestThreat(visibleThreats);
+            Boolean combatResult = tryCombat(combatTarget);
+            if (combatResult != null) {
+                return combatResult;
+            }
+
             int escapeStep = chooseEscapeStep(visibleThreats);
             if (escapeStep != -1) {
                 int oldPos = pos;
@@ -319,10 +397,22 @@ public class CoHeroAlly extends DirectableAlly {
                 }
             }
 
-            // Combat AI is intentionally still separate from inventory support. Until it is added,
-            // never deliberately walk closer to a visible awake enemy.
             spend(TICK);
             return true;
+        }
+
+        if (recoverOwnedMissileAtCurrentCell()) {
+            spend(TICK);
+            return true;
+        }
+
+        int recoveryCell = nearestOwnedMissileCell();
+        if (recoveryCell != -1 && recoveryCell != pos) {
+            int oldPos = pos;
+            if (getCloser(recoveryCell)) {
+                spend(1 / speed());
+                return moveSprite(oldPos, pos);
+            }
         }
 
         int exit = Dungeon.level.exit();
@@ -375,6 +465,345 @@ public class CoHeroAlly extends DirectableAlly {
             return CoHeroMessages.get("companion.killed_by", ((Char) cause).name());
         }
         return CoHeroMessages.get("companion.died");
+    }
+
+    private Mob nearestThreat(ArrayList<Mob> threats) {
+        Mob result = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (Mob threat : threats) {
+            int distance = Dungeon.level.distance(pos, threat.pos);
+            if (result == null || distance < bestDistance) {
+                result = threat;
+                bestDistance = distance;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Returns null when CoHero has no currently usable attack capability and should flee.
+     * Otherwise returns the synchronous/asynchronous result expected by Actor.act().
+     */
+    private Boolean tryCombat(Mob targetMob) {
+        if (targetMob == null) {
+            return null;
+        }
+
+        enemy = targetMob;
+        target = targetMob.pos;
+
+        // Contract: if the equipped melee weapon can legally reach, never substitute a ranged attack.
+        if (weapon() != null && weapon().canReach(this, targetMob.pos)) {
+            state = HUNTING;
+            return doAttack(targetMob);
+        }
+
+        RangedChoice ranged = chooseRangedAttack(targetMob);
+        if (ranged != null) {
+            state = HUNTING;
+            if (ranged.missile != null) {
+                return performMissileAttack(targetMob, ranged.missile);
+            } else {
+                return performWandAttack(targetMob, ranged.wand);
+            }
+        }
+
+        // If we have a usable combat tool but cannot use it from this cell, close distance.
+        if (hasUsableCombatCapability()) {
+            int oldPos = pos;
+            if (getCloser(targetMob.pos)) {
+                spend(1 / speed());
+                return moveSprite(oldPos, pos);
+            }
+            spend(TICK);
+            return true;
+        }
+
+        return null;
+    }
+
+    private RangedChoice chooseRangedAttack(Mob targetMob) {
+        ArrayList<MissileWeapon> missiles = new ArrayList<>();
+        for (MissileWeapon missile : inventory.missileWeapons()) {
+            if (missile.isIdentified()
+                    && !missile.cursed
+                    && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
+                missiles.add(missile);
+            }
+        }
+
+        ArrayList<Wand> wands = new ArrayList<>();
+        for (Wand wand : inventory.wands()) {
+            if (supportedAttackWand(wand)
+                    && wand.coHeroCanZap(this)
+                    && !targetMob.isImmune(wand.getClass())
+                    && !targetMob.isInvulnerable(wand.getClass())
+                    && wand.coHeroCollisionPos(this, targetMob.pos) == targetMob.pos) {
+                wands.add(wand);
+            }
+        }
+
+        if (missiles.isEmpty() && wands.isEmpty()) {
+            return null;
+        }
+
+        // "High evasion" is defined without RNG: defense exceeds the best available physical
+        // ranged attack skill. If a safe wand exists, prefer it in that case.
+        if (!missiles.isEmpty() && !wands.isEmpty()) {
+            int bestPhysicalAccuracy = 0;
+            for (MissileWeapon missile : missiles) {
+                bestPhysicalAccuracy = Math.max(bestPhysicalAccuracy, attackSkillWith(missile, targetMob));
+            }
+            if (targetMob.defenseSkill(this) > bestPhysicalAccuracy) {
+                Wand bestWand = null;
+                float bestDamage = Float.NEGATIVE_INFINITY;
+                for (Wand wand : wands) {
+                    float damage = expectedWandDamage(wand, targetMob);
+                    if (bestWand == null || damage > bestDamage) {
+                        bestWand = wand;
+                        bestDamage = damage;
+                    }
+                }
+                return RangedChoice.wand(bestWand);
+            }
+        }
+
+        MissileWeapon bestMissile = null;
+        float bestMissileDamage = Float.NEGATIVE_INFINITY;
+        for (MissileWeapon missile : missiles) {
+            float damage = expectedMissileDamage(missile);
+            if (bestMissile == null || damage > bestMissileDamage) {
+                bestMissile = missile;
+                bestMissileDamage = damage;
+            }
+        }
+
+        Wand bestWand = null;
+        float bestWandDamage = Float.NEGATIVE_INFINITY;
+        for (Wand wand : wands) {
+            float damage = expectedWandDamage(wand, targetMob);
+            if (bestWand == null || damage > bestWandDamage) {
+                bestWand = wand;
+                bestWandDamage = damage;
+            }
+        }
+
+        // Stable tie-break: preserve thrown weapons over wand charges when expected damage is equal.
+        if (bestMissile != null && (bestWand == null || bestMissileDamage >= bestWandDamage)) {
+            return RangedChoice.missile(bestMissile);
+        }
+        return RangedChoice.wand(bestWand);
+    }
+
+    private boolean hasUsableCombatCapability() {
+        if (weapon() != null) {
+            return true;
+        }
+        for (MissileWeapon missile : inventory.missileWeapons()) {
+            if (missile.isIdentified() && !missile.cursed) {
+                return true;
+            }
+        }
+        for (Wand wand : inventory.wands()) {
+            if (supportedAttackWand(wand) && wand.coHeroCanZap(this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean supportedAttackWand(Wand wand) {
+        // Start fail-closed. These two have single-target effects that can be safely driven by Char.
+        return wand instanceof WandOfMagicMissile || wand instanceof WandOfFrost;
+    }
+
+    private float expectedMissileDamage(MissileWeapon missile) {
+        int level = missile.buffedLvl();
+        float average = (missile.min(level) + missile.max(level)) / 2f;
+        average = missile.augment.damageFactor(average);
+        int excessStrength = STR() - missile.STRReq();
+        if (excessStrength > 0) {
+            average += excessStrength / 2f;
+        }
+        return average;
+    }
+
+    private float expectedWandDamage(Wand wand, Char targetChar) {
+        DamageWand damageWand = (DamageWand) wand;
+        int level = wand.buffedLvl();
+        float average = (damageWand.min(level) + damageWand.max(level)) / 2f;
+        return average * targetChar.resist(wand.getClass());
+    }
+
+    private boolean performMissileAttack(Mob targetMob, MissileWeapon source) {
+        MissileWeapon thrown = inventory.takeOneMissile(source);
+        if (thrown == null) {
+            throw new IllegalStateException("CoHero missile source disappeared before attack");
+        }
+        markThrown(thrown.setID, 1);
+
+        float delay = thrown.castDelay(this, targetMob.pos);
+        if (sprite != null && sprite.parent != null && targetMob.sprite != null
+                && (sprite.visible || targetMob.sprite.visible)) {
+            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
+                    sprite,
+                    targetMob.sprite,
+                    thrown,
+                    new Callback() {
+                        @Override
+                        public void call() {
+                            resolveMissileAttack(targetMob, thrown);
+                            spend(delay);
+                            next();
+                        }
+                    });
+            return false;
+        }
+
+        resolveMissileAttack(targetMob, thrown);
+        spend(delay);
+        return true;
+    }
+
+    private void resolveMissileAttack(Mob targetMob, MissileWeapon thrown) {
+        boolean hit;
+        activeMissileWeapon = thrown;
+        try {
+            hit = attack(targetMob);
+        } finally {
+            activeMissileWeapon = null;
+        }
+
+        boolean survived = thrown.coHeroResolveThrow(this, targetMob, hit);
+        if (!survived) {
+            markRecovered(thrown.setID, 1);
+        }
+        Invisibility.dispel(this);
+    }
+
+    private boolean performWandAttack(Mob targetMob, Wand wand) {
+        int missileType = wand instanceof WandOfFrost
+                ? MagicMissile.FROST
+                : MagicMissile.MAGIC_MISSILE;
+
+        if (sprite != null && sprite.parent != null && (sprite.visible || targetMob.sprite.visible)) {
+            MagicMissile.boltFromChar(
+                    sprite.parent,
+                    missileType,
+                    sprite,
+                    targetMob.pos,
+                    new Callback() {
+                        @Override
+                        public void call() {
+                            resolveWandAttack(targetMob, wand);
+                            spend(TICK);
+                            next();
+                        }
+                    });
+            Sample.INSTANCE.play(Assets.Sounds.ZAP);
+            return false;
+        }
+
+        resolveWandAttack(targetMob, wand);
+        spend(TICK);
+        return true;
+    }
+
+    private void resolveWandAttack(Mob targetMob, Wand wand) {
+        wand.coHeroZap(this, targetMob.pos);
+        Invisibility.dispel(this);
+    }
+
+    private void markThrown(long setID, int amount) {
+        thrownOutstanding.put(setID, thrownOutstanding.getOrDefault(setID, 0) + amount);
+    }
+
+    private void markRecovered(long setID, int amount) {
+        Integer count = thrownOutstanding.get(setID);
+        if (count == null) {
+            return;
+        }
+        int remaining = count - amount;
+        if (remaining > 0) {
+            thrownOutstanding.put(setID, remaining);
+        } else {
+            thrownOutstanding.remove(setID);
+        }
+    }
+
+    private boolean recoverOwnedMissileAtCurrentCell() {
+        Heap heap = Dungeon.level.heaps.get(pos);
+        if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
+            return false;
+        }
+
+        for (Item item : new ArrayList<>(heap.items)) {
+            if (item instanceof MissileWeapon) {
+                MissileWeapon missile = (MissileWeapon) item;
+                Integer outstanding = thrownOutstanding.get(missile.setID);
+                if (outstanding != null && outstanding > 0 && inventory.canAddToBackpack(missile)) {
+                    heap.remove(missile);
+                    if (!inventory.addToBackpack(missile)) {
+                        heap.drop(missile);
+                        return false;
+                    }
+                    markRecovered(missile.setID, missile.quantity());
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private int nearestOwnedMissileCell() {
+        int result = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (Map.Entry<Integer, Heap> entry : Dungeon.level.heaps.entrySet()) {
+            Heap heap = entry.getValue();
+            if (heap.type != Heap.Type.HEAP || heap.hidden) {
+                continue;
+            }
+
+            boolean containsOwnedMissile = false;
+            for (Item item : heap.items) {
+                if (item instanceof MissileWeapon) {
+                    MissileWeapon missile = (MissileWeapon) item;
+                    Integer outstanding = thrownOutstanding.get(missile.setID);
+                    if (outstanding != null && outstanding > 0 && inventory.canAddToBackpack(missile)) {
+                        containsOwnedMissile = true;
+                        break;
+                    }
+                }
+            }
+
+            if (containsOwnedMissile) {
+                int distance = Dungeon.level.distance(pos, entry.getKey());
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    result = entry.getKey();
+                }
+            }
+        }
+        return result;
+    }
+
+    private static final class RangedChoice {
+        final MissileWeapon missile;
+        final Wand wand;
+
+        private RangedChoice(MissileWeapon missile, Wand wand) {
+            this.missile = missile;
+            this.wand = wand;
+        }
+
+        static RangedChoice missile(MissileWeapon missile) {
+            return new RangedChoice(missile, null);
+        }
+
+        static RangedChoice wand(Wand wand) {
+            return new RangedChoice(null, wand);
+        }
     }
 
     private void revealVisibleCells() {
