@@ -3,15 +3,10 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
-import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
-import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
-import com.shatteredpixel.shatteredpixeldungeon.items.Item;
-import com.shatteredpixel.shatteredpixeldungeon.items.bags.Bag;
-import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
@@ -23,11 +18,11 @@ import com.watabou.utils.GameSettings;
 import com.watabou.utils.PathFinder;
 
 import java.util.ArrayList;
+import java.util.Collection;
 
 public final class CoHero {
 
     public static final String VERSION = "0.0.1-dev";
-    public static final String TRANSFER_ACTION = "COHERO_TRANSFER";
 
     private static final String COMPANION_CLASS_KEY_PREFIX = "cohero_companion_class_slot_";
     private static final String SAVE_COMPANION_CLASS = "cohero_companion_class";
@@ -39,10 +34,6 @@ public final class CoHero {
     private static boolean selectingCompanion;
     private static boolean openingCompanionSelection;
     private static boolean companionDeathEndedRun;
-
-    // Item/selector UIs in SPD assume Dungeon.hero. This context is set centrally by Item.execute
-    // and by owner-aware WndBag construction so nested selectors stay on the correct Hero.
-    private static Hero inventoryContextHero;
 
     private CoHero() {
     }
@@ -58,7 +49,6 @@ public final class CoHero {
         companionState = null;
         selectingCompanion = false;
         companionDeathEndedRun = false;
-        inventoryContextHero = null;
     }
 
     public static boolean onHeroSelectionConfirmed(HeroClass selectedClass) {
@@ -70,7 +60,6 @@ public final class CoHero {
             playerSelection = selectedClass;
             companionState = null;
             companionDeathEndedRun = false;
-            inventoryContextHero = null;
             selectingCompanion = true;
             openingCompanionSelection = true;
             GamesInProgress.selectedClass = null;
@@ -158,7 +147,16 @@ public final class CoHero {
         selectingCompanion = false;
         openingCompanionSelection = false;
         companionDeathEndedRun = false;
-        inventoryContextHero = null;
+    }
+
+    public static void storeLevelMobs(Bundle bundle, String key, Collection<Mob> mobs) {
+        ArrayList<Mob> storedMobs = new ArrayList<>();
+        for (Mob mob : mobs) {
+            if (!(mob instanceof CompanionHero)) {
+                storedMobs.add(mob);
+            }
+        }
+        bundle.put(key, storedMobs);
     }
 
     public static void onGameSceneReady() {
@@ -188,9 +186,8 @@ public final class CoHero {
         } else {
             CompanionStartingEquipment.initialize(companion, heroClass);
         }
-
         companion.enterLevel(spawn);
-        GameScene.addCoHero(companion);
+        GameScene.add(companion);
         Dungeon.level.occupyCell(companion);
         CompanionLongPress.ensureInstalled();
     }
@@ -198,7 +195,7 @@ public final class CoHero {
     /** Returns the level used by stock Mob EXP eligibility for the character credited with the kill. */
     public static int killLevel(Object cause) {
         if (cause instanceof CompanionHero) {
-            return ((CompanionHero) cause).lvl;
+            return ((CompanionHero) cause).level();
         }
         if (Dungeon.hero == null) {
             throw new IllegalStateException("Enemy EXP requested without Dungeon.hero");
@@ -214,6 +211,10 @@ public final class CoHero {
         return killLevel(cause) <= enemy.maxLvl ? enemy.EXP : 0;
     }
 
+    /**
+     * Awards stock enemy EXP to the credited hero. Only direct CompanionHero kills are redirected
+     * here for now; item/DoT ownership will be added together with ranged combat attribution.
+     */
     public static void awardKillExp(Mob enemy, Object cause, int exp) {
         if (enemy == null) {
             throw new IllegalArgumentException("enemy must not be null");
@@ -222,36 +223,28 @@ public final class CoHero {
             throw new IllegalArgumentException("exp must not be negative");
         }
 
-        Hero recipient = cause instanceof CompanionHero ? (CompanionHero) cause : Dungeon.hero;
-        if (recipient == null) {
-            throw new IllegalStateException("Enemy EXP requested without a Hero recipient");
+        if (cause instanceof CompanionHero) {
+            CompanionHero companion = (CompanionHero) cause;
+            if (exp > 0 && companion.sprite != null) {
+                companion.sprite.showStatusWithIcon(
+                        CharSprite.POSITIVE,
+                        Integer.toString(exp),
+                        FloatingText.EXPERIENCE);
+            }
+            companion.earnExp(exp, enemy.getClass());
+            return;
         }
 
-        if (exp > 0 && recipient.sprite != null) {
-            recipient.sprite.showStatusWithIcon(
+        if (Dungeon.hero == null) {
+            throw new IllegalStateException("Hero EXP requested without Dungeon.hero");
+        }
+        if (exp > 0 && Dungeon.hero.sprite != null) {
+            Dungeon.hero.sprite.showStatusWithIcon(
                     CharSprite.POSITIVE,
                     Integer.toString(exp),
                     FloatingText.EXPERIENCE);
         }
-        recipient.earnExp(exp, enemy.getClass());
-    }
-
-    /** Adds the autonomous Hero to ordinary enemy target candidates. */
-    public static CompanionHero companionForEnemyTargeting() {
-        CompanionHero companion = findCompanion();
-        return companion != null && companion.isAlive() ? companion : null;
-    }
-
-    /** A companion falling into a chasm ends the run; it never performs an independent floor change. */
-    public static boolean handleCompanionChasm(Char ch) {
-        if (!(ch instanceof CompanionHero)) {
-            return false;
-        }
-        CompanionHero companion = (CompanionHero) ch;
-        if (companion.isAlive()) {
-            companion.die(Chasm.class);
-        }
-        return true;
+        Dungeon.hero.earnExp(exp, enemy.getClass());
     }
 
     public static boolean canUseTransition(LevelTransition transition) {
@@ -315,173 +308,17 @@ public final class CoHero {
         return companionDeathEndedRun;
     }
 
-    /**
-     * Central item-use context. All stock Item.execute(Hero, ...) calls pass through this seam.
-     */
-    public static void noteItemUser(Hero hero) {
-        if (hero == null) {
-            throw new IllegalArgumentException("item user must not be null");
-        }
-        inventoryContextHero = hero;
-    }
-
-    /** WndBag calls this when a concrete bag is opened. */
-    public static Hero noteBagOwner(Bag bag) {
-        Hero owner = bagOwner(bag);
-        inventoryContextHero = owner;
-        return owner;
-    }
-
-    public static Hero inventoryContextHero() {
-        if (inventoryContextHero instanceof CompanionHero) {
-            CompanionHero live = findCompanion();
-            if (live == inventoryContextHero && live.isAlive()) {
-                return live;
-            }
-        } else if (inventoryContextHero == Dungeon.hero && Dungeon.hero != null) {
-            return Dungeon.hero;
-        }
-        inventoryContextHero = Dungeon.hero;
-        return Dungeon.hero;
-    }
-
-    public static Hero bagOwner(Bag bag) {
-        if (bag != null && bag.owner instanceof Hero) {
-            return (Hero) bag.owner;
-        }
-        Hero context = inventoryContextHero();
-        if (context == null) {
-            throw new IllegalStateException("Bag UI requested without a Hero owner");
-        }
-        return context;
-    }
-
-    public static Hero itemOwner(Item item) {
-        if (item == null) {
-            throw new IllegalArgumentException("item must not be null");
-        }
-
-        CompanionHero companion = findCompanion();
-        if (companion != null
-                && companion.isAlive()
-                && (companion.belongings.contains(item) || item.isEquipped(companion))) {
-            return companion;
-        }
-
-        if (Dungeon.hero != null
-                && (Dungeon.hero.belongings.contains(item) || item.isEquipped(Dungeon.hero))) {
-            return Dungeon.hero;
-        }
-
-        Hero context = inventoryContextHero();
-        return context != null ? context : Dungeon.hero;
-    }
-
-    /**
-     * Stock item actions for the owning Hero, with only direct map-target combat control removed
-     * from the autonomous companion. Potions, scrolls, equipment and non-targeted item actions stay
-     * native. Combat targeting remains the AI controller's job.
-     */
-    public static ArrayList<String> itemActions(Item item, Hero owner) {
-        if (item == null || owner == null) {
-            throw new IllegalArgumentException("item action arguments must not be null");
-        }
-
-        ArrayList<String> actions = new ArrayList<>(item.actions(owner));
-        if (owner instanceof CompanionHero) {
-            actions.remove(Item.AC_THROW);
-            if (item.usesTargeting && item.defaultAction() != null) {
-                actions.remove(item.defaultAction());
-            }
-        }
-        return actions;
-    }
-
-    public static void appendTransferAction(Item item, Hero owner, ArrayList<String> actions) {
-        if (item == null || owner == null || actions == null) {
-            throw new IllegalArgumentException("transfer action arguments must not be null");
-        }
-
-        CompanionHero companion = findCompanion();
-        if (companion == null || !companion.isAlive()) {
-            return;
-        }
-
-        if ((owner == Dungeon.hero || owner == companion)
-                && (owner.belongings.contains(item) || item.isEquipped(owner))
-                && !actions.contains(TRANSFER_ACTION)) {
-            actions.add(TRANSFER_ACTION);
-        }
-    }
-
-    public static boolean isTransferAction(String action) {
-        return TRANSFER_ACTION.equals(action);
-    }
-
-    public static String transferActionName(Hero owner) {
-        if (owner instanceof CompanionHero) {
-            return CoHeroMessages.get("inventory.give_to_hero");
-        }
-        return CoHeroMessages.get("inventory.give_to_companion");
-    }
-
-    public static boolean handleTransferAction(Item item, Hero owner, String action) {
-        if (!isTransferAction(action)) {
-            return false;
-        }
-
-        CompanionHero companion = findCompanion();
-        if (companion == null || !companion.isAlive() || Dungeon.hero == null) {
-            throw new IllegalStateException("CoHero transfer requested without both living heroes");
-        }
-
-        Hero target = owner instanceof CompanionHero ? Dungeon.hero : companion;
-        transferItem(item, owner, target);
-        return true;
-    }
-
-    private static void transferItem(Item item, Hero from, Hero to) {
-        if (item == null || from == null || to == null) {
-            throw new IllegalArgumentException("transfer arguments must not be null");
-        }
-        if (!(from.belongings.contains(item) || item.isEquipped(from))) {
-            throw new IllegalStateException("Transfer source does not own item: " + item.getClass().getName());
-        }
-
-        if (item.isEquipped(from)) {
-            if (!(item instanceof EquipableItem)
-                    || !((EquipableItem) item).doUnequip(from, false, false)) {
-                return;
-            }
-        }
-
-        Item moved = item.detachAll(from.belongings.backpack);
-        if (!moved.collect(to.belongings.backpack)) {
-            if (!moved.collect(from.belongings.backpack)) {
-                throw new IllegalStateException("CoHero transfer rollback failed");
-            }
-            GLog.w(CoHeroMessages.get("inventory.backpack_full"));
-        }
-    }
-
-    /**
-     * Permanent strength is shared. Buff-derived effective STR still comes from Dungeon.hero.STR().
-     */
-    public static void increaseSharedStrength(Hero user) {
-        if (user == null || Dungeon.hero == null) {
-            throw new IllegalStateException("Shared STR increase requested without both Hero references");
-        }
-        Dungeon.hero.STR++;
-    }
-
     private static String companionClassKey() {
         return COMPANION_CLASS_KEY_PREFIX + GamesInProgress.curSlot;
     }
 
     static CompanionHero findCompanion() {
-        for (Char ch : Actor.chars()) {
-            if (ch instanceof CompanionHero) {
-                return (CompanionHero) ch;
+        if (Dungeon.level == null) {
+            return null;
+        }
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob instanceof CompanionHero) {
+                return (CompanionHero) mob;
             }
         }
         return null;

@@ -4,9 +4,16 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Regeneration;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
+import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
@@ -16,30 +23,55 @@ import com.watabou.utils.Random;
 
 import java.util.ArrayList;
 
-/**
- * A real SPD Hero controlled by CoHero AI rather than player input.
- *
- * Keeping the companion inside the Hero type is intentional: inventory, equipment, potion,
- * scroll, wand, EXP and other item semantics should come from SPD itself instead of a parallel
- * compatibility layer. Only movement/decision-making is custom.
- */
-public class CompanionHero extends Hero {
+public class CompanionHero extends DirectableAlly {
+
+    private static final int PROGRESSION_FORMAT_VERSION = 1;
 
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
+    private static final String INVENTORY = "cohero_inventory";
+    private static final String PROGRESSION_FORMAT = "cohero_progression_format";
+    private static final String LEVEL = "cohero_level";
+    private static final String EXPERIENCE = "cohero_experience";
 
     private int explorationTarget = -1;
+    private int level = 1;
+    private int experience;
+    private final CompanionInventory inventory = new CompanionInventory(this);
 
-    public CompanionHero() {
-        super();
-        alignment = Alignment.ALLY;
-        damageInterrupt = false;
+    {
+        spriteClass = CompanionHeroSprite.class;
+        HT = HP = 20;
+        attacksAutomatically = false;
+    }
+
+    public CompanionInventory inventory() {
+        return inventory;
+    }
+
+    public MeleeWeapon weapon() {
+        return inventory.weapon();
+    }
+
+    public Armor armor() {
+        return inventory.armor();
+    }
+
+    public int level() {
+        return level;
+    }
+
+    public int experience() {
+        return experience;
+    }
+
+    public int maxExp() {
+        return Hero.maxExp(level);
     }
 
     /**
-     * Strength has one authority for the run. The companion's raw Hero.STR field is deliberately
-     * ignored; permanent strength gains are routed to Dungeon.hero by the CoHero strength seam.
+     * CoHero strength deliberately has one authority: the player's current effective STR.
+     * No second mutable STR value is stored or synchronized.
      */
-    @Override
     public int STR() {
         if (Dungeon.hero == null) {
             throw new IllegalStateException("CoHero STR requested without Dungeon.hero");
@@ -47,26 +79,103 @@ public class CompanionHero extends Hero {
         return Dungeon.hero.STR();
     }
 
-    /**
-     * Hunger is intentionally not part of CoHero yet.
-     */
+    public void earnExp(int amount, Class source) {
+        if (amount < 0) {
+            throw new IllegalArgumentException("EXP amount must not be negative");
+        }
+        if (amount == 0 || level >= Hero.MAX_LEVEL) {
+            if (level >= Hero.MAX_LEVEL) {
+                experience = 0;
+            }
+            return;
+        }
+
+        experience += amount;
+        while (level < Hero.MAX_LEVEL && experience >= maxExp()) {
+            experience -= maxExp();
+            level++;
+            updateHT(true);
+        }
+
+        if (level >= Hero.MAX_LEVEL) {
+            experience = 0;
+        }
+    }
+
+    void updateHT(boolean boostHP) {
+        int oldHT = HT;
+        HT = Math.round((20 + 5 * (level - 1)) * RingOfMight.HTMultiplier(this));
+        if (boostHP) {
+            HP += Math.max(HT - oldHT, 0);
+        }
+        HP = Math.min(HP, HT);
+    }
+
+    void spendItemUseTime() {
+        spend(TICK);
+    }
+
+    int armorTier() {
+        Armor armor = armor();
+        if (armor instanceof ClassArmor) {
+            return 6;
+        }
+        return armor == null ? 0 : armor.tier;
+    }
+
+    void updateArmorSprite() {
+        if (sprite instanceof CompanionHeroSprite) {
+            ((CompanionHeroSprite) sprite).updateArmor();
+        }
+    }
+
     @Override
-    public boolean isStarving() {
-        return false;
+    public String name() {
+        HeroClass heroClass = CoHero.companionClass();
+        return heroClass == null ? CoHeroMessages.get("companion.name") : heroClass.title();
     }
 
     @Override
     public void storeInBundle(Bundle bundle) {
         super.storeInBundle(bundle);
         bundle.put(EXPLORATION_TARGET, explorationTarget);
+        bundle.put(PROGRESSION_FORMAT, PROGRESSION_FORMAT_VERSION);
+        bundle.put(LEVEL, level);
+        bundle.put(EXPERIENCE, experience);
+
+        Bundle inventoryBundle = new Bundle();
+        inventory.storeInBundle(inventoryBundle);
+        bundle.put(INVENTORY, inventoryBundle);
     }
 
     @Override
     public void restoreFromBundle(Bundle bundle) {
         super.restoreFromBundle(bundle);
+
+        if (!bundle.contains(PROGRESSION_FORMAT)
+                || bundle.getInt(PROGRESSION_FORMAT) != PROGRESSION_FORMAT_VERSION) {
+            throw new IllegalStateException("Unsupported CoHero progression save format");
+        }
+
+        level = bundle.getInt(LEVEL);
+        experience = bundle.getInt(EXPERIENCE);
+        if (level < 1 || level > Hero.MAX_LEVEL || experience < 0) {
+            throw new IllegalStateException("Invalid CoHero progression state");
+        }
+        if (level == Hero.MAX_LEVEL && experience != 0) {
+            throw new IllegalStateException("Max-level CoHero must not retain EXP");
+        }
+        if (level < Hero.MAX_LEVEL && experience >= maxExp()) {
+            throw new IllegalStateException("CoHero save contains unprocessed level-up EXP");
+        }
+
         explorationTarget = bundle.contains(EXPLORATION_TARGET)
                 ? bundle.getInt(EXPLORATION_TARGET)
                 : -1;
+
+        if (bundle.contains(INVENTORY)) {
+            inventory.restoreFromBundle(bundle.getBundle(INVENTORY));
+        }
     }
 
     void enterLevel(int cell) {
@@ -76,28 +185,159 @@ public class CompanionHero extends Hero {
 
         pos = cell;
         explorationTarget = -1;
-        curAction = null;
-        lastAction = null;
-        ready = false;
-        resting = false;
+        target = -1;
+        enemy = null;
+        enemyID = -1;
+        enemySeen = false;
+        alerted = false;
         path = null;
+        defendingPos = -1;
+        movingToDefendPos = false;
+        state = WANDERING;
         timeToNow();
 
-        if (fieldOfView == null || fieldOfView.length != Dungeon.level.length()) {
-            fieldOfView = new boolean[Dungeon.level.length()];
-        }
+        // Recreate item-owned buffs against this live Char after save restoration / floor transfer.
+        inventory.rebuildPassiveEffects();
+        updateHT(false);
+        Buff.affect(this, CompanionRegeneration.class);
+    }
 
-        Buff.affect(this, Regeneration.class);
+    private int weaponEncumbrance() {
+        return weapon() == null ? 0 : Math.max(0, weapon().STRReq() - STR());
+    }
+
+    private int armorEncumbrance() {
+        return armor() == null ? 0 : Math.max(0, armor().STRReq() - STR());
     }
 
     @Override
-    public boolean act() {
+    protected boolean canAttack(Char enemy) {
+        return weapon() != null && (super.canAttack(enemy) || weapon().canReach(this, enemy.pos));
+    }
+
+    @Override
+    public int attackSkill(Char target) {
+        float accuracy = 9 + level;
+        accuracy *= RingOfAccuracy.accuracyMultiplier(this);
+
+        if (weapon() != null) {
+            accuracy *= weapon().accuracyFactor(this, target);
+            int encumbrance = weaponEncumbrance();
+            if (encumbrance > 0) {
+                accuracy /= Math.pow(1.5, encumbrance);
+            }
+        }
+        return Math.round(accuracy);
+    }
+
+    @Override
+    public int damageRoll() {
+        if (weapon() == null) {
+            return super.damageRoll();
+        }
+
+        int damage = weapon().damageRoll(this);
+        int excessStrength = STR() - weapon().STRReq();
+        if (excessStrength > 0) {
+            damage += Random.NormalIntRange(0, excessStrength);
+        }
+        return damage;
+    }
+
+    @Override
+    public float attackDelay() {
+        float delay = super.attackDelay();
+        if (weapon() != null) {
+            delay *= weapon().delayFactor(this);
+            int encumbrance = weaponEncumbrance();
+            if (encumbrance > 0) {
+                delay *= Math.pow(1.2, encumbrance);
+            }
+        }
+        return delay;
+    }
+
+    @Override
+    public int defenseSkill(Char enemy) {
+        float evasion = (4 + level) * RingOfEvasion.evasionMultiplier(this);
+        if (armor() != null) {
+            float armoredEvasion = armor().evasionFactor(this, evasion);
+            int encumbrance = armorEncumbrance();
+            if (encumbrance > 0 && armoredEvasion != 0) {
+                // Armor.evasionFactor applies this before the flat augment bonus for Hero owners.
+                float augmentBonus = armor().augment.evasionFactor(armor().buffedLvl());
+                armoredEvasion = (float) (evasion / Math.pow(1.5, encumbrance)) + augmentBonus;
+            }
+            evasion = armoredEvasion;
+        }
+        return Math.round(evasion);
+    }
+
+    @Override
+    public int glyphLevel(Class<? extends Armor.Glyph> cls) {
+        if (armor() != null && armor().hasGlyph(cls, this)) {
+            return Math.max(super.glyphLevel(cls), armor().buffedLvl());
+        }
+        return super.glyphLevel(cls);
+    }
+
+    @Override
+    public float speed() {
+        float speed = super.speed();
+        int encumbrance = armorEncumbrance();
+        if (encumbrance > 0) {
+            speed /= Math.pow(1.2, encumbrance);
+        }
+        return speed;
+    }
+
+    @Override
+    public int drRoll() {
+        int dr = super.drRoll();
+        if (armor() != null) {
+            int armorDr = Random.NormalIntRange(armor().DRMin(), armor().DRMax());
+            armorDr -= 2 * armorEncumbrance();
+            if (armorDr > 0) {
+                dr += armorDr;
+            }
+        }
+        if (weapon() != null) {
+            int weaponDr = Random.NormalIntRange(0, weapon().defenseFactor(this));
+            weaponDr -= 2 * weaponEncumbrance();
+            if (weaponDr > 0) {
+                dr += weaponDr;
+            }
+        }
+        return dr;
+    }
+
+    @Override
+    public int attackProc(Char enemy, int damage) {
+        damage = super.attackProc(enemy, damage);
+        if (weapon() != null) {
+            damage = weapon().proc(this, enemy, damage);
+        }
+        return damage;
+    }
+
+    @Override
+    public int defenseProc(Char enemy, int damage) {
+        if (armor() != null) {
+            damage = armor().proc(enemy, this, damage);
+        }
+        return super.defenseProc(enemy, damage);
+    }
+
+    @Override
+    protected boolean act() {
         if (fieldOfView == null || fieldOfView.length != Dungeon.level.length()) {
             fieldOfView = new boolean[Dungeon.level.length()];
         }
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
 
+        // If the player is already waiting on the exit, reaching an adjacent rally cell should
+        // immediately use the player's normal transition flow.
         if (CoHero.tryAutoExit(this)) {
             return true;
         }
@@ -110,12 +350,19 @@ public class CompanionHero extends Hero {
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (!visibleThreats.isEmpty()) {
             int escapeStep = chooseEscapeStep(visibleThreats);
-            if (escapeStep != -1 && moveToward(escapeStep)) {
-                return true;
+            if (escapeStep != -1) {
+                int oldPos = pos;
+                if (getCloser(escapeStep)) {
+                    spend(1 / speed());
+                    Dungeon.level.updateFieldOfView(this, fieldOfView);
+                    revealVisibleCells();
+                    CoHero.tryAutoExit(this);
+                    return moveSprite(oldPos, pos);
+                }
             }
 
-            // Combat AI is deliberately separate. Until it is implemented, a visible awake enemy
-            // never causes the companion to intentionally move closer.
+            // Combat AI is intentionally still separate from inventory support. Until it is added,
+            // never deliberately walk closer to a visible awake enemy.
             spend(TICK);
             return true;
         }
@@ -128,6 +375,7 @@ public class CompanionHero extends Hero {
                 spend(TICK);
                 return true;
             }
+
             explorationTarget = chooseExitWaitingCell(exitTransition);
         } else if (explorationTarget == -1
                 || explorationTarget == pos
@@ -137,8 +385,14 @@ public class CompanionHero extends Hero {
             explorationTarget = chooseExplorationTarget();
         }
 
-        if (explorationTarget != -1 && moveToward(explorationTarget)) {
-            return true;
+        int oldPos = pos;
+        if (explorationTarget != -1 && getCloser(explorationTarget)) {
+            spend(1 / speed());
+
+            Dungeon.level.updateFieldOfView(this, fieldOfView);
+            revealVisibleCells();
+            CoHero.tryAutoExit(this);
+            return moveSprite(oldPos, pos);
         }
 
         explorationTarget = exitTransition != null
@@ -148,46 +402,9 @@ public class CompanionHero extends Hero {
         return true;
     }
 
-    private boolean moveToward(int targetCell) {
-        if (rooted || targetCell == pos || !Dungeon.level.insideMap(targetCell)) {
-            return false;
-        }
-
-        int step = Dungeon.findStep(this, targetCell, Dungeon.level.passable, fieldOfView, true);
-        if (step == -1) {
-            return false;
-        }
-
-        int oldPos = pos;
-        move(step);
-        if (pos == oldPos) {
-            return false;
-        }
-
-        spend(1f / speed());
-
-        // Char.move handles Vertigo animation itself. Normal movement still needs its sprite tween.
-        if (sprite != null && !sprite.isMoving) {
-            sprite.move(oldPos, pos);
-        }
-
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        CoHero.tryAutoExit(this);
-        return true;
-    }
-
     @Override
     public void die(Object cause) {
-        // Do not use Hero.die(): a companion Ankh must not turn companion death into a separate
-        // resurrection flow. The CoHero contract is still "either hero dies, the run ends".
-        curAction = null;
-        HP = 0;
-        destroy();
-        if (sprite != null) {
-            sprite.die();
-        }
-
+        super.die(cause);
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
             GLog.n(companionDeathMessage(cause));
             CoHero.markCompanionDeathGameOver();
@@ -220,7 +437,8 @@ public class CompanionHero extends Hero {
     private ArrayList<Mob> visibleAwakeEnemies() {
         ArrayList<Mob> result = new ArrayList<>();
         for (Mob mob : Dungeon.level.mobs) {
-            if (mob.alignment == Alignment.ENEMY
+            if (mob != this
+                    && mob.alignment == Alignment.ENEMY
                     && mob.isAlive()
                     && mob.invisible <= 0
                     && fieldOfView[mob.pos]
@@ -266,7 +484,8 @@ public class CompanionHero extends Hero {
 
     private boolean isSleepSafe(int cell) {
         for (Mob mob : Dungeon.level.mobs) {
-            if (mob.alignment == Alignment.ENEMY
+            if (mob != this
+                    && mob.alignment == Alignment.ENEMY
                     && mob.isAlive()
                     && mob.state == mob.SLEEPING
                     && fieldOfView[mob.pos]

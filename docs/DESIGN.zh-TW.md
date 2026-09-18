@@ -60,34 +60,35 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 ## 4. AI 與角色實作基礎
 
-探索與行為決策仍可參考 SPD 既有的：
+第一個實作基礎應直接參考或繼承 SPD 既有的：
 
 - `DriedRose.GhostHero`
 - `DirectableAlly`
 - 一般 `Mob` 的 wandering / hunting / pathfinding 行為
 
-但這些只作為 AI 行為參考，不再決定 CoHero 的角色型別。
+也就是說，不應先打造一套「會玩完整 SPD 的 Hero AI」。
 
-### 4.1 採第二個真正的 Hero instance
+概念上角色是第二英雄，但行為骨架是強化版 intelligent ally。
+
+### 4.1 不採第二個真正的 Hero instance
 
 目前正式方向是：
 
-> `CompanionHero extends Hero`。AI 只負責控制這個 Hero 的行動；背包、裝備、Potion、Scroll、EXP、Talent 資料與其他 Hero 語意優先沿用 SPD 原生系統。
+> `CompanionHero` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
 
-仍然只有玩家 Hero 是 `Dungeon.hero`。CoHero 不透過切換 singleton 來冒充玩家，而是以少數明確的 multi-Hero integration seam 接入 SPD。
+不把 SPD 全面改造成 multi-Hero 架構，也不透過切換 `Dungeon.hero` 來讓原版系統誤以為 CoHero 是玩家 Hero。
 
 原因：
 
-- 若 CoHero 不是 `Hero`，就必須重新實作 `Belongings`、Potion / Scroll user semantics、裝備、EXP 與大量物品效果，最後會形成無止境的逐物品 adapter。
-- SPD 的大多數物品其實已經以傳入的 `Hero` 或 `curUser` 作為真正使用者；只需把少數寫死 `Dungeon.hero` 的 singleton 假設改成 owner-aware。
-- 第二個真 Hero 可以直接繼承 SPD 的 progression 與 inventory contract，而 AI 仍可維持簡單、可預期，不代表要實作完整玩家級 bot。
+- `Hero`、`Belongings`、Talent、UI 與大量物品行為直接假設唯一的 `Dungeon.hero`。
+- 強行建立第二個完整 `Hero` 會讓 upstream 同步與跨 fork 注射成本快速增加。
+- `DriedRose.GhostHero` 已證明 ally actor 可以自行模擬需要的 Hero-like 數值與裝備語意，而不需要把整個 SPD 改成多 Hero。
 
 因此工程原則是：
 
-- 不複製 Hero 已有的資料模型。
-- 不切換 `Dungeon.hero`。
-- 只 patch 有明確 multi-Hero 語意的共通 seam，例如第二 Hero 顯示、敵人選敵、chasm、EXP recipient、inventory owner context。
-- Potion / Scroll 不採逐物品白名單；以 owner contract + fail-closed verifier 確保效果作用於真正的 user。
+- 能直接重用 `Char` 層效果就直接重用。
+- 原版 API 若硬綁 `Hero`，優先在 CoHero 層建立小型 adapter，而不是修改大量 SPD 類別。
+- 只有真正需要接入原版流程的位置才 patch integration seam，例如擊殺 EXP 歸屬。
 
 ### 4.2 為什麼不是完整 Hero AI
 
@@ -189,17 +190,14 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 ### 7.1 使用者歸屬
 
-物品位於哪個角色的背包，就由哪個角色作為原版 SPD 的 item user：
+物品位於哪個角色的背包，原則上就由哪個角色作為使用者：
 
-- Hero 背包中的物品 → `Item.execute(Hero, ...)` 的 user 是 Hero。
-- CoHero 背包中的物品 → user 是 CoHero。
-- 由 Scroll 再開啟的物品選擇器，也必須繼續使用同一個 Hero 的 `Belongings`。
+- Hero 背包中的消耗品 → 效果作用於 Hero。
+- CoHero 背包中的消耗品 → 效果作用於 CoHero。
 
-因此 Potion / Scroll 不做逐類 adapter。原則是：
+這是玩法語意，不代表必須讓所有 SPD 物品 API 原生接受 `CompanionHero`。
 
-> 原版物品效果必須以傳入的 `Hero` / `curUser` 為權威使用者。
-
-目前以共通 owner context 修正 `WndBag`、`WndUseItem` 與 nested item selector。Potion / Scroll 目錄另外有 fail-closed verifier；未來 SPD 若新增會把效果直接寫到 `Dungeon.hero` 的 owner 違規，整合應直接失敗。
+若原版效果核心已接受 `Char`，直接重用；若原版入口硬綁 `Hero`，則在 CoHero 層建立明確 adapter，重現同一效果，而不是大量修改 SPD。
 
 ### 7.2 力量是共享資源
 
@@ -225,7 +223,7 @@ CoHero 不保存獨立 STR。
 - `HP`
 - `HT`
 
-這些直接使用 `Hero` 原生 progression，不再另外複製 `maxExp()`、`earnExp()` 或 HP 成長公式。
+成長曲線原則上比照 Hero 的基礎曲線，但不因此引入 Talent / Subclass 等額外 Hero 系統。
 
 EXP 歸屬：
 
@@ -234,28 +232,31 @@ EXP 歸屬：
 - Hero 使用經驗藥水 → Hero 得 EXP。
 - CoHero 使用經驗藥水 → CoHero 得 EXP。
 
-Mob 原本把 EXP 直接送給 `Dungeon.hero` 的位置，以單一 integration seam 改為依實際 credited killer 決定 recipient。
+因此 CoHero 需要自己的 `maxExp()`、`earnExp()`、升級與 HP 成長邏輯。
+
+原版 Mob 若把 EXP 直接送給 `Dungeon.hero`，應以小型 integration seam 修正擊殺歸屬，而不是重寫整個 Mob / Hero 成長系統。
 
 ### 7.4 回血
 
 CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 
-目前做法：
+最低規格：
 
-- 直接使用 SPD 原生 `Regeneration`。
-- `CompanionHero.isStarving()` 固定為 false，因此暫時不需要 Hunger progression。
-- 治療與其他 Potion 效果直接以 CoHero 這個真正的 `Hero` 作為 user。
+- 基礎自然回血採 Hero 的基礎速率：每 10 回合恢復 1 HP。
+- 不直接把原版 `Regeneration` Buff 強掛到 CoHero，因為原版包含 `Hero` cast、飢餓、神器與其他 Hero-specific 行為。
+- 在 CoHero 層實作只包含必要基礎語意的 regeneration。
+- 治療藥等若已有接受 `Char` 的核心治療函式，直接重用原版效果。
 
 ### 7.5 物品支援邊界
 
-「能存在於 CoHero 的原生背包並由 CoHero 使用」與「AI 會不會自主使用」是兩件不同的事。
+目前仍不因為「第二英雄」而全面支援所有 Hero 系統。
 
 已確定：
 
-- CoHero 使用真正的 `Belongings`，不再維護自製 20 格 inventory。
-- Potion、Scroll、Artifact、Trinket、Bag 等原版 Hero 物品原則上保留原生持有與使用語意。
-- 玩家仍不能藉由 UI 直接替 CoHero 指定地圖攻擊目標；需要 targeting 的戰鬥行為由 AI 決定。
-- 未知 fork 若破壞 owner contract，不猜測相容，直接 fail closed。
+- 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。
+- 消耗品可以逐類加入 CoHero 使用語意。
+- Artifact 與 Trinket 目前仍不支援。
+- 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
 
 ## 8. Talent 與職業能力
 
@@ -347,19 +348,19 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 
 ## 12. 最小可玩原型
 
-第一個 prototype 不需要完整玩家級 Hero AI，但角色本體使用真正的第二 Hero。
+第一個 prototype 不需要完整複製第二套 Hero 系統。
 
 最低限度只需要：
 
-- 一名 `CompanionHero extends Hero`，由 autonomous controller 驅動。
+- 一名以 `GhostHero` / `DirectableAlly` 為基礎的 companion actor。
 - 自主探索未知區域。
 - 發現出口後轉向出口鄰格並等待。
 - 玩家 Hero 作為唯一樓層 transition 觸發者。
-- 原生 `Belongings` 與 Hero item semantics。
+- 自己的背包 / 裝備資源。
 - 共享 Hero STR，但有獨立 lvl / exp / HP / HT。
 - CoHero 擊殺取得自己的 EXP。
-- 原生 Regeneration，但暫不處理 Hunger。
-- Potion / Scroll 以 owner-aware contract 一致支援，不做逐物品 adapter。
+- 基礎自然回血，不處理 Hunger。
+- 消耗品效果以 CoHero adapter 逐類支援。
 - 完全由背包與裝備驅動的基本戰鬥行為。
 - 近戰武器可及時只使用近戰武器。
 - 高閃避目標優先法杖。
