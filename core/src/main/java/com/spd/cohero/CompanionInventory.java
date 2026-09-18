@@ -138,6 +138,9 @@ public final class CompanionInventory {
         if (value == null || !backpack.contains(value)) {
             throw new IllegalArgumentException("Weapon must be in the CoHero backpack before equipping");
         }
+        if (equipFailure(value) != EquipFailure.NONE) {
+            return false;
+        }
         if (weapon != null && cannotUnequip(weapon)) {
             return false;
         }
@@ -155,6 +158,9 @@ public final class CompanionInventory {
     public boolean equipArmor(Armor value) {
         if (value == null || !backpack.contains(value)) {
             throw new IllegalArgumentException("Armor must be in the CoHero backpack before equipping");
+        }
+        if (equipFailure(value) != EquipFailure.NONE) {
+            return false;
         }
         if (armor != null && cannotUnequip(armor)) {
             return false;
@@ -176,6 +182,10 @@ public final class CompanionInventory {
         }
         if (value == null || !backpack.contains(value)) {
             throw new IllegalArgumentException("Ring must be in the CoHero backpack before equipping");
+        }
+
+        if (equipFailure(value) != EquipFailure.NONE) {
+            return false;
         }
 
         Ring previous = slot == 1 ? ringOne : ringTwo;
@@ -252,8 +262,45 @@ public final class CompanionInventory {
         return true;
     }
 
+    public EquipFailure equipFailure(Item item) {
+        if (!(item instanceof MeleeWeapon) && !(item instanceof Armor) && !(item instanceof Ring)) {
+            throw new IllegalArgumentException("Item cannot be equipped by CoHero: "
+                    + (item == null ? "null" : item.getClass().getName()));
+        }
+
+        // Match DriedRose.GhostHero outfitting: the item must be known to be uncursed.
+        if (item.cursed || !item.cursedKnown) {
+            return EquipFailure.CURSED_OR_UNKNOWN;
+        }
+
+        // When the upgrade level is unknown, use the +0 requirement so this check cannot leak
+        // the item's hidden level. This is the same rule used by DriedRose.GhostHero.
+        if (item instanceof MeleeWeapon) {
+            MeleeWeapon weapon = (MeleeWeapon) item;
+            int requirement = item.levelKnown ? weapon.STRReq() : weapon.STRReq(0);
+            if (requirement > owner.STR()) {
+                return item.levelKnown ? EquipFailure.TOO_HEAVY : EquipFailure.TOO_HEAVY_UNKNOWN;
+            }
+        } else if (item instanceof Armor) {
+            Armor armor = (Armor) item;
+            int requirement = item.levelKnown ? armor.STRReq() : armor.STRReq(0);
+            if (requirement > owner.STR()) {
+                return item.levelKnown ? EquipFailure.TOO_HEAVY : EquipFailure.TOO_HEAVY_UNKNOWN;
+            }
+        }
+
+        return EquipFailure.NONE;
+    }
+
     public boolean cannotUnequip(Item item) {
         return item != null && item.cursed && owner.buff(MagicImmune.class) == null;
+    }
+
+    public enum EquipFailure {
+        NONE,
+        CURSED_OR_UNKNOWN,
+        TOO_HEAVY_UNKNOWN,
+        TOO_HEAVY
     }
 
     void storeInBundle(Bundle bundle) {

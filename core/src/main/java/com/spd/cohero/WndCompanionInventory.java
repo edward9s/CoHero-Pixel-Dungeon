@@ -253,6 +253,12 @@ public class WndCompanionInventory extends Window {
     }
 
     private void equipFromBackpack(Item item) {
+        CompanionInventory.EquipFailure failure = inventory.equipFailure(item);
+        if (failure != CompanionInventory.EquipFailure.NONE) {
+            warnEquipBlocked(failure);
+            return;
+        }
+
         boolean equipped;
         if (item instanceof MeleeWeapon) {
             Item current = inventory.weapon();
@@ -301,6 +307,12 @@ public class WndCompanionInventory extends Window {
     }
 
     private void equipRingInto(Ring ring, int slot) {
+        CompanionInventory.EquipFailure failure = inventory.equipFailure(ring);
+        if (failure != CompanionInventory.EquipFailure.NONE) {
+            warnEquipBlocked(failure);
+            return;
+        }
+
         Item current = slot == 1 ? inventory.ringOne() : inventory.ringTwo();
         if (!inventory.equipRing(ring, slot)) {
             warnUnequipBlocked(current);
@@ -330,6 +342,24 @@ public class WndCompanionInventory extends Window {
                 return inventory.unequipRingToBackpack(2);
             default:
                 throw new IllegalStateException("Unknown slot type: " + type);
+        }
+    }
+
+    private void warnEquipBlocked(CompanionInventory.EquipFailure failure) {
+        switch (failure) {
+            case CURSED_OR_UNKNOWN:
+                GLog.w(text("inventory.cant_cursed"));
+                break;
+            case TOO_HEAVY_UNKNOWN:
+                GLog.w(text("inventory.cant_strength_unknown"));
+                break;
+            case TOO_HEAVY:
+                GLog.w(text("inventory.cant_strength"));
+                break;
+            case NONE:
+                throw new IllegalArgumentException("Cannot warn for a successful equip check");
+            default:
+                throw new IllegalStateException("Unknown equip failure: " + failure);
         }
     }
 
