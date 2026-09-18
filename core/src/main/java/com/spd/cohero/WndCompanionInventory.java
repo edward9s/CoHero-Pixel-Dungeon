@@ -220,23 +220,7 @@ public class WndCompanionInventory extends Window {
     }
 
     private void showBackpackItemActions(Item item) {
-        if (CompanionItemUse.supported(item)) {
-            GameScene.show(new WndOptions(
-                    item.title(),
-                    text("inventory.action_prompt"),
-                    text("inventory.use"),
-                    text("inventory.give_to_hero")) {
-                @Override
-                protected void onSelect(int index) {
-                    if (index == 0) {
-                        CompanionItemUse.use(companion, item);
-                        refreshWindow();
-                    } else if (index == 1) {
-                        giveBackpackItemToHero(item);
-                    }
-                }
-            });
-        } else if (item instanceof MeleeWeapon || item instanceof Armor || item instanceof Ring) {
+        if (item instanceof MeleeWeapon || item instanceof Armor || item instanceof Ring) {
             GameScene.show(new WndOptions(
                     item.title(),
                     text("inventory.action_prompt"),

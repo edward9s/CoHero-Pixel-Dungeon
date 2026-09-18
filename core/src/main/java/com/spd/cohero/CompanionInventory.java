@@ -21,8 +21,8 @@ import java.util.List;
  * CoHero-owned inventory model.
  *
  * The companion has a normal 20-slot backpack plus explicit equipment slots. Supported combat
- * equipment is weapon, armor, rings and wands. A small fail-closed set of consumables is also
- * accepted through CompanionItemUse. Artifacts, trinkets, bags and unknown consumables are rejected.
+ * equipment is weapon, armor, rings and wands. Consumables, artifacts, trinkets, bags and unknown
+ * items are rejected.
  * This intentionally does not reuse Hero/Belongings, whose owner is hard-wired to Hero.
  */
 public final class CompanionInventory {
@@ -132,27 +132,6 @@ public final class CompanionInventory {
             ((Wand) item).stopCharging();
         }
         return item;
-    }
-
-    void consumeOne(Item item) {
-        if (!containsInBackpack(item)) {
-            throw new IllegalArgumentException("Item must be in the CoHero backpack before consumption");
-        }
-        if (!CompanionItemUse.supported(item)) {
-            throw new IllegalArgumentException("Item is not a supported CoHero consumable: "
-                    + item.getClass().getName());
-        }
-        if (item.quantity() <= 0) {
-            throw new IllegalStateException("CoHero consumable has invalid quantity: " + item.quantity());
-        }
-
-        if (item.quantity() == 1) {
-            if (removeFromBackpack(item) == null) {
-                throw new IllegalStateException("CoHero consumable disappeared during consumption");
-            }
-        } else {
-            item.quantity(item.quantity() - 1);
-        }
     }
 
     public boolean equipWeapon(MeleeWeapon value) {
@@ -364,7 +343,6 @@ public final class CompanionInventory {
         return item instanceof Weapon
                 || item instanceof Armor
                 || item instanceof Ring
-                || item instanceof Wand
-                || CompanionItemUse.supported(item);
+                || item instanceof Wand;
     }
 }
