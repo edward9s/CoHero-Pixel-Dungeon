@@ -17,6 +17,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.DamageWand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFrost;
@@ -626,7 +627,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private float expectedMissileDamage(MissileWeapon missile) {
-        int level = missile.buffedLvl();
+        int level = missile.buffedLvl() + RingOfSharpshooting.levelDamageBonus(this);
         float average = (missile.min(level) + missile.max(level)) / 2f;
         average = missile.augment.damageFactor(average);
         int excessStrength = STR() - missile.STRReq();

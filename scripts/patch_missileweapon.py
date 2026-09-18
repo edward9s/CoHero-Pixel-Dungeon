@@ -30,9 +30,10 @@ damage_new = """\t@Override
 \t\t} else {
 \t\t\t// MissileWeapon.min()/max() include Dungeon.hero's Sharpshooting ring.
 \t\t\t// Non-Hero owners must use only the projectile's own level here.
+\t\t\tint level = buffedLvl() + RingOfSharpshooting.levelDamageBonus(owner);
 \t\t\tbaseDamage = Random.NormalIntRange(
-\t\t\t\t\tMath.max(0, min(buffedLvl())),
-\t\t\t\t\tMath.max(0, max(buffedLvl())));
+\t\t\t\t\tMath.max(0, min(level)),
+\t\t\t\t\tMath.max(0, max(level)));
 \t\t}
 \t\tint damage = augment.damageFactor(baseDamage);
 \t\t
@@ -58,7 +59,9 @@ sharp_old = """\t\tif (Dungeon.hero != null) {
 \t\t\tusages *= RingOfSharpshooting.durabilityMultiplier( Dungeon.hero );
 \t\t}
 """
-sharp_new = """\t\tif (coHeroUser == null && Dungeon.hero != null) {
+sharp_new = """\t\tif (coHeroUser != null) {
+\t\t\tusages *= RingOfSharpshooting.durabilityMultiplier(coHeroUser);
+\t\t} else if (Dungeon.hero != null) {
 \t\t\tusages *= RingOfSharpshooting.durabilityMultiplier( Dungeon.hero );
 \t\t}
 """
