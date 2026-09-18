@@ -4,6 +4,8 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Chill;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Frost;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
@@ -24,7 +26,19 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFrost;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfMagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Bolas;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.FishingSpear;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Javelin;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Kunai;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingClub;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingHammer;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingKnife;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSpear;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSpike;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingStone;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
@@ -534,7 +548,8 @@ public class CoHeroAlly extends DirectableAlly {
     private RangedChoice chooseRangedAttack(Mob targetMob) {
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
         for (MissileWeapon missile : inventory.missileWeapons()) {
-            if (missile.isIdentified()
+            if (supportedMissileWeapon(missile)
+                    && missile.isIdentified()
                     && !missile.cursed
                     && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
                 missiles.add(missile);
@@ -545,6 +560,7 @@ public class CoHeroAlly extends DirectableAlly {
         for (Wand wand : inventory.wands()) {
             if (supportedAttackWand(wand)
                     && wand.coHeroCanZap(this)
+                    && (!(wand instanceof WandOfFrost) || targetMob.buff(Frost.class) == null)
                     && !targetMob.isImmune(wand.getClass())
                     && !targetMob.isInvulnerable(wand.getClass())
                     && wand.coHeroCollisionPos(this, targetMob.pos) == targetMob.pos) {
@@ -609,7 +625,7 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
         for (MissileWeapon missile : inventory.missileWeapons()) {
-            if (missile.isIdentified() && !missile.cursed) {
+            if (supportedMissileWeapon(missile) && missile.isIdentified() && !missile.cursed) {
                 return true;
             }
         }
@@ -619,6 +635,24 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return false;
+    }
+
+    private boolean supportedMissileWeapon(MissileWeapon missile) {
+        // Only stock projectile types that use the standard rangedHit/rangedMiss path are enabled.
+        // Exact classes are intentional: unknown fork projectile semantics fail closed.
+        Class<?> type = missile.getClass();
+        return type == ThrowingStone.class
+                || type == ThrowingKnife.class
+                || type == ThrowingSpike.class
+                || type == FishingSpear.class
+                || type == ThrowingClub.class
+                || type == ThrowingSpear.class
+                || type == Kunai.class
+                || type == Bolas.class
+                || type == Javelin.class
+                || type == Tomahawk.class
+                || type == Trident.class
+                || type == ThrowingHammer.class;
     }
 
     private boolean supportedAttackWand(Wand wand) {
@@ -641,6 +675,13 @@ public class CoHeroAlly extends DirectableAlly {
         DamageWand damageWand = (DamageWand) wand;
         int level = wand.buffedLvl();
         float average = (damageWand.min(level) + damageWand.max(level)) / 2f;
+        if (wand instanceof WandOfFrost) {
+            Chill chill = targetChar.buff(Chill.class);
+            if (chill != null) {
+                float chillTurns = Math.min(10f, chill.cooldown());
+                average *= Math.pow(0.9333f, chillTurns);
+            }
+        }
         return average * targetChar.resist(wand.getClass());
     }
 
