@@ -98,6 +98,12 @@ collection_replacements = [
         "item collection talent",
     ),
     (
+        "if (!d.collect()){",
+        "if (!d.collect(collectingHero.belongings.backpack)){",
+        1,
+        "lost dart collection bag owner",
+    ),
+    (
         "Dungeon.level.drop(d, Dungeon.hero.pos).sprite.drop()",
         "Dungeon.level.drop(d, collectingHero.pos).sprite.drop()",
         1,
