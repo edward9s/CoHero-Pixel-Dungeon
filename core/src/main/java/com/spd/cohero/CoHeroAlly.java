@@ -797,7 +797,7 @@ public class CoHeroAlly extends DirectableAlly {
                 if (outstanding != null && outstanding > 0 && inventory.canAddToBackpack(missile)) {
                     heap.remove(missile);
                     if (!inventory.addToBackpack(missile)) {
-                        heap.drop(missile);
+                        Dungeon.level.drop(missile, pos).sprite.drop();
                         return false;
                     }
                     markRecovered(missile.setID, missile.quantity());
