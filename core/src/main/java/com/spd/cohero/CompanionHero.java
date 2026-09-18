@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Regeneration;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
@@ -86,7 +87,7 @@ public class CompanionHero extends Hero {
             fieldOfView = new boolean[Dungeon.level.length()];
         }
 
-        Buff.affect(this, CompanionRegeneration.class);
+        Buff.affect(this, Regeneration.class);
     }
 
     @Override
