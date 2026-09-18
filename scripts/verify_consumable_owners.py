@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from collections import Counter
 from pathlib import Path
 import sys
 
@@ -7,34 +8,65 @@ if len(sys.argv) != 2:
 
 root = Path(sys.argv[1])
 items = root / "com/shatteredpixel/shatteredpixeldungeon/items"
+if not items.is_dir():
+    raise SystemExit(f"items directory not found: {items}")
 
-# These remaining singleton references are deliberately global rather than item-user ownership:
-# - Potion.java / Scroll.java: discovery bookkeeping is run-global.
-# - ElixirOfMight.java: description preview uses the main run hero as a fallback display context.
-# - ScrollOfTeleportation.java: main-camera/FOV/UI behavior explicitly distinguishes Dungeon.hero.
-allowed = {
-    "potions/Potion.java": 1,
-    "potions/elixirs/ElixirOfMight.java": 1,
-    "scrolls/Scroll.java": 1,
-    "scrolls/ScrollOfTeleportation.java": 8,
-}
+# Remaining singleton references are deliberately NOT item ownership:
+# - Potion/Scroll base classes: run-global discovery bookkeeping.
+# - ElixirOfMight: description preview fallback.
+# - ScrollOfTeleportation: primary camera/FOV/UI distinction.
+# - ScrollOfRemoveCurse one-argument helper: legacy external call sites such as WaterOfHealth.
+allowed = Counter({
+    ("potions/Potion.java", "if (Dungeon.hero.isAlive()) {"): 1,
+    (
+        "potions/elixirs/ElixirOfMight.java",
+        'return Messages.get(this, "desc", HTBoost.boost(Dungeon.hero != null ? Dungeon.hero.HT : 20));',
+    ): 1,
+    ("scrolls/Scroll.java", "if (Dungeon.hero.isAlive()) {"): 1,
+    ("scrolls/ScrollOfTeleportation.java", "if (ch == Dungeon.hero){"): 1,
+    ("scrolls/ScrollOfTeleportation.java", "if (ch == Dungeon.hero) {"): 3,
+    ("scrolls/ScrollOfTeleportation.java", "Dungeon.hero.interrupt();"): 2,
+    (
+        "scrolls/ScrollOfTeleportation.java",
+        "if (Dungeon.level.heroFOV[ch.pos] && ch != Dungeon.hero ) {",
+    ): 1,
+    (
+        "scrolls/ScrollOfTeleportation.java",
+        "if (Dungeon.level.heroFOV[pos] || ch == Dungeon.hero ) {",
+    ): 1,
+    (
+        "scrolls/ScrollOfRemoveCurse.java",
+        "return uncursable(Dungeon.hero, item);",
+    ): 1,
+})
 
-seen = {}
+actual = Counter()
 for category in ("potions", "scrolls"):
-    for path in sorted((items / category).rglob("*.java")):
-        text = path.read_text(encoding="utf-8")
-        count = text.count("Dungeon.hero")
-        if count:
-            rel = path.relative_to(items).as_posix()
-            seen[rel] = count
+    base = items / category
+    if not base.is_dir():
+        raise SystemExit(f"missing consumable source directory: {base}")
+    for p in base.rglob("*.java"):
+        rel = p.relative_to(items).as_posix()
+        for raw in p.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if "Dungeon.hero" in line:
+                actual[(rel, line)] += 1
 
-if seen != allowed:
-    lines = ["Unsupported consumable owner contract:"]
-    for rel in sorted(set(seen) | set(allowed)):
-        actual = seen.get(rel, 0)
-        expected = allowed.get(rel, 0)
-        if actual != expected:
-            lines.append(f"  {rel}: expected {expected} Dungeon.hero reference(s), found {actual}")
+unexpected = actual - allowed
+missing = allowed - actual
+if unexpected or missing:
+    lines = ["Unsupported CoHero consumable owner contract:"]
+    if unexpected:
+        lines.append("Unexpected direct Dungeon.hero references:")
+        for (rel, line), count in sorted(unexpected.items()):
+            lines.append(f"  {rel} x{count}: {line}")
+    if missing:
+        lines.append("Expected allowlisted reference changed or disappeared:")
+        for (rel, line), count in sorted(missing.items()):
+            lines.append(f"  {rel} x{count}: {line}")
     raise SystemExit("\n".join(lines))
 
-print("consumable owner contract verified")
+print(
+    "consumable owner contract verified: "
+    f"{sum(actual.values())} explicitly allowlisted singleton reference(s)"
+)
