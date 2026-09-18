@@ -88,7 +88,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 - 能直接重用 `Char` 層效果就直接重用。
 - 原版 API 若硬綁 `Hero`，優先在 CoHero 層建立小型 adapter，而不是修改大量 SPD 類別。
-- 只有真正需要接入原版流程的位置才 patch integration seam，例如擊殺 EXP 歸屬。
+- 只有真正需要接入原版流程的位置才 patch integration seam；共享 EXP / level 不需要修改 Mob 的 EXP 流程。
 
 ### 4.2 為什麼不是完整 Hero AI
 
@@ -214,27 +214,20 @@ CoHero 不保存獨立 STR。
 - 武器與護甲的 STRReq 以及力量不足懲罰，CoHero 必須使用這個共享 STR 計算。
 - 不應維護兩份 STR 再做同步；共享值應只有一個權威來源。
 
-### 7.3 等級與 EXP 完全獨立
+### 7.3 等級與 EXP 共享
 
-與 STR 不同，CoHero 有自己的：
+與 STR 類似，CoHero 不保存獨立的 lvl / exp。
 
-- `lvl`
-- `exp`
-- `HP`
-- `HT`
+> 玩家 Hero 的 `lvl` / `exp` 是隊伍唯一的等級與經驗權威；CoHero 的 `level()` 直接讀取 `Dungeon.hero.lvl`。
 
-成長曲線原則上比照 Hero 的基礎曲線，但不因此引入 Talent / Subclass 等額外 Hero 系統。
+因此：
 
-EXP 歸屬：
-
-- Hero 擊殺敵人 → Hero 得 EXP。
-- CoHero 擊殺敵人 → CoHero 得 EXP。
-- Hero 使用經驗藥水 → Hero 得 EXP。
-- CoHero 使用經驗藥水 → CoHero 得 EXP。
-
-因此 CoHero 需要自己的 `maxExp()`、`earnExp()`、升級與 HP 成長邏輯。
-
-原版 Mob 若把 EXP 直接送給 `Dungeon.hero`，應以小型 integration seam 修正擊殺歸屬，而不是重寫整個 Mob / Hero 成長系統。
+- 不論 Hero 或 CoHero 擊殺敵人，都沿用 SPD 原版流程把 EXP 加到 `Dungeon.hero`。
+- 不需要為擊殺者歸屬 patch `Mob.java`。
+- Hero 使用經驗藥水 → 增加共同 EXP。
+- CoHero 使用經驗藥水 → 同樣增加共同 EXP。
+- CoHero 的 HP、命中、閃避等 level-based 數值仍以共同 level 計算，但各自保有 HP / HT 與裝備狀態。
+- CoHero 不維護第二套 EXP 曲線，也不存在尾刀搶 EXP 的問題。
 
 ### 7.4 回血
 
@@ -357,8 +350,8 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 發現出口後轉向出口鄰格並等待。
 - 玩家 Hero 作為唯一樓層 transition 觸發者。
 - 自己的背包 / 裝備資源。
-- 共享 Hero STR，但有獨立 lvl / exp / HP / HT。
-- CoHero 擊殺取得自己的 EXP。
+- 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
+- CoHero 擊殺沿用原版流程增加共同 EXP。
 - 基礎自然回血，不處理 Hunger。
 - 消耗品效果以 CoHero adapter 逐類支援。
 - 完全由背包與裝備驅動的基本戰鬥行為。

@@ -82,7 +82,11 @@ final class CompanionItemUse {
 
     private static void useExperience(CoHeroAlly companion, PotionOfExperience potion) {
         potion.identify();
-        int amount = companion.maxExp();
+        if (Dungeon.hero == null) {
+            throw new IllegalStateException("CoHero experience potion used without Dungeon.hero");
+        }
+
+        int amount = Dungeon.hero.maxExp();
         if (companion.sprite != null) {
             companion.sprite.showStatusWithIcon(
                     CharSprite.POSITIVE,
@@ -90,7 +94,7 @@ final class CompanionItemUse {
                     FloatingText.EXPERIENCE);
             new Flare(6, 32).color(0xFFFF00, true).show(companion.sprite, 2f);
         }
-        companion.earnExp(amount, PotionOfExperience.class);
+        Dungeon.hero.earnExp(amount, PotionOfExperience.class);
     }
 
     private static void useStrength(CoHeroAlly companion, PotionOfStrength potion) {

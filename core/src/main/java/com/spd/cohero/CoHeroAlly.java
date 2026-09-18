@@ -25,17 +25,11 @@ import java.util.ArrayList;
 
 public class CoHeroAlly extends DirectableAlly {
 
-    private static final int PROGRESSION_FORMAT_VERSION = 1;
-
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
     private static final String INVENTORY = "cohero_inventory";
-    private static final String PROGRESSION_FORMAT = "cohero_progression_format";
-    private static final String LEVEL = "cohero_level";
-    private static final String EXPERIENCE = "cohero_experience";
 
     private int explorationTarget = -1;
-    private int level = 1;
-    private int experience;
+    private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
 
     {
@@ -57,15 +51,10 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     public int level() {
-        return level;
-    }
-
-    public int experience() {
-        return experience;
-    }
-
-    public int maxExp() {
-        return Hero.maxExp(level);
+        if (Dungeon.hero == null) {
+            throw new IllegalStateException("CoHero level requested without Dungeon.hero");
+        }
+        return Dungeon.hero.lvl;
     }
 
     /**
@@ -79,32 +68,9 @@ public class CoHeroAlly extends DirectableAlly {
         return Dungeon.hero.STR();
     }
 
-    public void earnExp(int amount, Class source) {
-        if (amount < 0) {
-            throw new IllegalArgumentException("EXP amount must not be negative");
-        }
-        if (amount == 0 || level >= Hero.MAX_LEVEL) {
-            if (level >= Hero.MAX_LEVEL) {
-                experience = 0;
-            }
-            return;
-        }
-
-        experience += amount;
-        while (level < Hero.MAX_LEVEL && experience >= maxExp()) {
-            experience -= maxExp();
-            level++;
-            updateHT(true);
-        }
-
-        if (level >= Hero.MAX_LEVEL) {
-            experience = 0;
-        }
-    }
-
     void updateHT(boolean boostHP) {
         int oldHT = HT;
-        HT = Math.round((20 + 5 * (level - 1)) * RingOfMight.HTMultiplier(this));
+        HT = Math.round((20 + 5 * (level() - 1)) * RingOfMight.HTMultiplier(this));
         if (boostHP) {
             HP += Math.max(HT - oldHT, 0);
         }
@@ -139,9 +105,6 @@ public class CoHeroAlly extends DirectableAlly {
     public void storeInBundle(Bundle bundle) {
         super.storeInBundle(bundle);
         bundle.put(EXPLORATION_TARGET, explorationTarget);
-        bundle.put(PROGRESSION_FORMAT, PROGRESSION_FORMAT_VERSION);
-        bundle.put(LEVEL, level);
-        bundle.put(EXPERIENCE, experience);
 
         Bundle inventoryBundle = new Bundle();
         inventory.storeInBundle(inventoryBundle);
@@ -152,22 +115,7 @@ public class CoHeroAlly extends DirectableAlly {
     public void restoreFromBundle(Bundle bundle) {
         super.restoreFromBundle(bundle);
 
-        if (!bundle.contains(PROGRESSION_FORMAT)
-                || bundle.getInt(PROGRESSION_FORMAT) != PROGRESSION_FORMAT_VERSION) {
-            throw new IllegalStateException("Unsupported CoHero progression save format");
-        }
-
-        level = bundle.getInt(LEVEL);
-        experience = bundle.getInt(EXPERIENCE);
-        if (level < 1 || level > Hero.MAX_LEVEL || experience < 0) {
-            throw new IllegalStateException("Invalid CoHero progression state");
-        }
-        if (level == Hero.MAX_LEVEL && experience != 0) {
-            throw new IllegalStateException("Max-level CoHero must not retain EXP");
-        }
-        if (level < Hero.MAX_LEVEL && experience >= maxExp()) {
-            throw new IllegalStateException("CoHero save contains unprocessed level-up EXP");
-        }
+        syncedLevel = level();
 
         explorationTarget = bundle.contains(EXPLORATION_TARGET)
                 ? bundle.getInt(EXPLORATION_TARGET)
@@ -198,8 +146,20 @@ public class CoHeroAlly extends DirectableAlly {
 
         // Recreate item-owned buffs against this live Char after save restoration / floor transfer.
         inventory.rebuildPassiveEffects();
+        syncedLevel = level();
         updateHT(false);
         Buff.affect(this, CompanionRegeneration.class);
+    }
+
+    private void syncSharedLevel() {
+        int currentLevel = level();
+        if (currentLevel == syncedLevel) {
+            return;
+        }
+
+        boolean gainedLevel = currentLevel > syncedLevel;
+        syncedLevel = currentLevel;
+        updateHT(gainedLevel);
     }
 
     private int weaponEncumbrance() {
@@ -217,7 +177,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public int attackSkill(Char target) {
-        float accuracy = 9 + level;
+        float accuracy = 9 + level();
         accuracy *= RingOfAccuracy.accuracyMultiplier(this);
 
         if (weapon() != null) {
@@ -259,7 +219,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public int defenseSkill(Char enemy) {
-        float evasion = (4 + level) * RingOfEvasion.evasionMultiplier(this);
+        float evasion = (4 + level()) * RingOfEvasion.evasionMultiplier(this);
         if (armor() != null) {
             float armoredEvasion = armor().evasionFactor(this, evasion);
             int encumbrance = armorEncumbrance();
@@ -330,6 +290,8 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean act() {
+        syncSharedLevel();
+
         if (fieldOfView == null || fieldOfView.length != Dungeon.level.length()) {
             fieldOfView = new boolean[Dungeon.level.length()];
         }

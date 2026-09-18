@@ -6,11 +6,9 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
-import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
-import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.Game;
 import com.watabou.utils.Bundle;
@@ -190,61 +188,6 @@ public final class CoHero {
         GameScene.add(companion);
         Dungeon.level.occupyCell(companion);
         CompanionLongPress.ensureInstalled();
-    }
-
-    /** Returns the level used by stock Mob EXP eligibility for the character credited with the kill. */
-    public static int killLevel(Object cause) {
-        if (cause instanceof CoHeroAlly) {
-            return ((CoHeroAlly) cause).level();
-        }
-        if (Dungeon.hero == null) {
-            throw new IllegalStateException("Enemy EXP requested without Dungeon.hero");
-        }
-        return Dungeon.hero.lvl;
-    }
-
-    /** Mirrors stock Mob EXP gating, but uses the credited killer's independent level. */
-    public static int killExp(Mob enemy, Object cause) {
-        if (enemy == null) {
-            throw new IllegalArgumentException("enemy must not be null");
-        }
-        return killLevel(cause) <= enemy.maxLvl ? enemy.EXP : 0;
-    }
-
-    /**
-     * Awards stock enemy EXP to the credited hero. Only direct CoHeroAlly kills are redirected
-     * here for now; item/DoT ownership will be added together with ranged combat attribution.
-     */
-    public static void awardKillExp(Mob enemy, Object cause, int exp) {
-        if (enemy == null) {
-            throw new IllegalArgumentException("enemy must not be null");
-        }
-        if (exp < 0) {
-            throw new IllegalArgumentException("exp must not be negative");
-        }
-
-        if (cause instanceof CoHeroAlly) {
-            CoHeroAlly companion = (CoHeroAlly) cause;
-            if (exp > 0 && companion.sprite != null) {
-                companion.sprite.showStatusWithIcon(
-                        CharSprite.POSITIVE,
-                        Integer.toString(exp),
-                        FloatingText.EXPERIENCE);
-            }
-            companion.earnExp(exp, enemy.getClass());
-            return;
-        }
-
-        if (Dungeon.hero == null) {
-            throw new IllegalStateException("Hero EXP requested without Dungeon.hero");
-        }
-        if (exp > 0 && Dungeon.hero.sprite != null) {
-            Dungeon.hero.sprite.showStatusWithIcon(
-                    CharSprite.POSITIVE,
-                    Integer.toString(exp),
-                    FloatingText.EXPERIENCE);
-        }
-        Dungeon.hero.earnExp(exp, enemy.getClass());
     }
 
     public static boolean canUseTransition(LevelTransition transition) {
