@@ -101,9 +101,12 @@ damage_old = """\tpublic int damageRoll(int lvl){
 \t}
 """
 damage_new = """\tpublic int damageRoll(int lvl){
-\t\tint dmg = Hero.heroDamageIntRange(min(lvl), max(lvl));
-\t\t// WandEmpower belongs to the player Hero and must not leak into a CoHero cast.
-\t\tif (zapUser() == Dungeon.hero) {
+\t\tboolean heroCast = zapUser() == Dungeon.hero;
+\t\tint dmg = heroCast
+\t\t\t\t? Hero.heroDamageIntRange(min(lvl), max(lvl))
+\t\t\t\t: Random.NormalIntRange(min(lvl), max(lvl));
+\t\t// Hero-only RNG and WandEmpower must not leak into a CoHero cast.
+\t\tif (heroCast) {
 \t\t\tWandEmpower emp = Dungeon.hero.buff(WandEmpower.class);
 \t\t\tif (emp != null){
 \t\t\t\tdmg += emp.dmgBoost;
@@ -120,6 +123,15 @@ damage_new = """\tpublic int damageRoll(int lvl){
 if damage.count(damage_old) != 1:
     raise SystemExit("expected exactly one DamageWand damageRoll anchor")
 damage = damage.replace(damage_old, damage_new, 1)
+
+random_import_anchor = "import com.watabou.noosa.audio.Sample;\n"
+if damage.count(random_import_anchor) != 1:
+    raise SystemExit("expected exactly one DamageWand Sample import anchor")
+damage = damage.replace(
+    random_import_anchor,
+    random_import_anchor + "import com.watabou.utils.Random;\n",
+    1,
+)
 
 magic_old = """\t\t\t//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
 \t\t\tfor (Wand.Charger wandCharger : curUser.buffs(Wand.Charger.class)){
