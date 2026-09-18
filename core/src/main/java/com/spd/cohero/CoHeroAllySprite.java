@@ -22,6 +22,10 @@ public class CoHeroAllySprite extends CharSprite {
     public CoHeroAllySprite() {
         super();
 
+        // CoHero death ends the run, so the companion itself must remain observable even when
+        // outside the player's field of view. This does not reveal surrounding mobs or terrain.
+        visibleOutOfFFOV = true;
+
         HeroClass heroClass = CoHero.companionClass();
         if (heroClass == null) {
             throw new IllegalStateException("CoHeroAllySprite has no selected HeroClass");
