@@ -285,6 +285,14 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     @Override
+    public void move(int step, boolean travelling) {
+        super.move(step, travelling);
+        if (sprite != null) {
+            sprite.visible = true;
+        }
+    }
+
+    @Override
     public int defenseSkill(Char enemy) {
         float evasion = (4 + level()) * RingOfEvasion.evasionMultiplier(this);
         if (armor() != null) {
@@ -686,7 +694,8 @@ public class CoHeroAlly extends DirectableAlly {
                 ? MagicMissile.FROST
                 : MagicMissile.MAGIC_MISSILE;
 
-        if (sprite != null && sprite.parent != null && (sprite.visible || targetMob.sprite.visible)) {
+        if (sprite != null && sprite.parent != null && targetMob.sprite != null
+                && (sprite.visible || targetMob.sprite.visible)) {
             MagicMissile.boltFromChar(
                     sprite.parent,
                     missileType,
@@ -759,9 +768,9 @@ public class CoHeroAlly extends DirectableAlly {
         int result = -1;
         int bestDistance = Integer.MAX_VALUE;
 
-        for (Map.Entry<Integer, Heap> entry : Dungeon.level.heaps.entrySet()) {
-            Heap heap = entry.getValue();
-            if (heap.type != Heap.Type.HEAP || heap.hidden) {
+        for (int cell : Dungeon.level.heaps.keyArray()) {
+            Heap heap = Dungeon.level.heaps.get(cell);
+            if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
                 continue;
             }
 
@@ -778,10 +787,10 @@ public class CoHeroAlly extends DirectableAlly {
             }
 
             if (containsOwnedMissile) {
-                int distance = Dungeon.level.distance(pos, entry.getKey());
+                int distance = Dungeon.level.distance(pos, cell);
                 if (distance < bestDistance) {
                     bestDistance = distance;
-                    result = entry.getKey();
+                    result = cell;
                 }
             }
         }
