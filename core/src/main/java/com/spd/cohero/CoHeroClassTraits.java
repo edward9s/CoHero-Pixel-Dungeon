@@ -73,7 +73,7 @@ public final class CoHeroClassTraits {
             return 1f;
         }
 
-        return Dungeon.level.distance(target.pos, companion.pos) <= CLERIC_AURA_DISTANCE
+        return Dungeon.level.distance(Dungeon.hero.pos, companion.pos) <= CLERIC_AURA_DISTANCE
                 ? CLERIC_AURA_MULTIPLIER
                 : 1f;
     }
