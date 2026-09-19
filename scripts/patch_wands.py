@@ -59,7 +59,6 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 		return owner != null
 				&& owner.isAlive()
 				&& owner.buff(MagicImmune.class) == null
-				&& isIdentified()
 				&& !cursed
 				&& curCharges >= chargesPerCast();
 	}
