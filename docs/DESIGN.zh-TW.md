@@ -307,7 +307,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
-- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存型藥劑。一般低血量流程仍在 HP 低於 35% 時優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`，治療正在進行或沒有治療藥時才用 `PotionOfShielding`；但若戰鬥風險模型已判定必須撤退、又完全沒有合法逃生格，緊急流程會反過來優先使用立即生效的 `PotionOfShielding`。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
+- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存／逃生／戰鬥機動藥劑。一般低血量流程仍在 HP 低於 35% 時優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`，治療正在進行或沒有治療藥時才用 `PotionOfShielding`；但若戰鬥風險模型已判定必須撤退、又完全沒有合法逃生格，緊急流程會反過來優先使用立即生效的 `PotionOfShielding`。有安全逃生步但正常速度仍會持續受到追擊壓力時，可使用 `PotionOfHaste` 作為短效逃跑資源；高威脅戰鬥則可使用 `PotionOfStamina` 作長效機動資源。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
 - CoHero 背包可持有 `Ankh`。CoHero 死亡時優先消耗祝福 Ankh：回滿 HP 並獲得 15 回合 `Invulnerability`；未祝福 Ankh 則回滿 HP 並隨機傳送到本層一個合法、非秘密、無角色占用的可走格。Ankh 成功觸發時不進入 CoHero Game Over 流程。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
@@ -338,6 +338,9 @@ CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明�
 - 已有有效 `Barrier` 時不會再喝第二瓶護盾藥，避免覆蓋仍有價值的護盾。
 - `Pharmacophobia` 只讓玩家 Hero 對治療藥過敏；SPD 原版明確規定其他角色仍正常受治療，因此 CoHero 仍可正常使用治療藥。
 - 已鑑定 `PotionOfInvisibility` 可作為緊急逃生資源，但不會因單純低於 35% HP 就立即飲用；只有戰鬥風險模型已判定 retreat、免費 escape utility 與安全走位都失敗，而且存在 3+ 當前攻擊者、立即致命風險、低血危險或 TTD ≤ 2 回合等條件時才使用。飲用後取得原版 `Invisibility.DURATION`，並在 `combatRetreating` 期間優先純移動脫離，避免下一回合主動攻擊立刻打破隱形。
+- 已鑑定 `PotionOfHaste` 定位為逃跑資源。只有 CoHero 已進入 retreat、確實存在安全逃生步，而且移動一步後仍有敵人可直接攻擊、仍有能跟上的追兵，或 TTD 已縮短到約 3.5 回合內時才考慮。若當前一輪傷害已接近致命，反而不花一回合喝 Haste，直接走位／控制優先。Haste 沿用原版 `Haste.DURATION = 20` 與 3× movement speed。
+- 已鑑定 `PotionOfStamina` 定位為戰鬥機動資源。只有非 retreat 狀態下遇到 2+ 可見威脅、遠程壓制／anti-ranged 接敵，或 Boss / Miniboss 戰時才會自動使用；單一普通敵人且預估很快能結束的戰鬥不浪費。Stamina 沿用原版 `Stamina.DURATION = 100` 與 1.5× movement speed。
+- CoHero 不會主動把 Haste 與 Stamina 疊加：已有其中一種 buff 時，不自動消耗另一瓶。原版 `Char.speed()` 會將兩者相乘，因此這項限制避免 AI 為了 4.5× 移速浪費兩瓶藥。
 - CoHero 背包允許存放 Scroll，理由與 Potion 相同：若只允許 `ScrollOfTerror` 會從「能不能放入」洩漏未鑑定卷軸身份。只有已鑑定的 `ScrollOfTerror` 具有自動使用語意；其他 Scroll 只作為背包資源，可交還 Hero。
 - `ScrollOfTerror` 只在 retreat 且無安全逃生步時使用；若能影響至少 2 名當前可見、清醒敵人，或單一可恐懼敵人已造成立即致命風險，優先於隱形藥。作用範圍使用 CoHero 自己的 FOV，不借用 `Dungeon.level.heroFOV`；失明或 `MagicImmune` 時不讀。效果沿用原版 `Terror.DURATION`，並將恐懼來源設為 CoHero。
 - 其他 Potion 只作為背包資源，可交還 Hero；CoHero 不會自行飲用。
@@ -391,7 +394,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。
 - CoHero 的武器規則與防具／戒指分開：近戰武器只要求實際未詛咒，不要求已知詛咒狀態；防具與戒指仍維持 GhostHero 式的「已確認未詛咒」才能裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
-- Potion 與 Scroll 都可放入 CoHero 背包，以避免從可選性洩漏未鑑定物品身份。Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility` 具有自動使用語意；Scroll 只有已鑑定的 `ScrollOfTerror` 具有自動使用語意；`Ankh` 具有死亡時自動復活語意。
+- Potion 與 Scroll 都可放入 CoHero 背包，以避免從可選性洩漏未鑑定物品身份。Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility`、`PotionOfHaste`、`PotionOfStamina` 具有自動使用語意；Scroll 只有已鑑定的 `ScrollOfTerror` 具有自動使用語意；`Ankh` 具有死亡時自動復活語意。
 - Artifact 與 Trinket 目前仍不支援。
 - `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。
 - 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
@@ -508,7 +511,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
 - CoHero 擊殺沿用原版流程增加共同 EXP。
 - 基礎自然回血，不處理 Hunger。
-- CoHero 可自動使用少數已鑑定生存／逃生消耗品（目前包含治療／護盾／隱形藥與恐懼卷軸），並可由自己背包中的 Ankh 在死亡時復活。
+- CoHero 可自動使用少數已鑑定生存／逃生／戰鬥機動消耗品（目前包含治療／護盾／隱形／Haste／Stamina 藥劑與恐懼卷軸），並可由自己背包中的 Ankh 在死亡時復活。
 - 完全由背包與裝備驅動的基本戰鬥行為。
 - 近戰武器可及時只使用近戰武器。
 - 高閃避目標優先法杖。
