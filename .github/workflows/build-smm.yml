@@ -78,6 +78,9 @@ jobs:
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/GamesInProgress.java
           python cohero/scripts/patch_start_scene.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/StartScene.java
+          python cohero/scripts/patch_version_ui.py \
+            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java \
+            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java
           python cohero/scripts/patch_level_mobs.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java
           python cohero/scripts/patch_mob_cohero.py \
