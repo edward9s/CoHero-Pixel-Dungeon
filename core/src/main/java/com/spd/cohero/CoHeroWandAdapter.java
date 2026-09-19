@@ -14,6 +14,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.DamageWand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfBlastWave;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfCorruption;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfCorrosion;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfDisintegration;
@@ -50,6 +51,7 @@ final class CoHeroWandAdapter {
         }
         Class<?> type = wand.getClass();
         return type == WandOfMagicMissile.class
+                || type == WandOfBlastWave.class
                 || type == WandOfFrost.class
                 || type == WandOfDisintegration.class
                 || type == WandOfLightning.class
@@ -70,7 +72,7 @@ final class CoHeroWandAdapter {
         if (!offensiveCapability(wand)
                 || !wand.coHeroCanZap(owner)
                 || target == null
-                || target.isImmune(wand.getClass())
+                || (!(wand instanceof WandOfBlastWave) && target.isImmune(wand.getClass()))
                 || target.isInvulnerable(wand.getClass())) {
             return false;
         }
@@ -98,6 +100,9 @@ final class CoHeroWandAdapter {
             return false;
         }
 
+        if (wand instanceof WandOfBlastWave) {
+            return CoHeroBlastWavePlanner.choose((WandOfBlastWave) wand, owner, target) != null;
+        }
         if (wand instanceof WandOfCorrosion) {
             return CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target) != null;
         }
@@ -120,6 +125,7 @@ final class CoHeroWandAdapter {
 
     static boolean damagingCapability(Wand wand, Mob target) {
         if (wand instanceof WandOfMagicMissile
+                || wand instanceof WandOfBlastWave
                 || wand instanceof WandOfFrost
                 || wand instanceof WandOfDisintegration
                 || wand instanceof WandOfLightning
@@ -162,6 +168,11 @@ final class CoHeroWandAdapter {
             return Float.NEGATIVE_INFINITY;
         }
 
+        if (wand instanceof WandOfBlastWave) {
+            CoHeroBlastWavePlanner.Plan plan =
+                    CoHeroBlastWavePlanner.choose((WandOfBlastWave) wand, owner, target);
+            return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
+        }
         if (wand instanceof WandOfDisintegration) {
             return expectedDisintegrationDamage((WandOfDisintegration) wand, owner, target);
         }
@@ -216,6 +227,11 @@ final class CoHeroWandAdapter {
     }
 
     static int aimCell(Wand wand, CoHeroAlly owner, Mob target) {
+        if (wand instanceof WandOfBlastWave) {
+            CoHeroBlastWavePlanner.Plan plan =
+                    CoHeroBlastWavePlanner.choose((WandOfBlastWave) wand, owner, target);
+            return plan == null ? -1 : plan.aimCell;
+        }
         if (wand instanceof WandOfCorrosion) {
             CoHeroCorrosionPlanner.Plan plan =
                     CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target);
@@ -232,6 +248,17 @@ final class CoHeroWandAdapter {
             return plan == null ? -1 : plan.aimCell;
         }
         return target == null ? -1 : target.pos;
+    }
+
+    static int blastWaveEscapeAim(
+            Wand wand, CoHeroAlly owner, List<Mob> visibleThreats) {
+        if (!(wand instanceof WandOfBlastWave)) {
+            return -1;
+        }
+        CoHeroBlastWavePlanner.Plan plan =
+                CoHeroBlastWavePlanner.chooseEscape(
+                        (WandOfBlastWave) wand, owner, visibleThreats);
+        return plan == null ? -1 : plan.aimCell;
     }
 
     static boolean regrowthUsefulForEscape(
