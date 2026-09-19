@@ -200,6 +200,10 @@ replace_once(
 """		private int wandLevel = -1;
 		private int ownerId = -1;
 
+		public void setInfo(Hero hero, int wandLevel, int healthToAdd){
+			setInfo(hero, hero.lvl, wandLevel, healthToAdd);
+		}
+
 		public void setInfo(Char owner, int ownerLevel, int wandLevel, int healthToAdd){
 			if (owner != null) {
 				ownerId = owner.id();
