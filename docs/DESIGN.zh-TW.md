@@ -269,7 +269,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - 藥水與卷軸不支援 CoHero 使用。
 - Artifact 與 Trinket 目前仍不支援。
-- `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。帶有 seal 的既有護甲本體仍可穿戴，但 seal 被動對 CoHero 不生效。
+- `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。
 - 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
 - Wand 目前需要額外 integration seam，因為 SPD 的使用入口與不少個別 Wand 效果仍依賴 `Hero` / `curUser` / `Dungeon.hero`；這是上游 API 的 owner 假設，不代表 AI 設計上應以法杖類別硬編行為。
 

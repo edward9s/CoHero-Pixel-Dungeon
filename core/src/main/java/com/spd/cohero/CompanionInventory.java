@@ -383,10 +383,7 @@ public final class CompanionInventory {
     }
 
     private void rebuildArmorEffects() {
-        // BrokenSeal.WarriorShield is Hero-only in stock SPD: its actor logic casts target to
-        // Hero and reads Hero talents/combo state. Always remove any stale/restored instance
-        // instead of activating it on CoHero.
-        Buff.detach(owner, BrokenSeal.WarriorShield.class);
+        // BrokenSeal.WarriorShield is Hero-only in stock SPD, so CoHero does not activate it.
         owner.updateArmorSprite();
     }
 
