@@ -22,13 +22,12 @@ import java.util.Collection;
 
 public final class CoHero {
 
-    public static final String VERSION = "0.0.1-dev";
-
     public static final int TRANSITION_BLOCKED = 0;
     public static final int TRANSITION_STARTED = 1;
     public static final int TRANSITION_PROMPTED = 2;
 
     private static final String COMPANION_CLASS_KEY_PREFIX = "cohero_companion_class_slot_";
+    private static final String SAVE_COHERO_VERSION = "cohero_version";
     private static final String SAVE_COMPANION_CLASS = "cohero_companion_class";
     private static final String SAVE_COMPANION_STATE = "cohero_companion_state";
     private static final String SAVE_COMPANION_ARMOR_TIER = "cohero_companion_armor_tier";
@@ -48,6 +47,10 @@ public final class CoHero {
     private static boolean[] renderFieldOfView;
 
     private CoHero() {
+    }
+
+    public static String version() {
+        return CoHeroVersion.version();
     }
 
     public static void onHeroSelectSceneCreated() {
@@ -127,6 +130,7 @@ public final class CoHero {
         if (heroClass == null) {
             throw new IllegalStateException("CoHero run has no selected companion class");
         }
+        bundle.put(SAVE_COHERO_VERSION, CoHeroVersion.version());
         bundle.put(SAVE_COMPANION_CLASS, heroClass.name());
 
         captureCompanionState();
