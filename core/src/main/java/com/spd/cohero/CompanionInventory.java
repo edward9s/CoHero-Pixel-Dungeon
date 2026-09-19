@@ -11,11 +11,15 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.elixirs.ElixirOfHoneyedHealing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ScrollOfDread;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfAggression;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlast;
@@ -175,8 +179,24 @@ public final class CompanionInventory {
         return takeOneKnownPotion(PotionOfStamina.class);
     }
 
+    Potion takeOneAutoCleansingPotion() {
+        return takeOneKnownPotion(PotionOfCleansing.class);
+    }
+
+    Potion takeOneAutoEarthenArmorPotion() {
+        return takeOneKnownPotion(PotionOfEarthenArmor.class);
+    }
+
+    Scroll takeOneAutoTeleportationScroll() {
+        return takeOneKnownScroll(ScrollOfTeleportation.class);
+    }
+
     Scroll takeOneAutoTerrorScroll() {
         return takeOneKnownScroll(ScrollOfTerror.class);
+    }
+
+    Scroll takeOneAutoDreadScroll() {
+        return takeOneKnownScroll(ScrollOfDread.class);
     }
 
     boolean hasCombatRunestone(Class<? extends Runestone> type) {
