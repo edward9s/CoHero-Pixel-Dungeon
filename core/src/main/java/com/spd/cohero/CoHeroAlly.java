@@ -272,7 +272,6 @@ public class CoHeroAlly extends DirectableAlly {
         if (attackWeapon != null) {
             accuracy *= attackWeapon.accuracyFactor(this, target);
             if (attackWeapon == weapon()) {
-                delay /= CoHeroClassTraits.meleeAttackSpeedMultiplier(this);
                 int encumbrance = weaponEncumbrance();
                 if (encumbrance > 0) {
                     accuracy /= Math.pow(1.5, encumbrance);
@@ -304,6 +303,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (attackWeapon != null) {
             delay *= attackWeapon.delayFactor(this);
             if (attackWeapon == weapon()) {
+                delay /= CoHeroClassTraits.meleeAttackSpeedMultiplier(this);
                 int encumbrance = weaponEncumbrance();
                 if (encumbrance > 0) {
                     delay *= Math.pow(1.2, encumbrance);
