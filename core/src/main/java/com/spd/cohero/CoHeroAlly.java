@@ -54,12 +54,19 @@ public class CoHeroAlly extends DirectableAlly {
     private static final String INVENTORY = "cohero_inventory";
     private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
     private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
+    private static final String LOW_HEALTH_RALLY = "cohero_low_health_rally";
+
+    private static final int LOW_HEALTH_RALLY_ENTER_PERCENT = 35;
+    private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
+    private static final int HERO_RALLY_MIN_DISTANCE = 2;
+    private static final int HERO_RALLY_MAX_DISTANCE = 3;
 
     private int explorationTarget = -1;
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
     private MissileWeapon activeMissileWeapon;
+    private boolean lowHealthRally;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -145,6 +152,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
         bundle.put(THROWN_SET_IDS, thrownIDs);
         bundle.put(THROWN_SET_COUNTS, thrownCounts);
+        bundle.put(LOW_HEALTH_RALLY, lowHealthRally);
     }
 
     @Override
@@ -160,6 +168,8 @@ public class CoHeroAlly extends DirectableAlly {
         if (bundle.contains(INVENTORY)) {
             inventory.restoreFromBundle(bundle.getBundle(INVENTORY));
         }
+
+        lowHealthRally = bundle.getBoolean(LOW_HEALTH_RALLY);
 
         thrownOutstanding.clear();
         if (bundle.contains(THROWN_SET_IDS) || bundle.contains(THROWN_SET_COUNTS)) {
@@ -423,6 +433,11 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
+        updateLowHealthRallyState();
+        if (lowHealthRally && !heroWaitingAtExit()) {
+            return actLowHealthRally();
+        }
+
         Boolean supportAction = trySupportAction();
         if (supportAction != null) {
             return supportAction;
@@ -475,6 +490,92 @@ public class CoHeroAlly extends DirectableAlly {
                 : chooseExplorationTarget();
         spend(TICK);
         return true;
+    }
+
+    private void updateLowHealthRallyState() {
+        if (HT <= 0) {
+            lowHealthRally = false;
+            return;
+        }
+
+        if (lowHealthRally) {
+            if (HP * 100 >= HT * LOW_HEALTH_RALLY_EXIT_PERCENT) {
+                lowHealthRally = false;
+                explorationTarget = -1;
+            }
+        } else if (HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
+            lowHealthRally = true;
+            explorationTarget = -1;
+        }
+    }
+
+    private boolean heroWaitingAtExit() {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            return false;
+        }
+        LevelTransition transition = Dungeon.level.getTransition(Dungeon.hero.pos);
+        return transition != null
+                && transition.type == LevelTransition.Type.REGULAR_EXIT
+                && transition.inside(Dungeon.hero.pos);
+    }
+
+    private boolean actLowHealthRally() {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            spend(TICK);
+            return true;
+        }
+
+        int distance = Dungeon.level.distance(pos, Dungeon.hero.pos);
+
+        // Far away: approach the Hero normally. Stop once the 2-3 cell comfort band is reached.
+        if (distance > HERO_RALLY_MAX_DISTANCE) {
+            int oldPos = pos;
+            if (getCloser(Dungeon.hero.pos)) {
+                spend(1 / speed());
+                return moveSprite(oldPos, pos);
+            }
+            spend(TICK);
+            return true;
+        }
+
+        // Adjacent is deliberately too close outside exit rally. Move one step away when a
+        // passable, unoccupied, sleep-safe cell can restore the preferred one-cell gap.
+        if (distance < HERO_RALLY_MIN_DISTANCE) {
+            int spacingStep = chooseHeroSpacingStep();
+            if (spacingStep != -1) {
+                int oldPos = pos;
+                move(spacingStep);
+                spend(1 / speed());
+                return moveSprite(oldPos, pos);
+            }
+        }
+
+        // Distances 2-3 are both acceptable. Holding here avoids jitter while the Hero moves.
+        spend(TICK);
+        return true;
+    }
+
+    private int chooseHeroSpacingStep() {
+        int fallback = -1;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = pos + offset;
+            if (cell < 0
+                    || cell >= Dungeon.level.length()
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || !isSleepSafe(cell)) {
+                continue;
+            }
+
+            int distance = Dungeon.level.distance(cell, Dungeon.hero.pos);
+            if (distance == HERO_RALLY_MIN_DISTANCE) {
+                return cell;
+            }
+            if (fallback == -1 && distance <= HERO_RALLY_MAX_DISTANCE) {
+                fallback = cell;
+            }
+        }
+        return fallback;
     }
 
     @Override
