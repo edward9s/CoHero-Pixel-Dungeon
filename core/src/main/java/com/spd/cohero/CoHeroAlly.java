@@ -54,6 +54,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfDeepSleep;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
@@ -474,6 +475,13 @@ public class CoHeroAlly extends DirectableAlly {
         if (armor() != null) {
             damage = armor().proc(enemy, this, damage);
         }
+
+        WandOfLivingEarth.RockArmor rockArmor =
+                buff(WandOfLivingEarth.RockArmor.class);
+        if (rockArmor != null) {
+            damage = rockArmor.absorb(damage);
+        }
+
         return super.defenseProc(enemy, damage);
     }
 
