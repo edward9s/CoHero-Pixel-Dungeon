@@ -1,7 +1,6 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
-import com.shatteredpixel.shatteredpixeldungeon.Challenges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
@@ -529,8 +528,7 @@ public class CoHeroAlly extends DirectableAlly {
     private boolean tryAutoHealingPotion() {
         if (HT <= 0
                 || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT
-                || buff(Healing.class) != null
-                || Dungeon.isChallenged(Challenges.NO_HEALING)) {
+                || buff(Healing.class) != null) {
             return false;
         }
 
