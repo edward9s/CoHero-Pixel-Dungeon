@@ -9,6 +9,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.bags.Bag;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
@@ -309,7 +310,11 @@ public class WndCompanionInventory extends Window {
                     }
                 }
             });
-        } else if (item instanceof Weapon || item instanceof Wand || item instanceof Potion || item instanceof Ankh) {
+        } else if (item instanceof Weapon
+                || item instanceof Wand
+                || item instanceof Potion
+                || item instanceof Scroll
+                || item instanceof Ankh) {
             GameScene.show(new WndOptions(
                     item.title(),
                     text("inventory.action_prompt"),
