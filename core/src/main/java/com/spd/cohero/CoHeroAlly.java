@@ -1338,7 +1338,6 @@ public class CoHeroAlly extends DirectableAlly {
 
         for (MissileWeapon missile : inventory.missileWeapons()) {
             if (!supportedMissileWeapon(missile)
-                    || !missile.isIdentified()
                     || missile.cursed
                     || new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos != targetMob.pos) {
                 continue;
@@ -1351,7 +1350,6 @@ public class CoHeroAlly extends DirectableAlly {
 
         SpiritBow bow = inventory.spiritBow();
         if (bow != null
-                && bow.isIdentified()
                 && !bow.cursed
                 && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
             MissileWeapon arrow = bow.knockArrow();
@@ -2014,7 +2012,6 @@ public class CoHeroAlly extends DirectableAlly {
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
         for (MissileWeapon missile : inventory.missileWeapons()) {
             if (supportedMissileWeapon(missile)
-                    && missile.isIdentified()
                     && !missile.cursed
                     && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
                 missiles.add(missile);
@@ -2024,7 +2021,6 @@ public class CoHeroAlly extends DirectableAlly {
         SpiritBow spiritBow = inventory.spiritBow();
         MissileWeapon spiritArrow = null;
         if (spiritBow != null
-                && spiritBow.isIdentified()
                 && !spiritBow.cursed
                 && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
             spiritArrow = spiritBow.knockArrow();
@@ -2237,12 +2233,12 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
         for (MissileWeapon missile : inventory.missileWeapons()) {
-            if (supportedMissileWeapon(missile) && missile.isIdentified() && !missile.cursed) {
+            if (supportedMissileWeapon(missile) && !missile.cursed) {
                 return true;
             }
         }
         SpiritBow spiritBow = inventory.spiritBow();
-        if (spiritBow != null && spiritBow.isIdentified() && !spiritBow.cursed) {
+        if (spiritBow != null && !spiritBow.cursed) {
             return true;
         }
         for (Wand wand : inventory.wands()) {
