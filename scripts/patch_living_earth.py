@@ -57,6 +57,8 @@ text = text.replace("guardian.setInfo(curUser, buffedLvl(), armorToAdd);",
                     "guardian.setInfo(user, progressionHero().lvl, buffedLvl(), armorToAdd);")
 text = text.replace("guardian.setInfo(curUser, buffedLvl(), buff.armor);",
                     "guardian.setInfo(user, progressionHero().lvl, buffedLvl(), buff.armor);")
+text = text.replace("Buff.affect(curUser, RockArmor.class)",
+                    "Buff.affect(user, RockArmor.class)")
 text = text.replace("Dungeon.level.trueDistance(c, curUser.pos)",
                     "Dungeon.level.trueDistance(c, user.pos)")
 text = text.replace("Dungeon.level.trueDistance(closest, curUser.pos)",
