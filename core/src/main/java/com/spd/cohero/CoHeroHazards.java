@@ -19,6 +19,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental.FireWall;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.MagicalFireRoom.EternalFire;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
 import com.watabou.utils.PathFinder;
 
 import java.util.HashMap;
@@ -56,13 +57,13 @@ public final class CoHeroHazards {
         if (owner == null || Dungeon.level == null || cell < 0 || cell >= Dungeon.level.length()) {
             return false;
         }
-        return isWarned(cell) || isEnvironmentalDanger(owner, cell);
+        return isWarned(cell) || isKnownActiveTrap(cell) || isEnvironmentalDanger(owner, cell);
     }
 
     public static boolean hasActiveHazards(Char owner) {
         syncLevel();
         pruneExpired();
-        return !WARNED_UNTIL.isEmpty() || hasEnvironmentalHazard(owner);
+        return !WARNED_UNTIL.isEmpty() || hasKnownActiveTrap() || hasEnvironmentalHazard(owner);
     }
 
     public static boolean[] maskDangerous(Char owner, boolean[] passable) {
@@ -74,6 +75,12 @@ public final class CoHeroHazards {
         for (Map.Entry<Integer, Float> entry : WARNED_UNTIL.entrySet()) {
             int cell = entry.getKey();
             if (entry.getValue() >= now && cell >= 0 && cell < result.length) {
+                result[cell] = false;
+            }
+        }
+
+        for (int cell = 0; cell < result.length; cell++) {
+            if (result[cell] && isKnownActiveTrap(cell)) {
                 result[cell] = false;
             }
         }
@@ -116,6 +123,30 @@ public final class CoHeroHazards {
         pruneExpired();
         Float until = WARNED_UNTIL.get(cell);
         return until != null && until >= Actor.now();
+    }
+
+    private static boolean hasKnownActiveTrap() {
+        if (Dungeon.level == null || Dungeon.level.traps == null) {
+            return false;
+        }
+        for (int cell : Dungeon.level.traps.keyArray()) {
+            if (isKnownActiveTrap(cell)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isKnownActiveTrap(int cell) {
+        if (Dungeon.level == null
+                || Dungeon.level.traps == null
+                || cell < 0
+                || cell >= Dungeon.level.length()) {
+            return false;
+        }
+
+        Trap trap = Dungeon.level.traps.get(cell);
+        return trap != null && trap.active && trap.visible;
     }
 
     private static boolean hasEnvironmentalHazard(Char owner) {
