@@ -2,6 +2,7 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Belongings;
+import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
@@ -236,7 +237,7 @@ public class WndCompanionInventory extends Window {
                     }
                 }
             });
-        } else if (item instanceof Weapon || item instanceof Wand || item instanceof Potion) {
+        } else if (item instanceof Weapon || item instanceof Wand || item instanceof Potion || item instanceof Ankh) {
             GameScene.show(new WndOptions(
                     item.title(),
                     text("inventory.action_prompt"),

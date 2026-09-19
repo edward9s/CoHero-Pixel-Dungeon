@@ -124,7 +124,7 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 - **Warrior**：等價 `RingOfMight +0`：+1 STR、HT ×1.035；真正的 Ring of Might 可再疊加。
 - **Mage**：法杖自然充能 ×1.175，等價 `RingOfEnergy +0` 的 wand charge；真正的 Ring of Energy 可再疊加。
 - **Rogue**：移動速度 ×1.15，等價 `RingOfHaste +0`；真正的 Ring of Haste 可再疊加。
-- **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；真正的 Sharpshooting 可再疊加。
+- **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
 - **Duelist**：裝備近戰武器時攻擊速度 ×1.09051，等價 `RingOfFuror +0`；真正的 Furor 可再疊加。
 - **Cleric**：與 Hero 距離不超過 6 格時，Hero 與 Cleric CoHero 的 accuracy / evasion 各 ×1.10，不要求直線視野。
 - **其他／第三方 HeroClass**：Generalist，HT ×1.05；未知職業使用通用短劍作為安全起始武器，不因缺少 stock case 直接失敗。
@@ -238,6 +238,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
 - CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存型藥劑。當 HP 低於 35% 時，CoHero 會優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`；若治療正在進行或沒有可用治療藥，則可使用 `PotionOfShielding`。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
+- CoHero 背包可持有 `Ankh`。CoHero 死亡時優先消耗祝福 Ankh：回滿 HP 並獲得 15 回合 `Invulnerability`；未祝福 Ankh 則回滿 HP 並隨機傳送到本層一個合法、非秘密、無角色占用的可走格。Ankh 成功觸發時不進入 CoHero Game Over 流程。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
 

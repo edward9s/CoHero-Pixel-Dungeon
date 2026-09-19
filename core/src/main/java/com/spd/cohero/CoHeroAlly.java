@@ -1,6 +1,7 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
+import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
@@ -8,11 +9,13 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
+import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
@@ -25,6 +28,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
@@ -43,7 +47,9 @@ import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
+import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
@@ -671,12 +677,69 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public void die(Object cause) {
+        Ankh ankh = inventory.takeAnkhForRevive();
+        if (ankh != null) {
+            reviveWithAnkh(ankh);
+            return;
+        }
+
         super.die(cause);
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
             GLog.n(companionDeathMessage(cause));
             CoHero.markCompanionDeathGameOver();
             Hero.reallyDie(cause);
         }
+    }
+
+    private void reviveWithAnkh(Ankh ankh) {
+        HP = HT;
+        lowHealthRally = false;
+
+        Statistics.ankhsUsed++;
+        Catalog.countUse(Ankh.class);
+        SpellSprite.show(this, SpellSprite.ANKH);
+        GameScene.flash(0x80FFFF40);
+
+        if (ankh.isBlessed()) {
+            Buff.prolong(this, Invulnerability.class, 15f);
+            Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
+            return;
+        }
+
+        ArrayList<Integer> destinations = new ArrayList<>();
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (Dungeon.level.passable[cell]
+                    && !Dungeon.level.secret[cell]
+                    && Actor.findChar(cell) == null) {
+                destinations.add(cell);
+            }
+        }
+
+        if (!destinations.isEmpty()) {
+            resetNavigationAfterAnkhTeleport();
+            int destination = Random.element(destinations);
+            ScrollOfTeleportation.appear(this, destination);
+            Dungeon.level.occupyCell(this);
+            Dungeon.level.updateFieldOfView(this, fieldOfView);
+            revealVisibleCells();
+        } else {
+            // A pathological level with no free passable cell should not turn a valid Ankh
+            // into a Game Over. Revive in place if there is nowhere legal to teleport.
+            Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
+        }
+    }
+
+    private void resetNavigationAfterAnkhTeleport() {
+        explorationTarget = -1;
+        target = -1;
+        enemy = null;
+        enemyID = -1;
+        enemySeen = false;
+        alerted = false;
+        path = null;
+        defendingPos = -1;
+        movingToDefendPos = false;
+        state = WANDERING;
     }
 
     private String companionDeathMessage(Object cause) {

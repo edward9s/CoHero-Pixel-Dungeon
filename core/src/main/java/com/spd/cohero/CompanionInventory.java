@@ -3,6 +3,7 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal;
+import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
@@ -96,6 +97,31 @@ public final class CompanionInventory {
             }
         }
         return Collections.unmodifiableList(result);
+    }
+
+    Ankh takeAnkhForRevive() {
+        Ankh selected = null;
+        for (Item item : backpack) {
+            if (item instanceof Ankh) {
+                Ankh ankh = (Ankh) item;
+                if (selected == null || ankh.isBlessed()) {
+                    selected = ankh;
+                }
+                if (ankh.isBlessed()) {
+                    break;
+                }
+            }
+        }
+
+        if (selected == null) {
+            return null;
+        }
+
+        Item removed = removeFromBackpack(selected);
+        if (!(removed instanceof Ankh)) {
+            throw new IllegalStateException("CoHero ankh disappeared before revival");
+        }
+        return (Ankh) removed;
     }
 
     Potion takeOneAutoHealingPotion() {
@@ -483,6 +509,7 @@ public final class CompanionInventory {
                 || item instanceof Armor
                 || item instanceof Ring
                 || item instanceof Wand
-                || item instanceof Potion;
+                || item instanceof Potion
+                || item instanceof Ankh;
     }
 }

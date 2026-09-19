@@ -46,6 +46,10 @@ public final class CoHeroClassTraits {
         return isCompanionClass(target, HeroClass.HUNTRESS) ? 1 : 0;
     }
 
+    public static boolean isHuntress(Char target) {
+        return isCompanionClass(target, HeroClass.HUNTRESS);
+    }
+
     public static float missileDurabilityMultiplier(Char target) {
         return isCompanionClass(target, HeroClass.HUNTRESS)
                 ? HUNTRESS_MISSILE_DURABILITY_MULTIPLIER
