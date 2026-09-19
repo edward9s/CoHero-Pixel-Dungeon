@@ -312,7 +312,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 
 ### 7.1 消耗品
 
-CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存型消耗品與 Ankh。
+CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存／逃生消耗品與 Ankh。
 
 - CoHero 背包允許存放 Potion。這是刻意的：若 UI 只允許真正的 `PotionOfHealing` 放入，會藉由「能不能選」洩漏未鑑定藥水的真實種類。
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
@@ -320,8 +320,10 @@ CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；�
 - 治療期間不會連續喝下一瓶治療藥；若仍低於 35%，可以把已鑑定 `PotionOfShielding` 當作次順位生存資源。
 - 已有有效 `Barrier` 時不會再喝第二瓶護盾藥，避免覆蓋仍有價值的護盾。
 - `Pharmacophobia` 只讓玩家 Hero 對治療藥過敏；SPD 原版明確規定其他角色仍正常受治療，因此 CoHero 仍可正常使用治療藥。
+- 已鑑定 `PotionOfInvisibility` 可作為緊急逃生資源，但不會因單純低於 35% HP 就立即飲用；只有戰鬥風險模型已判定 retreat、免費 escape utility 與安全走位都失敗，而且存在 3+ 當前攻擊者、立即致命風險、低血危險或 TTD ≤ 2 回合等條件時才使用。飲用後取得原版 `Invisibility.DURATION`，並在 `combatRetreating` 期間優先純移動脫離，避免下一回合主動攻擊立刻打破隱形。
+- CoHero 背包允許存放 Scroll，理由與 Potion 相同：若只允許 `ScrollOfTerror` 會從「能不能放入」洩漏未鑑定卷軸身份。只有已鑑定的 `ScrollOfTerror` 具有自動使用語意；其他 Scroll 只作為背包資源，可交還 Hero。
+- `ScrollOfTerror` 只在 retreat 且無安全逃生步時使用；若能影響至少 2 名當前可見、清醒敵人，或單一可恐懼敵人已造成立即致命風險，優先於隱形藥。作用範圍使用 CoHero 自己的 FOV，不借用 `Dungeon.level.heroFOV`；失明或 `MagicImmune` 時不讀。效果沿用原版 `Terror.DURATION`，並將恐懼來源設為 CoHero。
 - 其他 Potion 只作為背包資源，可交還 Hero；CoHero 不會自行飲用。
-- Scroll 仍不接受、不使用。
 
 ### 7.2 力量是共享資源
 
@@ -372,7 +374,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。
 - CoHero 的裝備安全規則比照乾燥玫瑰的 GhostHero：只有已確認沒有詛咒的裝備才能穿戴；武器與防具若力量需求超過 CoHero STR 也不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
-- Potion 可放入 CoHero 背包，但只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding` 具有自動使用語意；`Ankh` 具有死亡時自動復活語意。Scroll 仍不接受、不使用。
+- Potion 與 Scroll 都可放入 CoHero 背包，以避免從可選性洩漏未鑑定物品身份。Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility` 具有自動使用語意；Scroll 只有已鑑定的 `ScrollOfTerror` 具有自動使用語意；`Ankh` 具有死亡時自動復活語意。
 - Artifact 與 Trinket 目前仍不支援。
 - `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。
 - 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
