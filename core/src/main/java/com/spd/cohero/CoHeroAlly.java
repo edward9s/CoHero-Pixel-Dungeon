@@ -655,21 +655,23 @@ public class CoHeroAlly extends DirectableAlly {
         if (HT <= 0 || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
             return false;
         }
-        return consumeSurvivalPotion();
+        return consumeSurvivalPotion(false);
     }
 
     private boolean tryEmergencySurvivalPotion() {
-        return consumeSurvivalPotion();
+        return consumeSurvivalPotion(true);
     }
 
-    private boolean consumeSurvivalPotion() {
-        // Healing is the first choice. Do not consume another healing potion while the current
-        // Healing buff is still active.
+    private boolean consumeSurvivalPotion(boolean shieldingFirst) {
+        if (shieldingFirst && tryConsumeShieldingPotion()) {
+            return true;
+        }
+
+        // Healing is the normal first choice, but not during a trapped emergency because its
+        // recovery is spread over future turns.
         if (buff(Healing.class) == null) {
             Potion healing = inventory.takeOneAutoHealingPotion();
             if (healing != null) {
-                // Apply only the Char-safe healing semantics. Do not route through Potion.drink/apply,
-                // which is hard-wired to Hero belongings, Hero talents, and Hero action callbacks.
                 PotionOfHealing.cure(this);
                 PotionOfHealing.heal(this);
                 Sample.INSTANCE.play(Assets.Sounds.DRINK);
@@ -678,27 +680,31 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        // If healing is already running or unavailable, shielding is the fallback. Existing
-        // Barrier means there is still useful shield remaining, so do not overwrite/waste it.
+        return shieldingFirst ? false : tryConsumeShieldingPotion();
+    }
+
+    private boolean tryConsumeShieldingPotion() {
         Barrier barrier = buff(Barrier.class);
-        if (barrier == null || barrier.shielding() <= 0) {
-            Potion shielding = inventory.takeOneAutoShieldingPotion();
-            if (shielding != null) {
-                int amount = (int) (0.6f * HT + 10);
-                Buff.affect(this, Barrier.class).setShield(amount);
-                if (sprite != null) {
-                    sprite.showStatusWithIcon(
-                            CharSprite.POSITIVE,
-                            Integer.toString(amount),
-                            FloatingText.SHIELDING);
-                }
-                Sample.INSTANCE.play(Assets.Sounds.DRINK);
-                spend(TICK);
-                return true;
-            }
+        if (barrier != null && barrier.shielding() > 0) {
+            return false;
         }
 
-        return false;
+        Potion shielding = inventory.takeOneAutoShieldingPotion();
+        if (shielding == null) {
+            return false;
+        }
+
+        int amount = (int) (0.6f * HT + 10);
+        Buff.affect(this, Barrier.class).setShield(amount);
+        if (sprite != null) {
+            sprite.showStatusWithIcon(
+                    CharSprite.POSITIVE,
+                    Integer.toString(amount),
+                    FloatingText.SHIELDING);
+        }
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        spend(TICK);
+        return true;
     }
 
     private void updateLowHealthRallyState() {
