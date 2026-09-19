@@ -32,6 +32,7 @@ public final class CoHero {
     private static boolean selectingCompanion;
     private static boolean openingCompanionSelection;
     private static boolean companionDeathEndedRun;
+    private static boolean restoringSavedGame;
     private static boolean[] renderFieldOfView;
 
     private CoHero() {
@@ -48,6 +49,7 @@ public final class CoHero {
         companionState = null;
         selectingCompanion = false;
         companionDeathEndedRun = false;
+        restoringSavedGame = false;
     }
 
     public static boolean onHeroSelectionConfirmed(HeroClass selectedClass) {
@@ -146,6 +148,7 @@ public final class CoHero {
         selectingCompanion = false;
         openingCompanionSelection = false;
         companionDeathEndedRun = false;
+        restoringSavedGame = true;
     }
 
     public static void storeLevelMobs(Bundle bundle, String key, Collection<Mob> mobs) {
@@ -174,17 +177,34 @@ public final class CoHero {
             return;
         }
 
-        int spawn = findSpawnCell();
+        CoHeroAlly companion = new CoHeroAlly();
+        int spawn;
+
+        if (companionState != null) {
+            companion.restoreFromBundle(companionState);
+
+            if (restoringSavedGame) {
+                spawn = companion.pos;
+                if (spawn < 0
+                        || spawn >= Dungeon.level.length()
+                        || !Dungeon.level.passable[spawn]
+                        || (Actor.findChar(spawn) != null && Actor.findChar(spawn) != companion)) {
+                    throw new IllegalStateException("Saved CoHero position is not valid on the restored level: " + spawn);
+                }
+            } else {
+                spawn = findSpawnCell();
+            }
+        } else {
+            CompanionStartingEquipment.initialize(companion, heroClass);
+            spawn = findSpawnCell();
+        }
+
+        restoringSavedGame = false;
+
         if (spawn == -1) {
             throw new IllegalStateException("CoHero could not find a spawn cell next to the hero");
         }
 
-        CoHeroAlly companion = new CoHeroAlly();
-        if (companionState != null) {
-            companion.restoreFromBundle(companionState);
-        } else {
-            CompanionStartingEquipment.initialize(companion, heroClass);
-        }
         companion.enterLevel(spawn);
         GameScene.add(companion);
         Dungeon.level.occupyCell(companion);

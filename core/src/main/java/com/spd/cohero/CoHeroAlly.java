@@ -1110,12 +1110,14 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean hasUnexploredFrontier() {
+        PathFinder.buildDistanceMap(pos, Dungeon.level.passable);
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell != pos
                     && Dungeon.level.passable[cell]
                     && Dungeon.level.discoverable[cell]
                     && !Dungeon.level.visited[cell]
                     && !Dungeon.level.mapped[cell]
+                    && PathFinder.distance[cell] < Integer.MAX_VALUE
                     && isSleepSafe(cell)) {
                 return true;
             }
@@ -1155,6 +1157,8 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private int chooseExplorationTarget() {
+        PathFinder.buildDistanceMap(pos, Dungeon.level.passable);
+
         ArrayList<Integer> unknown = new ArrayList<>();
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell != pos
@@ -1162,6 +1166,7 @@ public class CoHeroAlly extends DirectableAlly {
                     && Dungeon.level.discoverable[cell]
                     && !Dungeon.level.visited[cell]
                     && !Dungeon.level.mapped[cell]
+                    && PathFinder.distance[cell] < Integer.MAX_VALUE
                     && isSleepSafe(cell)) {
                 unknown.add(cell);
             }
@@ -1171,9 +1176,8 @@ public class CoHeroAlly extends DirectableAlly {
             return Random.element(unknown);
         }
 
-        // With no unexplored frontier left, keep roaming near the Hero instead of wandering
-        // across the whole floor. The roaming region is the nearest quarter of explored,
-        // reachable passable cells by actual path distance from the Hero.
+        // No reachable unexplored frontier remains. Keep roaming near the Hero instead of
+        // getting stuck retrying isolated/secret cells or wandering across the whole floor.
         return chooseExploredRoamingTarget();
     }
 
@@ -1200,9 +1204,13 @@ public class CoHeroAlly extends DirectableAlly {
         reachable.sort((a, b) -> Integer.compare(PathFinder.distance[a], PathFinder.distance[b]));
         int roamingAreaSize = Math.max(1, (reachable.size() + 3) / 4);
 
+        int maxDistance = PathFinder.distance[reachable.get(roamingAreaSize - 1)];
+
         ArrayList<Integer> candidates = new ArrayList<>();
-        for (int i = 0; i < roamingAreaSize; i++) {
-            int cell = reachable.get(i);
+        for (int cell : reachable) {
+            if (PathFinder.distance[cell] > maxDistance) {
+                break;
+            }
             if (cell == pos || cell == Dungeon.hero.pos || !isSleepSafe(cell)) {
                 continue;
             }
