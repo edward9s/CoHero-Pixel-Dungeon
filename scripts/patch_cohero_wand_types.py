@@ -211,6 +211,14 @@ ward_budget_new = """	private boolean wardAvailable = true;
 		return wardBudgetAllows(owner, target, false, true) && super.tryToZap(owner, target);
 	}
 
+	public int coHeroCurrentWardEnergy(Char owner) {
+		return currentWardEnergy(true);
+	}
+
+	public int coHeroMaxWardEnergy(Char owner) {
+		return maxWardEnergy(owner);
+	}
+
 	public boolean coHeroWouldIncreaseWardEnergy(Char owner, int target) {
 		if (!coHeroCanZap(owner) || !wardBudgetAllows(owner, target, true, false)) {
 			return false;

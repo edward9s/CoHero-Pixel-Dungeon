@@ -7,14 +7,22 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.watabou.utils.PathFinder;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Tactical placement planner for CoHero-owned wards.
  *
- * Wards are persistent autonomous attackers, so this planner values safe placement and refuses
- * positions that would immediately bring an unrelated sleeping enemy into the ward's attack range.
+ * Low-tier wards have only 1 HP and a newly-created ward is added with a 1-turn delay. Placement
+ * therefore models where every currently-visible awake enemy can move before the ward's first
+ * action and calls that enemy's real canAttack() implementation from each projected cell.
  */
 final class CoHeroWardingPlanner {
+
+    private static final float MIN_INITIAL_DETECTION_CHANCE = 0.50f;
 
     private CoHeroWardingPlanner() {
     }
@@ -26,7 +34,6 @@ final class CoHeroWardingPlanner {
 
         Plan best = null;
 
-        // Prefer improving an existing CoHero ward that can already contribute to this fight.
         for (Char ch : Actor.chars()) {
             if (!(ch instanceof Ward)) {
                 continue;
@@ -42,26 +49,40 @@ final class CoHeroWardingPlanner {
                 continue;
             }
 
+            int projectedTier = Math.min(6, ward.tier + 1);
             int projectedViewDistance = ward.viewDistance + (ward.tier < 6 ? 1 : 0);
-            if (!canEngage(ward.pos, projectedViewDistance, target)
+            int coverage = movementCoverage(ward.pos, projectedViewDistance, target);
+            if (coverage == 0
                     || wouldWakeSleepingEnemy(ward.pos, projectedViewDistance, target)) {
                 continue;
             }
 
+            int preFireThreats = preFirstActionThreats(owner, ward.pos, projectedTier);
+            if (projectedTier <= 3 && preFireThreats > 0) {
+                continue;
+            }
+
+            float expectedDamage = expectedNextZapDamage(wand)
+                    * upgradeValue(ward.tier)
+                    / (1f + 0.35f * preFireThreats);
+
             Plan candidate = new Plan(
                     ward.pos,
-                    expectedNextZapDamage(wand),
+                    expectedDamage,
                     true,
                     ward.tier,
+                    coverage,
+                    preFireThreats,
                     CoHeroHazards.nearbyDangerCount(owner, ward.pos),
                     Dungeon.level.distance(ward.pos, target.pos),
-                    Dungeon.level.distance(owner.pos, ward.pos));
+                    Dungeon.level.distance(owner.pos, ward.pos),
+                    1f);
             if (best == null || candidate.betterThan(best)) {
                 best = candidate;
             }
         }
 
-        // A fresh tier-1 ward sees four cells. Search the visible map for a safe firing position.
+        // Fresh wards are tier 1, have one HP, and do not act until one time unit after placement.
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (owner.fieldOfView == null
                     || !owner.fieldOfView[cell]
@@ -76,20 +97,140 @@ final class CoHeroWardingPlanner {
                 continue;
             }
 
+            int preFireThreats = preFirstActionThreats(owner, cell, 1);
+            if (preFireThreats > 0) {
+                continue;
+            }
+
+            float detectionChance = initialDetectionChance(cell, target);
+            if (detectionChance < MIN_INITIAL_DETECTION_CHANCE) {
+                continue;
+            }
+
+            int coverage = movementCoverage(cell, 4, target);
+            if (coverage == 0) {
+                continue;
+            }
+
+            float expectedDamage = expectedNextZapDamage(wand) * 0.70f * detectionChance;
             Plan candidate = new Plan(
                     cell,
-                    expectedNextZapDamage(wand),
+                    expectedDamage,
                     false,
+                    0,
+                    coverage,
                     0,
                     CoHeroHazards.nearbyDangerCount(owner, cell),
                     Dungeon.level.distance(cell, target.pos),
-                    Dungeon.level.distance(owner.pos, cell));
+                    Dungeon.level.distance(owner.pos, cell),
+                    detectionChance);
             if (best == null || candidate.betterThan(best)) {
                 best = candidate;
             }
         }
 
         return best;
+    }
+
+    private static int preFirstActionThreats(CoHeroAlly owner, int wardCell, int projectedTier) {
+        Ward probe = new Ward();
+        probe.pos = wardCell;
+        probe.tier = projectedTier;
+
+        int threats = 0;
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Mob)
+                    || ch.alignment != Char.Alignment.ENEMY
+                    || owner.fieldOfView == null
+                    || !owner.fieldOfView[ch.pos]) {
+                continue;
+            }
+
+            Mob enemy = (Mob) ch;
+            if (enemy.state == enemy.SLEEPING || enemy.state == enemy.PASSIVE) {
+                continue;
+            }
+
+            boolean threatens = false;
+            for (int source : reachableBeforeWardActs(enemy)) {
+                if (enemy.coHeroCanAttackFrom(source, probe)) {
+                    threatens = true;
+                    break;
+                }
+            }
+            if (threatens) {
+                threats++;
+            }
+        }
+        return threats;
+    }
+
+    /**
+     * A new ward is inserted with delay=1f. Over-approximate every terrain cell an enemy may
+     * occupy during that time. Character blockers are intentionally ignored: that makes this a
+     * conservative safety test rather than assuming another actor will keep blocking the route.
+     */
+    private static ArrayList<Integer> reachableBeforeWardActs(Mob enemy) {
+        ArrayList<Integer> result = new ArrayList<>();
+        result.add(enemy.pos);
+
+        if (enemy.rooted || enemy.paralysed > 0) {
+            return result;
+        }
+
+        int steps = Math.max(1, (int) Math.ceil(enemy.speed()));
+        int[] depth = new int[Dungeon.level.length()];
+        Arrays.fill(depth, -1);
+        ArrayDeque<Integer> queue = new ArrayDeque<>();
+        depth[enemy.pos] = 0;
+        queue.addLast(enemy.pos);
+
+        while (!queue.isEmpty()) {
+            int cell = queue.removeFirst();
+            if (depth[cell] >= steps) {
+                continue;
+            }
+
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int next = cell + offset;
+                if (!Dungeon.level.insideMap(next)
+                        || Dungeon.level.distance(cell, next) != 1
+                        || depth[next] >= 0
+                        || !enemyCanEnter(enemy, next)) {
+                    continue;
+                }
+                depth[next] = depth[cell] + 1;
+                queue.addLast(next);
+                result.add(next);
+            }
+        }
+
+        return result;
+    }
+
+    private static boolean enemyCanEnter(Mob enemy, int cell) {
+        if (!Dungeon.level.passable[cell]) {
+            if (!enemy.flying || Dungeon.level.avoid[cell]) {
+                return false;
+            }
+        }
+        return !Char.hasProp(enemy, Char.Property.LARGE) || Dungeon.level.openSpace[cell];
+    }
+
+    private static int movementCoverage(int wardCell, int viewDistance, Mob target) {
+        int covered = 0;
+        for (int future : reachableBeforeWardActs(target)) {
+            if (Dungeon.level.distance(wardCell, future) <= viewDistance
+                    && new Ballistica(wardCell, future, Ballistica.MAGIC_BOLT).collisionPos == future) {
+                covered++;
+            }
+        }
+        return covered;
+    }
+
+    private static float initialDetectionChance(int wardCell, Mob target) {
+        float denominator = Dungeon.level.distance(wardCell, target.pos) / 2f + target.stealth();
+        return denominator <= 0f ? 1f : Math.min(1f, 1f / denominator);
     }
 
     private static boolean canEngage(int wardCell, int viewDistance, Mob target) {
@@ -121,45 +262,91 @@ final class CoHeroWardingPlanner {
         return ((2 + level) + (8 + 4 * level)) / 2f;
     }
 
+    private static float upgradeValue(int currentTier) {
+        switch (currentTier) {
+            case 1:
+            case 2:
+                return 1.10f;
+            case 3:
+                return 1.35f; // tier 3 -> 4 is the first upgrade that gives real durability.
+            case 4:
+            case 5:
+                return 1.15f;
+            default:
+                return 1f;
+        }
+    }
+
     static final class Plan {
         final int aimCell;
         final float expectedDamage;
 
         private final boolean upgradesExisting;
         private final int existingTier;
+        private final int movementCoverage;
+        private final int preFireThreats;
         private final int nearbyDanger;
         private final int targetDistance;
         private final int ownerDistance;
+        private final float detectionChance;
 
         private Plan(
                 int aimCell,
                 float expectedDamage,
                 boolean upgradesExisting,
                 int existingTier,
+                int movementCoverage,
+                int preFireThreats,
                 int nearbyDanger,
                 int targetDistance,
-                int ownerDistance) {
+                int ownerDistance,
+                float detectionChance) {
             this.aimCell = aimCell;
             this.expectedDamage = expectedDamage;
             this.upgradesExisting = upgradesExisting;
             this.existingTier = existingTier;
+            this.movementCoverage = movementCoverage;
+            this.preFireThreats = preFireThreats;
             this.nearbyDanger = nearbyDanger;
             this.targetDistance = targetDistance;
             this.ownerDistance = ownerDistance;
+            this.detectionChance = detectionChance;
         }
 
         private boolean betterThan(Plan other) {
-            if (upgradesExisting != other.upgradesExisting) {
-                return upgradesExisting;
+            if (preFireThreats != other.preFireThreats) {
+                return preFireThreats < other.preFireThreats;
             }
-            if (upgradesExisting && existingTier != other.existingTier) {
-                return existingTier > other.existingTier;
+            if (movementCoverage != other.movementCoverage) {
+                return movementCoverage > other.movementCoverage;
+            }
+
+            int damage = Float.compare(expectedDamage, other.expectedDamage);
+            if (damage != 0) {
+                return damage > 0;
             }
             if (nearbyDanger != other.nearbyDanger) {
                 return nearbyDanger < other.nearbyDanger;
             }
-            if (targetDistance != other.targetDistance) {
-                return targetDistance > other.targetDistance;
+            if (Float.compare(detectionChance, other.detectionChance) != 0) {
+                return detectionChance > other.detectionChance;
+            }
+
+            // Do not blindly prefer an upgrade: only use tier and type as late deterministic
+            // tie-breakers after survival, movement coverage and action value.
+            if (upgradesExisting != other.upgradesExisting) {
+                return upgradesExisting;
+            }
+            if (existingTier != other.existingTier) {
+                return existingTier > other.existingTier;
+            }
+
+            // Around three cells is the useful low-tier compromise: enough standoff to avoid
+            // immediate melee destruction while keeping the first detection roll reasonably high.
+            int distancePenalty = Math.abs(targetDistance - 3);
+            int otherPenalty = Math.abs(other.targetDistance - 3);
+            if (distancePenalty != otherPenalty) {
+                return distancePenalty < otherPenalty;
             }
             if (ownerDistance != other.ownerDistance) {
                 return ownerDistance < other.ownerDistance;

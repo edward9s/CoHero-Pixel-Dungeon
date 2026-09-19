@@ -66,6 +66,8 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/Dungeon.java
           python cohero/scripts/patch_level_mobs.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java
+          python cohero/scripts/patch_mob_cohero.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java
           python cohero/scripts/patch_highgrass.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/HighGrass.java
           python cohero/scripts/patch_delayed_rockfall.py \
