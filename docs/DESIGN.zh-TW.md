@@ -20,7 +20,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 - 唯一權威來源是 `CoHeroVersion.VERSION`；目前為 `0.1.0`，版本值本身不含 `v` / `c` prefix。
 - `CoHero.version()` 只委派給 `CoHeroVersion.version()`，避免出現第二份版本常數。
-- TitleScene 右下角與遊戲內 MenuPane 都顯示短格式：`SPD v<host> | CH v<cohero>`。例如 `SPD v4.0.0 | CH v0.1.0`；`CH` 只為節省狹窄 UI 寬度。
+- TitleScene 右下角與遊戲內 MenuPane 都顯示短格式：`SPD v<host> | CoH v<cohero>`。例如 `SPD v4.0.0 | CoH v0.1.0`；`CoH` 作為 CoHero 的短標記。
 - UI 使用宿主執行時的 `Game.version`，因此 source patch build 與未來 binary APK injection 都不需要把 SPD 版本複製進 CoHero。
 - CoHero 存檔會另外寫入 `cohero_version`，目前只保留作未來 save migration 的版本識別，不改變既有載入規則。
 - build workflow 從 `CoHeroVersion.java` 抽取版本，artifact 名稱同時標示 CoHero、SPD；SMM build 另外標示 SMM 版本。
@@ -41,7 +41,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層。
 - 同伴沒有「停止行走」開關；持續前進本身就是壓力來源。
 - CoHero 位於玩家 Hero 的 FOV 之外時仍保持可見，而且其自身 FOV 會作為「顯示層第二視野」正常照亮周圍地形、顯示其中角色並播放移動動畫。這個合併視野只用於畫面呈現；遊戲規則中的 `Dungeon.level.heroFOV` 仍只代表玩家 Hero 視野，不會讓卷軸、技能或敵人觸發條件把 CoHero 視野當成 Hero 視野。
-- 載入存檔的 `StartScene` 存檔槽預覽同時顯示 Hero 與 CoHero 的全身 sprite：CoHero 畫在 Hero 後層，X 向右偏半個 12px 角色寬（6px），Y 向下偏 3px；兩者各自使用存檔中的職業與護甲 tier。舊存檔若沒有 CoHero armor preview metadata，顯示 tier 0，但不影響實際載入狀態。
+- 載入存檔的 `StartScene` 存檔槽預覽同時顯示 Hero 與 CoHero 的全身 sprite：CoHero 畫在 Hero 後層，與 Hero 使用相同 Y，X 向右偏半個 12px 角色寬（6px），因此只露出右半；兩者各自使用存檔中的職業與護甲 tier。舊存檔若沒有 CoHero armor preview metadata，顯示 tier 0，但不影響實際載入狀態。
 
 設計重點不是「護送一個完全無能的 NPC」，而是：
 
