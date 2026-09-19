@@ -1444,6 +1444,100 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
+    private boolean tryUseTeleportationScroll() {
+        Scroll scroll = inventory.takeOneAutoTeleportationScroll();
+        if (!(scroll instanceof ScrollOfTeleportation)) {
+            return false;
+        }
+
+        if (!ScrollOfTeleportation.teleportChar(this)) {
+            inventory.addToBackpack(scroll);
+            return false;
+        }
+
+        Catalog.countUse(ScrollOfTeleportation.class);
+        Invisibility.dispel(this);
+        Sample.INSTANCE.play(Assets.Sounds.READ);
+        path = null;
+        clearMeleeTacticalPlan();
+        clearRangedLurePlan();
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        spend(TICK);
+        return true;
+    }
+
+    private int usableDreadTargetCount(ArrayList<Mob> threats) {
+        if (buff(MagicImmune.class) != null || buff(Blindness.class) != null) {
+            return 0;
+        }
+
+        int count = 0;
+        for (Mob mob : threats) {
+            if (mob == null
+                    || !mob.isAlive()
+                    || mob.alignment != Alignment.ENEMY
+                    || mob.invisible > 0
+                    || fieldOfView == null
+                    || !fieldOfView[mob.pos]
+                    || mob.state == mob.SLEEPING
+                    || (mob.isImmune(Dread.class) && mob.isImmune(Terror.class))) {
+                continue;
+            }
+            count++;
+        }
+        return count;
+    }
+
+    private boolean tryUseDreadScroll(ArrayList<Mob> threats) {
+        if (usableDreadTargetCount(threats) == 0) {
+            return false;
+        }
+
+        Scroll scroll = inventory.takeOneAutoDreadScroll();
+        if (!(scroll instanceof ScrollOfDread)) {
+            return false;
+        }
+
+        int affected = 0;
+        for (Mob mob : threats) {
+            if (mob == null
+                    || !mob.isAlive()
+                    || mob.alignment != Alignment.ENEMY
+                    || mob.invisible > 0
+                    || fieldOfView == null
+                    || !fieldOfView[mob.pos]
+                    || mob.state == mob.SLEEPING) {
+                continue;
+            }
+
+            if (!mob.isImmune(Dread.class)) {
+                Dread dread = Buff.affect(mob, Dread.class);
+                if (dread != null) {
+                    dread.object = id();
+                    affected++;
+                }
+            } else if (!mob.isImmune(Terror.class)) {
+                Terror terror = Buff.affect(mob, Terror.class, Terror.DURATION);
+                if (terror != null) {
+                    terror.object = id();
+                    affected++;
+                }
+            }
+        }
+
+        if (affected == 0) {
+            inventory.addToBackpack(scroll);
+            return false;
+        }
+
+        Catalog.countUse(ScrollOfDread.class);
+        Invisibility.dispel(this);
+        Sample.INSTANCE.play(Assets.Sounds.READ);
+        spend(TICK);
+        return true;
+    }
+
     private boolean tryEmergencyEscapeConsumable(
             CombatRisk risk, ArrayList<Mob> threats) {
         boolean immediateLethal = risk.immediateIncoming * 1.35f >= HP + shielding();
@@ -1455,8 +1549,15 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        boolean lowHealthDanger = HT > 0 && HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT;
+        int dreadTargets = usableDreadTargetCount(threats);
         boolean criticallyShortTtd = risk.ttd <= 2f;
+        if (dreadTargets >= 2
+                && (risk.attackersNow >= 2 || immediateLethal || criticallyShortTtd)
+                && tryUseDreadScroll(threats)) {
+            return true;
+        }
+
+        boolean lowHealthDanger = HT > 0 && HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT;
         if (risk.attackersNow >= 3 || immediateLethal || lowHealthDanger || criticallyShortTtd) {
             if (tryUseInvisibilityPotion()) {
                 return true;
