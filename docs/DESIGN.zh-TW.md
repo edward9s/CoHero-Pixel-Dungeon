@@ -147,7 +147,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
    - `WandOfLivingEarth` 暫不支援，因為 Earth Guardian / RockArmor ownership 與多個 Hero-specific 系統高度耦合。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
    - 解離法杖會檢查整條有效射線，若會傷及友軍或主動波及睡眠敵人就不施放。
-   - 雷霆法杖沿用原版 chain / `affected` 計算；AI 的候選評分保守地只以主要目標傷害計分，不複製整套 recursive arc 做預測。
+   - 雷霆法杖沿用原版 chain / `affected` 規則；AI 也用同一套連鎖範圍估算整體傷害，若連鎖會反彈到 CoHero、傷及中立角色或主動波及睡眠敵人則不施放。
    - 稜光法杖對不死／惡魔的額外傷害會納入傷害估算。
    - 不要求 AI 做完整的長期 charge 規劃。
    - 未知或無法安全判斷用途的 Wand 不應由 AI 猜測使用方式。
