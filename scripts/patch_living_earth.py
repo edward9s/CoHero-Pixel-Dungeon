@@ -66,6 +66,22 @@ text = text.replace("Dungeon.level.trueDistance(closest, curUser.pos)",
 text = text.replace("curUser.sprite.centerEmitter()",
                     "user.sprite.centerEmitter()")
 
+# Do not let one owner's Living Earth wand damage the other owner's guardian.
+foreign_guardian_anchor = """		//shooting at the guardian
+		if (guardian != null && guardian == ch){
+"""
+foreign_guardian_patch = """		// A Hero and CoHero may each own a guardian. The other owner's guardian is friendly
+		// and must never be treated as a damage target by this wand.
+		if (ch instanceof EarthGuardian && ch != guardian) {
+			Sample.INSTANCE.play(Assets.Sounds.HIT_MAGIC, 1, 0.9f * Random.Float(0.87f, 1.15f));
+			return;
+		}
+
+		//shooting at the guardian
+		if (guardian != null && guardian == ch){
+"""
+replace_once(foreign_guardian_anchor, foreign_guardian_patch, "foreign guardian guard")
+
 # Guard against upstream drift: no curUser references should remain in onZap.
 on_zap_start = text.index("\tpublic void onZap(Ballistica bolt)")
 on_zap_end = text.index("\n\t@Override\n\tpublic String upgradeStat2", on_zap_start)
