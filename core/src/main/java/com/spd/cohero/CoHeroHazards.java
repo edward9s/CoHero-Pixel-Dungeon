@@ -17,13 +17,13 @@ import java.util.Map;
 public final class CoHeroHazards {
 
     private static final HashMap<Integer, Float> WARNED_UNTIL = new HashMap<>();
-    private static int trackedDepth = Integer.MIN_VALUE;
+    private static Object trackedLevel;
 
     private CoHeroHazards() {
     }
 
     public static void warn(int cell, float delay) {
-        syncDepth();
+        syncLevel();
         if (Dungeon.level == null || cell < 0 || cell >= Dungeon.level.length()) {
             return;
         }
@@ -36,21 +36,21 @@ public final class CoHeroHazards {
     }
 
     public static boolean isDangerous(int cell) {
-        syncDepth();
+        syncLevel();
         pruneExpired();
         Float until = WARNED_UNTIL.get(cell);
         return until != null && until >= Actor.now();
     }
 
     public static boolean hasActiveWarnings() {
-        syncDepth();
+        syncLevel();
         pruneExpired();
         return !WARNED_UNTIL.isEmpty();
     }
 
     public static boolean[] maskDangerous(boolean[] passable) {
         boolean[] result = passable.clone();
-        syncDepth();
+        syncLevel();
         pruneExpired();
         float now = Actor.now();
         for (Map.Entry<Integer, Float> entry : WARNED_UNTIL.entrySet()) {
@@ -78,14 +78,13 @@ public final class CoHeroHazards {
 
     public static void clear() {
         WARNED_UNTIL.clear();
-        trackedDepth = Dungeon.level == null ? Integer.MIN_VALUE : Dungeon.depth;
+        trackedLevel = Dungeon.level;
     }
 
-    private static void syncDepth() {
-        int depth = Dungeon.level == null ? Integer.MIN_VALUE : Dungeon.depth;
-        if (depth != trackedDepth) {
+    private static void syncLevel() {
+        if (Dungeon.level != trackedLevel) {
             WARNED_UNTIL.clear();
-            trackedDepth = depth;
+            trackedLevel = Dungeon.level;
         }
     }
 

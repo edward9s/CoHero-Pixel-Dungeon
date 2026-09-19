@@ -124,7 +124,8 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - CoHero 若目前站在仍有效的預告格上，會在一般戰鬥、喝藥、探索與靠近 Hero 之前優先走到相鄰安全格。
 - 有 active warning 時，普通尋路會暫時把所有預告格視為不可通行，因此 CoHero 不會從安全位置主動走進即將爆發的攻擊範圍。
 - warning 到期後該格立即恢復正常尋路；換樓層時警示紀錄清空。
-- 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石，以及 Eye、Ripper Demon、Vault Laser 等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯。
+- `DelayedRockFall` 在存檔載入重建特效時，會按 buff 剩餘 `cooldown()` 重新登記危險格，因此地動法師／DM-300 已預告但尚未落下的岩石不會因讀檔而被 CoHero 忘記。
+- 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石、Ripper Demon 跳躍、Vault Laser 等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯。Eye 的蓄力光線不是走這個 API，目前不在此泛用層內。
 - 若 CoHero 被定身、麻痺，或所有相鄰合法格本身都危險／不可通行，AI 不會假裝能躲開，會繼續執行其他可行生存或戰鬥行為。
 
 ### CoHero 職業固有能力

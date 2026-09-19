@@ -217,7 +217,6 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         pos = cell;
-        CoHeroHazards.clear();
         explorationTarget = -1;
         thrownOutstanding.clear();
         activeMissileWeapon = null;
