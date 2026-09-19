@@ -902,7 +902,7 @@ public class CoHeroAlly extends DirectableAlly {
             return escapeUtility;
         }
 
-        int escapeStep = chooseEscapeStep(threats);
+        int escapeStep = rooted ? -1 : chooseEscapeStep(threats);
         if (escapeStep != -1) {
             int oldPos = pos;
             move(escapeStep, true);
