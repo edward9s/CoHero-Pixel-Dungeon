@@ -462,11 +462,13 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
+        boolean unexploredFrontier = hasUnexploredFrontier();
         if (explorationTarget == -1
                 || explorationTarget == pos
                 || !Dungeon.level.passable[explorationTarget]
                 || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
-                || !isSleepSafe(explorationTarget)) {
+                || !isSleepSafe(explorationTarget)
+                || (!unexploredFrontier && !isWithinExploredRoamingArea(explorationTarget))) {
             explorationTarget = chooseExplorationTarget();
         }
 
@@ -1105,6 +1107,51 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         return bestCell;
+    }
+
+    private boolean hasUnexploredFrontier() {
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (cell != pos
+                    && Dungeon.level.passable[cell]
+                    && Dungeon.level.discoverable[cell]
+                    && !Dungeon.level.visited[cell]
+                    && !Dungeon.level.mapped[cell]
+                    && isSleepSafe(cell)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isWithinExploredRoamingArea(int cell) {
+        if (Dungeon.hero == null
+                || !Dungeon.hero.isAlive()
+                || cell < 0
+                || cell >= Dungeon.level.length()
+                || !Dungeon.level.passable[cell]
+                || (!Dungeon.level.visited[cell] && !Dungeon.level.mapped[cell])) {
+            return false;
+        }
+
+        PathFinder.buildDistanceMap(Dungeon.hero.pos, Dungeon.level.passable);
+
+        ArrayList<Integer> reachable = new ArrayList<>();
+        for (int candidate = 0; candidate < Dungeon.level.length(); candidate++) {
+            if (Dungeon.level.passable[candidate]
+                    && (Dungeon.level.visited[candidate] || Dungeon.level.mapped[candidate])
+                    && PathFinder.distance[candidate] < Integer.MAX_VALUE) {
+                reachable.add(candidate);
+            }
+        }
+
+        if (reachable.isEmpty() || PathFinder.distance[cell] == Integer.MAX_VALUE) {
+            return false;
+        }
+
+        reachable.sort((a, b) -> Integer.compare(PathFinder.distance[a], PathFinder.distance[b]));
+        int roamingAreaSize = Math.max(1, (reachable.size() + 3) / 4);
+        int maxDistance = PathFinder.distance[reachable.get(roamingAreaSize - 1)];
+        return PathFinder.distance[cell] <= maxDistance;
     }
 
     private int chooseExplorationTarget() {
