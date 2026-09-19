@@ -22,7 +22,7 @@ import java.util.Arrays;
  */
 final class CoHeroWardingPlanner {
 
-    private static final float MIN_INITIAL_DETECTION_CHANCE = 0.50f;
+    private static final float MIN_INITIAL_DETECTION_CHANCE = 2f / 3f;
 
     private CoHeroWardingPlanner() {
     }
