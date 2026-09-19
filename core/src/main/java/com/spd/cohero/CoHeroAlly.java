@@ -1012,6 +1012,7 @@ public class CoHeroAlly extends DirectableAlly {
     private boolean performSpiritBowAttack(Mob targetMob, SpiritBow bow) {
         MissileWeapon arrow = bow.knockArrow();
         float delay = arrow.castDelay(this, targetMob.pos);
+        arrow.throwSound();
 
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
                 && (sprite.visible || targetMob.sprite.visible)) {
