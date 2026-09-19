@@ -244,6 +244,8 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 ### 6.3 背包就是控制介面
 
+CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護盾時顯示為 `HP+shield/HT`）、STR、近戰 DMG 範圍、DR 範圍與實際 SPD 倍率。這些值直接由 CoHero 當前裝備、固有 trait、戒指與負重計算，不保存第二份 UI 專用數值。
+
 背包不只是儲物空間，而是玩家間接塑造同伴 AI 的方式：
 
 - 給近戰武器 → 同伴取得近戰能力。
@@ -272,7 +274,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 ### 7.1 消耗品
 
-CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；目前只對治療藥劑開一個明確例外。
+CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存型消耗品與 Ankh。
 
 - CoHero 背包允許存放 Potion。這是刻意的：若 UI 只允許真正的 `PotionOfHealing` 放入，會藉由「能不能選」洩漏未鑑定藥水的真實種類。
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
@@ -321,7 +323,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - 基礎自然回血採 Hero 的基礎速率：每 10 回合恢復 1 HP。
 - 不直接把原版 `Regeneration` Buff 強掛到 CoHero，因為原版包含 `Hero` cast、飢餓、神器與其他 Hero-specific 行為。
 - 在 CoHero 層實作只包含必要基礎語意的 regeneration。
-- CoHero 不使用治療藥；治療藥維持玩家 Hero 的原版使用流程。
+- 自然回血之外，CoHero 可依 7.1 的規則自動使用已鑑定治療／護盾藥；這些消耗品行為與基礎自然回血是彼此獨立的系統。
 
 ### 7.5 物品支援邊界
 
@@ -332,7 +334,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。
 - CoHero 的裝備安全規則比照乾燥玫瑰的 GhostHero：只有已確認沒有詛咒的裝備才能穿戴；武器與防具若力量需求超過 CoHero STR 也不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
-- 藥水與卷軸不支援 CoHero 使用。
+- Potion 可放入 CoHero 背包，但只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding` 具有自動使用語意；`Ankh` 具有死亡時自動復活語意。Scroll 仍不接受、不使用。
 - Artifact 與 Trinket 目前仍不支援。
 - `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。
 - 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
@@ -393,11 +395,9 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 各合法候選在當前距離下的傷害。
 - 是否具有明確、可安全判斷的被動能力。
 
-不要做：
+戰鬥與探索的**行動選擇**不要依職業名稱硬編，例如不應寫成「Mage 一律優先 wand」或「Huntress 一律只用 Spirit Bow」；仍應以目前實際 capability、距離、命中、安全性與傷害決定。
 
-- `if Mage -> ...`
-- `if Huntress -> ...`
-- 看見未知 fork 職業後猜它應該像哪個官方職業。
+官方六職業的**固有 trait**則是明確例外：`CoHeroClassTraits` 可以依 stock `HeroClass` 套用已定義的被動特色與專武 seam。這些 trait 不取代 capability-based AI，也不占用實際裝備槽。遇到第三方／未知職業時不猜測其能力，改用 Generalist（HT ×1.05）與通用起始武器。
 
 未知能力若不是核心所需，可明確忽略；核心 ABI 缺失則應直接判定不支援。
 
@@ -439,19 +439,19 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 
 ## 12. 最小可玩原型
 
-第一個 prototype 不需要完整複製第二套 Hero 系統。
+目前可玩原型仍不需要完整複製第二套 Hero 系統。
 
-最低限度只需要：
+目前 baseline 包含：
 
 - 一名以 `GhostHero` / `DirectableAlly` 為基礎的 companion actor。
 - 自主探索未知區域。
-- 發現出口後轉向出口鄰格並等待。
+- 發現出口本身不停止探索；只有 Hero 明確站上正常出口等待時，CoHero 才停止一般探索並前往出口集合。
 - 玩家 Hero 作為唯一樓層 transition 觸發者。
 - 自己的背包 / 裝備資源。
 - 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
 - CoHero 擊殺沿用原版流程增加共同 EXP。
 - 基礎自然回血，不處理 Hunger。
-- CoHero 不使用藥水或卷軸。
+- CoHero 不使用卷軸；可自動使用少數已鑑定生存藥劑，並可由自己背包中的 Ankh 在死亡時復活。
 - 完全由背包與裝備驅動的基本戰鬥行為。
 - 近戰武器可及時只使用近戰武器。
 - 高閃避目標優先法杖。
@@ -459,6 +459,9 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 當前距離下使用最高傷害的合法攻擊選項。
 - 投擲武器以 setID 追蹤並在無可見威脅時回收；不跨樓層追蹤。
 - 避免主動吵醒可視範圍內的睡眠怪物。
+- 讀取原版 targeted-cell 預告並優先避開即將爆發的危險格。
+- 官方六職業具有固有 trait；Mage Staff、Spirit Bow 等已明確支援的專武使用原版物件與 CoHero-safe seam。
+- CoHero 背包提供即時基本數值顯示，locator 提供 Hero / CoHero 雙向畫面外監控。
 - 同伴死亡即 Game Over。
 - 同伴抵達出口旁前禁止玩家下樓。
 - 無停止移動或攻擊政策開關。

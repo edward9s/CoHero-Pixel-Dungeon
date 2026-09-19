@@ -10,7 +10,7 @@ Key ideas:
 - The companion hero has its own inventory and equipment resources.
 - The companion moves and explores autonomously.
 - Either hero dying ends the run.
-- The companion itself remains visible even outside the player's field of view, without sharing its surrounding vision.
+- The companion remains visible outside the player's field of view, and its own FOV lights nearby terrain for display only; gameplay logic still treats `Dungeon.level.heroFOV` as the primary Hero's vision.
 - The player cannot stop the companion from progressing.
 - The player does not issue movement or combat commands to the companion; inventory and equipment allocation are the control interface.
 - Companion combat behaviour is driven primarily by currently available combat capabilities, target properties, range, and damage rather than hard-coded class logic.
