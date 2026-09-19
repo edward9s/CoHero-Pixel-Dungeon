@@ -1460,15 +1460,19 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
+        boolean rangedPressure = isCurrentRangedPressure(targetMob);
+        boolean continuingLure = rangedLureTargetId == targetMob.id();
+        if (!rangedPressure && !continuingLure) {
+            return null;
+        }
+
         int chargeStep = chooseOneStepMeleeApproach(targetMob, threats);
         if (chargeStep != -1) {
             clearRangedLurePlan();
             return moveForRangedEngagement(chargeStep);
         }
 
-        boolean rangedPressure = isCurrentRangedPressure(targetMob);
-
-        if (rangedLureTargetId == targetMob.id()) {
+        if (continuingLure) {
             // If the current cell has become proper cover after the enemy moved, hold here rather
             // than walking back to an obsolete planned cover cell.
             if (!rangedPressure && isRangedCoverCell(pos, targetMob)) {
@@ -1642,6 +1646,10 @@ public class CoHeroAlly extends DirectableAlly {
                 || !isMovementSafe(cell)
                 || targetMob.fieldOfView[cell]) {
             return false;
+        }
+
+        if (!fieldOfView[cell]) {
+            return true;
         }
 
         Char occupant = Actor.findChar(cell);
