@@ -113,15 +113,18 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 
 因此目前不把完整 Hero AI 當作目標。
 
-### CoHero 畫面外監控
+### Hero / CoHero 畫面外監控
 
-CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene 提供畫面外 locator：
+CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene 提供雙向畫面外 locator：
 
-- CoHero 位於目前主鏡頭 viewport 內時 locator 隱藏，避免與角色本體及頭上血條重複；CoHero 的頭上血條即使滿血也始終顯示。
-- CoHero 離開畫面時，locator 固定在 UI 邊緣並沿正確方向指向 CoHero。
-- locator 永久顯示 CoHero 即時 HP bar，即使滿血也保留，讓玩家能持續監控這個 Game Over 點。
-- CoHero 處於低血量 rally 狀態時顯示固定警示符號，不使用持續閃爍。
-- 點擊 locator 只將主鏡頭平滑移向 CoHero，不改變 Hero 控制權、CoHero AI 或任何 gameplay FOV。
+- Hero 與 CoHero 都位於目前主鏡頭 viewport 內時 locator 隱藏。
+- 若只有一人離開畫面，locator 自動切換成離屏者的頭像、HP 與 buff icons，並沿正確方向指向該角色。
+- 點擊 locator 只將主鏡頭平滑移向目前代表的角色；鏡頭移到 CoHero 後，如果 Hero 因此離屏，locator 立即切成 Hero，再點即可切回。控制權始終仍在 Hero。
+- 若使用者手動把鏡頭移到兩人都不在畫面，locator 顯示距離目前鏡頭中心較近的角色。
+- locator 永久顯示目前代表角色的即時 HP bar；血條下方最多顯示 6 個小型 buff icons。
+- CoHero 處於低血量 rally 狀態且 locator 正代表 CoHero 時顯示固定警示符號，不使用持續閃爍。
+- locator 的活動邊界排除 Status/Menu/Boss/Toolbar/Inventory 與 tag 控制區，不覆蓋主要操作按鈕。
+- CoHero 本人在畫面內時，頭上血條即使滿血也始終顯示。
 
 ## 5. 玩家對同伴的控制
 
