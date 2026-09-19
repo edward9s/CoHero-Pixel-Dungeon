@@ -253,7 +253,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
    - 法杖不要求鑑定；只要實際未詛咒、有足夠 charge，且屬於 CoHero adapter 已明確支援的類型，就是合法候選。
    - 目前明確支援 `WandOfMagicMissile`、`WandOfBlastWave`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfLivingEarth`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
    - 靈壤法杖保留原版「命中敵人累積 RockArmor → 達門檻生成 EarthGuardian → 後續命中補充 Guardian → Guardian 離戰後把剩餘 HP 還原為 RockArmor」循環。Guardian 新增 owner ID；Hero 與 CoHero 可在同一樓層各自擁有一隻，不會互相吃掉 ownership。舊存檔中沒有 owner ID 的 Guardian 視為玩家 Hero 所有。
-   - CoHero 的 `RockArmor` 會像 Hero 一樣在 `defenseProc()` 中吸收傷害。Guardian 的防禦仍以共用隊伍 level 為基礎；CoHero cast 不繼承 Hero 的 Wand Talent / PowerOfMany / Stasis 額外效果。Hero 的 Stasis / PowerOfMany 原版互動仍只作用於 Hero-owned Guardian。
+   - CoHero 的 `RockArmor` 會像 Hero 一樣在 `defenseProc()` 中吸收傷害。Guardian 的防禦仍以共用隊伍 level 為基礎；CoHero cast 不繼承 Hero 的 Wand Talent / PowerOfMany / Stasis 額外效果。Hero 的 Stasis / PowerOfMany / ElementalBlast 原版互動仍只作用於 Hero-owned Guardian；`EarthGuardian.setInfo(Hero, int, int)` 的原版 public API 也保留，供既有 Hero ability 與下游 fork 相容。
    - 一方的靈壤法杖若碰到另一方的 Guardian，會視為友軍而不造成傷害或補血；只有同 owner 的 Guardian 才會被該法杖補充。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
    - 解離法杖會檢查整條有效射線，若會傷及友軍或主動波及睡眠敵人就不施放。
