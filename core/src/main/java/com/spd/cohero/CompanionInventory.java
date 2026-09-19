@@ -5,6 +5,9 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.elixirs.ElixirOfHoneyedHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
@@ -22,8 +25,9 @@ import java.util.List;
  * CoHero-owned inventory model.
  *
  * The companion has a normal 20-slot backpack plus explicit equipment slots. Supported combat
- * equipment is weapon, armor, rings and wands. Consumables, artifacts, trinkets, bags and unknown
- * items are rejected.
+ * equipment is weapon, armor, rings and wands. Potions may be stored so unidentified potion
+ * identity is never leaked by the transfer UI, but only explicitly recognized healing potions are
+ * consumed autonomously. Artifacts, trinkets, bags and unknown items are rejected.
  * This intentionally does not reuse Hero/Belongings, whose owner is hard-wired to Hero.
  */
 public final class CompanionInventory {
@@ -91,6 +95,41 @@ public final class CompanionInventory {
             }
         }
         return Collections.unmodifiableList(result);
+    }
+
+    Potion takeOneAutoHealingPotion() {
+        Potion source = null;
+        for (Item item : backpack) {
+            if (isAutoHealingPotion(item)) {
+                Potion potion = (Potion) item;
+                if (potion.isKnown()) {
+                    source = potion;
+                    break;
+                }
+            }
+        }
+
+        if (source == null) {
+            return null;
+        }
+
+        if (source.quantity() > 1) {
+            Item split = source.split(1);
+            if (!(split instanceof Potion)) {
+                throw new IllegalStateException("CoHero healing potion stack could not split");
+            }
+            return (Potion) split;
+        }
+
+        Item removed = removeFromBackpack(source);
+        if (!(removed instanceof Potion)) {
+            throw new IllegalStateException("CoHero healing potion disappeared before use");
+        }
+        return (Potion) removed;
+    }
+
+    private static boolean isAutoHealingPotion(Item item) {
+        return item instanceof PotionOfHealing || item instanceof ElixirOfHoneyedHealing;
     }
 
     boolean containsInBackpack(Item item) {
@@ -428,6 +467,7 @@ public final class CompanionInventory {
         return item instanceof Weapon
                 || item instanceof Armor
                 || item instanceof Ring
-                || item instanceof Wand;
+                || item instanceof Wand
+                || item instanceof Potion;
     }
 }

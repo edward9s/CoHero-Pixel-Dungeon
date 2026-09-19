@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Belongings;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.bags.Bag;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
@@ -235,7 +236,7 @@ public class WndCompanionInventory extends Window {
                     }
                 }
             });
-        } else if (item instanceof Weapon || item instanceof Wand) {
+        } else if (item instanceof Weapon || item instanceof Wand || item instanceof Potion) {
             GameScene.show(new WndOptions(
                     item.title(),
                     text("inventory.action_prompt"),

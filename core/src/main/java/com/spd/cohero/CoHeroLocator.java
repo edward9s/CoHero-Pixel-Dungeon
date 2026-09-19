@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIcon;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
@@ -195,6 +196,18 @@ public class CoHeroLocator extends Button {
         if (locatorTarget != null && locatorTarget.isAlive() && locatorTarget.sprite != null) {
             Camera.main.panTo(locatorTarget.sprite.destinationCenter(), 5f);
         }
+    }
+
+    @Override
+    protected boolean onLongClick() {
+        CoHeroAlly companion = CoHero.findCompanion();
+        if (locatorTarget == companion && companion != null && companion.isAlive()) {
+            GameScene.show(new WndCompanionInventory(companion));
+        }
+
+        // Always consume the long-press gesture so it cannot fall through into a normal
+        // locator click after the hold threshold.
+        return true;
     }
 
     @Override

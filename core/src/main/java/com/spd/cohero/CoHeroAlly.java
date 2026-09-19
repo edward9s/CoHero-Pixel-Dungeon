@@ -1,9 +1,12 @@
 package com.spd.cohero;
 
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
+import com.shatteredpixel.shatteredpixeldungeon.Challenges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
@@ -14,6 +17,8 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
@@ -38,6 +43,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
+import com.watabou.noosa.audio.Sample;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Callback;
@@ -408,6 +414,11 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
+        updateLowHealthRallyState();
+        if (tryAutoHealingPotion()) {
+            return true;
+        }
+
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (!visibleThreats.isEmpty()) {
             Mob combatTarget = nearestThreat(visibleThreats);
@@ -442,7 +453,6 @@ public class CoHeroAlly extends DirectableAlly {
             return exitRally;
         }
 
-        updateLowHealthRallyState();
         if (lowHealthRally && !heroWaitingAtExit()) {
             return actLowHealthRally();
         }
@@ -512,6 +522,28 @@ public class CoHeroAlly extends DirectableAlly {
             return moveSprite(oldPos, pos);
         }
 
+        spend(TICK);
+        return true;
+    }
+
+    private boolean tryAutoHealingPotion() {
+        if (HT <= 0
+                || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT
+                || buff(Healing.class) != null
+                || Dungeon.isChallenged(Challenges.NO_HEALING)) {
+            return false;
+        }
+
+        Potion potion = inventory.takeOneAutoHealingPotion();
+        if (potion == null) {
+            return false;
+        }
+
+        // Apply only the Char-safe healing semantics. Do not route through Potion.drink/apply,
+        // which is hard-wired to Hero belongings, Hero talents, and Hero action callbacks.
+        PotionOfHealing.cure(this);
+        PotionOfHealing.heal(this);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
         spend(TICK);
         return true;
     }

@@ -124,6 +124,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - locator 永久顯示目前代表角色的即時 HP bar；血條下方最多顯示 6 個小型 buff icons。
 - CoHero 處於低血量 rally 狀態且 locator 正代表 CoHero 時顯示固定警示符號，不使用持續閃爍。
 - locator 的活動邊界排除 Status/Menu/Boss/Toolbar/Inventory 與 tag 控制區，不覆蓋主要操作按鈕。
+- locator 目前代表 CoHero 時，長按 locator 直接開啟 CoHero 背包；代表 Hero 時長按不執行額外動作。
 - CoHero 本人在畫面內時，頭上血條即使滿血也始終顯示。
 
 ## 5. 玩家對同伴的控制
@@ -220,7 +221,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
-- CoHero 不使用藥水或卷軸；消耗品保留給玩家 Hero。
+- CoHero 原則上不自行使用消耗品；目前唯一例外是已鑑定的治療藥劑。當 HP 低於 35%、目前沒有 `Healing` buff，且未啟用禁止治療 challenge 時，CoHero 會從自己的背包自動喝一瓶 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。這個行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
 
@@ -241,11 +242,15 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 ### 7.1 消耗品
 
-CoHero 不喝藥水，也不使用卷軸。
+CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；目前只對治療藥劑開一個明確例外。
 
-- CoHero 背包不接受藥水、卷軸等消耗品。
-- 消耗品維持 SPD 原版 Hero 使用流程。
-- 不為 CoHero 建立 Potion / Scroll adapter，也不讓 AI 決定 consumable 的使用時機。
+- CoHero 背包允許存放 Potion。這是刻意的：若 UI 只允許真正的 `PotionOfHealing` 放入，會藉由「能不能選」洩漏未鑑定藥水的真實種類。
+- 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
+- HP 低於 35% 且目前沒有 `Healing` buff 時，CoHero 會自動消耗自己背包中的一瓶已鑑定 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。
+- 治療期間不會連續喝下一瓶；若 `Healing` 結束後 HP 仍再次低於 35%，下一回合才可能再消耗一瓶。
+- 禁止治療 challenge 下不自動飲用，以免繞過原版 challenge 語意。
+- 其他 Potion 只作為背包資源，可交還 Hero；CoHero 不會自行飲用。
+- Scroll 仍不接受、不使用。
 
 ### 7.2 力量是共享資源
 
