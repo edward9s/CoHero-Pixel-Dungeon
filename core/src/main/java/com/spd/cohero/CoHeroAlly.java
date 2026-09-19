@@ -32,6 +32,8 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
@@ -1526,6 +1528,11 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
+        Boolean wardRecall = tryWardRecall(targetMob);
+        if (wardRecall != null) {
+            return wardRecall;
+        }
+
         // If we have a usable combat tool but cannot use it from this cell, close distance.
         if (hasUsableCombatCapability(targetMob)) {
             int oldPos = pos;
@@ -1640,6 +1647,113 @@ public class CoHeroAlly extends DirectableAlly {
         return fallbackControl == null
                 ? null
                 : RangedChoice.wand(fallbackControl, targetMob.pos);
+    }
+
+    private Boolean tryWardRecall(Mob targetMob) {
+        if (targetMob == null || rooted) {
+            return null;
+        }
+
+        ArrayList<Mob> threats = visibleAwakeEnemies();
+        if (anyThreatCanAttackNow(threats)) {
+            return null;
+        }
+
+        CoHeroWardingPlanner.RecallPlan best = null;
+        for (Wand candidate : inventory.wands()) {
+            if (!(candidate instanceof WandOfWarding)) {
+                continue;
+            }
+
+            CoHeroWardingPlanner.RecallPlan plan =
+                    CoHeroWardingPlanner.chooseRecall(
+                            (WandOfWarding) candidate, this, targetMob);
+            if (plan != null && (best == null || plan.gain > best.gain)) {
+                best = plan;
+            }
+        }
+
+        if (best == null || best.ward == null || !best.ward.isAlive()) {
+            return null;
+        }
+
+        Ward ward = best.ward;
+        if (Dungeon.level.adjacent(pos, ward.pos)) {
+            if (ward.coHeroDismiss(this)) {
+                path = null;
+                spend(TICK);
+                return true;
+            }
+            return null;
+        }
+
+        int approach = chooseWardRecallApproachCell(ward);
+        if (approach == -1) {
+            return null;
+        }
+
+        PathFinder.Path recallPath =
+                Dungeon.findPath(this, approach, Dungeon.level.passable, fieldOfView, true);
+        if (recallPath == null || recallPath.isEmpty()) {
+            return null;
+        }
+
+        int step = recallPath.getFirst();
+        if (!isMovementSafe(step)) {
+            return null;
+        }
+
+        Char blocker = Actor.findChar(step);
+        if (blocker != null && blocker != this) {
+            return null;
+        }
+
+        int oldPos = pos;
+        move(step, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        return moveSprite(oldPos, pos);
+    }
+
+    private int chooseWardRecallApproachCell(Ward ward) {
+        int bestCell = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = ward.pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(ward.pos, cell) != 1
+                    || !Dungeon.level.passable[cell]
+                    || !isMovementSafe(cell)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != this) {
+                continue;
+            }
+
+            if (cell == pos) {
+                return cell;
+            }
+
+            PathFinder.Path recallPath =
+                    Dungeon.findPath(this, cell, Dungeon.level.passable, fieldOfView, true);
+            if (recallPath == null) {
+                continue;
+            }
+
+            int distance = recallPath.size();
+            if (bestCell == -1
+                    || distance < bestDistance
+                    || (distance == bestDistance && cell < bestCell)) {
+                bestCell = cell;
+                bestDistance = distance;
+            }
+        }
+
+        return bestCell;
     }
 
     private Wand bestDamageWand(ArrayList<Wand> wands, Mob targetMob) {
