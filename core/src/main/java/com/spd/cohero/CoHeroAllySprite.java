@@ -41,6 +41,14 @@ public class CoHeroAllySprite extends CharSprite {
             throw new IllegalArgumentException("CoHeroAllySprite can only link to CoHeroAlly");
         }
         super.link(ch);
+
+        // Stock CharHealthIndicator hides at full health. CoHero is a second Game Over point,
+        // so keep its in-world health bar visible whenever the companion itself is visible.
+        if (health != null) {
+            health.killAndErase();
+        }
+        health = new CoHeroHealthIndicator(ch);
+
         updateArmor();
     }
 
