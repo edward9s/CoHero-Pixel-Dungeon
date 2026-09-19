@@ -78,6 +78,10 @@ public class CoHeroAlly extends DirectableAlly {
         return inventory;
     }
 
+    boolean lowHealthRally() {
+        return lowHealthRally;
+    }
+
     public MeleeWeapon weapon() {
         return inventory.weapon();
     }

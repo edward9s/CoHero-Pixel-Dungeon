@@ -113,6 +113,16 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 
 因此目前不把完整 Hero AI 當作目標。
 
+### CoHero 畫面外監控
+
+CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene 提供畫面外 locator：
+
+- CoHero 位於目前主鏡頭 viewport 內時 locator 隱藏，避免與角色本體及頭上血條重複。
+- CoHero 離開畫面時，locator 固定在 UI 邊緣並沿正確方向指向 CoHero。
+- locator 永久顯示 CoHero 即時 HP bar，即使滿血也保留，讓玩家能持續監控這個 Game Over 點。
+- CoHero 處於低血量 rally 狀態時顯示固定警示符號，不使用持續閃爍。
+- 點擊 locator 只將主鏡頭平滑移向 CoHero，不改變 Hero 控制權、CoHero AI 或任何 gameplay FOV。
+
 ## 5. 玩家對同伴的控制
 
 目前已取消所有直接的行為命令。
