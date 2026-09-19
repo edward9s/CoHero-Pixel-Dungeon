@@ -18,6 +18,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental.FireWall;
+import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.MagicalFireRoom.EternalFire;
 import com.watabou.utils.PathFinder;
 
 import java.util.HashMap;
@@ -133,6 +134,7 @@ public final class CoHeroHazards {
                 || activeFor(owner, Inferno.class, Fire.class)
                 || activeFor(owner, Blizzard.class, Freezing.class)
                 || activeVaultFlamesFor(owner)
+                || activeEternalFireFor(owner)
                 || activeVaultFireWallFor(owner);
     }
 
@@ -148,6 +150,7 @@ public final class CoHeroHazards {
                 || presentFor(owner, cell, Inferno.class, Fire.class)
                 || presentFor(owner, cell, Blizzard.class, Freezing.class)
                 || presentVaultFlamesFor(owner, cell)
+                || presentEternalFireFor(owner, cell)
                 || presentVaultFireWallFor(owner, cell);
     }
 
@@ -171,6 +174,37 @@ public final class CoHeroHazards {
         return !owner.isImmune(VaultFlameTraps.class)
                 && !owner.isImmune(Fire.class)
                 && blobPresent(cell, VaultFlameTraps.class);
+    }
+
+    private static boolean activeEternalFireFor(Char owner) {
+        return !owner.isImmune(EternalFire.class) && activeBlob(EternalFire.class);
+    }
+
+    private static boolean presentEternalFireFor(Char owner, int cell) {
+        if (owner.isImmune(EternalFire.class)) {
+            return false;
+        }
+
+        Blob fire = Dungeon.level.blobs.get(EternalFire.class);
+        if (fire == null || fire.volume <= 0 || fire.cur == null) {
+            return false;
+        }
+
+        // EternalFire ignites characters on the wall cell and on all four cardinally adjacent
+        // cells during evolve(), so the danger region is one tile wider than the blob itself.
+        if (blobPresent(cell, EternalFire.class)) {
+            return true;
+        }
+        for (int offset : PathFinder.NEIGHBOURS4) {
+            int adjacent = cell + offset;
+            if (adjacent >= 0
+                    && adjacent < Dungeon.level.length()
+                    && Dungeon.level.distance(cell, adjacent) == 1
+                    && blobPresent(adjacent, EternalFire.class)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean activeVaultFireWallFor(Char owner) {
