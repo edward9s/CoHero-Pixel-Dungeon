@@ -7,11 +7,13 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
@@ -26,13 +28,16 @@ import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
@@ -683,6 +688,110 @@ public class CoHeroAlly extends DirectableAlly {
         return consumeSurvivalPotion(false);
     }
 
+    private boolean tryEmergencyEscapeConsumable(
+            CombatRisk risk, ArrayList<Mob> threats) {
+        boolean immediateLethal = risk.immediateIncoming * 1.35f >= HP + shielding();
+
+        int terrorTargets = usableTerrorTargetCount(threats);
+        if (terrorTargets >= 2 || (terrorTargets >= 1 && immediateLethal)) {
+            if (tryUseTerrorScroll(threats)) {
+                return true;
+            }
+        }
+
+        boolean lowHealthDanger = HT > 0 && HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT;
+        boolean criticallyShortTtd = risk.ttd <= 2f;
+        if (risk.attackersNow >= 3 || immediateLethal || lowHealthDanger || criticallyShortTtd) {
+            if (tryUseInvisibilityPotion()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int usableTerrorTargetCount(ArrayList<Mob> threats) {
+        if (buff(MagicImmune.class) != null || buff(Blindness.class) != null) {
+            return 0;
+        }
+
+        int count = 0;
+        for (Mob mob : threats) {
+            if (mob != null
+                    && mob.isAlive()
+                    && mob.alignment == Alignment.ENEMY
+                    && mob.invisible <= 0
+                    && fieldOfView != null
+                    && fieldOfView[mob.pos]
+                    && mob.state != mob.SLEEPING
+                    && !mob.isImmune(Terror.class)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean tryUseTerrorScroll(ArrayList<Mob> threats) {
+        if (usableTerrorTargetCount(threats) == 0) {
+            return false;
+        }
+
+        Scroll scroll = inventory.takeOneAutoTerrorScroll();
+        if (!(scroll instanceof ScrollOfTerror)) {
+            return false;
+        }
+
+        int affected = 0;
+        for (Mob mob : threats) {
+            if (mob == null
+                    || !mob.isAlive()
+                    || mob.alignment != Alignment.ENEMY
+                    || mob.invisible > 0
+                    || fieldOfView == null
+                    || !fieldOfView[mob.pos]
+                    || mob.state == mob.SLEEPING
+                    || mob.isImmune(Terror.class)) {
+                continue;
+            }
+
+            Terror terror = Buff.affect(mob, Terror.class, Terror.DURATION);
+            if (terror != null) {
+                terror.object = id();
+                affected++;
+            }
+        }
+
+        if (affected == 0) {
+            // The pre-check should prevent this, but do not consume a known scroll for no effect.
+            inventory.addToBackpack(scroll);
+            return false;
+        }
+
+        Invisibility.dispel(this);
+        Catalog.countUse(ScrollOfTerror.class);
+        Sample.INSTANCE.play(Assets.Sounds.READ);
+        spend(TICK);
+        return true;
+    }
+
+    private boolean tryUseInvisibilityPotion() {
+        if (buff(Invisibility.class) != null) {
+            return false;
+        }
+
+        Potion potion = inventory.takeOneAutoInvisibilityPotion();
+        if (!(potion instanceof PotionOfInvisibility)) {
+            return false;
+        }
+
+        Buff.prolong(this, Invisibility.class, Invisibility.DURATION);
+        Catalog.countUse(PotionOfInvisibility.class);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        Sample.INSTANCE.play(Assets.Sounds.MELD);
+        spend(TICK);
+        return true;
+    }
+
     private boolean tryEmergencySurvivalPotion() {
         return consumeSurvivalPotion(true);
     }
@@ -943,6 +1052,23 @@ public class CoHeroAlly extends DirectableAlly {
         combatRetreating = true;
         clearMeleeTacticalPlan();
 
+        // Once invisibility has been spent as an escape resource, preserve it: move away instead
+        // of immediately breaking it with another attack or offensive utility.
+        if (buff(Invisibility.class) != null) {
+            int invisibleEscapeStep = rooted ? -1 : chooseEscapeStep(threats);
+            if (invisibleEscapeStep != -1) {
+                int oldPos = pos;
+                move(invisibleEscapeStep, true);
+                spend(1 / speed());
+                Dungeon.level.updateFieldOfView(this, fieldOfView);
+                revealVisibleCells();
+                CoHero.tryAutoExit(this);
+                return moveSprite(oldPos, pos);
+            }
+            spend(TICK);
+            return true;
+        }
+
         Boolean escapeUtility = tryEscapeUtility(threats);
         if (escapeUtility != null) {
             return escapeUtility;
@@ -959,8 +1085,13 @@ public class CoHeroAlly extends DirectableAlly {
             return moveSprite(oldPos, pos);
         }
 
-        // If terrain leaves no escape route, spend the turn on a real survival resource rather
-        // than waiting. Healing is gradual, so the risk model never pre-counts the whole backpack.
+        // No safe movement remains. Spend a scarce control/escape consumable only after the
+        // ordinary no-cost escape options have failed.
+        if (tryEmergencyEscapeConsumable(risk, threats)) {
+            return true;
+        }
+
+        // If control resources are unavailable, fall back to immediate shielding/healing.
         if (tryEmergencySurvivalPotion()) {
             return true;
         }
