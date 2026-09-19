@@ -496,8 +496,8 @@ public class CoHeroAlly extends DirectableAlly {
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
 
-        // If the player is already waiting on the exit, reaching an adjacent rally cell should
-        // immediately use the player's normal transition flow.
+        // If the player happens to already be on the exit when CoHero reaches its rally cell,
+        // immediately use the player's normal transition flow. Hero no longer has to wait there.
         if (CoHero.tryAutoExit(this)) {
             return true;
         }
@@ -589,7 +589,7 @@ public class CoHeroAlly extends DirectableAlly {
             return exitRally;
         }
 
-        if (lowHealthRally && !heroWaitingAtExit()) {
+        if (lowHealthRally) {
             return actLowHealthRally();
         }
 
@@ -714,11 +714,11 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private Boolean tryExitRally() {
-        if (!heroWaitingAtExit()) {
+        LevelTransition transition = knownRegularExitTransition();
+        if (transition == null) {
             return null;
         }
 
-        LevelTransition transition = Dungeon.level.getTransition(Dungeon.hero.pos);
         int rallyCell = chooseExitWaitingCell(transition);
         if (rallyCell == -1 || rallyCell == pos) {
             spend(TICK);
@@ -1469,14 +1469,16 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
-    private boolean heroWaitingAtExit() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive() || Dungeon.level.locked) {
-            return false;
+    private LevelTransition knownRegularExitTransition() {
+        if (Dungeon.level == null || Dungeon.level.locked || !isExitKnown()) {
+            return null;
         }
-        LevelTransition transition = Dungeon.level.getTransition(Dungeon.hero.pos);
-        return transition != null
-                && transition.type == LevelTransition.Type.REGULAR_EXIT
-                && transition.inside(Dungeon.hero.pos);
+
+        int exit = Dungeon.level.exit();
+        LevelTransition transition = Dungeon.level.getTransition(exit);
+        return transition != null && transition.type == LevelTransition.Type.REGULAR_EXIT
+                ? transition
+                : null;
     }
 
     private boolean actLowHealthRally() {
