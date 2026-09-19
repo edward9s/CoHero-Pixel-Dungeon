@@ -298,17 +298,12 @@ public final class CoHero {
             return TRANSITION_BLOCKED;
         }
 
-        boolean companionReady = isAdjacentToTransition(companion.pos, transition);
         if (offersCompanionChoice(transition)) {
-            showCompanionTransitionChoice(hero, transition, companionReady);
+            showCompanionTransitionChoice(hero, transition);
             return TRANSITION_PROMPTED;
         }
 
-        if (transition.type == LevelTransition.Type.REGULAR_EXIT && !companionReady) {
-            GLog.i(CoHeroMessages.get("exit_required"));
-            return TRANSITION_BLOCKED;
-        }
-
+        captureCompanionState();
         return Dungeon.level.activateTransition(hero, transition)
                 ? TRANSITION_STARTED
                 : TRANSITION_BLOCKED;
@@ -324,15 +319,10 @@ public final class CoHero {
     }
 
     private static void showCompanionTransitionChoice(
-            Hero hero, LevelTransition transition, boolean companionReady) {
+            Hero hero, LevelTransition transition) {
         boolean branchEntry = transition.type == LevelTransition.Type.BRANCH_EXIT;
-        String message = CoHeroMessages.get(
+        final String finalMessage = CoHeroMessages.get(
                 branchEntry ? "transition.branch_message" : "transition.boss_message");
-        if (!companionReady) {
-            message += "\n\n" + CoHeroMessages.get("transition.not_ready");
-        }
-
-        final String finalMessage = message;
         Game.runOnRenderThread(new Callback() {
             @Override
             public void call() {
@@ -343,13 +333,9 @@ public final class CoHero {
                         CoHeroMessages.get("transition.leave")) {
 
                     @Override
-                    protected boolean enabled(int index) {
-                        return index != 0 || companionReady;
-                    }
-
-                    @Override
                     protected void onSelect(int index) {
                         if (index == 0) {
+                            captureCompanionState();
                             clearExcludedFloor();
                         } else if (index == 1) {
                             captureCompanionState();
@@ -385,43 +371,6 @@ public final class CoHero {
     private static void clearExcludedFloor() {
         excludedDepth = -1;
         excludedBranch = -1;
-    }
-
-    static boolean tryAutoExit(CoHeroAlly companion) {
-        if (companion == null
-                || !companion.isAlive()
-                || Dungeon.hero == null
-                || !Dungeon.hero.isAlive()
-                || Dungeon.level == null
-                || Dungeon.level.locked) {
-            return false;
-        }
-
-        LevelTransition transition = Dungeon.level.getTransition(Dungeon.hero.pos);
-        if (transition == null
-                || transition.type != LevelTransition.Type.REGULAR_EXIT
-                || !transition.inside(Dungeon.hero.pos)
-                || !isAdjacentToTransition(companion.pos, transition)) {
-            return false;
-        }
-
-        return Dungeon.level.activateTransition(Dungeon.hero, transition);
-    }
-
-    static boolean isAdjacentToTransition(int cell, LevelTransition transition) {
-        if (transition == null || transition.inside(cell)) {
-            return false;
-        }
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int adjacent = cell + offset;
-            if (adjacent >= 0
-                    && adjacent < Dungeon.level.length()
-                    && transition.inside(adjacent)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     static void markCompanionDeathGameOver() {
