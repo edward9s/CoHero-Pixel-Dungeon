@@ -7,14 +7,26 @@ if len(sys.argv) != 2:
 
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
-old = "\t\t\tif (Dungeon.level.activateTransition(this, transition)){"
-new = (
-    "\t\t\tif (com.spd.cohero.CoHero.canUseTransition(transition)\n"
-    "\t\t\t\t\t&& Dungeon.level.activateTransition(this, transition)){"
-)
 
-if new in text:
-    raise SystemExit("CoHero transition gate is already present")
+old = """			if (Dungeon.level.activateTransition(this, transition)){
+				curAction = null;
+			} else {
+				ready();
+			}
+"""
+
+new = """			int coHeroTransition = com.spd.cohero.CoHero.requestTransition(this, transition);
+			if (coHeroTransition == com.spd.cohero.CoHero.TRANSITION_STARTED) {
+				curAction = null;
+			} else {
+				// blocked transitions and async choice prompts both end this stair action.
+				// WndOptions is modal, so ready() here does not let the Hero move under the prompt.
+				ready();
+			}
+"""
+
+if "CoHero.requestTransition(this, transition)" in text:
+    raise SystemExit("CoHero transition request hook is already present")
 
 count = text.count(old)
 if count != 1:
