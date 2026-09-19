@@ -738,6 +738,240 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
+    private boolean hasSeriousCleansableNegative() {
+        int negatives = 0;
+        for (Buff active : buffs()) {
+            if (active.type != Buff.buffType.NEGATIVE
+                    || active instanceof AllyBuff
+                    || active instanceof LostInventory) {
+                continue;
+            }
+            negatives++;
+            if (active instanceof Buff.DOTbuff) {
+                return true;
+            }
+        }
+
+        return rooted
+                || negatives >= 2
+                || (negatives > 0 && HT > 0 && HP * 100 < HT * 50);
+    }
+
+    private boolean tryUseCleansingPotion(CombatRisk risk) {
+        if (!hasSeriousCleansableNegative()) {
+            return false;
+        }
+
+        // Do not spend an emergency turn cleansing when the current volley is already lethal.
+        // Controlled/random teleport or immediate shielding remain safer in that situation.
+        if (risk != null && risk.immediateIncoming * 1.35f >= HP + shielding()) {
+            return false;
+        }
+
+        Potion potion = inventory.takeOneAutoCleansingPotion();
+        if (!(potion instanceof PotionOfCleansing)) {
+            return false;
+        }
+
+        PotionOfCleansing.cleanse(this);
+        Catalog.countUse(PotionOfCleansing.class);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        spend(TICK);
+        return true;
+    }
+
+    private Boolean tryKnownRecoveryPlant() {
+        // Sungrass only heals while its target remains on the activation cell.
+        if (buff(Sungrass.Health.class) != null && HP < HT) {
+            spend(TICK);
+            return true;
+        }
+
+        if (hasSeriousCleansableNegative()) {
+            int mageroyal = nearestKnownPlantCell(Mageroyal.class, 4);
+            if (mageroyal != -1) {
+                return moveTowardKnownPlant(mageroyal);
+            }
+        }
+
+        if (HT > 0
+                && HP * 100 < HT * 60
+                && buff(Healing.class) == null) {
+            int sungrass = nearestKnownPlantCell(Sungrass.class, 6);
+            if (sungrass != -1) {
+                return moveTowardKnownPlant(sungrass);
+            }
+        }
+
+        return null;
+    }
+
+    private Boolean tryKnownCombatPlant(Mob targetMob, ArrayList<Mob> threats) {
+        if (rooted || targetMob == null || threats == null || threats.isEmpty()) {
+            return null;
+        }
+
+        if (hasSeriousCleansableNegative()) {
+            int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
+            if (mageroyal != -1) {
+                return moveOntoAdjacentPlant(mageroyal);
+            }
+        }
+
+        boolean hardFight = threats.size() >= 2
+                || Char.hasProp(targetMob, Char.Property.BOSS)
+                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
+        if (hardFight
+                && buff(Earthroot.Armor.class) == null
+                && Barkskin.currentLevel(this) <= 0) {
+            int earthroot = adjacentKnownPlantCell(Earthroot.class);
+            if (earthroot != -1) {
+                return moveOntoAdjacentPlant(earthroot);
+            }
+        }
+
+        return null;
+    }
+
+    private Boolean tryKnownRetreatPlant(CombatRisk risk, ArrayList<Mob> threats) {
+        if (rooted || risk == null || threats == null || threats.isEmpty()) {
+            return null;
+        }
+
+        boolean severe = risk.attackersNow >= 2 || risk.ttd <= 3f;
+        if (severe) {
+            int fadeleaf = adjacentKnownPlantCell(Fadeleaf.class);
+            if (fadeleaf != -1) {
+                return moveOntoAdjacentPlant(fadeleaf);
+            }
+        }
+
+        if (hasSeriousCleansableNegative()
+                && risk.immediateIncoming * 1.35f < HP + shielding()) {
+            int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
+            if (mageroyal != -1) {
+                return moveOntoAdjacentPlant(mageroyal);
+            }
+        }
+
+        return null;
+    }
+
+    private int adjacentKnownPlantCell(Class<? extends Plant> plantType) {
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(pos, cell) != 1
+                    || !isKnown(cell)
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || !isMovementSafe(cell)) {
+                continue;
+            }
+
+            Plant plant = Dungeon.level.plants.get(cell);
+            if (plantType.isInstance(plant)) {
+                return cell;
+            }
+        }
+        return -1;
+    }
+
+    private int nearestKnownPlantCell(Class<? extends Plant> plantType, int maxDistance) {
+        PathFinder.buildDistanceMap(pos, Dungeon.level.passable, maxDistance);
+
+        int best = -1;
+        int bestDistance = Integer.MAX_VALUE;
+        for (Plant plant : Dungeon.level.plants.valueList()) {
+            if (!plantType.isInstance(plant)) {
+                continue;
+            }
+            int cell = plant.pos;
+            if (!isKnown(cell)
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || !isMovementSafe(cell)
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            if (PathFinder.distance[cell] < bestDistance) {
+                best = cell;
+                bestDistance = PathFinder.distance[cell];
+            }
+        }
+        return best;
+    }
+
+    private Boolean moveTowardKnownPlant(int plantCell) {
+        if (plantCell == -1 || rooted) {
+            return null;
+        }
+
+        int oldPos = pos;
+        if (!getCloser(plantCell)) {
+            return null;
+        }
+
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        return moveSprite(oldPos, pos);
+    }
+
+    private Boolean moveOntoAdjacentPlant(int plantCell) {
+        if (plantCell == -1
+                || rooted
+                || Dungeon.level.distance(pos, plantCell) != 1) {
+            return null;
+        }
+
+        int oldPos = pos;
+        move(plantCell, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+
+        // Fadeleaf teleports during Level.occupyCell(). Its teleport VFX already placed the sprite,
+        // so do not draw a second long-distance movement animation from the pre-plant cell.
+        if (pos != plantCell) {
+            path = null;
+            clearMeleeTacticalPlan();
+            clearRangedLurePlan();
+            return true;
+        }
+        return moveSprite(oldPos, pos);
+    }
+
+    private boolean tryUseCombatEarthenArmor(Mob targetMob, ArrayList<Mob> threats) {
+        if (targetMob == null
+                || threats == null
+                || threats.isEmpty()
+                || combatRetreating
+                || Barkskin.currentLevel(this) > 0
+                || buff(Earthroot.Armor.class) != null) {
+            return false;
+        }
+
+        boolean hardFight = threats.size() >= 2
+                || Char.hasProp(targetMob, Char.Property.BOSS)
+                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
+        if (!hardFight) {
+            return false;
+        }
+
+        Potion potion = inventory.takeOneAutoEarthenArmorPotion();
+        if (!(potion instanceof PotionOfEarthenArmor)) {
+            return false;
+        }
+
+        Barkskin.conditionallyAppend(this, 2 + level() / 3, 50);
+        Catalog.countUse(PotionOfEarthenArmor.class);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        spend(TICK);
+        return true;
+    }
+
     private boolean tryAutoSurvivalPotion() {
         if (HT <= 0 || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
             return false;
