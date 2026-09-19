@@ -88,7 +88,8 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfTransfusion.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorruption.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorrosion.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFireblast.java
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFireblast.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfWarding.java
           python cohero/scripts/patch_wndgame.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
 

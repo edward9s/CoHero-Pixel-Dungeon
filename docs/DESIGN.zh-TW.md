@@ -204,13 +204,14 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
    - 法杖必須已鑑定、未詛咒且有足夠 charge 才是合法候選。
-   - 目前明確支援 `WandOfMagicMissile`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`。
+   - 目前明確支援 `WandOfMagicMissile`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
    - `WandOfLivingEarth` 暫不支援，因為 Earth Guardian / RockArmor ownership 與多個 Hero-specific 系統高度耦合。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
    - 解離法杖會檢查整條有效射線，若會傷及友軍或主動波及睡眠敵人就不施放。
    - 雷霆法杖沿用原版 chain / `affected` 規則；AI 也用同一套連鎖範圍估算整體傷害，若連鎖會反彈到 CoHero、傷及中立角色或主動波及睡眠敵人則不施放。
    - 酸蝕法杖不固定瞄準敵人本格。AI 會枚舉目標本格與真正相鄰、可合法命中的落點，連同場上既有酸蝕氣體依原版 `Blob.evolve()` 規則模擬後續擴散；近期會波及 Hero、CoHero、中立／友軍或睡眠敵人的方案直接淘汰，再從剩餘方案中優先選友軍長期風險較低、清醒敵人覆蓋較高且能較快覆蓋主目標的落點。
    - 焰浪之杖依原版目前 charge 決定 1–3 charge、5/7/9 格與 50°/70°/90° cone。AI 會枚舉主目標附近的瞄準方向，以原版 `ConeAOE` 計算實際命中格；會直接命中友軍／中立角色或額外波及睡眠敵人的方向不施放，並重現 cone 外額外點燃可燃地形的規則。其餘方向優先降低火勢向我方與睡眠敵人擴散的風險，再比較整體預估傷害。
+   - 哨衛法杖建立的 ward 會標記為 Hero-owned 或 CoHero-owned，兩邊分開計算原版 ward energy 上限，因此不會互相吃掉法杖提供的 ward 配額。CoHero 只會升級自己的 ward；戰鬥時優先升級能攻擊目前目標的既有 ward，否則在自身視野內尋找可安全射擊目標的 tier-1 ward 落點。落點不得位於已知危險環境，且若新增／升級後的視野會讓 ward 主動攻擊額外的睡眠敵人則不使用。AI 只把新增或升級 ward 視為攻擊行動，不會因為傷害評分而反覆消耗 charge 單純治療滿能量的高階 ward。
    - 稜光法杖對不死／惡魔的額外傷害會納入傷害估算。
    - 不要求 AI 做完整的長期 charge 規劃。
    - 未知或無法安全判斷用途的 Wand 不應由 AI 猜測使用方式。
