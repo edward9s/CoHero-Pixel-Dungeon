@@ -1718,6 +1718,15 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private Boolean tryEscapeUtility(ArrayList<Mob> visibleThreats) {
+        // Blast Wave is a survival tool when a safe blast reduces next-turn attackers,
+        // even when another wand would deal more raw damage.
+        for (Wand wand : inventory.wands()) {
+            int blastAim = CoHeroWandAdapter.blastWaveEscapeAim(wand, this, visibleThreats);
+            if (blastAim != -1) {
+                return performWandCast(blastAim, wand);
+            }
+        }
+
         for (Mob threat : visibleThreats) {
             for (Wand wand : inventory.wands()) {
                 if (CoHeroWandAdapter.regrowthUsefulForEscape(wand, this, threat, visibleThreats)) {
