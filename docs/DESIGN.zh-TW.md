@@ -29,6 +29,7 @@ CoHero Pixel Dungeon 的核心不是重做 Shattered Pixel Dungeon，而是在�
 - 玩家不能在同伴抵達本層出口旁的可離開位置前進入下一層。
 - 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層。
 - 同伴沒有「停止行走」開關；持續前進本身就是壓力來源。
+- CoHero 本人即使位於玩家 Hero 的 FOV 之外仍保持可見；這只保證玩家能觀察這個 Game Over 點，不代表共享 CoHero 的完整視野，也不額外揭露其周圍敵人。
 
 設計重點不是「護送一個完全無能的 NPC」，而是：
 
@@ -123,9 +124,10 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 ### 6.1 基本攻擊規則
 
-1. **沒有武器時**
+1. **沒有任何可用攻擊能力時**
    - 同伴不主動攻擊。
    - 盡量躲避敵人並繼續探索 / 前進。
+   - 「沒有近戰武器」不等於沒有攻擊能力；只要背包中仍有合法投擲武器或合法法杖，CoHero 仍可進行遠程攻擊。
 
 2. **有近戰武器時**
    - 可以進行普通近戰攻擊。
@@ -133,17 +135,22 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 3. **有投擲武器時**
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
-   - 第一版只啟用走標準 `MissileWeapon` 命中／落地流程的官方投擲武器；`Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
-   - 敵人死亡後，會嘗試拾回自己投出的投擲武器。
+   - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
+   - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
+   - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。
+   - 換樓層時清除尚未回收的投擲物追蹤，不跨樓層追索。
 
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
-   - 第一版明確支援 `WandOfMagicMissile` 與 `WandOfFrost`；其他 Wand 先 fail closed。
    - 法杖必須已鑑定、未詛咒且有足夠 charge 才是合法候選。
+   - 目前實作先接通 `WandOfMagicMissile` 與 `WandOfFrost`；這是現階段 integration 範圍，不是設計上永久限定只支援這兩種 Wand。
+   - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
    - 不要求 AI 做完整的長期 charge 規劃。
    - 未知或無法安全判斷用途的 Wand 不應由 AI 猜測使用方式。
 
 ### 6.2 遠程攻擊選擇
+
+戰鬥目標目前取 CoHero 視野內最近的可見、清醒敵人；睡眠中的敵人不列入主動攻擊目標。
 
 遠程選擇不應依職業決定，而應依目標與當前可用裝備決定。
 
@@ -165,6 +172,8 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
    - 不應因為角色職業名稱而強制固定武器類型。
    - AI 評分不得為了比較候選而提前消耗真正攻擊用的亂數；第一版使用 min/max 的算術平均作穩定傷害估算，投擲武器再加上平均剩餘力量加成。
    - 相同估算傷害時優先投擲武器，避免無必要消耗 wand charge。
+   - CoHero 自己裝備的 `RingOfSharpshooting` 會影響其投擲武器傷害與耐久；玩家 Hero 的 Sharpshooting、Talent 或其他 Hero-only 投擲加成不得洩漏到 CoHero。
+   - CoHero 法杖傷害使用自己的普通 RNG，不繼承玩家 Hero 的 Clover 類 RNG、`WandEmpower` 或其他 Hero-only cast 效果。
 
 ### 6.3 背包就是控制介面
 
@@ -173,7 +182,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 - 給近戰武器 → 同伴取得近戰能力。
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
-- 不給武器 → 同伴不主動戰鬥，偏向避敵。
+- 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
 - CoHero 不使用藥水或卷軸；消耗品保留給玩家 Hero。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
@@ -213,7 +222,7 @@ CoHero 不保存獨立 STR。
 
 - Hero STR 增加時，CoHero 的有效 STR 同時增加。
 - 力量藥劑只由玩家 Hero 使用；增加的共同 STR 仍同時影響 CoHero。
-- 武器與護甲的 STRReq 以及力量不足懲罰，CoHero 必須使用這個共享 STR 計算。
+- 武器與護甲的 STRReq 使用這個共享 STR 計算；依 GhostHero 規則，力量需求超過 CoHero STR 的裝備直接不能裝備，因此正常流程不應產生「已裝備但力量不足」狀態。
 - 不應維護兩份 STR 再做同步；共享值應只有一個權威來源。
 
 ### 7.3 等級與 EXP 共享
@@ -253,6 +262,19 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - 藥水與卷軸不支援 CoHero 使用。
 - Artifact 與 Trinket 目前仍不支援。
 - 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
+- Wand 目前需要額外 integration seam，因為 SPD 的使用入口與不少個別 Wand 效果仍依賴 `Hero` / `curUser` / `Dungeon.hero`；這是上游 API 的 owner 假設，不代表 AI 設計上應以法杖類別硬編行為。
+
+### 7.6 法杖為何目前需要額外 adapter
+
+近戰武器的大部分戰鬥 API 原生以 `Char` 為 owner / attacker，因此 CoHero 可以直接沿用；一般投擲武器也能透過很小的 seam 重用既有命中、耐久與落地流程。
+
+Wand 不同。SPD 的 Wand 使用流程歷史上以玩家 Hero 為中心：
+
+- 使用入口與 targeting 流程以 `Hero` / 靜態 `curUser` 為核心。
+- 部分 `onZap()` 會讀取 `Dungeon.hero`、Hero Talent、Hero buff 或 Hero belongings。
+- 不同 Wand 的效果語意差異很大；有些是直接傷害，有些是 AOE、位移、地形、召喚、治療、控制或持續效果，不能只用「平均傷害最高」安全概括。
+
+因此目前採用 fail-closed adapter：只讓已確認能以 CoHero `Char` 語意安全執行的 Wand 進入 AI 候選。長期方向仍應是 capability-based，而不是永久維護「職業／法杖名稱表」。
 
 ## 8. Talent 與職業能力
 
@@ -361,7 +383,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 高閃避目標優先法杖。
 - 魔法免疫目標禁用法杖。
 - 當前距離下使用最高傷害的合法攻擊選項。
-- 投擲武器回收。
+- 投擲武器以 setID 追蹤並在無可見威脅時回收；不跨樓層追蹤。
 - 避免主動吵醒可視範圍內的睡眠怪物。
 - 同伴死亡即 Game Over。
 - 同伴抵達出口旁前禁止玩家下樓。
@@ -375,7 +397,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 
 - 一般地面物品是否由同伴自主撿取；目前只明確要求回收自己投出的投擲武器。
 - 睡眠怪物的具體安全距離，以及完全無法繞行時是否允許喚醒。
-- 除 `WandOfMagicMissile` 與 `WandOfFrost` 外，其餘特殊 Wand 的正式支援清單與個別使用規則。
+- 如何把目前只接通 `WandOfMagicMissile` / `WandOfFrost` 的 adapter 擴大成更一般的 Wand capability contract，以及哪些特殊 Wand 仍必須有個別 AI 語意。
 - 是否保留任何 Talent、Subclass 或 Hero Armor Ability。
 - 同伴裝備切換由玩家直接管理到什麼程度。
 - Boss 戰中的特殊 AI 行為。
