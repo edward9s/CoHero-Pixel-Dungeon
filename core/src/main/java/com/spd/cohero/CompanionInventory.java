@@ -16,6 +16,13 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfSta
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfAggression;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlast;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlink;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfDeepSleep;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
@@ -170,6 +177,49 @@ public final class CompanionInventory {
 
     Scroll takeOneAutoTerrorScroll() {
         return takeOneKnownScroll(ScrollOfTerror.class);
+    }
+
+    boolean hasCombatRunestone(Class<? extends Runestone> type) {
+        if (type == null) {
+            return false;
+        }
+        for (Item item : backpack) {
+            if (type.isInstance(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Runestone takeOneCombatRunestone(Class<? extends Runestone> type) {
+        if (type == null) {
+            return null;
+        }
+
+        Runestone source = null;
+        for (Item item : backpack) {
+            if (type.isInstance(item)) {
+                source = (Runestone) item;
+                break;
+            }
+        }
+        if (source == null) {
+            return null;
+        }
+
+        if (source.quantity() > 1) {
+            Item split = source.split(1);
+            if (!(split instanceof Runestone)) {
+                throw new IllegalStateException("CoHero runestone stack could not split");
+            }
+            return (Runestone) split;
+        }
+
+        Item removed = removeFromBackpack(source);
+        if (!(removed instanceof Runestone)) {
+            throw new IllegalStateException("CoHero runestone disappeared before use");
+        }
+        return (Runestone) removed;
     }
 
     int autoHealingPotionCount() {
@@ -622,6 +672,12 @@ public final class CompanionInventory {
                 || item instanceof Wand
                 || item instanceof Potion
                 || item instanceof Scroll
+                || item instanceof StoneOfAggression
+                || item instanceof StoneOfBlast
+                || item instanceof StoneOfFear
+                || item instanceof StoneOfDeepSleep
+                || item instanceof StoneOfBlink
+                || item instanceof StoneOfFlock
                 || item instanceof Ankh;
     }
 }
