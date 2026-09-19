@@ -37,8 +37,8 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - 地城中的可用資源需要在兩名角色之間分配。
 - 玩家 Hero 死亡：Game Over。
 - 同伴 Hero 死亡：Game Over。
-- 玩家不能在同伴抵達本層出口旁的可離開位置前進入下一層。
-- 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層。
+- 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層，也不需要先抵達出口附近。
+- Hero 觸發普通樓層 transition 時，系統先保存 CoHero 當下的 HP、裝備、背包、buff 與 AI 狀態，再直接換層；下一層由保存狀態在 Hero 附近重新生成 CoHero。
 - 同伴沒有「停止行走」開關；持續前進本身就是壓力來源。
 - CoHero 位於玩家 Hero 的 FOV 之外時仍保持可見，而且其自身 FOV 會作為「顯示層第二視野」正常照亮周圍地形、顯示其中角色並播放移動動畫。這個合併視野只用於畫面呈現；遊戲規則中的 `Dungeon.level.heroFOV` 仍只代表玩家 Hero 視野，不會讓卷軸、技能或敵人觸發條件把 CoHero 視野當成 Hero 視野。
 - 載入存檔的 `StartScene` 存檔槽預覽同時顯示 Hero 與 CoHero 的全身 sprite：CoHero 畫在 Hero 後層，與 Hero 使用相同 Y，X 向右偏半個 12px 角色寬（6px），因此只露出右半；兩者各自使用存檔中的職業與護甲 tier。舊存檔若沒有 CoHero armor preview metadata，顯示 tier 0，但不影響實際載入狀態。
@@ -57,12 +57,11 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 1. 出口尚未發現時，同伴自主探索未知區域，但探索範圍限制在「以 Hero 為中心、依實際可走 path distance 計算最近約 30% 的可通行／可探索區域」。這是範圍上限，不是每回合只從 30% 候選抽樣；Hero 移動時範圍會跟著重新置中。出口只要被 Hero 或 CoHero 的正常視野揭露成 `visited` / `mapped`，此 30% 限制立即解除。
 2. 探索路徑可以帶有一定隨機性，但只能存在於合理選擇之間。
-3. **發現出口本身不代表探索結束。** 解除 30% 前期範圍限制後，只要仍有一般未探索 frontier，CoHero 可以繼續探索；出口只是已知的離層集合點，不是安全區。
-4. 「尚有 frontier」只計算 CoHero 目前實際可經由 passable path 抵達、且在當前前期探索範圍內的未知格；秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。若已無可達 frontier 且 Hero 尚未站上出口，CoHero 會在「以 Hero 為中心、依實際可走 path distance 計算最近約 25% 的已探索可通行區域」自主遊走；這個 25% 是「無 frontier 後的遊走區」，與出口發現前的 30% 探索範圍是不同規則。
-5. 若玩家 Hero 已站在正常樓層出口上等待，這視為明確的離層意圖：CoHero 停止一般探索／遊走並立即往出口集合。
-6. 同伴不進入出口 transition 本身，而是前往其周圍可站立的鄰格；此時不要求與 Hero 保留一格距離。
-7. 同伴仍位於出口鄰格時，玩家 Hero 才取得使用出口的資格；若 Hero 已在出口等待，同伴抵達鄰格後由 Hero 的原生 transition 流程自動下樓。
-8. 「已抵達出口」不是永久 flag；同伴若因戰鬥、擊退、傳送等原因離開出口旁，離開資格立即失效。
+3. **發現出口本身不代表探索結束。** 它只解除 30% 前期探索範圍限制；只要仍有一般未探索 frontier，CoHero 可以繼續探索。出口不是安全區，也不是 CoHero 必須前往等待的集合點。
+4. 「尚有 frontier」只計算 CoHero 目前實際可經由 passable path 抵達、且在當前前期探索範圍內的未知格；秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。若已無可達 frontier，CoHero 會在「以 Hero 為中心、依實際可走 path distance 計算最近約 25% 的已探索可通行區域」自主遊走；這個 25% 是「無 frontier 後的遊走區」，與出口發現前的 30% 探索範圍是不同規則。
+5. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
+6. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
+7. 出口發現後 CoHero 不會因為「準備下樓」而停止戰鬥、撿取高優先物品或一般探索；是否離層完全由玩家 Hero 何時觸發 transition 決定。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
@@ -81,7 +80,6 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 - 一般情況下，CoHero 與 Hero 的理想距離是 2 格，也就是兩者中間保留一格；2～3 格都視為可接受，不為了精確距離每回合抖動。
 - 若兩者已相鄰，CoHero 只有在存在可通行、無角色占用且不會主動驚動睡眠敵人的位置時才主動拉開。
 - 有可見敵人時仍先執行既有戰鬥／逃生判斷；低血量 rally 不會讓 CoHero 無視眼前威脅硬走向 Hero。
-- Hero 已站在正常樓層出口等待時，出口集合規則優先；此時不要求保留一格距離。
 
 ### 特殊樓層的同行選擇
 
@@ -89,7 +87,7 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 
 - 從主線以 `REGULAR_EXIT` 進入下一個 Boss depth（5 / 10 / 15 / 20 / 25）時顯示一次選擇。
 - 從主線以 `BRANCH_EXIT` 進入 quest branch floor 時顯示一次選擇；`BRANCH_ENTRANCE` 是從支線返回主線，不再次詢問。
-- 「一起進入」要求 CoHero 已在該 transition 旁；若尚未抵達，這個選項停用，但仍可選擇「留在外面」直接進入。
+- 「一起進入」不要求 CoHero 位於 transition 附近；選擇後會先保存 CoHero 當下狀態，再於目的樓層在 Hero 附近重新生成。玩家也仍可選擇「留在外面」。
 - 選擇留在外面時，CoHero 的 HP、裝備、背包、buff 與 AI 狀態先保存，但該目的 `depth + branch` 不生成 CoHero。這個排除狀態會寫進遊戲存檔，因此在特殊樓層內存檔／重開也不會把 CoHero 重新生出來。
 - CoHero 明確排除於 SPD 原版 `Mob.holdAllies()/restoreAllies()` 的跨層搬運；其跨層生命週期只由 CoHero 自己的 companion state 管理，避免「留在外面」仍被 stock ally transport 偷帶進去。
 - 當 Hero 離開被排除的特殊樓層後，排除狀態清除，CoHero 在下一個正常樓層由保存狀態重新生成在 Hero 附近。離開特殊樓層時不要求一個本來就被刻意留在外面的 CoHero 站在出口旁。
@@ -516,7 +514,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 
 - 一名以 `GhostHero` / `DirectableAlly` 為基礎的 companion actor。
 - 自主探索未知區域。
-- 發現出口本身不停止探索；只有 Hero 明確站上正常出口等待時，CoHero 才停止一般探索並前往出口集合。
+- 發現出口本身不停止探索，也不會要求 CoHero 前往出口集合；出口發現只解除前期 30% 探索範圍限制。
 - 玩家 Hero 作為唯一樓層 transition 觸發者。
 - 自己的背包 / 裝備資源。
 - 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
@@ -534,7 +532,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 官方六職業具有固有 trait；Mage Staff、Spirit Bow 等已明確支援的專武使用原版物件與 CoHero-safe seam。
 - CoHero 背包提供即時基本數值顯示，locator 提供 Hero / CoHero 雙向畫面外監控。
 - 同伴死亡即 Game Over。
-- 同伴抵達出口旁前禁止玩家下樓。
+- Hero 可直接觸發普通樓層 transition，不要求 CoHero 抵達出口旁；換層前保存 CoHero 狀態，下一層在 Hero 附近重新生成。
 - 無停止移動或攻擊政策開關。
 
 如果只靠這些就已經大幅改變 SPD 的決策體驗，才有理由繼續增加更複雜的 Hero 能力。
