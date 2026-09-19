@@ -14,6 +14,17 @@ CoHero Pixel Dungeon 的核心不是重做 Shattered Pixel Dungeon，而是在�
 - 未來若可行，希望像 SMM 一樣支援注射到其他 SPD fork。
 - 對未知 fork 的能力與語意不做猜測；必要 ABI 不成立時應明確失敗，而不是偷偷相容。
 
+## 1.1 版本
+
+CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
+
+- 唯一權威來源是 `CoHeroVersion.VERSION`；目前為 `0.1.0`，版本值本身不含 `v` / `c` prefix。
+- `CoHero.version()` 只委派給 `CoHeroVersion.version()`，避免出現第二份版本常數。
+- TitleScene 右下角與遊戲內 MenuPane 都顯示短格式：`SPD v<host> | CH v<cohero>`。例如 `SPD v4.0.0 | CH v0.1.0`；`CH` 只為節省狹窄 UI 寬度。
+- UI 使用宿主執行時的 `Game.version`，因此 source patch build 與未來 binary APK injection 都不需要把 SPD 版本複製進 CoHero。
+- CoHero 存檔會另外寫入 `cohero_version`，目前只保留作未來 save migration 的版本識別，不改變既有載入規則。
+- build workflow 從 `CoHeroVersion.java` 抽取版本，artifact 名稱同時標示 CoHero、SPD；SMM build 另外標示 SMM 版本。
+
 ## 2. 核心玩法
 
 玩家直接控制一名正常的 Hero；另一名英雄是 AI 同伴。
