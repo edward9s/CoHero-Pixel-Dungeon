@@ -221,7 +221,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
-- CoHero 原則上不自行使用消耗品；目前唯一例外是已鑑定的治療藥劑。當 HP 低於 35%、目前沒有 `Healing` buff，且未啟用禁止治療 challenge 時，CoHero 會從自己的背包自動喝一瓶 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。這個行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
+- CoHero 原則上不自行使用消耗品；目前唯一例外是已鑑定的治療藥劑。當 HP 低於 35%、目前沒有 `Healing` buff 時，CoHero 會從自己的背包自動喝一瓶 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。這個行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
 
@@ -248,7 +248,7 @@ CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；�
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
 - HP 低於 35% 且目前沒有 `Healing` buff 時，CoHero 會自動消耗自己背包中的一瓶已鑑定 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。
 - 治療期間不會連續喝下一瓶；若 `Healing` 結束後 HP 仍再次低於 35%，下一回合才可能再消耗一瓶。
-- 禁止治療 challenge 下不自動飲用，以免繞過原版 challenge 語意。
+- `Pharmacophobia` 只讓玩家 Hero 對治療藥過敏；SPD 原版明確規定其他角色仍正常受治療，因此 CoHero 仍可正常使用治療藥。
 - 其他 Potion 只作為背包資源，可交還 Hero；CoHero 不會自行飲用。
 - Scroll 仍不接受、不使用。
 
