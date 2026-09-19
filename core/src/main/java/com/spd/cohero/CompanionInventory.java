@@ -12,6 +12,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.elixirs.ElixirOfHo
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
@@ -96,7 +97,25 @@ public final class CompanionInventory {
                 result.add((Wand) item);
             }
         }
+
+        // Mage's Staff owns its wand internally rather than as a backpack item. Expose that same
+        // stock wand to the CoHero AI without creating a duplicate weapon or duplicate charge pool.
+        if (weapon instanceof MagesStaff) {
+            Wand embedded = ((MagesStaff) weapon).coHeroWand();
+            if (embedded != null) {
+                result.add(embedded);
+            }
+        }
         return Collections.unmodifiableList(result);
+    }
+
+    SpiritBow spiritBow() {
+        for (Item item : backpack) {
+            if (item instanceof SpiritBow) {
+                return (SpiritBow) item;
+            }
+        }
+        return null;
     }
 
     Ankh takeAnkhForRevive() {

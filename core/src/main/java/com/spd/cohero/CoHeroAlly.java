@@ -30,6 +30,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Bolas;
@@ -785,6 +786,8 @@ public class CoHeroAlly extends DirectableAlly {
             state = HUNTING;
             if (ranged.missile != null) {
                 return performMissileAttack(targetMob, ranged.missile);
+            } else if (ranged.spiritBow != null) {
+                return performSpiritBowAttack(targetMob, ranged.spiritBow);
             } else {
                 return performWandCast(targetMob, ranged.wand);
             }
@@ -815,6 +818,15 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
+        SpiritBow spiritBow = inventory.spiritBow();
+        MissileWeapon spiritArrow = null;
+        if (spiritBow != null
+                && spiritBow.isIdentified()
+                && !spiritBow.cursed
+                && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
+            spiritArrow = spiritBow.knockArrow();
+        }
+
         Wand guaranteedControl = null;
         ArrayList<Wand> damageWands = new ArrayList<>();
         for (Wand wand : inventory.wands()) {
@@ -836,10 +848,13 @@ public class CoHeroAlly extends DirectableAlly {
             return RangedChoice.wand(guaranteedControl);
         }
 
-        if (!missiles.isEmpty() && !damageWands.isEmpty()) {
+        if ((!missiles.isEmpty() || spiritArrow != null) && !damageWands.isEmpty()) {
             int bestPhysicalAccuracy = 0;
             for (MissileWeapon missile : missiles) {
                 bestPhysicalAccuracy = Math.max(bestPhysicalAccuracy, attackSkillWith(missile, targetMob));
+            }
+            if (spiritArrow != null) {
+                bestPhysicalAccuracy = Math.max(bestPhysicalAccuracy, attackSkillWith(spiritArrow, targetMob));
             }
             if (targetMob.defenseSkill(this) > bestPhysicalAccuracy) {
                 return RangedChoice.wand(bestDamageWand(damageWands, targetMob));
@@ -856,14 +871,23 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
+        float spiritBowDamage = spiritBow == null || spiritArrow == null
+                ? Float.NEGATIVE_INFINITY
+                : expectedSpiritBowDamage(spiritBow);
+        boolean spiritBowBestPhysical = spiritBowDamage > bestMissileDamage;
+        float bestPhysicalDamage = spiritBowBestPhysical ? spiritBowDamage : bestMissileDamage;
+
         Wand bestWand = bestDamageWand(damageWands, targetMob);
         float bestWandDamage = bestWand == null
                 ? Float.NEGATIVE_INFINITY
                 : CoHeroWandAdapter.expectedDamage(bestWand, this, targetMob);
 
         // Stable tie-break: preserve wand charges when physical expected damage is equal.
-        if (bestMissile != null && (bestWand == null || bestMissileDamage >= bestWandDamage)) {
-            return RangedChoice.missile(bestMissile);
+        if (bestPhysicalDamage > Float.NEGATIVE_INFINITY
+                && (bestWand == null || bestPhysicalDamage >= bestWandDamage)) {
+            return spiritBowBestPhysical
+                    ? RangedChoice.spiritBow(spiritBow)
+                    : RangedChoice.missile(bestMissile);
         }
         if (bestWand != null) {
             return RangedChoice.wand(bestWand);
@@ -901,6 +925,10 @@ public class CoHeroAlly extends DirectableAlly {
             if (supportedMissileWeapon(missile) && missile.isIdentified() && !missile.cursed) {
                 return true;
             }
+        }
+        SpiritBow spiritBow = inventory.spiritBow();
+        if (spiritBow != null && spiritBow.isIdentified() && !spiritBow.cursed) {
+            return true;
         }
         for (Wand wand : inventory.wands()) {
             if (CoHeroWandAdapter.hasOffensivePotential(wand, this, targetMob)) {
@@ -941,6 +969,16 @@ public class CoHeroAlly extends DirectableAlly {
         return average;
     }
 
+    private float expectedSpiritBowDamage(SpiritBow bow) {
+        float average = (bow.coHeroMin(this) + bow.coHeroMax(this)) / 2f;
+        average = bow.augment.damageFactor(average);
+        int excessStrength = STR() - bow.STRReq();
+        if (excessStrength > 0) {
+            average += excessStrength / 2f;
+        }
+        return average;
+    }
+
     private Boolean tryEscapeUtility(ArrayList<Mob> visibleThreats) {
         for (Mob threat : visibleThreats) {
             for (Wand wand : inventory.wands()) {
@@ -969,6 +1007,42 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return best == null ? null : performWandCast(Dungeon.hero, best);
+    }
+
+    private boolean performSpiritBowAttack(Mob targetMob, SpiritBow bow) {
+        MissileWeapon arrow = bow.knockArrow();
+        float delay = arrow.castDelay(this, targetMob.pos);
+
+        if (sprite != null && sprite.parent != null && targetMob.sprite != null
+                && (sprite.visible || targetMob.sprite.visible)) {
+            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
+                    sprite,
+                    targetMob.sprite,
+                    arrow,
+                    new Callback() {
+                        @Override
+                        public void call() {
+                            resolveSpiritBowAttack(targetMob, arrow);
+                            spend(delay);
+                            next();
+                        }
+                    });
+            return false;
+        }
+
+        resolveSpiritBowAttack(targetMob, arrow);
+        spend(delay);
+        return true;
+    }
+
+    private void resolveSpiritBowAttack(Mob targetMob, MissileWeapon arrow) {
+        activeMissileWeapon = arrow;
+        try {
+            attack(targetMob);
+        } finally {
+            activeMissileWeapon = null;
+        }
+        Invisibility.dispel(this);
     }
 
     private boolean performMissileAttack(Mob targetMob, MissileWeapon source) {
@@ -1126,18 +1200,24 @@ public class CoHeroAlly extends DirectableAlly {
     private static final class RangedChoice {
         final MissileWeapon missile;
         final Wand wand;
+        final SpiritBow spiritBow;
 
-        private RangedChoice(MissileWeapon missile, Wand wand) {
+        private RangedChoice(MissileWeapon missile, Wand wand, SpiritBow spiritBow) {
             this.missile = missile;
             this.wand = wand;
+            this.spiritBow = spiritBow;
         }
 
         static RangedChoice missile(MissileWeapon missile) {
-            return new RangedChoice(missile, null);
+            return new RangedChoice(missile, null, null);
         }
 
         static RangedChoice wand(Wand wand) {
-            return new RangedChoice(null, wand);
+            return new RangedChoice(null, wand, null);
+        }
+
+        static RangedChoice spiritBow(SpiritBow spiritBow) {
+            return new RangedChoice(null, null, spiritBow);
         }
     }
 

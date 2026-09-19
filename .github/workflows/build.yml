@@ -70,6 +70,9 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/HighGrass.java
           python cohero/scripts/patch_missileweapon.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java
+          python cohero/scripts/patch_special_weapons.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/SpiritBow.java
           python cohero/scripts/patch_wands.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java \
