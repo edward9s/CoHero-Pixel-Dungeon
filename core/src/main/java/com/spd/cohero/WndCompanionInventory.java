@@ -25,6 +25,8 @@ import com.shatteredpixel.shatteredpixeldungeon.windows.WndBag;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndInfoItem;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 
+import java.util.Locale;
+
 /** Inventory UI for the autonomous companion. */
 public class WndCompanionInventory extends Window {
 
@@ -49,8 +51,18 @@ public class WndCompanionInventory extends Window {
         title.setPos(0, 1);
         add(title);
 
+        float statsY = title.bottom() + 4;
+        addStatCell(0, statsY, text("inventory.level"), Integer.toString(companion.level()));
+        addStatCell(1, statsY, text("inventory.health"), healthText());
+        addStatCell(2, statsY, text("inventory.strength"), Integer.toString(companion.STR()));
+
+        statsY += 18;
+        addStatCell(0, statsY, text("inventory.damage"), damageText());
+        addStatCell(1, statsY, text("inventory.defense"), defenseText());
+        addStatCell(2, statsY, text("inventory.speed"), speedText());
+
         RenderedTextBlock equipmentLabel = PixelScene.renderTextBlock(text("inventory.equipment"), 7);
-        equipmentLabel.setPos(0, title.bottom() + 4);
+        equipmentLabel.setPos(0, statsY + 19);
         add(equipmentLabel);
 
         float equipmentY = equipmentLabel.bottom() + 2;
@@ -81,6 +93,66 @@ public class WndCompanionInventory extends Window {
 
         int rows = (int) Math.ceil(CompanionInventory.BACKPACK_CAPACITY / (float) COLS);
         resize(WIDTH, (int) (backpackY + rows * (SLOT + GAP)));
+    }
+
+    private void addStatCell(int column, float y, String label, String value) {
+        float cellWidth = WIDTH / 3f;
+        float x = column * cellWidth;
+
+        RenderedTextBlock statLabel = PixelScene.renderTextBlock(label, 6);
+        statLabel.maxWidth((int) cellWidth - 2);
+        statLabel.setPos(x, y);
+        add(statLabel);
+
+        RenderedTextBlock statValue = PixelScene.renderTextBlock(value, 7);
+        statValue.maxWidth((int) cellWidth - 2);
+        statValue.setPos(x, y + 8);
+        add(statValue);
+    }
+
+    private String healthText() {
+        int shielding = companion.shielding();
+        if (shielding > 0) {
+            return companion.HP + "+" + shielding + "/" + companion.HT;
+        }
+        return companion.HP + "/" + companion.HT;
+    }
+
+    private String damageText() {
+        MeleeWeapon weapon = inventory.weapon();
+        if (weapon == null) {
+            return "-";
+        }
+
+        int min = weapon.augment.damageFactor(weapon.min());
+        int max = weapon.augment.damageFactor(weapon.max());
+        int excessStrength = Math.max(0, companion.STR() - weapon.STRReq());
+        max += excessStrength;
+        return min + "-" + max;
+    }
+
+    private String defenseText() {
+        int min = 0;
+        int max = 0;
+
+        Armor armor = inventory.armor();
+        if (armor != null) {
+            int encumbrance = Math.max(0, armor.STRReq() - companion.STR());
+            min += Math.max(0, armor.DRMin() - 2 * encumbrance);
+            max += Math.max(0, armor.DRMax() - 2 * encumbrance);
+        }
+
+        MeleeWeapon weapon = inventory.weapon();
+        if (weapon != null) {
+            int encumbrance = Math.max(0, weapon.STRReq() - companion.STR());
+            max += Math.max(0, weapon.defenseFactor(companion) - 2 * encumbrance);
+        }
+
+        return min + "-" + max;
+    }
+
+    private String speedText() {
+        return String.format(Locale.ENGLISH, "%.2fx", companion.speed());
     }
 
     private void addEquipmentButton(int column, float y, SlotType type) {
