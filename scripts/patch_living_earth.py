@@ -200,6 +200,7 @@ replace_once(
 """		private int wandLevel = -1;
 		private int ownerId = -1;
 
+		// Preserve the stock public API for Hero abilities and downstream forks.
 		public void setInfo(Hero hero, int wandLevel, int healthToAdd){
 			setInfo(hero, hero.lvl, wandLevel, healthToAdd);
 		}
@@ -220,13 +221,7 @@ replace_once(
 			defenseSkill = (ownerLevel + 4)/2;
 		}
 
-		// Preserve the stock public API for Hero abilities such as ElementalBlast and for forks
-		// that already call EarthGuardian.setInfo(Hero, int, int).
-		public void setInfo(Hero hero, int wandLevel, int healthToAdd){
-			setInfo(hero, hero.lvl, wandLevel, healthToAdd);
-		}
-
-		private boolean belongsTo(Char owner) {
+		public boolean belongsTo(Char owner) {
 			if (owner == null) {
 				return false;
 			}
