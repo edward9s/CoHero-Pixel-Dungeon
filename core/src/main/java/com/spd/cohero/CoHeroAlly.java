@@ -48,6 +48,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSp
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingStone;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
+import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
@@ -814,8 +815,7 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public void die(Object cause) {
         Ankh ankh = inventory.takeAnkhForRevive();
-        if (ankh != null) {
-            reviveWithAnkh(ankh);
+        if (ankh != null && reviveWithAnkh(ankh, cause)) {
             return;
         }
 
@@ -827,7 +827,22 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
-    private void reviveWithAnkh(Ankh ankh) {
+    private boolean reviveWithAnkh(Ankh ankh, Object cause) {
+        boolean fellIntoChasm = cause == Chasm.class;
+        int destination = -1;
+
+        // Ordinary Ankhs already relocate CoHero. A blessed Ankh normally revives in place, but
+        // reviving in place on a pit would immediately leave CoHero in an invalid lethal cell.
+        if (!ankh.isBlessed() || fellIntoChasm) {
+            destination = chooseAnkhReviveCell(true);
+            if (destination == -1) {
+                destination = chooseAnkhReviveCell(false);
+            }
+            if (fellIntoChasm && destination == -1) {
+                return false;
+            }
+        }
+
         HP = HT;
         lowHealthRally = false;
 
@@ -838,31 +853,38 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (ankh.isBlessed()) {
             Buff.prolong(this, Invulnerability.class, 15f);
-            Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
-            return;
         }
 
-        ArrayList<Integer> destinations = new ArrayList<>();
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (Dungeon.level.passable[cell]
-                    && !Dungeon.level.secret[cell]
-                    && Actor.findChar(cell) == null) {
-                destinations.add(cell);
-            }
-        }
-
-        if (!destinations.isEmpty()) {
+        if (destination != -1) {
             resetNavigationAfterAnkhTeleport();
-            int destination = Random.element(destinations);
             ScrollOfTeleportation.appear(this, destination);
             Dungeon.level.occupyCell(this);
             Dungeon.level.updateFieldOfView(this, fieldOfView);
             revealVisibleCells();
         } else {
-            // A pathological level with no free passable cell should not turn a valid Ankh
-            // into a Game Over. Revive in place if there is nowhere legal to teleport.
+            // Blessed Ankh deaths that did not involve a chasm keep the stock revive-in-place
+            // behavior. An ordinary Ankh only reaches this fallback on a pathological full level.
             Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
         }
+
+        return true;
+    }
+
+    private int chooseAnkhReviveCell(boolean strictSafety) {
+        ArrayList<Integer> destinations = new ArrayList<>();
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (!Dungeon.level.passable[cell]
+                    || Dungeon.level.pit[cell]
+                    || Dungeon.level.secret[cell]
+                    || Actor.findChar(cell) != null) {
+                continue;
+            }
+            if (strictSafety && !isMovementSafe(cell)) {
+                continue;
+            }
+            destinations.add(cell);
+        }
+        return destinations.isEmpty() ? -1 : Random.element(destinations);
     }
 
     private void resetNavigationAfterAnkhTeleport() {
