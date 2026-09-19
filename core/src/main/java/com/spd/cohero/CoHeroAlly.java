@@ -9,10 +9,12 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
@@ -27,9 +29,11 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
@@ -507,6 +511,10 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
+            if (tryUseCombatStamina(combatTarget, visibleThreats)) {
+                return true;
+            }
+
             Boolean rangedEngagement = tryRangedEngagement(combatTarget, visibleThreats);
             if (rangedEngagement != null) {
                 return rangedEngagement;
@@ -812,6 +820,101 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
+    private boolean shouldUseHasteForRetreat(
+            CombatRisk risk, ArrayList<Mob> threats, int escapeStep) {
+        if (risk == null
+                || threats == null
+                || escapeStep == -1
+                || buff(Haste.class) != null
+                || buff(Stamina.class) != null
+                || buff(Invisibility.class) != null) {
+            return false;
+        }
+
+        // Do not spend a turn drinking when the current incoming volley is already near-lethal.
+        // In that case the immediate movement/control path remains safer.
+        if (risk.immediateIncoming * 1.35f >= HP + shielding()) {
+            return false;
+        }
+
+        int attackersAfterStep = countCurrentAttackersAtCell(escapeStep, threats);
+        float incomingAfterStep = estimatedIncomingDptAtCell(escapeStep, threats);
+
+        boolean fastPursuer = false;
+        for (Mob threat : threats) {
+            if (threat == null || !threat.isAlive()) {
+                continue;
+            }
+            if (threatOpportunity(threat, escapeStep) >= 0.55f
+                    && threat.speed() >= speed() * 0.95f) {
+                fastPursuer = true;
+                break;
+            }
+        }
+
+        return attackersAfterStep > 0
+                || (incomingAfterStep > 0.01f && fastPursuer)
+                || risk.ttd <= 3.5f;
+    }
+
+    private boolean tryUseHastePotion() {
+        if (buff(Haste.class) != null || buff(Stamina.class) != null) {
+            return false;
+        }
+
+        Potion potion = inventory.takeOneAutoHastePotion();
+        if (!(potion instanceof PotionOfHaste)) {
+            return false;
+        }
+
+        Buff.prolong(this, Haste.class, Haste.DURATION);
+        Catalog.countUse(PotionOfHaste.class);
+        SpellSprite.show(this, SpellSprite.HASTE, 1f, 1f, 0f);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        spend(TICK);
+        return true;
+    }
+
+    private boolean tryUseCombatStamina(Mob targetMob, ArrayList<Mob> threats) {
+        if (targetMob == null
+                || threats == null
+                || threats.isEmpty()
+                || combatRetreating
+                || buff(Stamina.class) != null
+                || buff(Haste.class) != null
+                || buff(Invisibility.class) != null) {
+            return false;
+        }
+
+        boolean rangedPressure = hasRangedPressure(threats);
+        boolean multipleThreats = threats.size() >= 2;
+        boolean bossFight = Char.hasProp(targetMob, Char.Property.BOSS)
+                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
+
+        float outgoing = estimateOutgoingDpt(targetMob);
+        boolean shortTrivialFight = threats.size() == 1
+                && !rangedPressure
+                && !bossFight
+                && outgoing > 0.01f
+                && targetMob.HP <= outgoing;
+
+        if (shortTrivialFight || (!multipleThreats && !rangedPressure && !bossFight)) {
+            return false;
+        }
+
+        Potion potion = inventory.takeOneAutoStaminaPotion();
+        if (!(potion instanceof PotionOfStamina)) {
+            return false;
+        }
+
+        Buff.prolong(this, Stamina.class, Stamina.DURATION);
+        Catalog.countUse(PotionOfStamina.class);
+        SpellSprite.show(this, SpellSprite.HASTE, 0.5f, 1f, 0.5f);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        spend(TICK);
+        return true;
+    }
+
     private boolean tryEmergencySurvivalPotion() {
         return consumeSurvivalPotion(true);
     }
@@ -1098,6 +1201,11 @@ public class CoHeroAlly extends DirectableAlly {
 
         int escapeStep = rooted ? -1 : chooseEscapeStep(threats);
         if (escapeStep != -1) {
+            if (shouldUseHasteForRetreat(risk, threats, escapeStep)
+                    && tryUseHastePotion()) {
+                return true;
+            }
+
             int oldPos = pos;
             move(escapeStep, true);
             spend(1 / speed());
