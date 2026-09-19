@@ -91,6 +91,8 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int HERO_RALLY_MIN_DISTANCE = 2;
     private static final int HERO_RALLY_MAX_DISTANCE = 3;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
+    private static final int RANGED_COVER_SEARCH_RADIUS = 6;
+    private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
 
     private int explorationTarget = -1;
     private int syncedLevel = 1;
@@ -101,6 +103,9 @@ public class CoHeroAlly extends DirectableAlly {
     private boolean combatRetreating;
     private int meleeTacticalTargetId = -1;
     private int meleeTacticalCell = -1;
+    private int rangedLureTargetId = -1;
+    private int rangedLureCoverCell = -1;
+    private int rangedLureWaitTurns;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -249,6 +254,7 @@ public class CoHeroAlly extends DirectableAlly {
         movingToDefendPos = false;
         state = WANDERING;
         clearMeleeTacticalPlan();
+        clearRangedLurePlan();
         combatRetreating = false;
         timeToNow();
 
@@ -482,6 +488,13 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
+        if (visibleThreats.isEmpty()) {
+            Boolean rangedLure = continueRangedLureWithoutVisibleThreat();
+            if (rangedLure != null) {
+                return rangedLure;
+            }
+        }
+
         if (!visibleThreats.isEmpty()) {
             Mob combatTarget = nearestThreat(visibleThreats);
 
@@ -492,6 +505,11 @@ public class CoHeroAlly extends DirectableAlly {
 
             if (tryAutoSurvivalPotion()) {
                 return true;
+            }
+
+            Boolean rangedEngagement = tryRangedEngagement(combatTarget, visibleThreats);
+            if (rangedEngagement != null) {
+                return rangedEngagement;
             }
 
             Boolean meleePositioning = tryMeleePositioning(combatTarget, visibleThreats);
@@ -526,6 +544,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         combatRetreating = false;
+        clearRangedLurePlan();
         if (tryAutoSurvivalPotion()) {
             return true;
         }
@@ -624,6 +643,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         int oldPos = pos;
+        clearRangedLurePlan();
         move(best, true);
         spend(1 / speed());
         Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -1014,6 +1034,7 @@ public class CoHeroAlly extends DirectableAlly {
         movingToDefendPos = false;
         state = WANDERING;
         clearMeleeTacticalPlan();
+        clearRangedLurePlan();
         combatRetreating = false;
     }
 
@@ -1051,6 +1072,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         combatRetreating = true;
         clearMeleeTacticalPlan();
+        clearRangedLurePlan();
 
         // Once invisibility has been spent as an escape resource, preserve it: move away instead
         // of immediately breaking it with another attack or offensive utility.
@@ -1415,6 +1437,304 @@ public class CoHeroAlly extends DirectableAlly {
             this.ttd = ttd;
             this.ttk = ttk;
         }
+    }
+
+    /**
+     * Ranged enemies are often weakest once CoHero reaches melee. If melee can be established in
+     * one safe step, close immediately. Otherwise, prefer a nearby known LOS break and wait there
+     * briefly for the ranged enemy to advance instead of walking straight through its fire.
+     */
+    private Boolean tryRangedEngagement(Mob targetMob, ArrayList<Mob> threats) {
+        if (weapon() == null || targetMob == null || threats == null || threats.isEmpty()) {
+            clearRangedLurePlan();
+            return null;
+        }
+
+        if (rangedLureTargetId != -1 && rangedLureTargetId != targetMob.id()) {
+            clearRangedLurePlan();
+        }
+
+        // If melee is already legal, let the ordinary combat path attack immediately.
+        if (canAttack(targetMob)) {
+            clearRangedLurePlan();
+            return null;
+        }
+
+        int chargeStep = chooseOneStepMeleeApproach(targetMob, threats);
+        if (chargeStep != -1) {
+            clearRangedLurePlan();
+            return moveForRangedEngagement(chargeStep);
+        }
+
+        boolean rangedPressure = isCurrentRangedPressure(targetMob);
+
+        if (rangedLureTargetId == targetMob.id()) {
+            // If the current cell has become proper cover after the enemy moved, hold here rather
+            // than walking back to an obsolete planned cover cell.
+            if (!rangedPressure && isRangedCoverCell(pos, targetMob)) {
+                rangedLureCoverCell = pos;
+            }
+
+            if (rangedLureCoverCell != -1
+                    && isRangedCoverCell(rangedLureCoverCell, targetMob)) {
+                if (pos != rangedLureCoverCell) {
+                    int step = rangedLureStep(rangedLureCoverCell);
+                    if (step != -1) {
+                        rangedLureWaitTurns = 0;
+                        return moveForRangedEngagement(step);
+                    }
+                    clearRangedLurePlan();
+                    return null;
+                }
+
+                // We have broken the enemy's line of sight. Do not immediately leave cover just
+                // because CoHero still has some ranged option; force the ranged enemy to advance.
+                if (!rangedPressure) {
+                    if (++rangedLureWaitTurns <= RANGED_LURE_MAX_WAIT_TURNS) {
+                        spend(TICK);
+                        return true;
+                    }
+                    clearRangedLurePlan();
+                    return null;
+                }
+            }
+        }
+
+        if (!rangedPressure) {
+            return null;
+        }
+
+        int coverCell = chooseRangedCoverCell(targetMob, threats);
+        if (coverCell == -1) {
+            clearRangedLurePlan();
+            return null;
+        }
+
+        rangedLureTargetId = targetMob.id();
+        rangedLureCoverCell = coverCell;
+        rangedLureWaitTurns = 0;
+
+        int step = rangedLureStep(coverCell);
+        if (step == -1) {
+            clearRangedLurePlan();
+            return null;
+        }
+        return moveForRangedEngagement(step);
+    }
+
+    private boolean isCurrentRangedPressure(Mob targetMob) {
+        return targetMob != null
+                && targetMob.isAlive()
+                && Dungeon.level.distance(targetMob.pos, pos) > 1
+                && targetMob.coHeroCanAttackFrom(targetMob.pos, this);
+    }
+
+    /**
+     * A "close" ranged enemy is one CoHero can put into legal melee range with one safe movement
+     * step. This respects long-reach melee weapons through canAttackFrom().
+     */
+    private int chooseOneStepMeleeApproach(Mob targetMob, ArrayList<Mob> threats) {
+        if (rooted || targetMob == null) {
+            return -1;
+        }
+
+        int best = -1;
+        int bestAttackers = Integer.MAX_VALUE;
+        float bestIncoming = Float.POSITIVE_INFINITY;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(pos, cell) != 1
+                    || !Dungeon.level.passable[cell]
+                    || !isMovementSafe(cell)
+                    || (!fieldOfView[cell] && !isKnown(cell))
+                    || Actor.findChar(cell) != null
+                    || !canAttackFrom(cell, targetMob)) {
+                continue;
+            }
+
+            int attackers = countCurrentAttackersAtCell(cell, threats);
+            float incoming = estimatedIncomingDptAtCell(cell, threats);
+            int distance = Dungeon.level.distance(cell, targetMob.pos);
+
+            if (best == -1
+                    || attackers < bestAttackers
+                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
+                    || (attackers == bestAttackers
+                        && Math.abs(incoming - bestIncoming) <= 0.01f
+                        && distance < bestDistance)) {
+                best = cell;
+                bestAttackers = attackers;
+                bestIncoming = incoming;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
+    private int chooseRangedCoverCell(Mob targetMob, ArrayList<Mob> threats) {
+        if (targetMob == null
+                || targetMob.fieldOfView == null
+                || targetMob.fieldOfView.length != Dungeon.level.length()) {
+            return -1;
+        }
+
+        boolean[] passable = rangedLurePassable();
+        PathFinder.buildDistanceMap(pos, passable);
+
+        ArrayList<Integer> candidates = new ArrayList<>();
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (cell == pos
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || PathFinder.distance[cell] > RANGED_COVER_SEARCH_RADIUS
+                    || !isRangedCoverCell(cell, targetMob)) {
+                continue;
+            }
+            candidates.add(cell);
+        }
+
+        int best = -1;
+        int bestScore = Integer.MAX_VALUE;
+        for (int cell : candidates) {
+            PathFinder.Path route =
+                    Dungeon.findPath(this, cell, passable, fieldOfView, true);
+            if (route == null
+                    || route.isEmpty()
+                    || route.size() > RANGED_COVER_SEARCH_RADIUS) {
+                continue;
+            }
+
+            int exposedSteps = 0;
+            for (int routeCell : route) {
+                if (targetMob.fieldOfView[routeCell]) {
+                    exposedSteps++;
+                }
+            }
+
+            int attackers = countCurrentAttackersAtCell(cell, threats);
+            int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
+
+            // Reaching cover quickly matters most. Remaining exposed to the shooter while moving
+            // and choosing cover that is still attackable by other threats are both expensive.
+            int score = route.size() * 24
+                    + exposedSteps * 80
+                    + attackers * 120
+                    + targetDistance * 4;
+
+            if (best == -1 || score < bestScore || (score == bestScore && cell < best)) {
+                best = cell;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private boolean isRangedCoverCell(int cell, Mob targetMob) {
+        if (targetMob == null
+                || targetMob.fieldOfView == null
+                || targetMob.fieldOfView.length != Dungeon.level.length()
+                || !Dungeon.level.insideMap(cell)
+                || !Dungeon.level.passable[cell]
+                || !isKnown(cell)
+                || !isMovementSafe(cell)
+                || targetMob.fieldOfView[cell]) {
+            return false;
+        }
+
+        Char occupant = Actor.findChar(cell);
+        return occupant == null || occupant == this;
+    }
+
+    private boolean[] rangedLurePassable() {
+        boolean[] result = Dungeon.level.passable.clone();
+        for (int cell = 0; cell < result.length; cell++) {
+            if (cell == pos) {
+                result[cell] = true;
+                continue;
+            }
+
+            if (!result[cell] || !isKnown(cell) || !isMovementSafe(cell)) {
+                result[cell] = false;
+                continue;
+            }
+
+            // Only use currently visible occupancy information. Do not inspect actors hidden
+            // behind cover merely to improve pathfinding.
+            if (fieldOfView[cell]) {
+                Char occupant = Actor.findChar(cell);
+                if (occupant != null && occupant != this) {
+                    result[cell] = false;
+                }
+            }
+        }
+        return result;
+    }
+
+    private int rangedLureStep(int destination) {
+        if (rooted || destination == pos || !Dungeon.level.insideMap(destination)) {
+            return -1;
+        }
+
+        boolean[] passable = rangedLurePassable();
+        int step = Dungeon.findStep(this, destination, passable, fieldOfView, true);
+        return step != -1 && isMovementSafe(step) ? step : -1;
+    }
+
+    private Boolean moveForRangedEngagement(int step) {
+        if (step == -1 || step == pos) {
+            return null;
+        }
+
+        int oldPos = pos;
+        path = null;
+        move(step, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        CoHero.tryAutoExit(this);
+        return moveSprite(oldPos, pos);
+    }
+
+    /**
+     * Once cover hides the target, do not read the target actor's hidden position. CoHero merely
+     * waits at the already-known cover cell for a few turns; normal perception resumes the tactic
+     * when the enemy becomes visible again.
+     */
+    private Boolean continueRangedLureWithoutVisibleThreat() {
+        if (rangedLureTargetId == -1) {
+            return null;
+        }
+
+        if (lowHealthRally || combatRetreating || heroWaitingAtExit()) {
+            clearRangedLurePlan();
+            return null;
+        }
+
+        if (rangedLureCoverCell != -1 && pos != rangedLureCoverCell) {
+            int step = rangedLureStep(rangedLureCoverCell);
+            if (step != -1) {
+                return moveForRangedEngagement(step);
+            }
+            clearRangedLurePlan();
+            return null;
+        }
+
+        if (++rangedLureWaitTurns <= RANGED_LURE_MAX_WAIT_TURNS) {
+            spend(TICK);
+            return true;
+        }
+
+        clearRangedLurePlan();
+        return null;
+    }
+
+    private void clearRangedLurePlan() {
+        rangedLureTargetId = -1;
+        rangedLureCoverCell = -1;
+        rangedLureWaitTurns = 0;
     }
 
     /**
