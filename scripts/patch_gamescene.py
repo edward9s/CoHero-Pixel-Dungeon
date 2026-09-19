@@ -22,7 +22,11 @@ mob_anchor = (
 if text.count(mob_anchor) != 1:
     raise SystemExit(f"expected exactly one GameScene mob-loading anchor, found {text.count(mob_anchor)}")
 
-layout_anchor = "\t\tlayoutTags();\n"
+layout_anchor = (
+    "\t\tlayoutTags();\n"
+    "\n"
+    "\t\tswitch (InterlevelScene.mode) {\n"
+)
 if text.count(layout_anchor) != 1:
     raise SystemExit(f"expected exactly one GameScene HUD layout anchor, found {text.count(layout_anchor)}")
 
@@ -33,7 +37,11 @@ locator_block = (
     "\t\tcoHeroLocator.camera = uiCamera;\n"
     "\t\tadd(coHeroLocator);\n\n"
 )
-text = text.replace(layout_anchor, locator_block + layout_anchor, 1)
+text = text.replace(
+    layout_anchor,
+    locator_block + layout_anchor,
+    1,
+)
 
 path.write_text(text, encoding="utf-8")
 print(f"patched {path}")
