@@ -21,6 +21,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfDisintegration
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFrost;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFireblast;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLightning;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfMagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfPrismaticLight;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfRegrowth;
@@ -55,6 +56,7 @@ final class CoHeroWandAdapter {
                 || type == WandOfFrost.class
                 || type == WandOfDisintegration.class
                 || type == WandOfLightning.class
+                || type == WandOfLivingEarth.class
                 || type == WandOfPrismaticLight.class
                 || type == WandOfRegrowth.class
                 || type == WandOfTransfusion.class
@@ -129,6 +131,7 @@ final class CoHeroWandAdapter {
                 || wand instanceof WandOfFrost
                 || wand instanceof WandOfDisintegration
                 || wand instanceof WandOfLightning
+                || wand instanceof WandOfLivingEarth
                 || wand instanceof WandOfPrismaticLight
                 || wand instanceof WandOfCorrosion
                 || wand instanceof WandOfFireblast
