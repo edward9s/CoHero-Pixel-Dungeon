@@ -143,8 +143,12 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
    - 法杖必須已鑑定、未詛咒且有足夠 charge 才是合法候選。
-   - 目前實作先接通 `WandOfMagicMissile` 與 `WandOfFrost`；這是現階段 integration 範圍，不是設計上永久限定只支援這兩種 Wand。
+   - 目前明確支援 `WandOfMagicMissile`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`。
+   - `WandOfLivingEarth` 暫不支援，因為 Earth Guardian / RockArmor ownership 與多個 Hero-specific 系統高度耦合。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
+   - 解離法杖會檢查整條有效射線，若會傷及友軍或主動波及睡眠敵人就不施放。
+   - 雷霆法杖沿用原版 chain / `affected` 計算；AI 的候選評分保守地只以主要目標傷害計分，不複製整套 recursive arc 做預測。
+   - 稜光法杖對不死／惡魔的額外傷害會納入傷害估算。
    - 不要求 AI 做完整的長期 charge 規劃。
    - 未知或無法安全判斷用途的 Wand 不應由 AI 猜測使用方式。
 
@@ -166,7 +170,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
    - 第一版將「高閃避」定義為：目標 `defenseSkill` 高於目前可用投擲武器中最高的物理 `attackSkill`。
    - 若符合此條件且存在合法法杖候選，優先從法杖中選擇。
 
-4. **最重要的通則：在當前距離下，使用可用選項中傷害最高的攻擊。**
+4. **最重要的通則：在當前距離下，直接傷害能力使用可用選項中傷害最高者。**
    - 比較的是當前距離下實際可使用的候選。
    - 距離限制、魔法免疫與高閃避等條件先決定候選與優先資格，再由傷害決定實際使用哪個攻擊。
    - 不應因為角色職業名稱而強制固定武器類型。
@@ -174,6 +178,10 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
    - 相同估算傷害時優先投擲武器，避免無必要消耗 wand charge。
    - CoHero 自己裝備的 `RingOfSharpshooting` 會影響其投擲武器傷害與耐久；玩家 Hero 的 Sharpshooting、Talent 或其他 Hero-only 投擲加成不得洩漏到 CoHero。
    - CoHero 法杖傷害使用自己的普通 RNG，不繼承玩家 Hero 的 Clover 類 RNG、`WandEmpower` 或其他 Hero-only cast 效果。
+   - 腐化屬控制能力：若依原版 resistance 計算本次能直接跨過腐化門檻，優先於一般遠程傷害；否則只在沒有直接傷害候選時作為 fallback debuff/control。
+   - 注魂對不死敵人視為直接傷害；對活敵視為 fallback Charm/control，不拿 0 傷害去和普通武器比較。
+   - 再生屬逃生 utility，不進入傷害排名。第一版只在 CoHero 原本就要逃跑時使用，且 cone 必須至少能定身一名尚未 Root 的追兵，並且不能波及友軍或睡眠敵人。
+   - 注魂支援第一版只用於玩家 Hero：脫離戰鬥時，Hero 低於 50% HP、CoHero 至少 75% HP，且 5% HT 的自傷後 CoHero 仍高於 50% HP 才允許血量轉移。
 
 ### 6.3 背包就是控制介面
 
@@ -274,7 +282,7 @@ Wand 不同。SPD 的 Wand 使用流程歷史上以玩家 Hero 為中心：
 - 部分 `onZap()` 會讀取 `Dungeon.hero`、Hero Talent、Hero buff 或 Hero belongings。
 - 不同 Wand 的效果語意差異很大；有些是直接傷害，有些是 AOE、位移、地形、召喚、治療、控制或持續效果，不能只用「平均傷害最高」安全概括。
 
-因此目前採用 fail-closed adapter：只讓已確認能以 CoHero `Char` 語意安全執行的 Wand 進入 AI 候選。長期方向仍應是 capability-based，而不是永久維護「職業／法杖名稱表」。
+因此採用 fail-closed capability adapter：Wand 保留原版本身的效果與動畫，CoHero adapter 只負責判斷 targeting、安全性與「直接傷害／控制／逃生／支援」語意。未知 Wand 類型不猜測、不自動使用。
 
 ## 8. Talent 與職業能力
 
@@ -397,7 +405,9 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 
 - 一般地面物品是否由同伴自主撿取；目前只明確要求回收自己投出的投擲武器。
 - 睡眠怪物的具體安全距離，以及完全無法繞行時是否允許喚醒。
-- 如何把目前只接通 `WandOfMagicMissile` / `WandOfFrost` 的 adapter 擴大成更一般的 Wand capability contract，以及哪些特殊 Wand 仍必須有個別 AI 語意。
+- `WandOfLivingEarth` 的 Earth Guardian / RockArmor ownership 是否值得泛化成非 Hero caster；在此之前維持不支援。
+- 再生法杖是否要從純逃生擴充到主動伏擊，以及該如何定義不浪費 charge 的觸發條件。
+- 注魂法杖是否要進一步支援治療其他友軍，而不只玩家 Hero。
 - 是否保留任何 Talent、Subclass 或 Hero Armor Ability。
 - 同伴裝備切換由玩家直接管理到什麼程度。
 - Boss 戰中的特殊 AI 行為。

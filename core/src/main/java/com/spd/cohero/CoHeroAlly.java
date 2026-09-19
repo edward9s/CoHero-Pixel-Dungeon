@@ -4,8 +4,6 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Chill;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Frost;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
@@ -20,10 +18,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.DamageWand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFrost;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfMagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Bolas;
@@ -43,10 +38,7 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
-import com.shatteredpixel.shatteredpixeldungeon.effects.MagicMissile;
-import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
-import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
@@ -410,6 +402,11 @@ public class CoHeroAlly extends DirectableAlly {
                 return combatResult;
             }
 
+            Boolean escapeUtility = tryEscapeUtility(visibleThreats);
+            if (escapeUtility != null) {
+                return escapeUtility;
+            }
+
             int escapeStep = chooseEscapeStep(visibleThreats);
             if (escapeStep != -1) {
                 int oldPos = pos;
@@ -424,6 +421,11 @@ public class CoHeroAlly extends DirectableAlly {
 
             spend(TICK);
             return true;
+        }
+
+        Boolean supportAction = trySupportAction();
+        if (supportAction != null) {
+            return supportAction;
         }
 
         if (recoverOwnedMissileAtCurrentCell()) {
@@ -529,12 +531,12 @@ public class CoHeroAlly extends DirectableAlly {
             if (ranged.missile != null) {
                 return performMissileAttack(targetMob, ranged.missile);
             } else {
-                return performWandAttack(targetMob, ranged.wand);
+                return performWandCast(targetMob, ranged.wand);
             }
         }
 
         // If we have a usable combat tool but cannot use it from this cell, close distance.
-        if (hasUsableCombatCapability()) {
+        if (hasUsableCombatCapability(targetMob)) {
             int oldPos = pos;
             if (getCloser(targetMob.pos)) {
                 spend(1 / speed());
@@ -558,40 +560,34 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        ArrayList<Wand> wands = new ArrayList<>();
+        Wand guaranteedControl = null;
+        ArrayList<Wand> damageWands = new ArrayList<>();
         for (Wand wand : inventory.wands()) {
-            if (supportedAttackWand(wand)
-                    && wand.coHeroCanZap(this)
-                    && (!(wand instanceof WandOfFrost) || targetMob.buff(Frost.class) == null)
-                    && !targetMob.isImmune(wand.getClass())
-                    && !targetMob.isInvulnerable(wand.getClass())
-                    && wand.coHeroCollisionPos(this, targetMob.pos) == targetMob.pos) {
-                wands.add(wand);
+            if (!CoHeroWandAdapter.supported(wand)) {
+                continue;
+            }
+            if (CoHeroWandAdapter.guaranteedControl(wand, this, targetMob)) {
+                if (guaranteedControl == null || wand.buffedLvl() > guaranteedControl.buffedLvl()) {
+                    guaranteedControl = wand;
+                }
+            } else if (CoHeroWandAdapter.canAffectEnemy(wand, this, targetMob)
+                    && CoHeroWandAdapter.directDamage(wand, targetMob)) {
+                damageWands.add(wand);
             }
         }
 
-        if (missiles.isEmpty() && wands.isEmpty()) {
-            return null;
+        // A guaranteed corruption/doom conversion is treated as higher-value control than damage.
+        if (guaranteedControl != null) {
+            return RangedChoice.wand(guaranteedControl);
         }
 
-        // "High evasion" is defined without RNG: defense exceeds the best available physical
-        // ranged attack skill. If a safe wand exists, prefer it in that case.
-        if (!missiles.isEmpty() && !wands.isEmpty()) {
+        if (!missiles.isEmpty() && !damageWands.isEmpty()) {
             int bestPhysicalAccuracy = 0;
             for (MissileWeapon missile : missiles) {
                 bestPhysicalAccuracy = Math.max(bestPhysicalAccuracy, attackSkillWith(missile, targetMob));
             }
             if (targetMob.defenseSkill(this) > bestPhysicalAccuracy) {
-                Wand bestWand = null;
-                float bestDamage = Float.NEGATIVE_INFINITY;
-                for (Wand wand : wands) {
-                    float damage = expectedWandDamage(wand, targetMob);
-                    if (bestWand == null || damage > bestDamage) {
-                        bestWand = wand;
-                        bestDamage = damage;
-                    }
-                }
-                return RangedChoice.wand(bestWand);
+                return RangedChoice.wand(bestDamageWand(damageWands, targetMob));
             }
         }
 
@@ -605,24 +601,44 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        Wand bestWand = null;
-        float bestWandDamage = Float.NEGATIVE_INFINITY;
-        for (Wand wand : wands) {
-            float damage = expectedWandDamage(wand, targetMob);
-            if (bestWand == null || damage > bestWandDamage) {
-                bestWand = wand;
-                bestWandDamage = damage;
-            }
-        }
+        Wand bestWand = bestDamageWand(damageWands, targetMob);
+        float bestWandDamage = bestWand == null
+                ? Float.NEGATIVE_INFINITY
+                : CoHeroWandAdapter.expectedDamage(bestWand, this, targetMob);
 
-        // Stable tie-break: preserve thrown weapons over wand charges when expected damage is equal.
+        // Stable tie-break: preserve wand charges when physical expected damage is equal.
         if (bestMissile != null && (bestWand == null || bestMissileDamage >= bestWandDamage)) {
             return RangedChoice.missile(bestMissile);
         }
-        return RangedChoice.wand(bestWand);
+        if (bestWand != null) {
+            return RangedChoice.wand(bestWand);
+        }
+
+        // Control-only wands are fallbacks when no direct ranged damage is currently available.
+        Wand fallbackControl = null;
+        for (Wand wand : inventory.wands()) {
+            if (CoHeroWandAdapter.fallbackControl(wand, this, targetMob)
+                    && (fallbackControl == null || wand.buffedLvl() > fallbackControl.buffedLvl())) {
+                fallbackControl = wand;
+            }
+        }
+        return fallbackControl == null ? null : RangedChoice.wand(fallbackControl);
     }
 
-    private boolean hasUsableCombatCapability() {
+    private Wand bestDamageWand(ArrayList<Wand> wands, Mob targetMob) {
+        Wand best = null;
+        float bestDamage = Float.NEGATIVE_INFINITY;
+        for (Wand wand : wands) {
+            float damage = CoHeroWandAdapter.expectedDamage(wand, this, targetMob);
+            if (best == null || damage > bestDamage) {
+                best = wand;
+                bestDamage = damage;
+            }
+        }
+        return best;
+    }
+
+    private boolean hasUsableCombatCapability(Mob targetMob) {
         if (weapon() != null) {
             return true;
         }
@@ -632,7 +648,7 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         for (Wand wand : inventory.wands()) {
-            if (supportedAttackWand(wand) && wand.coHeroCanZap(this)) {
+            if (CoHeroWandAdapter.hasOffensivePotential(wand, this, targetMob)) {
                 return true;
             }
         }
@@ -657,11 +673,6 @@ public class CoHeroAlly extends DirectableAlly {
                 || type == ThrowingHammer.class;
     }
 
-    private boolean supportedAttackWand(Wand wand) {
-        // Start fail-closed. These two have single-target effects that can be safely driven by Char.
-        return wand instanceof WandOfMagicMissile || wand instanceof WandOfFrost;
-    }
-
     private float expectedMissileDamage(MissileWeapon missile) {
         int level = missile.buffedLvl() + RingOfSharpshooting.levelDamageBonus(this);
         float average = (missile.min(level) + missile.max(level)) / 2f;
@@ -673,18 +684,34 @@ public class CoHeroAlly extends DirectableAlly {
         return average;
     }
 
-    private float expectedWandDamage(Wand wand, Char targetChar) {
-        DamageWand damageWand = (DamageWand) wand;
-        int level = wand.buffedLvl();
-        float average = (damageWand.min(level) + damageWand.max(level)) / 2f;
-        if (wand instanceof WandOfFrost) {
-            Chill chill = targetChar.buff(Chill.class);
-            if (chill != null) {
-                float chillTurns = Math.min(10f, chill.cooldown());
-                average *= Math.pow(0.9333f, chillTurns);
+    private Boolean tryEscapeUtility(ArrayList<Mob> visibleThreats) {
+        for (Mob threat : visibleThreats) {
+            for (Wand wand : inventory.wands()) {
+                if (CoHeroWandAdapter.regrowthUsefulForEscape(wand, this, threat, visibleThreats)) {
+                    return performWandCast(threat, wand);
+                }
             }
         }
-        return average * targetChar.resist(wand.getClass());
+        return null;
+    }
+
+    private Boolean trySupportAction() {
+        if (Dungeon.hero == null
+                || Dungeon.hero.pos < 0
+                || Dungeon.hero.pos >= fieldOfView.length) {
+            return null;
+        }
+
+        boolean heroVisible = fieldOfView[Dungeon.hero.pos];
+        Wand best = null;
+        for (Wand wand : inventory.wands()) {
+            if (CoHeroWandAdapter.transfusionShouldSupportHero(
+                    wand, this, Dungeon.hero, heroVisible)
+                    && (best == null || wand.buffedLvl() > best.buffedLvl())) {
+                best = wand;
+            }
+        }
+        return best == null ? null : performWandCast(Dungeon.hero, best);
     }
 
     private boolean performMissileAttack(Mob targetMob, MissileWeapon source) {
@@ -733,38 +760,16 @@ public class CoHeroAlly extends DirectableAlly {
         Invisibility.dispel(this);
     }
 
-    private boolean performWandAttack(Mob targetMob, Wand wand) {
-        int missileType = wand instanceof WandOfFrost
-                ? MagicMissile.FROST
-                : MagicMissile.MAGIC_MISSILE;
-
-        if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && (sprite.visible || targetMob.sprite.visible)) {
-            MagicMissile.boltFromChar(
-                    sprite.parent,
-                    missileType,
-                    sprite,
-                    targetMob.pos,
-                    new Callback() {
-                        @Override
-                        public void call() {
-                            resolveWandAttack(targetMob, wand);
-                            spend(TICK);
-                            next();
-                        }
-                    });
-            Sample.INSTANCE.play(Assets.Sounds.ZAP);
-            return false;
-        }
-
-        resolveWandAttack(targetMob, wand);
-        spend(TICK);
-        return true;
-    }
-
-    private void resolveWandAttack(Mob targetMob, Wand wand) {
-        wand.coHeroZap(this, targetMob.pos);
-        Invisibility.dispel(this);
+    private boolean performWandCast(Char targetChar, Wand wand) {
+        wand.coHeroCast(this, targetChar.pos, new Callback() {
+            @Override
+            public void call() {
+                Invisibility.dispel(CoHeroAlly.this);
+                spend(TICK);
+                next();
+            }
+        });
+        return false;
     }
 
     private void markThrown(long setID, int amount) {

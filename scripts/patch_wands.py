@@ -13,146 +13,198 @@ wand = wand_path.read_text(encoding="utf-8")
 damage = damage_path.read_text(encoding="utf-8")
 magic = magic_path.read_text(encoding="utf-8")
 
+def replace_once(text, old, new, label):
+    if text.count(old) != 1:
+        raise SystemExit(f"expected exactly one {label} anchor")
+    return text.replace(old, new, 1)
+
 if "private transient Char coHeroUser;" in wand:
     raise SystemExit("CoHero Wand seam is already present")
 
 field_anchor = "\tprotected int collisionProperties = Ballistica.MAGIC_BOLT;\n"
-field_patch = field_anchor + "\n\t// Non-Hero caster context used only by the explicit CoHero wand adapter.\n\tprivate transient Char coHeroUser;\n"
-if wand.count(field_anchor) != 1:
-    raise SystemExit("expected exactly one Wand collision anchor")
-wand = wand.replace(field_anchor, field_patch, 1)
-
-proc_old = """\tprotected void wandProc(Char target, int chargesUsed){
-\t\twandProc(target, buffedLvl(), chargesUsed);
-\t}
+field_patch = field_anchor + """
+	// Non-Hero caster context used only while the CoHero adapter drives the original wand.
+	private transient Char coHeroUser;
 """
-proc_new = """\tprotected void wandProc(Char target, int chargesUsed){
-\t\t// The stock proc hook below is entirely Hero talent/subclass behavior.
-\t\t// CoHero deliberately has no Hero talent adapter, so skip it for non-Hero casts.
-\t\tif (coHeroUser == null) {
-\t\t\twandProc(target, buffedLvl(), chargesUsed);
-\t\t}
-\t}
+wand = replace_once(wand, field_anchor, field_patch, "Wand collision")
 
-\tprotected Char zapUser() {
-\t\treturn coHeroUser != null ? coHeroUser : curUser;
-\t}
-
-\tpublic boolean coHeroCanZap(Char owner) {
-\t\treturn owner != null
-\t\t\t\t&& owner.buff(MagicImmune.class) == null
-\t\t\t\t&& isIdentified()
-\t\t\t\t&& !cursed
-\t\t\t\t&& curCharges >= chargesPerCast();
-\t}
-
-\tpublic int coHeroCollisionPos(Char owner, int target) {
-\t\tif (owner == null) {
-\t\t\tthrow new IllegalArgumentException("CoHero wand targeting requires an owner");
-\t\t}
-\t\treturn new Ballistica(owner.pos, target, collisionProperties(target)).collisionPos;
-\t}
-
-\tpublic void coHeroZap(Char owner, int target) {
-\t\tif (!coHeroCanZap(owner)) {
-\t\t\tthrow new IllegalStateException("CoHero attempted to use an unavailable wand");
-\t\t}
-
-\t\tBallistica bolt = new Ballistica(owner.pos, target, collisionProperties(target));
-\t\tif (bolt.collisionPos != target) {
-\t\t\tthrow new IllegalStateException("CoHero wand target is no longer reachable");
-\t\t}
-
-\t\tcoHeroUser = owner;
-\t\ttry {
-\t\t\tonZap(bolt);
-\t\t\tcurCharges -= chargesPerCast();
-
-\t\t\tWandOfMagicMissile.MagicCharge magicCharge = owner.buff(WandOfMagicMissile.MagicCharge.class);
-\t\t\tif (magicCharge != null
-\t\t\t\t\t&& magicCharge.wandJustApplied() != this
-\t\t\t\t\t&& magicCharge.level() == buffedLvl()
-\t\t\t\t\t&& buffedLvl() > super.buffedLvl()) {
-\t\t\t\tmagicCharge.detach();
-\t\t\t}
-
-\t\t\tupdateQuickslot();
-\t\t} finally {
-\t\t\tcoHeroUser = null;
-\t\t}
-\t}
+proc_old = """	protected void wandProc(Char target, int chargesUsed){
+		wandProc(target, buffedLvl(), chargesUsed);
+	}
 """
-if wand.count(proc_old) != 1:
-    raise SystemExit("expected exactly one Wand wandProc anchor")
-wand = wand.replace(proc_old, proc_new, 1)
+proc_new = """	protected void wandProc(Char target, int chargesUsed){
+		// The stock proc hook below is Hero talent/subclass behavior.
+		if (!coHeroCasting()) {
+			wandProc(target, buffedLvl(), chargesUsed);
+		}
+	}
 
-damage_old = """\tpublic int damageRoll(int lvl){
-\t\tint dmg = Hero.heroDamageIntRange(min(lvl), max(lvl));
-\t\tWandEmpower emp = Dungeon.hero.buff(WandEmpower.class);
-\t\tif (emp != null){
-\t\t\tdmg += emp.dmgBoost;
-\t\t\temp.left--;
-\t\t\tif (emp.left <= 0) {
-\t\t\t\temp.detach();
-\t\t\t}
-\t\t\tSample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.75f, 1.2f);
-\t\t}
-\t\treturn dmg;
-\t}
-"""
-damage_new = """\tpublic int damageRoll(int lvl){
-\t\tboolean heroCast = zapUser() == Dungeon.hero;
-\t\tint dmg = heroCast
-\t\t\t\t? Hero.heroDamageIntRange(min(lvl), max(lvl))
-\t\t\t\t: Random.NormalIntRange(min(lvl), max(lvl));
-\t\t// Hero-only RNG and WandEmpower must not leak into a CoHero cast.
-\t\tif (heroCast) {
-\t\t\tWandEmpower emp = Dungeon.hero.buff(WandEmpower.class);
-\t\t\tif (emp != null){
-\t\t\t\tdmg += emp.dmgBoost;
-\t\t\t\temp.left--;
-\t\t\t\tif (emp.left <= 0) {
-\t\t\t\t\temp.detach();
-\t\t\t\t}
-\t\t\t\tSample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.75f, 1.2f);
-\t\t\t}
-\t\t}
-\t\treturn dmg;
-\t}
-"""
-if damage.count(damage_old) != 1:
-    raise SystemExit("expected exactly one DamageWand damageRoll anchor")
-damage = damage.replace(damage_old, damage_new, 1)
+	protected boolean coHeroCasting() {
+		return coHeroUser != null;
+	}
 
-random_import_anchor = "import com.watabou.noosa.audio.Sample;\n"
-if damage.count(random_import_anchor) != 1:
-    raise SystemExit("expected exactly one DamageWand Sample import anchor")
-damage = damage.replace(
-    random_import_anchor,
-    random_import_anchor + "import com.watabou.utils.Random;\n",
-    1,
+	protected Char zapUser() {
+		return coHeroUser != null ? coHeroUser : curUser;
+	}
+
+	protected Hero progressionHero() {
+		return coHeroUser != null ? Dungeon.hero : curUser;
+	}
+
+	protected void coHeroPrepareZap(Char owner, int target, Ballistica bolt) {
+		// Optional subclass seam for state normally prepared by Hero-only targeting code.
+	}
+
+	public boolean coHeroCanZap(Char owner) {
+		return owner != null
+				&& owner.isAlive()
+				&& owner.buff(MagicImmune.class) == null
+				&& isIdentified()
+				&& !cursed
+				&& curCharges >= chargesPerCast();
+	}
+
+	public int coHeroChargesPerCast() {
+		return chargesPerCast();
+	}
+
+	public Ballistica coHeroBallistica(Char owner, int target) {
+		if (owner == null) {
+			throw new IllegalArgumentException("CoHero wand targeting requires an owner");
+		}
+		return new Ballistica(owner.pos, target, collisionProperties(target));
+	}
+
+	public void coHeroCast(final Char owner, int target, final Callback callback) {
+		if (!coHeroCanZap(owner)) {
+			throw new IllegalStateException("CoHero attempted to use an unavailable wand");
+		}
+
+		final Ballistica bolt = coHeroBallistica(owner, target);
+		coHeroUser = owner;
+		try {
+			coHeroPrepareZap(owner, target, bolt);
+			fx(bolt, new Callback() {
+				@Override
+				public void call() {
+					try {
+						onZap(bolt);
+						coHeroFinishZap(owner);
+					} finally {
+						coHeroUser = null;
+					}
+					if (callback != null) {
+						callback.call();
+					}
+				}
+			});
+		} catch (RuntimeException ex) {
+			coHeroUser = null;
+			throw ex;
+		}
+	}
+
+	private void coHeroFinishZap(Char owner) {
+		curCharges -= chargesPerCast();
+
+		WandOfMagicMissile.MagicCharge magicCharge = owner.buff(WandOfMagicMissile.MagicCharge.class);
+		if (magicCharge != null
+				&& magicCharge.wandJustApplied() != this
+				&& magicCharge.level() == buffedLvl()
+				&& buffedLvl() > super.buffedLvl()) {
+			magicCharge.detach();
+		} else {
+			ScrollEmpower empower = owner.buff(ScrollEmpower.class);
+			if (empower != null) {
+				empower.use();
+			}
+		}
+
+		updateQuickslot();
+	}
+"""
+wand = replace_once(wand, proc_old, proc_new, "Wand wandProc")
+
+fx_old = """	public void fx(Ballistica bolt, Callback callback) {
+		MagicMissile.boltFromChar( curUser.sprite.parent,
+				MagicMissile.MAGIC_MISSILE,
+				curUser.sprite,
+				bolt.collisionPos,
+				callback);
+		Sample.INSTANCE.play( Assets.Sounds.ZAP );
+	}
+"""
+fx_new = """	public void fx(Ballistica bolt, Callback callback) {
+		Char user = zapUser();
+		MagicMissile.boltFromChar( user.sprite.parent,
+				MagicMissile.MAGIC_MISSILE,
+				user.sprite,
+				bolt.collisionPos,
+				callback);
+		Sample.INSTANCE.play( Assets.Sounds.ZAP );
+	}
+"""
+wand = replace_once(wand, fx_old, fx_new, "Wand fx")
+
+damage_old = """	public int damageRoll(int lvl){
+		int dmg = Hero.heroDamageIntRange(min(lvl), max(lvl));
+		WandEmpower emp = Dungeon.hero.buff(WandEmpower.class);
+		if (emp != null){
+			dmg += emp.dmgBoost;
+			emp.left--;
+			if (emp.left <= 0) {
+				emp.detach();
+			}
+			Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.75f, 1.2f);
+		}
+		return dmg;
+	}
+"""
+damage_new = """	public int damageRoll(int lvl){
+		boolean heroCast = zapUser() == Dungeon.hero;
+		int dmg = heroCast
+				? Hero.heroDamageIntRange(min(lvl), max(lvl))
+				: Random.NormalIntRange(min(lvl), max(lvl));
+		if (heroCast) {
+			WandEmpower emp = Dungeon.hero.buff(WandEmpower.class);
+			if (emp != null){
+				dmg += emp.dmgBoost;
+				emp.left--;
+				if (emp.left <= 0) {
+					emp.detach();
+				}
+				Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.75f, 1.2f);
+			}
+		}
+		return dmg;
+	}
+"""
+damage = replace_once(damage, damage_old, damage_new, "DamageWand damageRoll")
+damage = replace_once(
+    damage,
+    "import com.watabou.noosa.audio.Sample;\n",
+    "import com.watabou.noosa.audio.Sample;\nimport com.watabou.utils.Random;\n",
+    "DamageWand Sample import",
 )
 
-magic_old = """\t\t\t//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
-\t\t\tfor (Wand.Charger wandCharger : curUser.buffs(Wand.Charger.class)){
-\t\t\t\tif (wandCharger.wand().buffedLvl() < buffedLvl() || curUser.buff(MagicCharge.class) != null){
-\t\t\t\t\tBuff.prolong(curUser, MagicCharge.class, MagicCharge.DURATION).setup(this);
-\t\t\t\t\tbreak;
-\t\t\t\t}
-\t\t\t}
+magic_old = """			//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
+			for (Wand.Charger wandCharger : curUser.buffs(Wand.Charger.class)){
+				if (wandCharger.wand().buffedLvl() < buffedLvl() || curUser.buff(MagicCharge.class) != null){
+					Buff.prolong(curUser, MagicCharge.class, MagicCharge.DURATION).setup(this);
+					break;
+				}
+			}
 """
-magic_new = """\t\t\t//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
-\t\t\tChar user = zapUser();
-\t\t\tfor (Wand.Charger wandCharger : user.buffs(Wand.Charger.class)){
-\t\t\t\tif (wandCharger.wand().buffedLvl() < buffedLvl() || user.buff(MagicCharge.class) != null){
-\t\t\t\t\tBuff.prolong(user, MagicCharge.class, MagicCharge.DURATION).setup(this);
-\t\t\t\t\tbreak;
-\t\t\t\t}
-\t\t\t}
+magic_new = """			//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
+			Char user = zapUser();
+			for (Wand.Charger wandCharger : user.buffs(Wand.Charger.class)){
+				if (wandCharger.wand().buffedLvl() < buffedLvl() || user.buff(MagicCharge.class) != null){
+					Buff.prolong(user, MagicCharge.class, MagicCharge.DURATION).setup(this);
+					break;
+				}
+			}
 """
-if magic.count(magic_old) != 1:
-    raise SystemExit("expected exactly one MagicMissile user anchor")
-magic = magic.replace(magic_old, magic_new, 1)
+magic = replace_once(magic, magic_old, magic_new, "MagicMissile user")
 
 wand_path.write_text(wand, encoding="utf-8")
 damage_path.write_text(damage, encoding="utf-8")
