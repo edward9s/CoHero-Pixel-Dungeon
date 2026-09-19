@@ -8,9 +8,12 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.elixirs.ElixirOfHoneyedHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
@@ -28,9 +31,9 @@ import java.util.List;
  * CoHero-owned inventory model.
  *
  * The companion has a normal 20-slot backpack plus explicit equipment slots. Supported combat
- * equipment is weapon, armor, rings and wands. Potions may be stored so unidentified potion
- * identity is never leaked by the transfer UI, but only explicitly recognized healing potions are
- * consumed autonomously. Artifacts, trinkets, bags and unknown items are rejected.
+ * equipment is weapon, armor, rings and wands. Potions and scrolls may be stored so unidentified
+ * identities are never leaked by the transfer UI, but only explicitly supported survival
+ * consumables are used autonomously. Artifacts, trinkets, bags and unknown items are rejected.
  * This intentionally does not reuse Hero/Belongings, whose owner is hard-wired to Hero.
  */
 public final class CompanionInventory {
@@ -151,6 +154,14 @@ public final class CompanionInventory {
         return takeOneKnownPotion(PotionOfShielding.class);
     }
 
+    Potion takeOneAutoInvisibilityPotion() {
+        return takeOneKnownPotion(PotionOfInvisibility.class);
+    }
+
+    Scroll takeOneAutoTerrorScroll() {
+        return takeOneKnownScroll(ScrollOfTerror.class);
+    }
+
     int autoHealingPotionCount() {
         return countKnownPotions(PotionOfHealing.class, ElixirOfHoneyedHealing.class);
     }
@@ -219,6 +230,47 @@ public final class CompanionInventory {
             throw new IllegalStateException("CoHero potion disappeared before use");
         }
         return (Potion) removed;
+    }
+
+    @SafeVarargs
+    private final Scroll takeOneKnownScroll(Class<? extends Scroll>... types) {
+        Scroll source = null;
+        for (Item item : backpack) {
+            if (!(item instanceof Scroll)) {
+                continue;
+            }
+            Scroll scroll = (Scroll) item;
+            if (!scroll.isKnown()) {
+                continue;
+            }
+            for (Class<? extends Scroll> type : types) {
+                if (type.isInstance(scroll)) {
+                    source = scroll;
+                    break;
+                }
+            }
+            if (source != null) {
+                break;
+            }
+        }
+
+        if (source == null) {
+            return null;
+        }
+
+        if (source.quantity() > 1) {
+            Item split = source.split(1);
+            if (!(split instanceof Scroll)) {
+                throw new IllegalStateException("CoHero scroll stack could not split");
+            }
+            return (Scroll) split;
+        }
+
+        Item removed = removeFromBackpack(source);
+        if (!(removed instanceof Scroll)) {
+            throw new IllegalStateException("CoHero scroll disappeared before use");
+        }
+        return (Scroll) removed;
     }
 
     boolean containsInBackpack(Item item) {
@@ -558,6 +610,7 @@ public final class CompanionInventory {
                 || item instanceof Ring
                 || item instanceof Wand
                 || item instanceof Potion
+                || item instanceof Scroll
                 || item instanceof Ankh;
     }
 }
