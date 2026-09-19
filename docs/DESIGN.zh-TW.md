@@ -185,6 +185,16 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 ### 6.1 基本攻擊規則
 
+戰鬥前先做生存風險判斷，優先級高於任何伏擊／狹口站位：
+
+- 每回合先估算目前所有可見、清醒敵人的總 incoming DPT。已能直接攻擊 CoHero 的敵人權重最高；下一步即可進入合法攻擊位置者也納入風險。命中率用攻防值近似，傷害估算使用獨立 RNG stack 取樣，不消耗正式戰鬥 RNG。
+- TTD（time to death）以目前 `HP + shield` 為核心；正在進行的 Healing 與「下一瓶」已鑑定生存藥只提供保守的近程緩衝，不能把整個背包藥量當作額外血條。Ankh 完全不計入可揮霍戰力。
+- TTK（time to kill）依 CoHero 實際當前攻擊規則估算；近戰可及時沿用近戰優先，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
+- 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死，或 TTD 明顯不優於 TTK，也進入撤退。
+- 撤退有 hysteresis：進入撤退後，不會只拉開一格就立刻回頭。必須降到最多 1 名即時攻擊者、HP 至少 45%，且 TTD 對 TTK 取得明顯安全餘裕，才恢復攻擊。
+- 逃跑路徑不再只最大化「離最近敵人的距離」，而是優先降低候選格上的即時攻擊者數量與總預期 incoming DPT，再以距離作 tie-break。這能處理被多名敵人包圍時「躲開 A 卻走進 B/C 火力」的問題。
+- 若完全沒有合法逃生格，才消耗緊急生存資源；此時 `PotionOfShielding` 因立即生效優先於逐回合恢復的治療藥。若被定身，不能用撤退邏輯非法移動。
+
 近戰在真正出手前還有一層地形戰術：
 
 - CoHero 有自己的純戰鬥 surprise 判定：若敵人尚未看見 CoHero，或 CoHero 已離開該敵人的 FOV，該次近戰採用 surprise 的零防禦語意。這不會走原版 Hero-only 的 `Mob.surprisedBy()` 統計／天賦路徑，因此不增加 Hero sneak-attack 統計。
@@ -266,7 +276,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
-- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存型藥劑。當 HP 低於 35% 時，CoHero 會優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`；若治療正在進行或沒有可用治療藥，則可使用 `PotionOfShielding`。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
+- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存型藥劑。一般低血量流程仍在 HP 低於 35% 時優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`，治療正在進行或沒有治療藥時才用 `PotionOfShielding`；但若戰鬥風險模型已判定必須撤退、又完全沒有合法逃生格，緊急流程會反過來優先使用立即生效的 `PotionOfShielding`。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
 - CoHero 背包可持有 `Ankh`。CoHero 死亡時優先消耗祝福 Ankh：回滿 HP 並獲得 15 回合 `Invulnerability`；未祝福 Ankh 則回滿 HP 並隨機傳送到本層一個合法、非秘密、無角色占用的可走格。Ankh 成功觸發時不進入 CoHero Game Over 流程。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
