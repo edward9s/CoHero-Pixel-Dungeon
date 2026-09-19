@@ -146,12 +146,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BASE_NAME }}-APK
-          path: out/${{ env.OUTPUT_APK }}.apk
+          path: out/${{ env.OUTPUT_APK }}
           if-no-files-found: error
 
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BASE_NAME }}-JAR
-          path: out/${{ env.OUTPUT_JAR }}.jar
+          path: out/${{ env.OUTPUT_JAR }}
           if-no-files-found: error
