@@ -167,8 +167,8 @@ final class CoHeroWardingPlanner {
                 continue;
             }
 
-            int coverage = movementCoverage(ward.pos, ward.viewDistance, target);
-            float retainedValue = retainedWardValue(wand, owner, ward, target, coverage);
+            int coverage = wardBattlefieldCoverage(owner, ward);
+            float retainedValue = retainedWardValue(wand, owner, ward, coverage);
             int travelDistance = Dungeon.level.distance(owner.pos, ward.pos);
             float gain = replacementValue - retainedValue - 3f * travelDistance;
 
@@ -254,12 +254,48 @@ final class CoHeroWardingPlanner {
                 - replacement.nearbyDanger * 8f;
     }
 
-    private static float retainedWardValue(
-            WandOfWarding wand, CoHeroAlly owner, Ward ward, Mob target, int coverage) {
-        float value = coverage * 20f;
-        if (canEngage(ward.pos, ward.viewDistance, target)) {
-            value += expectedNextZapDamage(wand) * 3f;
+    private static int wardBattlefieldCoverage(CoHeroAlly owner, Ward ward) {
+        int coverage = 0;
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Mob)
+                    || ch.alignment != Char.Alignment.ENEMY
+                    || owner.fieldOfView == null
+                    || !owner.fieldOfView[ch.pos]) {
+                continue;
+            }
+            Mob enemy = (Mob) ch;
+            if (enemy.state == enemy.SLEEPING || enemy.state == enemy.PASSIVE) {
+                continue;
+            }
+            coverage += movementCoverage(ward.pos, ward.viewDistance, enemy);
         }
+        return coverage;
+    }
+
+    private static int wardEngagedEnemyCount(CoHeroAlly owner, Ward ward) {
+        int count = 0;
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Mob)
+                    || ch.alignment != Char.Alignment.ENEMY
+                    || owner.fieldOfView == null
+                    || !owner.fieldOfView[ch.pos]) {
+                continue;
+            }
+            Mob enemy = (Mob) ch;
+            if (enemy.state == enemy.SLEEPING || enemy.state == enemy.PASSIVE) {
+                continue;
+            }
+            if (canEngage(ward.pos, ward.viewDistance, enemy)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static float retainedWardValue(
+            WandOfWarding wand, CoHeroAlly owner, Ward ward, int coverage) {
+        float value = coverage * 20f;
+        value += wardEngagedEnemyCount(owner, ward) * expectedNextZapDamage(wand) * 3f;
 
         switch (ward.tier) {
             case 1:
