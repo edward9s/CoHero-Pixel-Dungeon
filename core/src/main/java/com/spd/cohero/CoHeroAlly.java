@@ -277,6 +277,24 @@ public class CoHeroAlly extends DirectableAlly {
         return weapon() != null && (super.canAttack(enemy) || weapon().canReach(this, enemy.pos));
     }
 
+    /**
+     * Uses the same final melee-legality rule from a hypothetical source cell. Tactical planners
+     * must not assume that melee range is one tile: equipped weapons and upstream Mob rules can
+     * change canAttack() reach.
+     */
+    private boolean canAttackFrom(int sourceCell, Char enemy) {
+        if (enemy == null || !Dungeon.level.insideMap(sourceCell)) {
+            return false;
+        }
+        int livePos = pos;
+        try {
+            pos = sourceCell;
+            return canAttack(enemy);
+        } finally {
+            pos = livePos;
+        }
+    }
+
     @Override
     public int attackSkill(Char target) {
         return attackSkillWith(attackingWeapon(), target);
@@ -1120,7 +1138,7 @@ public class CoHeroAlly extends DirectableAlly {
             return 0f;
         }
 
-        if (weapon() != null && weapon().canReach(this, targetMob.pos)) {
+        if (canAttack(targetMob)) {
             if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(this)) {
                 return 0f;
             }
@@ -1268,7 +1286,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (greatCrab
                 && targetMob.coHeroSurprisedBy(this)
-                && weapon().canReach(this, targetMob.pos)) {
+                && canAttack(targetMob)) {
             clearMeleeTacticalPlan();
             return null;
         }
@@ -1286,7 +1304,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (meleeTacticalCell == -1) {
             if (greatCrab
-                    && weapon().canReach(this, targetMob.pos)
+                    && canAttack(targetMob)
                     && !targetMob.coHeroSurprisedBy(this)) {
                 int escape = chooseEscapeStep(threats);
                 if (escape != -1) {
@@ -1311,7 +1329,7 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        if (weapon().canReach(this, targetMob.pos)
+        if (canAttack(targetMob)
                 && (!greatCrab || targetMob.coHeroSurprisedBy(this))) {
             clearMeleeTacticalPlan();
             return null;
@@ -1469,7 +1487,7 @@ public class CoHeroAlly extends DirectableAlly {
         target = targetMob.pos;
 
         // Contract: if the equipped melee weapon can legally reach, never substitute a ranged attack.
-        if (weapon() != null && weapon().canReach(this, targetMob.pos)) {
+        if (canAttack(targetMob)) {
             state = HUNTING;
             return doAttack(targetMob);
         }
