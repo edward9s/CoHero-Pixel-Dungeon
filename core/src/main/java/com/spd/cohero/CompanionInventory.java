@@ -7,10 +7,12 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.elixirs.ElixirOfHoneyedHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
@@ -156,6 +158,14 @@ public final class CompanionInventory {
 
     Potion takeOneAutoInvisibilityPotion() {
         return takeOneKnownPotion(PotionOfInvisibility.class);
+    }
+
+    Potion takeOneAutoHastePotion() {
+        return takeOneKnownPotion(PotionOfHaste.class);
+    }
+
+    Potion takeOneAutoStaminaPotion() {
+        return takeOneKnownPotion(PotionOfStamina.class);
     }
 
     Scroll takeOneAutoTerrorScroll() {
