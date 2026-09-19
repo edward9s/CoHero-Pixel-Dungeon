@@ -537,15 +537,17 @@ public class CoHeroAlly extends DirectableAlly {
             return supportAction;
         }
 
-        if (recoverOwnedMissileAtCurrentCell()) {
+        if (recoverPreferredMissileAtCurrentCell()) {
             spend(TICK);
             return true;
         }
 
-        int recoveryCell = nearestOwnedMissileCell();
+        int recoveryCell = nearestPreferredMissileCell();
         if (recoveryCell != -1 && recoveryCell != pos) {
-            int oldPos = pos;
-            if (getCloser(recoveryCell)) {
+            int recoveryStep = missileRecoveryStep(recoveryCell);
+            if (recoveryStep != -1) {
+                int oldPos = pos;
+                move(recoveryStep, true);
                 spend(1 / speed());
                 return moveSprite(oldPos, pos);
             }
@@ -2006,33 +2008,60 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
-    private boolean recoverOwnedMissileAtCurrentCell() {
+    private boolean recoverPreferredMissileAtCurrentCell() {
         Heap heap = Dungeon.level.heaps.get(pos);
         if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
             return false;
         }
 
+        MissileWeapon selected = null;
+        boolean selectedOwned = false;
+
         for (Item item : new ArrayList<>(heap.items)) {
-            if (item instanceof MissileWeapon) {
-                MissileWeapon missile = (MissileWeapon) item;
-                Integer outstanding = thrownOutstanding.get(missile.setID);
-                if (outstanding != null && outstanding > 0 && inventory.canAddToBackpack(missile)) {
-                    heap.remove(missile);
-                    if (!inventory.addToBackpack(missile)) {
-                        Dungeon.level.drop(missile, pos).sprite.drop();
-                        return false;
-                    }
-                    markRecovered(missile.setID, missile.quantity());
-                    return true;
-                }
+            if (!(item instanceof MissileWeapon)) {
+                continue;
+            }
+
+            MissileWeapon missile = (MissileWeapon) item;
+            if (!supportedMissileWeapon(missile) || !inventory.canAddToBackpack(missile)) {
+                continue;
+            }
+
+            Integer outstanding = thrownOutstanding.get(missile.setID);
+            boolean owned = outstanding != null && outstanding > 0;
+            if (owned) {
+                selected = missile;
+                selectedOwned = true;
+                break;
+            }
+            if (selected == null) {
+                selected = missile;
             }
         }
-        return false;
+
+        if (selected == null) {
+            return false;
+        }
+
+        heap.remove(selected);
+        if (!inventory.addToBackpack(selected)) {
+            Dungeon.level.drop(selected, pos).sprite.drop();
+            return false;
+        }
+
+        if (selectedOwned) {
+            markRecovered(selected.setID, selected.quantity());
+        }
+        return true;
     }
 
-    private int nearestOwnedMissileCell() {
-        int result = -1;
-        int bestDistance = Integer.MAX_VALUE;
+    private int nearestPreferredMissileCell() {
+        int bestOwnedCell = -1;
+        int bestOwnedDistance = Integer.MAX_VALUE;
+        int bestGroundCell = -1;
+        int bestGroundDistance = Integer.MAX_VALUE;
+
+        boolean[] safePassable = missileRecoveryPassable();
 
         for (int cell : Dungeon.level.heaps.keyArray()) {
             Heap heap = Dungeon.level.heaps.get(cell);
@@ -2040,27 +2069,92 @@ public class CoHeroAlly extends DirectableAlly {
                 continue;
             }
 
-            boolean containsOwnedMissile = false;
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != this) {
+                continue;
+            }
+
+            boolean ownedCandidate = false;
+            boolean groundCandidate = false;
+
             for (Item item : heap.items) {
-                if (item instanceof MissileWeapon) {
-                    MissileWeapon missile = (MissileWeapon) item;
-                    Integer outstanding = thrownOutstanding.get(missile.setID);
-                    if (outstanding != null && outstanding > 0 && inventory.canAddToBackpack(missile)) {
-                        containsOwnedMissile = true;
-                        break;
-                    }
+                if (!(item instanceof MissileWeapon)) {
+                    continue;
+                }
+
+                MissileWeapon missile = (MissileWeapon) item;
+                if (!supportedMissileWeapon(missile) || !inventory.canAddToBackpack(missile)) {
+                    continue;
+                }
+
+                Integer outstanding = thrownOutstanding.get(missile.setID);
+                if (outstanding != null && outstanding > 0) {
+                    ownedCandidate = true;
+                    break;
+                }
+
+                // Do not use the level heap map as omniscience for ordinary loot.
+                if (isKnown(cell)) {
+                    groundCandidate = true;
                 }
             }
 
-            if (containsOwnedMissile) {
-                int distance = Dungeon.level.distance(pos, cell);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    result = cell;
+            if (!ownedCandidate && !groundCandidate) {
+                continue;
+            }
+
+            int distance = missileRecoveryPathDistance(cell, safePassable);
+            if (distance == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            if (ownedCandidate) {
+                if (distance < bestOwnedDistance
+                        || (distance == bestOwnedDistance
+                        && (bestOwnedCell == -1 || cell < bestOwnedCell))) {
+                    bestOwnedDistance = distance;
+                    bestOwnedCell = cell;
                 }
+            } else if (distance < bestGroundDistance
+                    || (distance == bestGroundDistance
+                    && (bestGroundCell == -1 || cell < bestGroundCell))) {
+                bestGroundDistance = distance;
+                bestGroundCell = cell;
             }
         }
+
+        return bestOwnedCell != -1 ? bestOwnedCell : bestGroundCell;
+    }
+
+    private boolean[] missileRecoveryPassable() {
+        boolean[] result = Dungeon.level.passable.clone();
+        for (int cell = 0; cell < result.length; cell++) {
+            if (cell != pos && result[cell] && !isMovementSafe(cell)) {
+                result[cell] = false;
+            }
+        }
+        result[pos] = true;
         return result;
+    }
+
+    private int missileRecoveryPathDistance(int cell, boolean[] safePassable) {
+        if (cell == pos) {
+            return 0;
+        }
+
+        PathFinder.Path recoveryPath =
+                Dungeon.findPath(this, cell, safePassable, fieldOfView, true);
+        return recoveryPath == null ? Integer.MAX_VALUE : recoveryPath.size();
+    }
+
+    private int missileRecoveryStep(int cell) {
+        if (rooted || cell == pos || !Dungeon.level.insideMap(cell)) {
+            return -1;
+        }
+
+        boolean[] safePassable = missileRecoveryPassable();
+        int step = Dungeon.findStep(this, cell, safePassable, fieldOfView, true);
+        return step != -1 && isMovementSafe(step) ? step : -1;
     }
 
     private static final class RangedChoice {
