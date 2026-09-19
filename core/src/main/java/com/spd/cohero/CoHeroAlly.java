@@ -761,14 +761,34 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean performWandCast(Char targetChar, Wand wand) {
+        // Some stock wand fx methods are synchronous (beam/chain effects call their callback
+        // before fx() returns), while projectile/cone effects complete asynchronously. Calling
+        // next() synchronously from inside act() re-enters Actor processing, so distinguish both
+        // cases explicitly.
+        final boolean[] insideCast = {true};
+        final boolean[] completedSynchronously = {false};
+
         wand.coHeroCast(this, targetChar.pos, new Callback() {
             @Override
             public void call() {
+                if (insideCast[0]) {
+                    completedSynchronously[0] = true;
+                    return;
+                }
+
                 Invisibility.dispel(CoHeroAlly.this);
                 spend(TICK);
                 next();
             }
         });
+
+        insideCast[0] = false;
+        if (completedSynchronously[0]) {
+            Invisibility.dispel(this);
+            spend(TICK);
+            return true;
+        }
+
         return false;
     }
 
