@@ -31,10 +31,13 @@ jobs:
           SPD_TAG=$(curl -fsSL https://api.github.com/repos/00-Evan/shattered-pixel-dungeon/releases/latest \
             | python -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
           SMM_VER=$(python mod/scripts/extract_version.py mod/core/src/main/java/com/spd/mod/ModGame.java)
+          COHERO_VER=$(python cohero/scripts/extract_version.py \
+            cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
 
           echo "spd_tag=$SPD_TAG" >> "$GITHUB_OUTPUT"
           echo "smm_ver=$SMM_VER" >> "$GITHUB_OUTPUT"
-          echo "Using SPD $SPD_TAG with SMM m$SMM_VER"
+          echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
+          echo "Using CoHero $COHERO_VER with SPD $SPD_TAG and SMM m$SMM_VER"
 
       - name: Checkout Shattered Pixel Dungeon
         uses: actions/checkout@v4
@@ -188,7 +191,7 @@ jobs:
           JAR=$(find spd_src/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
           test -n "$JAR" -a -f "$JAR"
 
-          BASE_NAME="CoHero-SMM-${{ steps.versions.outputs.spd_tag }}-m${{ steps.versions.outputs.smm_ver }}"
+          BASE_NAME="CoHero-v${{ steps.versions.outputs.cohero_ver }}-SPD-${{ steps.versions.outputs.spd_tag }}-SMM-m${{ steps.versions.outputs.smm_ver }}"
           mkdir -p out
           cp "${{ steps.sign.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
           cp "$JAR" "out/${BASE_NAME}.jar"
