@@ -75,6 +75,21 @@ if text.count(defense_anchor) != 1:
     raise SystemExit(f"expected exactly one Mob defense anchor, found {text.count(defense_anchor)}")
 text = text.replace(defense_anchor, defense_patch, 1)
 
+hold_anchor = """		for (Mob mob : level.mobs.toArray( new Mob[0] )) {
+			//preserve directable allies or empowered intelligent allies no matter where they are
+"""
+hold_patch = """		for (Mob mob : level.mobs.toArray( new Mob[0] )) {
+			// CoHero owns its own cross-floor lifecycle/state and must never enter the stock
+			// heldAllies transport, otherwise special-floor exclusion can be bypassed.
+			if (mob instanceof com.spd.cohero.CoHeroAlly) {
+				continue;
+			}
+			//preserve directable allies or empowered intelligent allies no matter where they are
+"""
+if text.count(hold_anchor) != 1:
+    raise SystemExit(f"expected exactly one Mob.holdAllies anchor, found {text.count(hold_anchor)}")
+text = text.replace(hold_anchor, hold_patch, 1)
+
 great_crab_anchor = """		if (enemySeen
 				&& state != SLEEPING
 				&& paralysed == 0
