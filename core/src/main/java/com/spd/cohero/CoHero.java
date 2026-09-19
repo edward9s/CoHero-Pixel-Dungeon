@@ -31,12 +31,14 @@ public final class CoHero {
     private static final String COMPANION_CLASS_KEY_PREFIX = "cohero_companion_class_slot_";
     private static final String SAVE_COMPANION_CLASS = "cohero_companion_class";
     private static final String SAVE_COMPANION_STATE = "cohero_companion_state";
+    private static final String SAVE_COMPANION_ARMOR_TIER = "cohero_companion_armor_tier";
     private static final String SAVE_EXCLUDED_DEPTH = "cohero_excluded_depth";
     private static final String SAVE_EXCLUDED_BRANCH = "cohero_excluded_branch";
 
     private static HeroClass playerSelection;
     private static HeroClass companionSelection;
     private static Bundle companionState;
+    private static int companionPreviewArmorTier;
     private static boolean selectingCompanion;
     private static boolean openingCompanionSelection;
     private static boolean companionDeathEndedRun;
@@ -57,6 +59,7 @@ public final class CoHero {
         playerSelection = null;
         companionSelection = null;
         companionState = null;
+        companionPreviewArmorTier = 0;
         selectingCompanion = false;
         companionDeathEndedRun = false;
         restoringSavedGame = false;
@@ -131,6 +134,7 @@ public final class CoHero {
         if (companionState != null) {
             bundle.put(SAVE_COMPANION_STATE, companionState);
         }
+        bundle.put(SAVE_COMPANION_ARMOR_TIER, companionPreviewArmorTier);
         if (excludedDepth >= 0 && excludedBranch >= 0) {
             bundle.put(SAVE_EXCLUDED_DEPTH, excludedDepth);
             bundle.put(SAVE_EXCLUDED_BRANCH, excludedBranch);
@@ -155,6 +159,9 @@ public final class CoHero {
         companionState = bundle.contains(SAVE_COMPANION_STATE)
                 ? bundle.getBundle(SAVE_COMPANION_STATE)
                 : null;
+        companionPreviewArmorTier = bundle.contains(SAVE_COMPANION_ARMOR_TIER)
+                ? bundle.getInt(SAVE_COMPANION_ARMOR_TIER)
+                : 0;
         excludedDepth = bundle.contains(SAVE_EXCLUDED_DEPTH)
                 ? bundle.getInt(SAVE_EXCLUDED_DEPTH)
                 : -1;
@@ -166,6 +173,33 @@ public final class CoHero {
         openingCompanionSelection = false;
         companionDeathEndedRun = false;
         restoringSavedGame = true;
+    }
+
+    public static void populateGameInfo(GamesInProgress.Info info) {
+        if (info == null) {
+            return;
+        }
+        info.companionClass = companionClass();
+        CoHeroAlly companion = findCompanion();
+        if (companion != null && companion.isAlive()) {
+            companionPreviewArmorTier = companion.armorTier();
+        }
+        info.companionArmorTier = companionPreviewArmorTier;
+    }
+
+    public static void previewGameInfo(GamesInProgress.Info info, Bundle bundle) {
+        if (info == null || bundle == null || !bundle.contains(SAVE_COMPANION_CLASS)) {
+            return;
+        }
+
+        try {
+            info.companionClass = HeroClass.valueOf(bundle.getString(SAVE_COMPANION_CLASS));
+        } catch (IllegalArgumentException ex) {
+            info.companionClass = null;
+        }
+        info.companionArmorTier = bundle.contains(SAVE_COMPANION_ARMOR_TIER)
+                ? bundle.getInt(SAVE_COMPANION_ARMOR_TIER)
+                : 0;
     }
 
     public static void storeLevelMobs(Bundle bundle, String key, Collection<Mob> mobs) {
@@ -335,6 +369,7 @@ public final class CoHero {
         Bundle state = new Bundle();
         companion.storeInBundle(state);
         companionState = state;
+        companionPreviewArmorTier = companion.armorTier();
     }
 
     private static boolean isCompanionExcludedFromCurrentFloor() {
