@@ -496,12 +496,6 @@ public class CoHeroAlly extends DirectableAlly {
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
 
-        // If the player happens to already be on the exit when CoHero reaches its rally cell,
-        // immediately use the player's normal transition flow. Hero no longer has to wait there.
-        if (CoHero.tryAutoExit(this)) {
-            return true;
-        }
-
         if (paralysed > 0) {
             spend(TICK);
             return true;
@@ -569,7 +563,6 @@ public class CoHeroAlly extends DirectableAlly {
                     spend(1 / speed());
                     Dungeon.level.updateFieldOfView(this, fieldOfView);
                     revealVisibleCells();
-                    CoHero.tryAutoExit(this);
                     return moveSprite(oldPos, pos);
                 }
             }
@@ -582,11 +575,6 @@ public class CoHeroAlly extends DirectableAlly {
         clearRangedLurePlan();
         if (tryAutoSurvivalPotion()) {
             return true;
-        }
-
-        Boolean exitRally = tryExitRally();
-        if (exitRally != null) {
-            return exitRally;
         }
 
         if (lowHealthRally) {
@@ -632,7 +620,6 @@ public class CoHeroAlly extends DirectableAlly {
 
             Dungeon.level.updateFieldOfView(this, fieldOfView);
             revealVisibleCells();
-            CoHero.tryAutoExit(this);
             return moveSprite(oldPos, pos);
         }
 
@@ -685,7 +672,6 @@ public class CoHeroAlly extends DirectableAlly {
         spend(1 / speed());
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        CoHero.tryAutoExit(this);
         return moveSprite(oldPos, pos);
     }
 
@@ -710,31 +696,6 @@ public class CoHeroAlly extends DirectableAlly {
 
         path = null;
         move(step);
-        return true;
-    }
-
-    private Boolean tryExitRally() {
-        LevelTransition transition = knownRegularExitTransition();
-        if (transition == null) {
-            return null;
-        }
-
-        int rallyCell = chooseExitWaitingCell(transition);
-        if (rallyCell == -1 || rallyCell == pos) {
-            spend(TICK);
-            return true;
-        }
-
-        int oldPos = pos;
-        if (getCloser(rallyCell)) {
-            spend(1 / speed());
-            Dungeon.level.updateFieldOfView(this, fieldOfView);
-            revealVisibleCells();
-            CoHero.tryAutoExit(this);
-            return moveSprite(oldPos, pos);
-        }
-
-        spend(TICK);
         return true;
     }
 
@@ -1469,18 +1430,6 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
-    private LevelTransition knownRegularExitTransition() {
-        if (Dungeon.level == null || Dungeon.level.locked || !isExitKnown()) {
-            return null;
-        }
-
-        int exit = Dungeon.level.exit();
-        LevelTransition transition = Dungeon.level.getTransition(exit);
-        return transition != null && transition.type == LevelTransition.Type.REGULAR_EXIT
-                ? transition
-                : null;
-    }
-
     private boolean actLowHealthRally() {
         if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
             spend(TICK);
@@ -1677,7 +1626,6 @@ public class CoHeroAlly extends DirectableAlly {
                 spend(1 / speed());
                 Dungeon.level.updateFieldOfView(this, fieldOfView);
                 revealVisibleCells();
-                CoHero.tryAutoExit(this);
                 return moveSprite(oldPos, pos);
             }
             spend(TICK);
@@ -1701,7 +1649,6 @@ public class CoHeroAlly extends DirectableAlly {
             spend(1 / speed());
             Dungeon.level.updateFieldOfView(this, fieldOfView);
             revealVisibleCells();
-            CoHero.tryAutoExit(this);
             return moveSprite(oldPos, pos);
         }
 
@@ -2303,7 +2250,6 @@ public class CoHeroAlly extends DirectableAlly {
         spend(1 / speed());
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        CoHero.tryAutoExit(this);
         return moveSprite(oldPos, pos);
     }
 
@@ -3402,33 +3348,6 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return true;
-    }
-
-    private int chooseExitWaitingCell(LevelTransition transition) {
-        int bestCell = -1;
-        int bestDistance = Integer.MAX_VALUE;
-
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (!Dungeon.level.passable[cell]
-                    || transition.inside(cell)
-                    || !CoHero.isAdjacentToTransition(cell, transition)
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != this) {
-                continue;
-            }
-
-            int distance = Dungeon.level.distance(pos, cell);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestCell = cell;
-            }
-        }
-
-        return bestCell;
     }
 
     private boolean isExitKnown() {
