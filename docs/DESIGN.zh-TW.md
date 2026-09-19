@@ -71,6 +71,18 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 - 有可見敵人時仍先執行既有戰鬥／逃生判斷；低血量 rally 不會讓 CoHero 無視眼前威脅硬走向 Hero。
 - Hero 已站在正常樓層出口等待時，出口集合規則優先；此時不要求保留一格距離。
 
+### 特殊樓層的同行選擇
+
+一般樓層仍維持 CoHero 與 Hero 一起跨層；但進入高風險、可獨立完成的特殊樓層時，玩家可以決定是否讓 CoHero 同行：
+
+- 從主線以 `REGULAR_EXIT` 進入下一個 Boss depth（5 / 10 / 15 / 20 / 25）時顯示一次選擇。
+- 從主線以 `BRANCH_EXIT` 進入 quest branch floor 時顯示一次選擇；`BRANCH_ENTRANCE` 是從支線返回主線，不再次詢問。
+- 「一起進入」要求 CoHero 已在該 transition 旁；若尚未抵達，這個選項停用，但仍可選擇「留在外面」直接進入。
+- 選擇留在外面時，CoHero 的 HP、裝備、背包、buff 與 AI 狀態先保存，但該目的 `depth + branch` 不生成 CoHero。這個排除狀態會寫進遊戲存檔，因此在特殊樓層內存檔／重開也不會把 CoHero 重新生出來。
+- CoHero 明確排除於 SPD 原版 `Mob.holdAllies()/restoreAllies()` 的跨層搬運；其跨層生命週期只由 CoHero 自己的 companion state 管理，避免「留在外面」仍被 stock ally transport 偷帶進去。
+- 當 Hero 離開被排除的特殊樓層後，排除狀態清除，CoHero 在下一個正常樓層由保存狀態重新生成在 Hero 附近。離開特殊樓層時不要求一個本來就被刻意留在外面的 CoHero 站在出口旁。
+- Ankh、死亡與 Game Over 語意不因留隊選擇改變；CoHero 在被留在外面的期間視為暫停，不會在看不見的舊樓層自行行動或受傷。
+
 ### 睡眠中的敵人
 
 同伴不應主動吵醒正在睡覺的怪物。
