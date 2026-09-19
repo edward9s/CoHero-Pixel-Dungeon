@@ -10,8 +10,9 @@ text = path.read_text(encoding="utf-8")
 
 ready_marker = "\t\tcom.spd.cohero.CoHero.onGameSceneReady();"
 locator_marker = "\t\tcom.spd.cohero.CoHeroLocator coHeroLocator = new com.spd.cohero.CoHeroLocator();"
+hazard_marker = "\t\tcom.spd.cohero.CoHeroHazards.warn(pos, delay);"
 
-if ready_marker in text or locator_marker in text:
+if ready_marker in text or locator_marker in text or hazard_marker in text:
     raise SystemExit("CoHero GameScene hooks are already present")
 
 mob_anchor = (
@@ -48,6 +49,19 @@ locator_block = (
 text = text.replace(
     layout_anchor,
     locator_block + layout_anchor,
+    1,
+)
+
+targeted_anchor = (
+    "\tpublic static TargetedCell targetedCell(int pos, float delay){\n"
+)
+if text.count(targeted_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene targeted-cell anchor, found {text.count(targeted_anchor)}"
+    )
+text = text.replace(
+    targeted_anchor,
+    targeted_anchor + hazard_marker + "\n",
     1,
 )
 

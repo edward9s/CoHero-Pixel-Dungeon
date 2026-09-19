@@ -117,6 +117,16 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 
 因此目前不把完整 Hero AI 當作目標。
 
+### 預告攻擊避讓
+
+CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的危險格預告，而不是針對單一敵人硬編碼。危險格的有效期限與畫面警示完全使用同一個 `Actor.now() + delay` 時鐘。
+
+- CoHero 若目前站在仍有效的預告格上，會在一般戰鬥、喝藥、探索與靠近 Hero 之前優先走到相鄰安全格。
+- 有 active warning 時，普通尋路會暫時把所有預告格視為不可通行，因此 CoHero 不會從安全位置主動走進即將爆發的攻擊範圍。
+- warning 到期後該格立即恢復正常尋路；換樓層時警示紀錄清空。
+- 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石，以及 Eye、Ripper Demon、Vault Laser 等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯。
+- 若 CoHero 被定身、麻痺，或所有相鄰合法格本身都危險／不可通行，AI 不會假裝能躲開，會繼續執行其他可行生存或戰鬥行為。
+
 ### CoHero 職業固有能力
 
 職業特色是 CoHero 額外的固有 trait，不是假戒指，也不占用兩個實際 ring slot；CoHero 真正裝備的戒指仍照原版生效，並與固有 trait 疊加。

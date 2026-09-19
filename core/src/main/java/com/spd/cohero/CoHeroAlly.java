@@ -217,6 +217,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         pos = cell;
+        CoHeroHazards.clear();
         explorationTarget = -1;
         thrownOutstanding.clear();
         activeMissileWeapon = null;
@@ -436,6 +437,12 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         updateLowHealthRallyState();
+
+        Boolean hazardAvoidance = tryAvoidTelegraphedHazard();
+        if (hazardAvoidance != null) {
+            return hazardAvoidance;
+        }
+
         if (tryAutoSurvivalPotion()) {
             return true;
         }
@@ -519,6 +526,77 @@ public class CoHeroAlly extends DirectableAlly {
 
         explorationTarget = chooseExplorationTarget();
         spend(TICK);
+        return true;
+    }
+
+    private Boolean tryAvoidTelegraphedHazard() {
+        if (rooted || !CoHeroHazards.isDangerous(pos)) {
+            return null;
+        }
+
+        int best = -1;
+        int bestNearbyDanger = Integer.MAX_VALUE;
+        int bestHeroDistance = Integer.MAX_VALUE;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = pos + offset;
+            if (cell < 0
+                    || cell >= Dungeon.level.length()
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || CoHeroHazards.isDangerous(cell)
+                    || !isSleepSafe(cell)) {
+                continue;
+            }
+
+            int nearbyDanger = CoHeroHazards.nearbyDangerCount(cell);
+            int heroDistance = Dungeon.hero == null
+                    ? 0
+                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
+
+            if (best == -1
+                    || nearbyDanger < bestNearbyDanger
+                    || (nearbyDanger == bestNearbyDanger && heroDistance < bestHeroDistance)) {
+                best = cell;
+                bestNearbyDanger = nearbyDanger;
+                bestHeroDistance = heroDistance;
+            }
+        }
+
+        if (best == -1) {
+            return null;
+        }
+
+        int oldPos = pos;
+        move(best, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        CoHero.tryAutoExit(this);
+        return moveSprite(oldPos, pos);
+    }
+
+    @Override
+    protected boolean getCloser(int target) {
+        if (!CoHeroHazards.hasActiveWarnings()) {
+            return super.getCloser(target);
+        }
+        if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
+            return false;
+        }
+
+        boolean[] safePassable = CoHeroHazards.maskDangerous(Dungeon.level.passable);
+        // A CoHero already standing on a warned cell must still be able to path out of it.
+        safePassable[pos] = true;
+
+        int step = Dungeon.findStep(this, target, safePassable, fieldOfView, true);
+        if (step == -1 || CoHeroHazards.isDangerous(step)) {
+            path = null;
+            return false;
+        }
+
+        path = null;
+        move(step);
         return true;
     }
 
@@ -661,6 +739,7 @@ public class CoHeroAlly extends DirectableAlly {
                     || cell >= Dungeon.level.length()
                     || !Dungeon.level.passable[cell]
                     || Actor.findChar(cell) != null
+                    || CoHeroHazards.isDangerous(cell)
                     || !isSleepSafe(cell)) {
                 continue;
             }
