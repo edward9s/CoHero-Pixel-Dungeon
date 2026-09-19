@@ -117,6 +117,13 @@ final class CoHeroCorrosionPlanner {
         if (existing != null && existing.volume > 0 && existing.cur != null) {
             System.arraycopy(existing.cur, 0, cur, 0, Math.min(existing.cur.length, length));
             area.set(existing.area);
+            if (area.isEmpty()) {
+                for (int cell = 0; cell < cur.length; cell++) {
+                    if (cur[cell] > 0) {
+                        area.union(cell % width, cell / width);
+                    }
+                }
+            }
         }
 
         cur[seedCell] += amount;
