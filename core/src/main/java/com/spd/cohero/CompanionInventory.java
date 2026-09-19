@@ -489,8 +489,9 @@ public final class CompanionInventory {
                     + (item == null ? "null" : item.getClass().getName()));
         }
 
-        // Match DriedRose.GhostHero outfitting: the item must be known to be uncursed.
-        if (item.cursed || !item.cursedKnown) {
+        // Weapons may be used before identification; only an actual curse blocks them.
+        // Armor and rings keep the stricter GhostHero-style known-uncursed requirement.
+        if (item.cursed || (!(item instanceof MeleeWeapon) && !item.cursedKnown)) {
             return EquipFailure.CURSED_OR_UNKNOWN;
         }
 
