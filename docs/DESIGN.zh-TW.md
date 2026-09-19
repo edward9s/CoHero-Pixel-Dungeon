@@ -236,10 +236,12 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 2. **有近戰武器時**
    - 可以進行普通近戰攻擊。
+   - 裝備近戰武器不要求「完整鑑定」；但必須已確認詛咒狀態且確定未詛咒。若只是不知道強化等級，仍可裝備／使用，力量需求以 +0 的 `STRReq(0)` 判斷，避免由裝備結果洩漏隱藏強化等級。一般尚未確認詛咒狀態的未鑑定武器不能裝備。
    - 當敵人已進入該近戰武器的合法攻擊距離時，只使用近戰武器，不改用投擲武器或法杖。
 
 3. **有投擲武器時**
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
+   - 投擲武器必須 `isIdentified()` 且未詛咒才會被 AI 當成可用攻擊；未鑑定投擲武器可以放在背包，但不會主動投擲。Spirit Bow 也遵守相同的已鑑定／未詛咒門檻。
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
    - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 也會把已知地圖上的金錢，以及背包可容納且屬於目前明確支援類型的地面投擲武器與法杖視為高優先 loot，在一般探索前主動前往拾取。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般投擲武器／法杖。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。目前未支援使用的特殊投擲武器或法杖不主動撿拾。
@@ -248,7 +250,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
-   - 法杖必須已鑑定、未詛咒且有足夠 charge 才是合法候選。
+   - 法杖必須 `isIdentified()`、未詛咒且有足夠 charge 才是合法候選；未鑑定法杖可以放在背包並充能，但 CoHero 不會主動施放。
    - 目前明確支援 `WandOfMagicMissile`、`WandOfBlastWave`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
    - `WandOfLivingEarth` 暫不支援，因為 Earth Guardian / RockArmor ownership 與多個 Hero-specific 系統高度耦合。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
@@ -506,7 +508,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
 - CoHero 擊殺沿用原版流程增加共同 EXP。
 - 基礎自然回血，不處理 Hunger。
-- CoHero 不使用卷軸；可自動使用少數已鑑定生存藥劑，並可由自己背包中的 Ankh 在死亡時復活。
+- CoHero 可自動使用少數已鑑定生存／逃生消耗品（目前包含治療／護盾／隱形藥與恐懼卷軸），並可由自己背包中的 Ankh 在死亡時復活。
 - 完全由背包與裝備驅動的基本戰鬥行為。
 - 近戰武器可及時只使用近戰武器。
 - 高閃避目標優先法杖。
