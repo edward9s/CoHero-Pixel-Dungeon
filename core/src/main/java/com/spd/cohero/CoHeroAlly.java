@@ -1004,18 +1004,18 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private void revealVisibleCells() {
-        boolean changed = false;
         for (int i = 0; i < fieldOfView.length; i++) {
             if (fieldOfView[i]
                     && Dungeon.level.discoverable[i]
                     && !Dungeon.level.visited[i]) {
                 Dungeon.level.visited[i] = true;
-                changed = true;
             }
         }
-        if (changed) {
-            GameScene.updateFog(pos, viewDistance + 1);
-        }
+
+        // CoHero vision is a display-only second FOV source. Refresh the local fog and mob
+        // visibility every time its FOV is recomputed, even if all cells were already visited.
+        GameScene.updateFog(pos, viewDistance + 1);
+        GameScene.afterObserve();
     }
 
     private ArrayList<Mob> visibleAwakeEnemies() {
@@ -1124,16 +1124,8 @@ public class CoHeroAlly extends DirectableAlly {
             return Random.element(unknown);
         }
 
-        // Merely discovering the exit does not end exploration. Once there is no remaining
-        // ordinary frontier, however, a known exit becomes the natural long-term fallback.
-        int exit = Dungeon.level.exit();
-        if (isKnown(exit)) {
-            LevelTransition transition = Dungeon.level.getTransition(exit);
-            if (transition != null && transition.type == LevelTransition.Type.REGULAR_EXIT) {
-                return chooseExitWaitingCell(transition);
-            }
-        }
-
+        // With no unexplored frontier left, keep roaming the known floor. The exit only becomes
+        // a forced destination when the player Hero is actually standing on it waiting to leave.
         return Dungeon.level.randomDestination(this);
     }
 

@@ -32,6 +32,7 @@ public final class CoHero {
     private static boolean selectingCompanion;
     private static boolean openingCompanionSelection;
     private static boolean companionDeathEndedRun;
+    private static boolean[] renderFieldOfView;
 
     private CoHero() {
     }
@@ -249,6 +250,52 @@ public final class CoHero {
 
     public static boolean companionDeathEndedRun() {
         return companionDeathEndedRun;
+    }
+
+    /**
+     * Display-only visibility union. Gameplay code must continue using Dungeon.level.heroFOV
+     * when it specifically means the player's Hero vision.
+     */
+    public static boolean[] renderFieldOfView() {
+        if (Dungeon.level == null || Dungeon.level.heroFOV == null) {
+            return null;
+        }
+
+        boolean[] heroFOV = Dungeon.level.heroFOV;
+        if (renderFieldOfView == null || renderFieldOfView.length != heroFOV.length) {
+            renderFieldOfView = new boolean[heroFOV.length];
+        }
+        System.arraycopy(heroFOV, 0, renderFieldOfView, 0, heroFOV.length);
+
+        CoHeroAlly companion = findCompanion();
+        if (companion != null
+                && companion.isAlive()
+                && companion.fieldOfView != null
+                && companion.fieldOfView.length == renderFieldOfView.length) {
+            for (int i = 0; i < renderFieldOfView.length; i++) {
+                renderFieldOfView[i] |= companion.fieldOfView[i];
+            }
+        }
+        return renderFieldOfView;
+    }
+
+    public static boolean isVisibleToPlayer(int cell) {
+        if (Dungeon.level == null
+                || Dungeon.level.heroFOV == null
+                || cell < 0
+                || cell >= Dungeon.level.heroFOV.length) {
+            return false;
+        }
+        if (Dungeon.level.heroFOV[cell]) {
+            return true;
+        }
+
+        CoHeroAlly companion = findCompanion();
+        return companion != null
+                && companion.isAlive()
+                && companion.fieldOfView != null
+                && cell < companion.fieldOfView.length
+                && companion.fieldOfView[cell];
     }
 
     private static String companionClassKey() {
