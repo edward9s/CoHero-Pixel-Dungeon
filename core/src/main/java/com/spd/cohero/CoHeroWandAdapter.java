@@ -18,6 +18,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfCorruption;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfCorrosion;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfDisintegration;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFrost;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFireblast;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLightning;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfMagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfPrismaticLight;
@@ -55,7 +56,8 @@ final class CoHeroWandAdapter {
                 || type == WandOfRegrowth.class
                 || type == WandOfTransfusion.class
                 || type == WandOfCorruption.class
-                || type == WandOfCorrosion.class;
+                || type == WandOfCorrosion.class
+                || type == WandOfFireblast.class;
     }
 
     static boolean offensiveCapability(Wand wand) {
@@ -97,6 +99,9 @@ final class CoHeroWandAdapter {
         if (wand instanceof WandOfCorrosion) {
             return CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target) != null;
         }
+        if (wand instanceof WandOfFireblast) {
+            return CoHeroFireblastPlanner.choose((WandOfFireblast) wand, owner, target) != null;
+        }
         if (wand instanceof WandOfDisintegration) {
             return safeDisintegrationBeam((WandOfDisintegration) wand, owner, target);
         }
@@ -114,7 +119,8 @@ final class CoHeroWandAdapter {
                 || wand instanceof WandOfDisintegration
                 || wand instanceof WandOfLightning
                 || wand instanceof WandOfPrismaticLight
-                || wand instanceof WandOfCorrosion) {
+                || wand instanceof WandOfCorrosion
+                || wand instanceof WandOfFireblast) {
             return true;
         }
         return wand instanceof WandOfTransfusion
@@ -158,6 +164,11 @@ final class CoHeroWandAdapter {
                     CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target);
             return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
         }
+        if (wand instanceof WandOfFireblast) {
+            CoHeroFireblastPlanner.Plan plan =
+                    CoHeroFireblastPlanner.choose((WandOfFireblast) wand, owner, target);
+            return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
+        }
 
         DamageWand damageWand = (DamageWand) wand;
         int level = wand.buffedLvl();
@@ -197,6 +208,11 @@ final class CoHeroWandAdapter {
         if (wand instanceof WandOfCorrosion) {
             CoHeroCorrosionPlanner.Plan plan =
                     CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target);
+            return plan == null ? -1 : plan.aimCell;
+        }
+        if (wand instanceof WandOfFireblast) {
+            CoHeroFireblastPlanner.Plan plan =
+                    CoHeroFireblastPlanner.choose((WandOfFireblast) wand, owner, target);
             return plan == null ? -1 : plan.aimCell;
         }
         return target == null ? -1 : target.pos;

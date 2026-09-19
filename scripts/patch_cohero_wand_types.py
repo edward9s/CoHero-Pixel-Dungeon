@@ -2,14 +2,14 @@
 from pathlib import Path
 import sys
 
-if len(sys.argv) != 9:
+if len(sys.argv) != 10:
     raise SystemExit(
         "usage: patch_cohero_wand_types.py "
-        "<Frost> <Disintegration> <Lightning> <PrismaticLight> <Regrowth> <Transfusion> <Corruption> <Corrosion>"
+        "<Frost> <Disintegration> <Lightning> <PrismaticLight> <Regrowth> <Transfusion> <Corruption> <Corrosion> <Fireblast>"
     )
 
 paths = [Path(p) for p in sys.argv[1:]]
-frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption, corrosion = [
+frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption, corrosion, fireblast = [
     p.read_text(encoding="utf-8") for p in paths
 ]
 
@@ -110,6 +110,11 @@ transfusion = replace_once(
     "Transfusion Hero death handling",
 )
 
+# Fireblast: cone logic is generic; its visual source must use the actual caster.
+if "curUser" not in fireblast:
+    raise SystemExit("expected Fireblast curUser references")
+fireblast = fireblast.replace("curUser", "zapUser()")
+
 # Corrosion: gas ownership is generic; only the projectile source is Hero-static.
 corrosion = replace_once(
     corrosion,
@@ -183,6 +188,6 @@ corruption_helper = """	public boolean coHeroPowerBeatsResistance(Mob enemy) {
 """ + corruption_anchor
 corruption = replace_once(corruption, corruption_anchor, corruption_helper, "Corruption power helper")
 
-for path, text in zip(paths, [frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption, corrosion]):
+for path, text in zip(paths, [frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption, corrosion, fireblast]):
     path.write_text(text, encoding="utf-8")
     print(f"patched {path}")
