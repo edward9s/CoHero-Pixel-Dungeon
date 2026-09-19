@@ -132,6 +132,207 @@ final class CoHeroWardingPlanner {
         return best;
     }
 
+    static RecallPlan chooseRecall(WandOfWarding wand, CoHeroAlly owner, Mob target) {
+        if (wand == null || owner == null || target == null || !wand.coHeroCanZap(owner)) {
+            return null;
+        }
+
+        int currentEnergy = wand.coHeroCurrentWardEnergy(owner);
+        int maxEnergy = wand.coHeroMaxWardEnergy(owner);
+        if (maxEnergy <= 0 || currentEnergy < maxEnergy) {
+            return null;
+        }
+
+        // Only recall when the wand actually has a useful fresh placement that is blocked by
+        // energy. If an ordinary placement/upgrade is already legal, dismantling is unnecessary.
+        if (choose(wand, owner, target) != null) {
+            return null;
+        }
+
+        Plan replacement = chooseFreshIgnoringBudget(wand, owner, target);
+        if (replacement == null) {
+            return null;
+        }
+
+        float replacementValue = replacementValue(replacement);
+        RecallPlan best = null;
+
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Ward)) {
+                continue;
+            }
+
+            Ward ward = (Ward) ch;
+            if (!ward.coHeroOwned() || !ward.isAlive()) {
+                continue;
+            }
+
+            int coverage = movementCoverage(ward.pos, ward.viewDistance, target);
+            float retainedValue = retainedWardValue(wand, ward, target, coverage);
+            int travelDistance = Dungeon.level.distance(owner.pos, ward.pos);
+            float gain = replacementValue - retainedValue - 3f * travelDistance;
+
+            // Avoid churn for marginal rearrangements. Tier 4-6 sentries carry a large retention
+            // reserve below, so they are only recalled when their current battlefield value is
+            // essentially exhausted and the replacement is materially better.
+            if (gain < 15f) {
+                continue;
+            }
+
+            RecallPlan candidate = new RecallPlan(
+                    ward,
+                    replacement.aimCell,
+                    gain,
+                    retainedValue,
+                    replacementValue,
+                    coverage,
+                    travelDistance);
+            if (best == null || candidate.betterThan(best)) {
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    private static Plan chooseFreshIgnoringBudget(
+            WandOfWarding wand, CoHeroAlly owner, Mob target) {
+        Plan best = null;
+
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (owner.fieldOfView == null
+                    || !owner.fieldOfView[cell]
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || CoHeroHazards.isDangerous(owner, cell)
+                    || Dungeon.level.distance(cell, target.pos) > 4
+                    || wand.coHeroBallistica(owner, cell).collisionPos != cell
+                    || !canEngage(cell, 4, target)
+                    || wouldWakeSleepingEnemy(cell, 4, target)) {
+                continue;
+            }
+
+            int preFireThreats = preFirstActionThreats(owner, cell, 1);
+            if (preFireThreats > 0) {
+                continue;
+            }
+
+            float detectionChance = initialDetectionChance(cell, target);
+            if (detectionChance < MIN_INITIAL_DETECTION_CHANCE) {
+                continue;
+            }
+
+            int coverage = movementCoverage(cell, 4, target);
+            if (coverage == 0) {
+                continue;
+            }
+
+            float expectedDamage = expectedNextZapDamage(wand) * 0.70f * detectionChance;
+            Plan candidate = new Plan(
+                    cell,
+                    expectedDamage,
+                    false,
+                    0,
+                    coverage,
+                    0,
+                    CoHeroHazards.nearbyDangerCount(owner, cell),
+                    Dungeon.level.distance(cell, target.pos),
+                    Dungeon.level.distance(owner.pos, cell),
+                    detectionChance);
+            if (best == null || candidate.betterThan(best)) {
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    private static float replacementValue(Plan replacement) {
+        return replacement.movementCoverage * 20f
+                + replacement.expectedDamage * 4f
+                + replacement.detectionChance * 10f
+                - replacement.nearbyDanger * 8f;
+    }
+
+    private static float retainedWardValue(
+            WandOfWarding wand, Ward ward, Mob target, int coverage) {
+        float value = coverage * 20f;
+        if (canEngage(ward.pos, ward.viewDistance, target)) {
+            value += expectedNextZapDamage(wand) * 3f;
+        }
+
+        switch (ward.tier) {
+            case 1:
+                break;
+            case 2:
+                value += 12f;
+                break;
+            case 3:
+                value += 30f;
+                break;
+            case 4:
+                value += 90f;
+                break;
+            case 5:
+                value += 140f;
+                break;
+            case 6:
+            default:
+                value += 220f;
+                break;
+        }
+
+        if (CoHeroHazards.isDangerous(null, ward.pos)) {
+            value *= 0.75f;
+        }
+        return value;
+    }
+
+    static final class RecallPlan {
+        final Ward ward;
+        final int replacementAimCell;
+        final float gain;
+
+        private final float retainedValue;
+        private final float replacementValue;
+        private final int currentCoverage;
+        private final int travelDistance;
+
+        RecallPlan(
+                Ward ward,
+                int replacementAimCell,
+                float gain,
+                float retainedValue,
+                float replacementValue,
+                int currentCoverage,
+                int travelDistance) {
+            this.ward = ward;
+            this.replacementAimCell = replacementAimCell;
+            this.gain = gain;
+            this.retainedValue = retainedValue;
+            this.replacementValue = replacementValue;
+            this.currentCoverage = currentCoverage;
+            this.travelDistance = travelDistance;
+        }
+
+        private boolean betterThan(RecallPlan other) {
+            int gainCompare = Float.compare(gain, other.gain);
+            if (gainCompare != 0) {
+                return gainCompare > 0;
+            }
+            if (ward.tier != other.ward.tier) {
+                return ward.tier < other.ward.tier;
+            }
+            if (currentCoverage != other.currentCoverage) {
+                return currentCoverage < other.currentCoverage;
+            }
+            if (travelDistance != other.travelDistance) {
+                return travelDistance < other.travelDistance;
+            }
+            return ward.pos < other.ward.pos;
+        }
+    }
+
     private static int preFirstActionThreats(CoHeroAlly owner, int wardCell, int projectedTier) {
         Ward probe = new Ward();
         probe.pos = wardCell;
