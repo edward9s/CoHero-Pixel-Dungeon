@@ -298,6 +298,17 @@ ward_field_new = """		public int totalZaps = 0;
 			return coHeroOwned;
 		}
 
+		public boolean coHeroDismiss(Char owner) {
+			if (!(owner instanceof com.spd.cohero.CoHeroAlly)
+					|| !coHeroOwned
+					|| !isAlive()
+					|| !Dungeon.level.adjacent(owner.pos, pos)) {
+				return false;
+			}
+			die(null);
+			return true;
+		}
+
 		{
 """
 warding = replace_once(warding, ward_field_old, ward_field_new, "Warding ownership field")
