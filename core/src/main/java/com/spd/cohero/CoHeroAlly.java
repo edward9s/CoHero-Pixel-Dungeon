@@ -433,6 +433,11 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
+        Boolean exitRally = tryExitRally();
+        if (exitRally != null) {
+            return exitRally;
+        }
+
         updateLowHealthRallyState();
         if (lowHealthRally && !heroWaitingAtExit()) {
             return actLowHealthRally();
@@ -457,17 +462,7 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        int exit = Dungeon.level.exit();
-        LevelTransition exitTransition = isKnown(exit) ? Dungeon.level.getTransition(exit) : null;
-        if (exitTransition != null && exitTransition.type == LevelTransition.Type.REGULAR_EXIT) {
-            if (CoHero.isAdjacentToTransition(pos, exitTransition)) {
-                explorationTarget = pos;
-                spend(TICK);
-                return true;
-            }
-
-            explorationTarget = chooseExitWaitingCell(exitTransition);
-        } else if (explorationTarget == -1
+        if (explorationTarget == -1
                 || explorationTarget == pos
                 || !Dungeon.level.passable[explorationTarget]
                 || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
@@ -485,9 +480,32 @@ public class CoHeroAlly extends DirectableAlly {
             return moveSprite(oldPos, pos);
         }
 
-        explorationTarget = exitTransition != null
-                ? chooseExitWaitingCell(exitTransition)
-                : chooseExplorationTarget();
+        explorationTarget = chooseExplorationTarget();
+        spend(TICK);
+        return true;
+    }
+
+    private Boolean tryExitRally() {
+        if (!heroWaitingAtExit()) {
+            return null;
+        }
+
+        LevelTransition transition = Dungeon.level.getTransition(Dungeon.hero.pos);
+        int rallyCell = chooseExitWaitingCell(transition);
+        if (rallyCell == -1 || rallyCell == pos) {
+            spend(TICK);
+            return true;
+        }
+
+        int oldPos = pos;
+        if (getCloser(rallyCell)) {
+            spend(1 / speed());
+            Dungeon.level.updateFieldOfView(this, fieldOfView);
+            revealVisibleCells();
+            CoHero.tryAutoExit(this);
+            return moveSprite(oldPos, pos);
+        }
+
         spend(TICK);
         return true;
     }
@@ -510,7 +528,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean heroWaitingAtExit() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive() || Dungeon.level.locked) {
             return false;
         }
         LevelTransition transition = Dungeon.level.getTransition(Dungeon.hero.pos);
@@ -1090,14 +1108,6 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private int chooseExplorationTarget() {
-        int exit = Dungeon.level.exit();
-        if (isKnown(exit)) {
-            LevelTransition transition = Dungeon.level.getTransition(exit);
-            if (transition != null && transition.type == LevelTransition.Type.REGULAR_EXIT) {
-                return chooseExitWaitingCell(transition);
-            }
-        }
-
         ArrayList<Integer> unknown = new ArrayList<>();
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell != pos
@@ -1112,6 +1122,16 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (!unknown.isEmpty()) {
             return Random.element(unknown);
+        }
+
+        // Merely discovering the exit does not end exploration. Once there is no remaining
+        // ordinary frontier, however, a known exit becomes the natural long-term fallback.
+        int exit = Dungeon.level.exit();
+        if (isKnown(exit)) {
+            LevelTransition transition = Dungeon.level.getTransition(exit);
+            if (transition != null && transition.type == LevelTransition.Type.REGULAR_EXIT) {
+                return chooseExitWaitingCell(transition);
+            }
         }
 
         return Dungeon.level.randomDestination(this);
