@@ -2,14 +2,14 @@
 from pathlib import Path
 import sys
 
-if len(sys.argv) != 8:
+if len(sys.argv) != 9:
     raise SystemExit(
         "usage: patch_cohero_wand_types.py "
-        "<Frost> <Disintegration> <Lightning> <PrismaticLight> <Regrowth> <Transfusion> <Corruption>"
+        "<Frost> <Disintegration> <Lightning> <PrismaticLight> <Regrowth> <Transfusion> <Corruption> <Corrosion>"
     )
 
 paths = [Path(p) for p in sys.argv[1:]]
-frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption = [
+frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption, corrosion = [
     p.read_text(encoding="utf-8") for p in paths
 ]
 
@@ -110,6 +110,23 @@ transfusion = replace_once(
     "Transfusion Hero death handling",
 )
 
+# Corrosion: gas ownership is generic; only the projectile source is Hero-static.
+corrosion = replace_once(
+    corrosion,
+    """		MagicMissile.boltFromChar(
+				curUser.sprite.parent,
+				MagicMissile.CORROSION,
+				curUser.sprite,
+""",
+    """		Char user = zapUser();
+		MagicMissile.boltFromChar(
+				user.sprite.parent,
+				MagicMissile.CORROSION,
+				user.sprite,
+""",
+    "Corrosion fx caster",
+)
+
 # Corruption: loot/EXP still belong to the one progression Hero, while visuals use the real caster.
 corruption = replace_once(
     corruption,
@@ -166,6 +183,6 @@ corruption_helper = """	public boolean coHeroPowerBeatsResistance(Mob enemy) {
 """ + corruption_anchor
 corruption = replace_once(corruption, corruption_anchor, corruption_helper, "Corruption power helper")
 
-for path, text in zip(paths, [frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption]):
+for path, text in zip(paths, [frost, disintegration, lightning, prismatic, regrowth, transfusion, corruption, corrosion]):
     path.write_text(text, encoding="utf-8")
     print(f"patched {path}")

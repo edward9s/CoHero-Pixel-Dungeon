@@ -3,6 +3,7 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.CorrosiveGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Charm;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Chill;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Corruption;
@@ -14,6 +15,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.DamageWand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfCorruption;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfCorrosion;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfDisintegration;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFrost;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLightning;
@@ -52,7 +54,8 @@ final class CoHeroWandAdapter {
                 || type == WandOfPrismaticLight.class
                 || type == WandOfRegrowth.class
                 || type == WandOfTransfusion.class
-                || type == WandOfCorruption.class;
+                || type == WandOfCorruption.class
+                || type == WandOfCorrosion.class;
     }
 
     static boolean offensiveCapability(Wand wand) {
@@ -69,6 +72,9 @@ final class CoHeroWandAdapter {
         }
 
         if (wand instanceof WandOfFrost && target.buff(Frost.class) != null) {
+            return false;
+        }
+        if (wand instanceof WandOfCorrosion && target.isImmune(CorrosiveGas.class)) {
             return false;
         }
         if (wand instanceof WandOfCorruption
@@ -88,6 +94,9 @@ final class CoHeroWandAdapter {
             return false;
         }
 
+        if (wand instanceof WandOfCorrosion) {
+            return CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target) != null;
+        }
         if (wand instanceof WandOfDisintegration) {
             return safeDisintegrationBeam((WandOfDisintegration) wand, owner, target);
         }
@@ -99,12 +108,13 @@ final class CoHeroWandAdapter {
         return wand.coHeroBallistica(owner, target.pos).collisionPos == target.pos;
     }
 
-    static boolean directDamage(Wand wand, Mob target) {
+    static boolean damagingCapability(Wand wand, Mob target) {
         if (wand instanceof WandOfMagicMissile
                 || wand instanceof WandOfFrost
                 || wand instanceof WandOfDisintegration
                 || wand instanceof WandOfLightning
-                || wand instanceof WandOfPrismaticLight) {
+                || wand instanceof WandOfPrismaticLight
+                || wand instanceof WandOfCorrosion) {
             return true;
         }
         return wand instanceof WandOfTransfusion
@@ -136,12 +146,17 @@ final class CoHeroWandAdapter {
     }
 
     static float expectedDamage(Wand wand, CoHeroAlly owner, Mob target) {
-        if (!directDamage(wand, target)) {
+        if (!damagingCapability(wand, target)) {
             return Float.NEGATIVE_INFINITY;
         }
 
         if (wand instanceof WandOfDisintegration) {
             return expectedDisintegrationDamage((WandOfDisintegration) wand, owner, target);
+        }
+        if (wand instanceof WandOfCorrosion) {
+            CoHeroCorrosionPlanner.Plan plan =
+                    CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target);
+            return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
         }
 
         DamageWand damageWand = (DamageWand) wand;
@@ -176,6 +191,15 @@ final class CoHeroWandAdapter {
         }
 
         return average * target.resist(wand.getClass());
+    }
+
+    static int aimCell(Wand wand, CoHeroAlly owner, Mob target) {
+        if (wand instanceof WandOfCorrosion) {
+            CoHeroCorrosionPlanner.Plan plan =
+                    CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target);
+            return plan == null ? -1 : plan.aimCell;
+        }
+        return target == null ? -1 : target.pos;
     }
 
     static boolean regrowthUsefulForEscape(

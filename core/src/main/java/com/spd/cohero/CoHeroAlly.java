@@ -437,7 +437,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         updateLowHealthRallyState();
 
-        Boolean hazardAvoidance = tryAvoidTelegraphedHazard();
+        Boolean hazardAvoidance = tryAvoidHazard();
         if (hazardAvoidance != null) {
             return hazardAvoidance;
         }
@@ -508,7 +508,7 @@ public class CoHeroAlly extends DirectableAlly {
                 || explorationTarget == pos
                 || !Dungeon.level.passable[explorationTarget]
                 || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
-                || !isSleepSafe(explorationTarget)
+                || !isMovementSafe(explorationTarget)
                 || (!unexploredFrontier && !isWithinExploredRoamingArea(explorationTarget))) {
             explorationTarget = chooseExplorationTarget();
         }
@@ -528,8 +528,8 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private Boolean tryAvoidTelegraphedHazard() {
-        if (rooted || !CoHeroHazards.isDangerous(pos)) {
+    private Boolean tryAvoidHazard() {
+        if (rooted || !CoHeroHazards.isDangerous(this, pos)) {
             return null;
         }
 
@@ -541,14 +541,14 @@ public class CoHeroAlly extends DirectableAlly {
             int cell = pos + offset;
             if (cell < 0
                     || cell >= Dungeon.level.length()
+                    || Dungeon.level.distance(pos, cell) != 1
                     || !Dungeon.level.passable[cell]
                     || Actor.findChar(cell) != null
-                    || CoHeroHazards.isDangerous(cell)
-                    || !isSleepSafe(cell)) {
+                    || !isMovementSafe(cell)) {
                 continue;
             }
 
-            int nearbyDanger = CoHeroHazards.nearbyDangerCount(cell);
+            int nearbyDanger = CoHeroHazards.nearbyDangerCount(this, cell);
             int heroDistance = Dungeon.hero == null
                     ? 0
                     : Dungeon.level.distance(cell, Dungeon.hero.pos);
@@ -577,19 +577,19 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean getCloser(int target) {
-        if (!CoHeroHazards.hasActiveWarnings()) {
+        if (!CoHeroHazards.hasActiveHazards(this)) {
             return super.getCloser(target);
         }
         if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
             return false;
         }
 
-        boolean[] safePassable = CoHeroHazards.maskDangerous(Dungeon.level.passable);
-        // A CoHero already standing on a warned cell must still be able to path out of it.
+        boolean[] safePassable = CoHeroHazards.maskDangerous(this, Dungeon.level.passable);
+        // A CoHero already standing in danger must still be able to path out of it.
         safePassable[pos] = true;
 
         int step = Dungeon.findStep(this, target, safePassable, fieldOfView, true);
-        if (step == -1 || CoHeroHazards.isDangerous(step)) {
+        if (step == -1 || CoHeroHazards.isDangerous(this, step)) {
             path = null;
             return false;
         }
@@ -738,8 +738,7 @@ public class CoHeroAlly extends DirectableAlly {
                     || cell >= Dungeon.level.length()
                     || !Dungeon.level.passable[cell]
                     || Actor.findChar(cell) != null
-                    || CoHeroHazards.isDangerous(cell)
-                    || !isSleepSafe(cell)) {
+                    || !isMovementSafe(cell)) {
                 continue;
             }
 
@@ -867,7 +866,7 @@ public class CoHeroAlly extends DirectableAlly {
             } else if (ranged.spiritBow != null) {
                 return performSpiritBowAttack(targetMob, ranged.spiritBow);
             } else {
-                return performWandCast(targetMob, ranged.wand);
+                return performWandCast(ranged.wandTargetCell, ranged.wand);
             }
         }
 
@@ -916,14 +915,14 @@ public class CoHeroAlly extends DirectableAlly {
                     guaranteedControl = wand;
                 }
             } else if (CoHeroWandAdapter.canAffectEnemy(wand, this, targetMob)
-                    && CoHeroWandAdapter.directDamage(wand, targetMob)) {
+                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
                 damageWands.add(wand);
             }
         }
 
         // A guaranteed corruption/doom conversion is treated as higher-value control than damage.
         if (guaranteedControl != null) {
-            return RangedChoice.wand(guaranteedControl);
+            return RangedChoice.wand(guaranteedControl, targetMob.pos);
         }
 
         if ((!missiles.isEmpty() || spiritArrow != null) && !damageWands.isEmpty()) {
@@ -935,7 +934,9 @@ public class CoHeroAlly extends DirectableAlly {
                 bestPhysicalAccuracy = Math.max(bestPhysicalAccuracy, attackSkillWith(spiritArrow, targetMob));
             }
             if (targetMob.defenseSkill(this) > bestPhysicalAccuracy) {
-                return RangedChoice.wand(bestDamageWand(damageWands, targetMob));
+                Wand best = bestDamageWand(damageWands, targetMob);
+                return RangedChoice.wand(
+                        best, CoHeroWandAdapter.aimCell(best, this, targetMob));
             }
         }
 
@@ -968,7 +969,8 @@ public class CoHeroAlly extends DirectableAlly {
                     : RangedChoice.missile(bestMissile);
         }
         if (bestWand != null) {
-            return RangedChoice.wand(bestWand);
+            return RangedChoice.wand(
+                    bestWand, CoHeroWandAdapter.aimCell(bestWand, this, targetMob));
         }
 
         // Control-only wands are fallbacks when no direct ranged damage is currently available.
@@ -979,7 +981,9 @@ public class CoHeroAlly extends DirectableAlly {
                 fallbackControl = wand;
             }
         }
-        return fallbackControl == null ? null : RangedChoice.wand(fallbackControl);
+        return fallbackControl == null
+                ? null
+                : RangedChoice.wand(fallbackControl, targetMob.pos);
     }
 
     private Wand bestDamageWand(ArrayList<Wand> wands, Mob targetMob) {
@@ -1170,7 +1174,7 @@ public class CoHeroAlly extends DirectableAlly {
         Invisibility.dispel(this);
     }
 
-    private boolean performWandCast(Char targetChar, Wand wand) {
+    private boolean performWandCast(int targetCell, Wand wand) {
         // Some stock wand fx methods are synchronous (beam/chain effects call their callback
         // before fx() returns), while projectile/cone effects complete asynchronously. Calling
         // next() synchronously from inside act() re-enters Actor processing, so distinguish both
@@ -1178,7 +1182,11 @@ public class CoHeroAlly extends DirectableAlly {
         final boolean[] insideCast = {true};
         final boolean[] completedSynchronously = {false};
 
-        wand.coHeroCast(this, targetChar.pos, new Callback() {
+        if (targetCell < 0) {
+            throw new IllegalStateException("CoHero wand choice has no legal aim cell");
+        }
+
+        wand.coHeroCast(this, targetCell, new Callback() {
             @Override
             public void call() {
                 if (insideCast[0]) {
@@ -1280,23 +1288,29 @@ public class CoHeroAlly extends DirectableAlly {
         final MissileWeapon missile;
         final Wand wand;
         final SpiritBow spiritBow;
+        final int wandTargetCell;
 
-        private RangedChoice(MissileWeapon missile, Wand wand, SpiritBow spiritBow) {
+        private RangedChoice(
+                MissileWeapon missile, Wand wand, SpiritBow spiritBow, int wandTargetCell) {
             this.missile = missile;
             this.wand = wand;
             this.spiritBow = spiritBow;
+            this.wandTargetCell = wandTargetCell;
         }
 
         static RangedChoice missile(MissileWeapon missile) {
-            return new RangedChoice(missile, null, null);
+            return new RangedChoice(missile, null, null, -1);
         }
 
-        static RangedChoice wand(Wand wand) {
-            return new RangedChoice(null, wand, null);
+        static RangedChoice wand(Wand wand, int targetCell) {
+            if (wand == null || targetCell < 0) {
+                return null;
+            }
+            return new RangedChoice(null, wand, null, targetCell);
         }
 
         static RangedChoice spiritBow(SpiritBow spiritBow) {
-            return new RangedChoice(null, null, spiritBow);
+            return new RangedChoice(null, null, spiritBow, -1);
         }
     }
 
@@ -1341,7 +1355,7 @@ public class CoHeroAlly extends DirectableAlly {
                     || cell >= Dungeon.level.length()
                     || !Dungeon.level.passable[cell]
                     || Actor.findChar(cell) != null
-                    || !isSleepSafe(cell)) {
+                    || !isMovementSafe(cell)) {
                 continue;
             }
 
@@ -1361,6 +1375,10 @@ public class CoHeroAlly extends DirectableAlly {
             nearest = Math.min(nearest, Dungeon.level.distance(cell, threat.pos));
         }
         return nearest;
+    }
+
+    private boolean isMovementSafe(int cell) {
+        return !CoHeroHazards.isDangerous(this, cell) && isSleepSafe(cell);
     }
 
     private boolean isSleepSafe(int cell) {
@@ -1385,7 +1403,7 @@ public class CoHeroAlly extends DirectableAlly {
             if (!Dungeon.level.passable[cell]
                     || transition.inside(cell)
                     || !CoHero.isAdjacentToTransition(cell, transition)
-                    || !isSleepSafe(cell)) {
+                    || !isMovementSafe(cell)) {
                 continue;
             }
 
@@ -1413,7 +1431,7 @@ public class CoHeroAlly extends DirectableAlly {
                     && !Dungeon.level.visited[cell]
                     && !Dungeon.level.mapped[cell]
                     && PathFinder.distance[cell] < Integer.MAX_VALUE
-                    && isSleepSafe(cell)) {
+                    && isMovementSafe(cell)) {
                 return true;
             }
         }
@@ -1462,7 +1480,7 @@ public class CoHeroAlly extends DirectableAlly {
                     && !Dungeon.level.visited[cell]
                     && !Dungeon.level.mapped[cell]
                     && PathFinder.distance[cell] < Integer.MAX_VALUE
-                    && isSleepSafe(cell)) {
+                    && isMovementSafe(cell)) {
                 unknown.add(cell);
             }
         }
@@ -1506,7 +1524,7 @@ public class CoHeroAlly extends DirectableAlly {
             if (PathFinder.distance[cell] > maxDistance) {
                 break;
             }
-            if (cell == pos || cell == Dungeon.hero.pos || !isSleepSafe(cell)) {
+            if (cell == pos || cell == Dungeon.hero.pos || !isMovementSafe(cell)) {
                 continue;
             }
 

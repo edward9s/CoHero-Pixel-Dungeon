@@ -117,13 +117,15 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 
 因此目前不把完整 Hero AI 當作目標。
 
-### 預告攻擊避讓
+### 預告攻擊與環境危險避讓
 
 CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的危險格預告，而不是針對單一敵人硬編碼。危險格的有效期限與畫面警示完全使用同一個 `Actor.now() + delay` 時鐘。
 
 - CoHero 若目前站在仍有效的預告格上，會在一般戰鬥、喝藥、探索與靠近 Hero 之前優先走到相鄰安全格。
 - 有 active warning 時，普通尋路會暫時把所有預告格視為不可通行，因此 CoHero 不會從安全位置主動走進即將爆發的攻擊範圍。
 - warning 到期後該格立即恢復正常尋路；換樓層時警示紀錄清空。
+- CoHero 同時把原版持續性環境危險納入同一套移動遮罩：火焰、毒氣、酸蝕氣體、麻痺／混亂／惡臭氣體、電流、冰凍／暴風雪、Inferno 與 Vault flame traps。若 CoHero 對對應效果免疫，該 blob 不視為危險。
+- 若目前正站在這些環境危險中，會像預告格一樣優先尋找相鄰安全格；一般尋路也不主動踏入已存在的危險 blob。
 - `DelayedRockFall` 在存檔載入重建特效時，會按 buff 剩餘 `cooldown()` 重新登記危險格，因此地動法師／DM-300 已預告但尚未落下的岩石不會因讀檔而被 CoHero 忘記。
 - 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石、Ripper Demon 跳躍、Vault Laser 等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯。Eye 的蓄力光線不是走這個 API，目前不在此泛用層內。
 - 若 CoHero 被定身、麻痺，或所有相鄰合法格本身都危險／不可通行，AI 不會假裝能躲開，會繼續執行其他可行生存或戰鬥行為。
@@ -202,11 +204,12 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
    - 法杖必須已鑑定、未詛咒且有足夠 charge 才是合法候選。
-   - 目前明確支援 `WandOfMagicMissile`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`。
+   - 目前明確支援 `WandOfMagicMissile`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`。
    - `WandOfLivingEarth` 暫不支援，因為 Earth Guardian / RockArmor ownership 與多個 Hero-specific 系統高度耦合。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
    - 解離法杖會檢查整條有效射線，若會傷及友軍或主動波及睡眠敵人就不施放。
    - 雷霆法杖沿用原版 chain / `affected` 規則；AI 也用同一套連鎖範圍估算整體傷害，若連鎖會反彈到 CoHero、傷及中立角色或主動波及睡眠敵人則不施放。
+- 酸蝕法杖不固定瞄準敵人本格。AI 會枚舉目標本格與真正相鄰、可合法命中的落點，連同場上既有酸蝕氣體依原版 `Blob.evolve()` 規則模擬後續擴散；近期會波及 Hero、CoHero、中立／友軍或睡眠敵人的方案直接淘汰，再從剩餘方案中優先選友軍長期風險較低、清醒敵人覆蓋較高且能較快覆蓋主目標的落點。
    - 稜光法杖對不死／惡魔的額外傷害會納入傷害估算。
    - 不要求 AI 做完整的長期 charge 規劃。
    - 未知或無法安全判斷用途的 Wand 不應由 AI 猜測使用方式。
@@ -229,7 +232,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
    - 第一版將「高閃避」定義為：目標 `defenseSkill` 高於目前可用投擲武器中最高的物理 `attackSkill`。
    - 若符合此條件且存在合法法杖候選，優先從法杖中選擇。
 
-4. **最重要的通則：在當前距離下，直接傷害能力使用可用選項中傷害最高者。**
+4. **最重要的通則：在當前距離下，傷害能力使用可用選項中預估傷害最高者。**
    - 比較的是當前距離下實際可使用的候選。
    - 距離限制、魔法免疫與高閃避等條件先決定候選與優先資格，再由傷害決定實際使用哪個攻擊。
    - 不應因為角色職業名稱而強制固定武器類型。
@@ -459,7 +462,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 當前距離下使用最高傷害的合法攻擊選項。
 - 投擲武器以 setID 追蹤並在無可見威脅時回收；不跨樓層追蹤。
 - 避免主動吵醒可視範圍內的睡眠怪物。
-- 讀取原版 targeted-cell 預告並優先避開即將爆發的危險格。
+- 讀取原版 targeted-cell 預告並優先避開即將爆發的危險格，也會避開已存在的有害氣體、火焰、電流與冰凍類 blob。
 - 官方六職業具有固有 trait；Mage Staff、Spirit Bow 等已明確支援的專武使用原版物件與 CoHero-safe seam。
 - CoHero 背包提供即時基本數值顯示，locator 提供 Hero / CoHero 雙向畫面外監控。
 - 同伴死亡即 Game Over。
