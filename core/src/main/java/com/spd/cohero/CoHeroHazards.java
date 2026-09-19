@@ -3,6 +3,7 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blizzard;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ConfusionGas;
@@ -15,6 +16,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ParalyticGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.StenchGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental.FireWall;
 import com.watabou.utils.PathFinder;
 
 import java.util.HashMap;
@@ -129,7 +132,8 @@ public final class CoHeroHazards {
                 || activeFor(owner, Freezing.class, Freezing.class)
                 || activeFor(owner, Inferno.class, Fire.class)
                 || activeFor(owner, Blizzard.class, Freezing.class)
-                || activeVaultFlamesFor(owner);
+                || activeVaultFlamesFor(owner)
+                || activeVaultFireWallFor(owner);
     }
 
     private static boolean isEnvironmentalDanger(Char owner, int cell) {
@@ -143,7 +147,8 @@ public final class CoHeroHazards {
                 || presentFor(owner, cell, Freezing.class, Freezing.class)
                 || presentFor(owner, cell, Inferno.class, Fire.class)
                 || presentFor(owner, cell, Blizzard.class, Freezing.class)
-                || presentVaultFlamesFor(owner, cell);
+                || presentVaultFlamesFor(owner, cell)
+                || presentVaultFireWallFor(owner, cell);
     }
 
     private static boolean activeFor(
@@ -166,6 +171,34 @@ public final class CoHeroHazards {
         return !owner.isImmune(VaultFlameTraps.class)
                 && !owner.isImmune(Fire.class)
                 && blobPresent(cell, VaultFlameTraps.class);
+    }
+
+    private static boolean activeVaultFireWallFor(Char owner) {
+        if (owner.isImmune(Burning.class)) {
+            return false;
+        }
+        for (Char ch : Actor.chars()) {
+            if (ch instanceof VaultBossElemental && ch.buff(FireWall.class) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean presentVaultFireWallFor(Char owner, int cell) {
+        if (owner.isImmune(Burning.class)) {
+            return false;
+        }
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof VaultBossElemental)) {
+                continue;
+            }
+            FireWall wall = ch.buff(FireWall.class);
+            if (wall != null && wall.coHeroDangerAt(cell)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean activeBlob(Class<? extends Blob> type) {
