@@ -24,6 +24,9 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfTransfusion;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ConeAOE;
 
+import com.watabou.utils.BArray;
+import com.watabou.utils.PathFinder;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -88,6 +91,10 @@ final class CoHeroWandAdapter {
         if (wand instanceof WandOfDisintegration) {
             return safeDisintegrationBeam((WandOfDisintegration) wand, owner, target);
         }
+        if (wand instanceof WandOfLightning) {
+            return wand.coHeroBallistica(owner, target.pos).collisionPos == target.pos
+                    && safeLightningChain(owner, target);
+        }
 
         return wand.coHeroBallistica(owner, target.pos).collisionPos == target.pos;
     }
@@ -121,7 +128,8 @@ final class CoHeroWandAdapter {
 
         if (wand instanceof WandOfTransfusion) {
             return !target.properties().contains(Char.Property.UNDEAD)
-                    && target.buff(Charm.class) == null;
+                    && target.buff(Charm.class) == null
+                    && !target.isImmune(Charm.class);
         }
 
         return false;
@@ -152,8 +160,21 @@ final class CoHeroWandAdapter {
             average *= 1.333f;
         }
 
-        // Lightning uses a conservative primary-target score. Its actual chain can increase total
-        // value, but estimating the full recursive arc would duplicate too much upstream logic.
+        if (wand instanceof WandOfLightning) {
+            ArrayList<Char> affected = lightningAffected(owner, target);
+            if (affected.isEmpty()) {
+                return Float.NEGATIVE_INFINITY;
+            }
+            float multiplier = Dungeon.level.water[target.pos]
+                    ? 1f
+                    : 0.4f + (0.6f / affected.size());
+            float resistanceTotal = 0f;
+            for (Char ch : affected) {
+                resistanceTotal += ch.resist(wand.getClass());
+            }
+            return average * multiplier * resistanceTotal;
+        }
+
         return average * target.resist(wand.getClass());
     }
 
@@ -193,6 +214,7 @@ final class CoHeroWandAdapter {
         for (Mob threat : visibleThreats) {
             if (cone.cells.contains(threat.pos)
                     && !Char.hasProp(threat, Char.Property.IMMOVABLE)
+                    && !threat.isImmune(Roots.class)
                     && threat.buff(Roots.class) == null) {
                 return true;
             }
@@ -221,6 +243,71 @@ final class CoHeroWandAdapter {
         }
 
         return wand.coHeroBallistica(owner, hero.pos).collisionPos == hero.pos;
+    }
+
+    private static boolean safeLightningChain(CoHeroAlly owner, Mob target) {
+        ArrayList<Char> affected = lightningAffected(owner, target);
+        if (affected.isEmpty()) {
+            return false;
+        }
+        for (Char ch : affected) {
+            if (ch == owner) {
+                return false;
+            }
+            if (ch.alignment != Char.Alignment.ENEMY) {
+                return false;
+            }
+            if (ch instanceof Mob && ch != target && ((Mob) ch).state == ((Mob) ch).SLEEPING) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static ArrayList<Char> lightningAffected(CoHeroAlly owner, Mob target) {
+        ArrayList<Char> affected = new ArrayList<>();
+        affected.add(target);
+        collectLightningArc(owner, target, affected);
+
+        for (Char ch : new ArrayList<>(affected)) {
+            if (ch != owner && ch.alignment == owner.alignment && ch.pos != target.pos) {
+                affected.remove(ch);
+            } else if (ch.buff(WandOfLightning.LightningCharge.class) != null) {
+                affected.remove(ch);
+            }
+        }
+        return affected;
+    }
+
+    private static void collectLightningArc(CoHeroAlly owner, Char source, ArrayList<Char> affected) {
+        int distance = Dungeon.level.water[source.pos] ? 2 : 1;
+        if (owner.buff(WandOfLightning.LightningCharge.class) != null) {
+            distance++;
+        }
+
+        PathFinder.buildDistanceMap(
+                source.pos,
+                BArray.not(Dungeon.level.solid, null),
+                distance);
+
+        ArrayList<Char> newTargets = new ArrayList<>();
+        for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+            if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+            Char found = Actor.findChar(cell);
+            if (found == owner && PathFinder.distance[cell] > 1) {
+                continue;
+            }
+            if (found != null && !affected.contains(found)) {
+                newTargets.add(found);
+            }
+        }
+
+        affected.addAll(newTargets);
+        for (Char next : newTargets) {
+            collectLightningArc(owner, next, affected);
+        }
     }
 
     private static boolean safeDisintegrationBeam(
