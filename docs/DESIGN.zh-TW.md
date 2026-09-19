@@ -236,12 +236,12 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 2. **有近戰武器時**
    - 可以進行普通近戰攻擊。
-   - 裝備近戰武器不要求「完整鑑定」；但必須已確認詛咒狀態且確定未詛咒。若只是不知道強化等級，仍可裝備／使用，力量需求以 +0 的 `STRReq(0)` 判斷，避免由裝備結果洩漏隱藏強化等級。一般尚未確認詛咒狀態的未鑑定武器不能裝備。
+   - 近戰武器不要求鑑定；只要實際未詛咒即可裝備／使用。未知強化等級仍以 +0 的 `STRReq(0)` 判斷力量需求，避免由能否裝備直接反推出隱藏強化等級。
    - 當敵人已進入該近戰武器的合法攻擊距離時，只使用近戰武器，不改用投擲武器或法杖。
 
 3. **有投擲武器時**
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
-   - 投擲武器必須 `isIdentified()` 且未詛咒才會被 AI 當成可用攻擊；未鑑定投擲武器可以放在背包，但不會主動投擲。Spirit Bow 也遵守相同的已鑑定／未詛咒門檻。
+   - 投擲武器不要求鑑定；只要屬於明確支援類型且實際未詛咒，就可以被 AI 投擲。Spirit Bow 也只要求實際未詛咒。
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
    - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 也會把已知地圖上的金錢，以及背包可容納且屬於目前明確支援類型的地面投擲武器與法杖視為高優先 loot，在一般探索前主動前往拾取。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般投擲武器／法杖。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。目前未支援使用的特殊投擲武器或法杖不主動撿拾。
@@ -250,7 +250,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
-   - 法杖必須 `isIdentified()`、未詛咒且有足夠 charge 才是合法候選；未鑑定法杖可以放在背包並充能，但 CoHero 不會主動施放。
+   - 法杖不要求鑑定；只要實際未詛咒、有足夠 charge，且屬於 CoHero adapter 已明確支援的類型，就是合法候選。
    - 目前明確支援 `WandOfMagicMissile`、`WandOfBlastWave`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
    - `WandOfLivingEarth` 暫不支援，因為 Earth Guardian / RockArmor ownership 與多個 Hero-specific 系統高度耦合。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
@@ -389,7 +389,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 已確定：
 
 - 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。
-- CoHero 的裝備安全規則比照乾燥玫瑰的 GhostHero：只有已確認沒有詛咒的裝備才能穿戴；武器與防具若力量需求超過 CoHero STR 也不能裝備。
+- CoHero 的武器規則與防具／戒指分開：近戰武器只要求實際未詛咒，不要求已知詛咒狀態；防具與戒指仍維持 GhostHero 式的「已確認未詛咒」才能裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - Potion 與 Scroll 都可放入 CoHero 背包，以避免從可選性洩漏未鑑定物品身份。Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility` 具有自動使用語意；Scroll 只有已鑑定的 `ScrollOfTerror` 具有自動使用語意；`Ankh` 具有死亡時自動復活語意。
 - Artifact 與 Trinket 目前仍不支援。
