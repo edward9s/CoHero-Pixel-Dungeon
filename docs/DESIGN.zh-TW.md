@@ -124,7 +124,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - CoHero 若目前站在仍有效的預告格上，會在一般戰鬥、喝藥、探索與靠近 Hero 之前優先走到相鄰安全格。
 - 有 active warning 時，普通尋路會暫時把所有預告格視為不可通行，因此 CoHero 不會從安全位置主動走進即將爆發的攻擊範圍。
 - warning 到期後該格立即恢復正常尋路；換樓層時警示紀錄清空。
-- CoHero 同時把原版持續性環境危險納入同一套移動遮罩：火焰、毒氣、酸蝕氣體、麻痺／混亂／惡臭氣體、電流、冰凍／暴風雪、Inferno、Vault flame traps，以及 `VaultBossElemental.FireWall`。FireWall 不是 blob，而是 Boss buff，因此另外讀取它目前的兩列燃燒區與下一列推進方向作為安全緩衝；若 CoHero 對實際效果免疫，該危險不納入遮罩。
+- CoHero 同時把原版持續性環境危險納入同一套移動遮罩：火焰、毒氣、酸蝕氣體、麻痺／混亂／惡臭氣體、電流、冰凍／暴風雪、Inferno、Vault flame traps、特殊房間的 `MagicalFireRoom.EternalFire`，以及 `VaultBossElemental.FireWall`。`EternalFire` 會在每次 evolve 時點燃火牆本格與四方向相鄰角色，因此 CoHero 會把火牆旁一格也視為危險；Boss FireWall 則另外讀取目前兩列燃燒區與下一列推進方向作為安全緩衝。若 CoHero 對實際效果免疫，該危險不納入遮罩。
 - 若目前正站在這些環境危險中，會像預告格一樣優先尋找相鄰安全格；一般尋路也不主動踏入已存在的危險 blob。
 - `DelayedRockFall` 在存檔載入重建特效時，會按 buff 剩餘 `cooldown()` 重新登記危險格，因此地動法師／DM-300 已預告但尚未落下的岩石不會因讀檔而被 CoHero 忘記。
 - 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石、Ripper Demon 跳躍、Vault Laser 等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯。Eye 的蓄力光線不是走這個 API，目前不在此泛用層內。
