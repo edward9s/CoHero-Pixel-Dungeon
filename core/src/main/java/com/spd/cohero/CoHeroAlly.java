@@ -544,7 +544,7 @@ public class CoHeroAlly extends DirectableAlly {
             int spacingStep = chooseHeroSpacingStep();
             if (spacingStep != -1) {
                 int oldPos = pos;
-                move(spacingStep);
+                move(spacingStep, true);
                 spend(1 / speed());
                 return moveSprite(oldPos, pos);
             }
