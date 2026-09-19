@@ -229,6 +229,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
    - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 也會把已知地圖上的金錢，以及背包可容納且屬於目前明確支援類型的地面投擲武器與法杖視為高優先 loot，在一般探索前主動前往拾取。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般投擲武器／法杖。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。目前未支援使用的特殊投擲武器或法杖不主動撿拾。
+   - 已顯示且仍為 active 的陷阱視為 CoHero movement hazard：探索、撤退、戰術走位與前往拾取金錢／投擲武器／法杖時都不會主動踩入。未被發現的 `SECRET_TRAP` 不納入 AI 判斷，避免藉由 trap map 偷看隱藏資訊；若意外踩到，仍沿用 SPD 對非 Hero 角色的 soft-press 規則。
    - 換樓層時清除尚未回收的投擲物追蹤，不跨樓層追索。
 
 4. **有法杖時**
