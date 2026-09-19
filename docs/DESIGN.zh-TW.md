@@ -251,8 +251,10 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
    - 法杖不要求鑑定；只要實際未詛咒、有足夠 charge，且屬於 CoHero adapter 已明確支援的類型，就是合法候選。
-   - 目前明確支援 `WandOfMagicMissile`、`WandOfBlastWave`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
-   - `WandOfLivingEarth` 暫不支援，因為 Earth Guardian / RockArmor ownership 與多個 Hero-specific 系統高度耦合。
+   - 目前明確支援 `WandOfMagicMissile`、`WandOfBlastWave`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfLivingEarth`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
+   - 靈壤法杖保留原版「命中敵人累積 RockArmor → 達門檻生成 EarthGuardian → 後續命中補充 Guardian → Guardian 離戰後把剩餘 HP 還原為 RockArmor」循環。Guardian 新增 owner ID；Hero 與 CoHero 可在同一樓層各自擁有一隻，不會互相吃掉 ownership。舊存檔中沒有 owner ID 的 Guardian 視為玩家 Hero 所有。
+   - CoHero 的 `RockArmor` 會像 Hero 一樣在 `defenseProc()` 中吸收傷害。Guardian 的防禦仍以共用隊伍 level 為基礎；CoHero cast 不繼承 Hero 的 Wand Talent / PowerOfMany / Stasis 額外效果。Hero 的 Stasis / PowerOfMany 原版互動仍只作用於 Hero-owned Guardian。
+   - 一方的靈壤法杖若碰到另一方的 Guardian，會視為友軍而不造成傷害或補血；只有同 owner 的 Guardian 才會被該法杖補充。
    - `WandOfFrost` 不對已處於 `Frost` 的目標施放；其傷害評估會按目標目前的 `Chill` 程度折減。
    - 解離法杖會檢查整條有效射線，若會傷及友軍或主動波及睡眠敵人就不施放。
    - 雷霆法杖沿用原版 chain / `affected` 規則；AI 也用同一套連鎖範圍估算整體傷害，若連鎖會反彈到 CoHero、傷及中立角色或主動波及睡眠敵人則不施放。
@@ -543,7 +545,6 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 
 - 一般地面物品是否由同伴自主撿取；目前只明確要求回收自己投出的投擲武器。
 - 睡眠怪物的具體安全距離，以及完全無法繞行時是否允許喚醒。
-- `WandOfLivingEarth` 的 Earth Guardian / RockArmor ownership 是否值得泛化成非 Hero caster；在此之前維持不支援。
 - 再生法杖是否要從純逃生擴充到主動伏擊，以及該如何定義不浪費 charge 的觸發條件。
 - 注魂法杖是否要進一步支援治療其他友軍，而不只玩家 Hero。
 - 是否保留任何 Talent、Subclass 或 Hero Armor Ability。
