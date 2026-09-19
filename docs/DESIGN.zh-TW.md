@@ -117,6 +117,18 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 
 因此目前不把完整 Hero AI 當作目標。
 
+### CoHero 職業固有能力
+
+職業特色是 CoHero 額外的固有 trait，不是假戒指，也不占用兩個實際 ring slot；CoHero 真正裝備的戒指仍照原版生效，並與固有 trait 疊加。
+
+- **Warrior**：等價 `RingOfMight +0`：+1 STR、HT ×1.035；真正的 Ring of Might 可再疊加。
+- **Mage**：法杖自然充能 ×1.175，等價 `RingOfEnergy +0` 的 wand charge；真正的 Ring of Energy 可再疊加。
+- **Rogue**：移動速度 ×1.15，等價 `RingOfHaste +0`；真正的 Ring of Haste 可再疊加。
+- **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；真正的 Sharpshooting 可再疊加。
+- **Duelist**：裝備近戰武器時攻擊速度 ×1.09051，等價 `RingOfFuror +0`；真正的 Furor 可再疊加。
+- **Cleric**：與 Hero 距離不超過 6 格時，Hero 與 Cleric CoHero 的 accuracy / evasion 各 ×1.10，不要求直線視野。
+- **其他／第三方 HeroClass**：Generalist，HT ×1.05；未知職業使用通用短劍作為安全起始武器，不因缺少 stock case 直接失敗。
+
 ### Hero / CoHero 畫面外監控
 
 CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene 提供雙向畫面外 locator：
@@ -261,13 +273,13 @@ CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；�
 
 CoHero 不保存獨立 STR。
 
-> CoHero 的有效 STR 永遠等於目前玩家 Hero 的 STR。
+> CoHero 的基礎有效 STR 取目前玩家 Hero 的有效 STR；CoHero 自己的 Ring of Might 與 Warrior 固有 trait 再額外疊加。
 
 理由：地城中的力量藥劑數量是共同且有限的永久資源，不應讓兩名英雄產生兩條互相競爭或不同步的力量成長曲線。
 
 因此：
 
-- Hero STR 增加時，CoHero 的有效 STR 同時增加。
+- Hero STR 增加時，CoHero 的基礎 STR 同時增加；CoHero 自己裝備的 Ring of Might 與 Warrior 固有 +1 STR 另外疊加。
 - 力量藥劑只由玩家 Hero 使用；增加的共同 STR 仍同時影響 CoHero。
 - 武器與護甲的 STRReq 使用這個共享 STR 計算；依 GhostHero 規則，力量需求超過 CoHero STR 的裝備直接不能裝備，因此正常流程不應產生「已裝備但力量不足」狀態。
 - 不應維護兩份 STR 再做同步；共享值應只有一個權威來源。

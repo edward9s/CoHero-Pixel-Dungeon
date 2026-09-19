@@ -125,6 +125,16 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 """
 wand = replace_once(wand, proc_old, proc_new, "Wand wandProc")
 
+recharge_old = """\t\t\tif (Regeneration.regenOn())
+\t\t\t\tpartialCharge += (1f/turnsToCharge) * RingOfEnergy.wandChargeMultiplier(target);
+"""
+recharge_new = """\t\t\tif (Regeneration.regenOn())
+\t\t\t\tpartialCharge += (1f/turnsToCharge)
+\t\t\t\t\t\t* RingOfEnergy.wandChargeMultiplier(target)
+\t\t\t\t\t\t* com.spd.cohero.CoHeroClassTraits.wandChargeMultiplier(target);
+"""
+wand = replace_once(wand, recharge_old, recharge_new, "Wand natural recharge")
+
 fx_old = """	public void fx(Ballistica bolt, Callback callback) {
 		MagicMissile.boltFromChar( curUser.sprite.parent,
 				MagicMissile.MAGIC_MISSILE,

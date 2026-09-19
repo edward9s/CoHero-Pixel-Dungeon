@@ -22,6 +22,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
@@ -107,19 +108,23 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     /**
-     * CoHero strength deliberately has one authority: the player's current effective STR.
-     * No second mutable STR value is stored or synchronized.
+     * Player Hero effective STR is the shared base. CoHero's own Ring of Might and intrinsic
+     * Warrior trait then stack on top of it.
      */
     public int STR() {
         if (Dungeon.hero == null) {
             throw new IllegalStateException("CoHero STR requested without Dungeon.hero");
         }
-        return Dungeon.hero.STR();
+        return Dungeon.hero.STR()
+                + RingOfMight.strengthBonus(this)
+                + CoHeroClassTraits.strengthBonus(this);
     }
 
     void updateHT(boolean boostHP) {
         int oldHT = HT;
-        HT = Math.round((20 + 5 * (level() - 1)) * RingOfMight.HTMultiplier(this));
+        HT = Math.round((20 + 5 * (level() - 1))
+                * RingOfMight.HTMultiplier(this)
+                * CoHeroClassTraits.maxHealthMultiplier(this));
         if (boostHP) {
             HP += Math.max(HT - oldHT, 0);
         }
@@ -262,10 +267,12 @@ public class CoHeroAlly extends DirectableAlly {
     private int attackSkillWith(Weapon attackWeapon, Char target) {
         float accuracy = 9 + level();
         accuracy *= RingOfAccuracy.accuracyMultiplier(this);
+        accuracy *= CoHeroClassTraits.clericAuraMultiplier(this);
 
         if (attackWeapon != null) {
             accuracy *= attackWeapon.accuracyFactor(this, target);
             if (attackWeapon == weapon()) {
+                delay /= CoHeroClassTraits.meleeAttackSpeedMultiplier(this);
                 int encumbrance = weaponEncumbrance();
                 if (encumbrance > 0) {
                     accuracy /= Math.pow(1.5, encumbrance);
@@ -326,7 +333,9 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public int defenseSkill(Char enemy) {
-        float evasion = (4 + level()) * RingOfEvasion.evasionMultiplier(this);
+        float evasion = (4 + level())
+                * RingOfEvasion.evasionMultiplier(this)
+                * CoHeroClassTraits.clericAuraMultiplier(this);
         if (armor() != null) {
             float armoredEvasion = armor().evasionFactor(this, evasion);
             int encumbrance = armorEncumbrance();
@@ -351,6 +360,8 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public float speed() {
         float speed = super.speed();
+        speed *= RingOfHaste.speedMultiplier(this);
+        speed *= CoHeroClassTraits.movementSpeedMultiplier(this);
         int encumbrance = armorEncumbrance();
         if (encumbrance > 0) {
             speed /= Math.pow(1.2, encumbrance);
@@ -855,7 +866,9 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private float expectedMissileDamage(MissileWeapon missile) {
-        int level = missile.buffedLvl() + RingOfSharpshooting.levelDamageBonus(this);
+        int level = missile.buffedLvl()
+                + RingOfSharpshooting.levelDamageBonus(this)
+                + CoHeroClassTraits.missileLevelBonus(this);
         float average = (missile.min(level) + missile.max(level)) / 2f;
         average = missile.augment.damageFactor(average);
         int excessStrength = STR() - missile.STRReq();

@@ -79,7 +79,9 @@ final class CompanionStartingEquipment {
                 break;
 
             default:
-                throw new IllegalStateException("Unsupported CoHero starting HeroClass: " + heroClass);
+                // Unknown fork class: use a generic Hero-independent starting weapon.
+                equipWeapon(inventory, identified(new WornShortsword()));
+                break;
         }
     }
 
