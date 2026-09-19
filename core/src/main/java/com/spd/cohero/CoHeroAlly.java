@@ -1124,9 +1124,49 @@ public class CoHeroAlly extends DirectableAlly {
             return Random.element(unknown);
         }
 
-        // With no unexplored frontier left, keep roaming the known floor. The exit only becomes
-        // a forced destination when the player Hero is actually standing on it waiting to leave.
-        return Dungeon.level.randomDestination(this);
+        // With no unexplored frontier left, keep roaming near the Hero instead of wandering
+        // across the whole floor. The roaming region is the nearest quarter of explored,
+        // reachable passable cells by actual path distance from the Hero.
+        return chooseExploredRoamingTarget();
+    }
+
+    private int chooseExploredRoamingTarget() {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            return -1;
+        }
+
+        PathFinder.buildDistanceMap(Dungeon.hero.pos, Dungeon.level.passable);
+
+        ArrayList<Integer> reachable = new ArrayList<>();
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (Dungeon.level.passable[cell]
+                    && (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell])
+                    && PathFinder.distance[cell] < Integer.MAX_VALUE) {
+                reachable.add(cell);
+            }
+        }
+
+        if (reachable.isEmpty()) {
+            return -1;
+        }
+
+        reachable.sort((a, b) -> Integer.compare(PathFinder.distance[a], PathFinder.distance[b]));
+        int roamingAreaSize = Math.max(1, (reachable.size() + 3) / 4);
+
+        ArrayList<Integer> candidates = new ArrayList<>();
+        for (int i = 0; i < roamingAreaSize; i++) {
+            int cell = reachable.get(i);
+            if (cell == pos || cell == Dungeon.hero.pos || !isSleepSafe(cell)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant == null || occupant == this) {
+                candidates.add(cell);
+            }
+        }
+
+        return candidates.isEmpty() ? -1 : Random.element(candidates);
     }
 
     private boolean isKnown(int cell) {
