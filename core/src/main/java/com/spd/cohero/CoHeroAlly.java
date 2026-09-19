@@ -540,7 +540,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         // Adjacent is deliberately too close outside exit rally. Move one step away when a
         // passable, unoccupied, sleep-safe cell can restore the preferred one-cell gap.
-        if (distance < HERO_RALLY_MIN_DISTANCE) {
+        if (!rooted && distance < HERO_RALLY_MIN_DISTANCE) {
             int spacingStep = chooseHeroSpacingStep();
             if (spacingStep != -1) {
                 int oldPos = pos;
