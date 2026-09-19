@@ -1065,7 +1065,7 @@ public class CoHeroAlly extends DirectableAlly {
         for (Mob threat : visibleThreats) {
             for (Wand wand : inventory.wands()) {
                 if (CoHeroWandAdapter.regrowthUsefulForEscape(wand, this, threat, visibleThreats)) {
-                    return performWandCast(threat, wand);
+                    return performWandCast(threat.pos, wand);
                 }
             }
         }
@@ -1088,7 +1088,7 @@ public class CoHeroAlly extends DirectableAlly {
                 best = wand;
             }
         }
-        return best == null ? null : performWandCast(Dungeon.hero, best);
+        return best == null ? null : performWandCast(Dungeon.hero.pos, best);
     }
 
     private boolean performSpiritBowAttack(Mob targetMob, SpiritBow bow) {
