@@ -228,7 +228,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
-   - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。
+   - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 也會把已知地圖上、背包可容納且屬於目前明確支援類型的地面投擲武器視為高優先資源，在一般探索前主動前往拾取。普通地面武器只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。
    - 換樓層時清除尚未回收的投擲物追蹤，不跨樓層追索。
 
 4. **有法杖時**
