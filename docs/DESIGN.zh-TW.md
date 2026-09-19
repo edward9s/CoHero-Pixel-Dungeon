@@ -201,6 +201,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 - 每回合先估算目前所有可見、清醒敵人的總 incoming DPT。已能直接攻擊 CoHero 的敵人權重最高；下一步即可進入合法攻擊位置者也納入風險。命中率用攻防值近似，傷害估算使用獨立 RNG stack 取樣，不消耗正式戰鬥 RNG。
 - TTD（time to death）以目前 `HP + shield` 為核心；正在進行的 Healing 與「下一瓶」已鑑定生存藥只提供保守的近程緩衝，不能把整個背包藥量當作額外血條。Ankh 完全不計入可揮霍戰力。
+- CoHero 被推落 chasm 仍視為致命事件：沒有 Ankh 時照常死亡並 Game Over；有 Ankh 時才由 CoHero 自己的復活流程救回。普通 Ankh 維持傳送復活；blessed Ankh 若死亡原因是 chasm，也必須先移到本層合法、非 pit 的安全格，再保留其 15 回合無敵。Ankh 不因此被納入 AI 可冒險的有效生命值。
 - TTK（time to kill）依 CoHero 實際當前攻擊規則估算；近戰可及時沿用近戰優先，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
 - 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死，或 TTD 明顯不優於 TTK，也進入撤退。
 - 撤退有 hysteresis：進入撤退後，不會只拉開一格就立刻回頭。必須降到最多 1 名即時攻擊者、HP 至少 45%，且 TTD 對 TTK 取得明顯安全餘裕，才恢復攻擊。
