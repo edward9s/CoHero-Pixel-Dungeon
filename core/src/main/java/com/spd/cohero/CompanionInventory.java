@@ -151,6 +151,35 @@ public final class CompanionInventory {
         return takeOneKnownPotion(PotionOfShielding.class);
     }
 
+    int autoHealingPotionCount() {
+        return countKnownPotions(PotionOfHealing.class, ElixirOfHoneyedHealing.class);
+    }
+
+    int autoShieldingPotionCount() {
+        return countKnownPotions(PotionOfShielding.class);
+    }
+
+    @SafeVarargs
+    private final int countKnownPotions(Class<? extends Potion>... types) {
+        int count = 0;
+        for (Item item : backpack) {
+            if (!(item instanceof Potion)) {
+                continue;
+            }
+            Potion potion = (Potion) item;
+            if (!potion.isKnown()) {
+                continue;
+            }
+            for (Class<? extends Potion> type : types) {
+                if (type.isInstance(potion)) {
+                    count += Math.max(1, potion.quantity());
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+
     @SafeVarargs
     private final Potion takeOneKnownPotion(Class<? extends Potion>... types) {
         Potion source = null;
