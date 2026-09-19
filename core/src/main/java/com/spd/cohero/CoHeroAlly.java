@@ -14,6 +14,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicalSleep;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Sleep;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
@@ -22,12 +24,14 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Sheep;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
+import com.shatteredpixel.shatteredpixeldungeon.items.bombs.Bomb;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
@@ -42,6 +46,13 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfAggression;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlast;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlink;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfDeepSleep;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
@@ -64,14 +75,17 @@ import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
+import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
 import com.watabou.noosa.audio.Sample;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
@@ -511,6 +525,10 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
+            if (tryUseCombatRunestone(combatTarget, visibleThreats)) {
+                return true;
+            }
+
             if (tryUseCombatStamina(combatTarget, visibleThreats)) {
                 return true;
             }
@@ -714,6 +732,461 @@ public class CoHeroAlly extends DirectableAlly {
             return false;
         }
         return consumeSurvivalPotion(false);
+    }
+
+    private boolean tryUseCombatRunestone(Mob targetMob, ArrayList<Mob> threats) {
+        if (targetMob == null
+                || threats == null
+                || threats.isEmpty()
+                || buff(MagicImmune.class) != null
+                || combatRetreating) {
+            return false;
+        }
+
+        // Safe clustered damage: only when at least two awake enemies are caught and no
+        // ally/neutral/sleeping enemy or heap would be hit.
+        int blastCell = chooseSafeBlastCell(threats);
+        if (blastCell != -1 && useBlastStone(blastCell)) {
+            return true;
+        }
+
+        // With 3+ visible threats, redirect the pack onto one non-boss enemy.
+        if (threats.size() >= 3) {
+            Mob aggressionTarget = chooseAggressionTarget(threats);
+            if (aggressionTarget != null && useAggressionStone(aggressionTarget)) {
+                return true;
+            }
+        }
+
+        // With exactly two threats, remove one from the fight rather than spending a stronger
+        // area-control resource. Prefer the non-current target when possible.
+        if (threats.size() == 2) {
+            Mob sleepTarget = chooseDeepSleepTarget(targetMob, threats);
+            if (sleepTarget != null && useDeepSleepStone(sleepTarget)) {
+                return true;
+            }
+        }
+
+        // A lone ranged attacker can be boxed in with sheep while CoHero closes the distance.
+        if (threats.size() == 1
+                && isCurrentRangedPressure(targetMob)
+                && Dungeon.level.distance(pos, targetMob.pos) >= 3
+                && canUseFlockAt(targetMob.pos)
+                && useFlockStone(targetMob.pos)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean tryEmergencyRunestone(CombatRisk risk, ArrayList<Mob> threats) {
+        if (risk == null
+                || threats == null
+                || threats.isEmpty()
+                || buff(MagicImmune.class) != null) {
+            return false;
+        }
+
+        int blinkCell = chooseBlinkEscapeCell(threats);
+        if (blinkCell != -1 && useBlinkStone(blinkCell)) {
+            return true;
+        }
+
+        boolean immediateLethal = risk.immediateIncoming * 1.35f >= HP + shielding();
+        Mob fearTarget = chooseFearTarget(threats);
+        if (fearTarget != null
+                && (immediateLethal || risk.ttd <= 2.5f || risk.attackersNow >= 2)
+                && useFearStone(fearTarget)) {
+            return true;
+        }
+
+        // Deep sleep is a fallback single-target control when fear is unavailable or ineffective.
+        Mob sleepTarget = chooseEmergencySleepTarget(threats);
+        if (sleepTarget != null
+                && (immediateLethal || risk.attackersNow >= 2)
+                && useDeepSleepStone(sleepTarget)) {
+            return true;
+        }
+
+        // Flock is only used defensively here when it can be centered far enough away not to box
+        // the Hero or CoHero in with the summoned sheep.
+        if (threats.size() >= 2) {
+            int flockCell = chooseEmergencyFlockCell(threats);
+            if (flockCell != -1 && useFlockStone(flockCell)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int chooseSafeBlastCell(ArrayList<Mob> threats) {
+        if (!inventory.hasCombatRunestone(StoneOfBlast.class)) {
+            return -1;
+        }
+
+        int bestCell = -1;
+        int bestEnemies = 1;
+        for (Mob threat : threats) {
+            if (threat == null || !threat.isAlive() || !fieldOfView[threat.pos]) {
+                continue;
+            }
+
+            boolean[] explodable = new boolean[Dungeon.level.length()];
+            BArray.not(Dungeon.level.solid, explodable);
+            BArray.or(Dungeon.level.flamable, explodable, explodable);
+            PathFinder.buildDistanceMap(threat.pos, explodable, 1);
+
+            int enemies = 0;
+            boolean unsafe = false;
+            for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+                if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                    continue;
+                }
+
+                if (Dungeon.level.heaps.get(cell) != null) {
+                    unsafe = true;
+                    break;
+                }
+
+                Char ch = Actor.findChar(cell);
+                if (ch == null) {
+                    continue;
+                }
+                if (ch.alignment != Alignment.ENEMY) {
+                    unsafe = true;
+                    break;
+                }
+                if (ch instanceof Mob && ((Mob) ch).state == ((Mob) ch).SLEEPING) {
+                    unsafe = true;
+                    break;
+                }
+                enemies++;
+            }
+
+            if (!unsafe && enemies >= 2 && enemies > bestEnemies) {
+                bestEnemies = enemies;
+                bestCell = threat.pos;
+            }
+        }
+        return bestCell;
+    }
+
+    private Mob chooseAggressionTarget(ArrayList<Mob> threats) {
+        if (!inventory.hasCombatRunestone(StoneOfAggression.class)) {
+            return null;
+        }
+
+        Mob best = null;
+        int bestScore = Integer.MIN_VALUE;
+        for (Mob mob : threats) {
+            if (mob == null
+                    || !mob.isAlive()
+                    || Char.hasProp(mob, Char.Property.BOSS)
+                    || Char.hasProp(mob, Char.Property.MINIBOSS)
+                    || mob.buff(StoneOfAggression.Aggression.class) != null) {
+                continue;
+            }
+
+            int nearbyEnemies = 0;
+            for (Mob other : threats) {
+                if (other != mob
+                        && other != null
+                        && other.isAlive()
+                        && Dungeon.level.distance(other.pos, mob.pos) <= 5) {
+                    nearbyEnemies++;
+                }
+            }
+
+            int score = nearbyEnemies * 100 + mob.HP;
+            if (best == null || score > bestScore) {
+                best = mob;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    private Mob chooseDeepSleepTarget(Mob combatTarget, ArrayList<Mob> threats) {
+        if (!inventory.hasCombatRunestone(StoneOfDeepSleep.class)) {
+            return null;
+        }
+
+        Mob fallback = null;
+        for (Mob mob : threats) {
+            if (!canDeepSleep(mob)) {
+                continue;
+            }
+            if (mob != combatTarget) {
+                return mob;
+            }
+            fallback = mob;
+        }
+        return fallback;
+    }
+
+    private Mob chooseEmergencySleepTarget(ArrayList<Mob> threats) {
+        if (!inventory.hasCombatRunestone(StoneOfDeepSleep.class)) {
+            return null;
+        }
+
+        Mob best = null;
+        float bestThreat = Float.NEGATIVE_INFINITY;
+        for (Mob mob : threats) {
+            if (!canDeepSleep(mob)) {
+                continue;
+            }
+            float score = estimatedThreatDamage(mob, pos)
+                    * estimatedHitChance(mob, pos)
+                    * Math.max(0.1f, threatOpportunity(mob, pos));
+            if (best == null || score > bestThreat) {
+                best = mob;
+                bestThreat = score;
+            }
+        }
+        return best;
+    }
+
+    private boolean canDeepSleep(Mob mob) {
+        return mob != null
+                && mob.isAlive()
+                && mob.state != mob.SLEEPING
+                && !mob.isImmune(Sleep.class)
+                && mob.buff(MagicalSleep.class) == null;
+    }
+
+    private Mob chooseFearTarget(ArrayList<Mob> threats) {
+        if (!inventory.hasCombatRunestone(StoneOfFear.class)) {
+            return null;
+        }
+
+        Mob best = null;
+        float bestThreat = Float.NEGATIVE_INFINITY;
+        for (Mob mob : threats) {
+            if (mob == null
+                    || !mob.isAlive()
+                    || mob.isImmune(Terror.class)
+                    || mob.buff(Terror.class) != null) {
+                continue;
+            }
+
+            float score = estimatedThreatDamage(mob, pos)
+                    * estimatedHitChance(mob, pos)
+                    * Math.max(0.1f, threatOpportunity(mob, pos));
+            if (best == null || score > bestThreat) {
+                best = mob;
+                bestThreat = score;
+            }
+        }
+        return best;
+    }
+
+    private int chooseBlinkEscapeCell(ArrayList<Mob> threats) {
+        if (!inventory.hasCombatRunestone(StoneOfBlink.class) || rooted) {
+            return -1;
+        }
+
+        int currentDistance = nearestThreatDistance(pos, threats);
+        int best = -1;
+        int bestDistance = currentDistance;
+
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (!fieldOfView[cell]
+                    || !isKnown(cell)
+                    || !Dungeon.level.passable[cell]
+                    || Dungeon.level.pit[cell]
+                    || Dungeon.level.secret[cell]
+                    || Actor.findChar(cell) != null
+                    || !isMovementSafe(cell)
+                    || Dungeon.level.distance(pos, cell) < 3) {
+                continue;
+            }
+
+            Ballistica path = new Ballistica(pos, cell, Ballistica.PROJECTILE);
+            if (path.collisionPos != cell) {
+                continue;
+            }
+
+            int distance = nearestThreatDistance(cell, threats);
+            if (distance < currentDistance + 2) {
+                continue;
+            }
+
+            if (best == -1 || distance > bestDistance
+                    || (distance == bestDistance
+                        && Dungeon.level.distance(pos, cell) < Dungeon.level.distance(pos, best))) {
+                best = cell;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private boolean canUseFlockAt(int center) {
+        if (!inventory.hasCombatRunestone(StoneOfFlock.class)
+                || !Dungeon.level.insideMap(center)
+                || !fieldOfView[center]
+                || Dungeon.level.distance(pos, center) <= 2
+                || (Dungeon.hero != null && Dungeon.level.distance(Dungeon.hero.pos, center) <= 2)) {
+            return false;
+        }
+
+        boolean[] open = BArray.not(Dungeon.level.solid, null);
+        PathFinder.buildDistanceMap(center, open, 2);
+        int spawnable = 0;
+        for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+            if (PathFinder.distance[cell] != Integer.MAX_VALUE
+                    && Dungeon.level.insideMap(cell)
+                    && Actor.findChar(cell) == null
+                    && !Dungeon.level.pit[cell]) {
+                spawnable++;
+            }
+        }
+        return spawnable >= 3;
+    }
+
+    private int chooseEmergencyFlockCell(ArrayList<Mob> threats) {
+        if (!inventory.hasCombatRunestone(StoneOfFlock.class)) {
+            return -1;
+        }
+
+        int best = -1;
+        int bestNearbyThreats = 0;
+        for (Mob mob : threats) {
+            if (mob == null || !mob.isAlive() || !canUseFlockAt(mob.pos)) {
+                continue;
+            }
+
+            int nearby = 0;
+            for (Mob other : threats) {
+                if (other != null
+                        && other.isAlive()
+                        && Dungeon.level.distance(other.pos, mob.pos) <= 2) {
+                    nearby++;
+                }
+            }
+            if (best == -1 || nearby > bestNearbyThreats) {
+                best = mob.pos;
+                bestNearbyThreats = nearby;
+            }
+        }
+        return best;
+    }
+
+    private boolean useAggressionStone(Mob targetMob) {
+        Runestone stone = inventory.takeOneCombatRunestone(StoneOfAggression.class);
+        if (!(stone instanceof StoneOfAggression)) {
+            return false;
+        }
+
+        Buff.prolong(targetMob,
+                StoneOfAggression.Aggression.class,
+                StoneOfAggression.Aggression.DURATION);
+        CellEmitter.center(targetMob.pos).start(Speck.factory(Speck.SCREAM), 0.3f, 3);
+        return finishRunestoneUse(stone, Assets.Sounds.READ);
+    }
+
+    private boolean useBlastStone(int cell) {
+        Runestone stone = inventory.takeOneCombatRunestone(StoneOfBlast.class);
+        if (!(stone instanceof StoneOfBlast)) {
+            return false;
+        }
+
+        new Bomb.ConjuredBomb().explode(cell);
+        return finishRunestoneUse(stone, null);
+    }
+
+    private boolean useFearStone(Mob targetMob) {
+        Runestone stone = inventory.takeOneCombatRunestone(StoneOfFear.class);
+        if (!(stone instanceof StoneOfFear)) {
+            return false;
+        }
+
+        Terror terror = Buff.affect(targetMob, Terror.class, Terror.DURATION);
+        terror.object = id();
+        return finishRunestoneUse(stone, Assets.Sounds.READ);
+    }
+
+    private boolean useDeepSleepStone(Mob targetMob) {
+        Runestone stone = inventory.takeOneCombatRunestone(StoneOfDeepSleep.class);
+        if (!(stone instanceof StoneOfDeepSleep)) {
+            return false;
+        }
+
+        Buff.affect(targetMob, MagicalSleep.class);
+        if (targetMob.sprite != null) {
+            targetMob.sprite.centerEmitter().start(Speck.factory(Speck.NOTE), 0.3f, 5);
+        }
+        return finishRunestoneUse(stone, Assets.Sounds.LULLABY);
+    }
+
+    private boolean useBlinkStone(int cell) {
+        Runestone stone = inventory.takeOneCombatRunestone(StoneOfBlink.class);
+        if (!(stone instanceof StoneOfBlink)) {
+            return false;
+        }
+
+        if (!ScrollOfTeleportation.teleportToLocation(this, cell)) {
+            inventory.addToBackpack(stone);
+            return false;
+        }
+
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        clearMeleeTacticalPlan();
+        clearRangedLurePlan();
+        path = null;
+        return finishRunestoneUse(stone, null);
+    }
+
+    private boolean useFlockStone(int center) {
+        Runestone stone = inventory.takeOneCombatRunestone(StoneOfFlock.class);
+        if (!(stone instanceof StoneOfFlock)) {
+            return false;
+        }
+
+        boolean[] open = BArray.not(Dungeon.level.solid, null);
+        PathFinder.buildDistanceMap(center, open, 2);
+        int spawned = 0;
+        for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+            if (PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || !Dungeon.level.insideMap(cell)
+                    || Actor.findChar(cell) != null
+                    || Dungeon.level.pit[cell]) {
+                continue;
+            }
+
+            Sheep sheep = new Sheep();
+            sheep.initialize(8);
+            sheep.pos = cell;
+            GameScene.add(sheep);
+            Dungeon.level.occupyCell(sheep);
+            CellEmitter.get(cell).burst(Speck.factory(Speck.WOOL), 4);
+            spawned++;
+        }
+
+        if (spawned == 0) {
+            inventory.addToBackpack(stone);
+            return false;
+        }
+
+        CellEmitter.get(center).burst(Speck.factory(Speck.WOOL), 4);
+        Sample.INSTANCE.play(Assets.Sounds.PUFF);
+        Sample.INSTANCE.play(Assets.Sounds.SHEEP);
+        return finishRunestoneUse(stone, null);
+    }
+
+    private boolean finishRunestoneUse(Runestone stone, String sound) {
+        if (stone == null) {
+            return false;
+        }
+        Catalog.countUse(stone.getClass());
+        Invisibility.dispel(this);
+        if (sound != null) {
+            Sample.INSTANCE.play(sound);
+        }
+        spend(TICK);
+        return true;
     }
 
     private boolean tryEmergencyEscapeConsumable(
@@ -1215,8 +1688,13 @@ public class CoHeroAlly extends DirectableAlly {
             return moveSprite(oldPos, pos);
         }
 
-        // No safe movement remains. Spend a scarce control/escape consumable only after the
-        // ordinary no-cost escape options have failed.
+        // No safe movement remains. Spend a scarce runestone only after ordinary movement and
+        // no-cost escape utilities have failed.
+        if (tryEmergencyRunestone(risk, threats)) {
+            return true;
+        }
+
+        // Potions/scrolls remain the next emergency layer.
         if (tryEmergencyEscapeConsumable(risk, threats)) {
             return true;
         }
