@@ -760,7 +760,10 @@ public class CoHeroAlly extends DirectableAlly {
 
         // With exactly two threats, remove one from the fight rather than spending a stronger
         // area-control resource. Prefer the non-current target when possible.
-        if (threats.size() == 2) {
+        if (threats.size() == 2
+                && (hasRangedPressure(threats)
+                    || Char.hasProp(targetMob, Char.Property.BOSS)
+                    || Char.hasProp(targetMob, Char.Property.MINIBOSS))) {
             Mob sleepTarget = chooseDeepSleepTarget(targetMob, threats);
             if (sleepTarget != null && useDeepSleepStone(sleepTarget)) {
                 return true;
@@ -771,6 +774,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (threats.size() == 1
                 && isCurrentRangedPressure(targetMob)
                 && Dungeon.level.distance(pos, targetMob.pos) >= 3
+                && chooseRangedCoverCell(targetMob, threats) == -1
                 && canUseFlockAt(targetMob.pos)
                 && useFlockStone(targetMob.pos)) {
             return true;
@@ -982,7 +986,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private int chooseBlinkEscapeCell(ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfBlink.class) || rooted) {
+        if (!inventory.hasCombatRunestone(StoneOfBlink.class)) {
             return -1;
         }
 
