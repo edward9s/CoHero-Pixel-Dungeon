@@ -80,7 +80,7 @@ layout_new = """\t\t\tif (hero != null){
 \t\t\t\tfloat portraitRight = hero.x + hero.width();
 \t\t\t\tif (companion.visible) {
 \t\t\t\t\tcompanion.x = hero.x + hero.width()/2f;
-\t\t\t\t\tcompanion.y = hero.y + 3;
+\t\t\t\t\tcompanion.y = hero.y;
 \t\t\t\t\talign(companion);
 \t\t\t\t\tportraitRight = Math.max(portraitRight, companion.x + companion.width());
 \t\t\t\t}
