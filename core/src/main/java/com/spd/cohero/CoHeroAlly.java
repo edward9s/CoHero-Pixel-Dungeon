@@ -6,13 +6,17 @@ import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AllyBuff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barkskin;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Dread;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.LostInventory;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicalSleep;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Sleep;
@@ -36,6 +40,8 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
@@ -43,9 +49,11 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ScrollOfDread;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfAggression;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlast;
@@ -76,6 +84,11 @@ import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Earthroot;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Fadeleaf;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Mageroyal;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Sungrass;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
@@ -472,6 +485,13 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     @Override
+    public void damage(int damage, Object source) {
+        int adjusted = (int) Math.ceil(
+                Math.max(0, damage) * RingOfTenacity.damageMultiplier(this));
+        super.damage(adjusted, source);
+    }
+
+    @Override
     public int defenseProc(Char enemy, int damage) {
         if (armor() != null) {
             damage = armor().proc(enemy, this, damage);
@@ -524,11 +544,20 @@ public class CoHeroAlly extends DirectableAlly {
                 return survivalAction;
             }
 
+            Boolean combatPlant = tryKnownCombatPlant(combatTarget, visibleThreats);
+            if (combatPlant != null) {
+                return combatPlant;
+            }
+
             if (tryAutoSurvivalPotion()) {
                 return true;
             }
 
             if (tryUseCombatRunestone(combatTarget, visibleThreats)) {
+                return true;
+            }
+
+            if (tryUseCombatEarthenArmor(combatTarget, visibleThreats)) {
                 return true;
             }
 
@@ -573,6 +602,16 @@ public class CoHeroAlly extends DirectableAlly {
 
         combatRetreating = false;
         clearRangedLurePlan();
+
+        Boolean recoveryPlant = tryKnownRecoveryPlant();
+        if (recoveryPlant != null) {
+            return recoveryPlant;
+        }
+
+        if (tryUseCleansingPotion(null)) {
+            return true;
+        }
+
         if (tryAutoSurvivalPotion()) {
             return true;
         }
@@ -755,17 +794,23 @@ public class CoHeroAlly extends DirectableAlly {
         return false;
     }
 
-    private boolean tryEmergencyRunestone(CombatRisk risk, ArrayList<Mob> threats) {
-        if (risk == null
-                || threats == null
+    private boolean tryEmergencyBlinkRunestone(ArrayList<Mob> threats) {
+        if (threats == null
                 || threats.isEmpty()
                 || buff(MagicImmune.class) != null) {
             return false;
         }
 
         int blinkCell = chooseBlinkEscapeCell(threats);
-        if (blinkCell != -1 && useBlinkStone(blinkCell)) {
-            return true;
+        return blinkCell != -1 && useBlinkStone(blinkCell);
+    }
+
+    private boolean tryEmergencyRunestone(CombatRisk risk, ArrayList<Mob> threats) {
+        if (risk == null
+                || threats == null
+                || threats.isEmpty()
+                || buff(MagicImmune.class) != null) {
+            return false;
         }
 
         boolean immediateLethal = risk.immediateIncoming * 1.35f >= HP + shielding();
@@ -1632,9 +1677,18 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
+        if (tryUseCleansingPotion(risk)) {
+            return true;
+        }
+
         Boolean escapeUtility = tryEscapeUtility(threats);
         if (escapeUtility != null) {
             return escapeUtility;
+        }
+
+        Boolean retreatPlant = tryKnownRetreatPlant(risk, threats);
+        if (retreatPlant != null) {
+            return retreatPlant;
         }
 
         int escapeStep = rooted ? -1 : chooseEscapeStep(threats);
@@ -1652,8 +1706,16 @@ public class CoHeroAlly extends DirectableAlly {
             return moveSprite(oldPos, pos);
         }
 
-        // No safe movement remains. Spend a scarce runestone only after ordinary movement and
-        // no-cost escape utilities have failed.
+        // No safe movement remains. Controlled Blink is preferred to random teleportation.
+        if (tryEmergencyBlinkRunestone(threats)) {
+            return true;
+        }
+
+        if (tryUseTeleportationScroll()) {
+            return true;
+        }
+
+        // Other control runestones remain ahead of consumable fear/invisibility resources.
         if (tryEmergencyRunestone(risk, threats)) {
             return true;
         }
