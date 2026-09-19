@@ -280,14 +280,14 @@ public final class CoHero {
         boolean bossEntry = transition.type == LevelTransition.Type.REGULAR_EXIT
                 && transition.destBranch == 0
                 && Dungeon.bossLevel(transition.destDepth);
-        boolean branchEntry = transition.type == LevelTransition.Type.BRANCH_ENTRANCE
+        boolean branchEntry = transition.type == LevelTransition.Type.BRANCH_EXIT
                 && transition.destBranch != Dungeon.branch;
         return bossEntry || branchEntry;
     }
 
     private static void showCompanionTransitionChoice(
             Hero hero, LevelTransition transition, boolean companionReady) {
-        boolean branchEntry = transition.type == LevelTransition.Type.BRANCH_ENTRANCE;
+        boolean branchEntry = transition.type == LevelTransition.Type.BRANCH_EXIT;
         String message = CoHeroMessages.get(
                 branchEntry ? "transition.branch_message" : "transition.boss_message");
         if (!companionReady) {
