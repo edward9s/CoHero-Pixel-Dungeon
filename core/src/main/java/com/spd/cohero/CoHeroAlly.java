@@ -13,7 +13,9 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
@@ -77,6 +79,7 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
     private static final int HERO_RALLY_MIN_DISTANCE = 2;
     private static final int HERO_RALLY_MAX_DISTANCE = 3;
+    private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
 
     private int explorationTarget = -1;
     private int syncedLevel = 1;
@@ -84,6 +87,8 @@ public class CoHeroAlly extends DirectableAlly {
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
     private MissileWeapon activeMissileWeapon;
     private boolean lowHealthRally;
+    private int meleeTacticalTargetId = -1;
+    private int meleeTacticalCell = -1;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -229,6 +234,7 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
+        clearMeleeTacticalPlan();
         timeToNow();
 
         // Recreate item-owned buffs against this live Char after save restoration / floor transfer.
@@ -449,6 +455,12 @@ public class CoHeroAlly extends DirectableAlly {
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (!visibleThreats.isEmpty()) {
             Mob combatTarget = nearestThreat(visibleThreats);
+
+            Boolean meleePositioning = tryMeleePositioning(combatTarget, visibleThreats);
+            if (meleePositioning != null) {
+                return meleePositioning;
+            }
+
             Boolean combatResult = tryCombat(combatTarget);
             if (combatResult != null) {
                 return combatResult;
@@ -818,6 +830,7 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
+        clearMeleeTacticalPlan();
     }
 
     private String companionDeathMessage(Object cause) {
@@ -838,6 +851,222 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return result;
+    }
+
+    /**
+     * Repositions melee CoHero before committing to an attack when terrain can materially improve
+     * the exchange. Great Crab needs an unseen strike, while Swarms and multiple melee attackers
+     * are much safer when pulled into a narrow approach instead of fought in open space.
+     */
+    private Boolean tryMeleePositioning(Mob targetMob, ArrayList<Mob> threats) {
+        if (weapon() == null || targetMob == null || threats == null || threats.isEmpty()) {
+            clearMeleeTacticalPlan();
+            return null;
+        }
+
+        boolean greatCrab = targetMob instanceof GreatCrab;
+        boolean swarmPressure = false;
+        for (Mob threat : threats) {
+            if (threat instanceof Swarm) {
+                swarmPressure = true;
+                break;
+            }
+        }
+
+        boolean crowdedMelee = threats.size() >= 2 && !hasRangedPressure(threats);
+        if (!greatCrab && !swarmPressure && !crowdedMelee) {
+            clearMeleeTacticalPlan();
+            return null;
+        }
+
+        if (greatCrab
+                && targetMob.coHeroSurprisedBy(this)
+                && weapon().canReach(this, targetMob.pos)) {
+            clearMeleeTacticalPlan();
+            return null;
+        }
+
+        if (!greatCrab && meleeFrontage(pos) <= 2) {
+            clearMeleeTacticalPlan();
+            return null;
+        }
+
+        if (meleeTacticalTargetId != targetMob.id()
+                || !validMeleeTacticalCell(meleeTacticalCell, targetMob, greatCrab)) {
+            meleeTacticalTargetId = targetMob.id();
+            meleeTacticalCell = chooseMeleeTacticalCell(targetMob, greatCrab);
+        }
+
+        if (meleeTacticalCell == -1) {
+            if (greatCrab
+                    && weapon().canReach(this, targetMob.pos)
+                    && !targetMob.coHeroSurprisedBy(this)) {
+                int escape = chooseEscapeStep(threats);
+                if (escape != -1) {
+                    int oldPos = pos;
+                    move(escape, true);
+                    spend(1 / speed());
+                    return moveSprite(oldPos, pos);
+                }
+            }
+            return null;
+        }
+
+        if (pos != meleeTacticalCell) {
+            int oldPos = pos;
+            if (getCloser(meleeTacticalCell)) {
+                spend(1 / speed());
+                Dungeon.level.updateFieldOfView(this, fieldOfView);
+                revealVisibleCells();
+                return moveSprite(oldPos, pos);
+            }
+            clearMeleeTacticalPlan();
+            return null;
+        }
+
+        if (weapon().canReach(this, targetMob.pos)
+                && (!greatCrab || targetMob.coHeroSurprisedBy(this))) {
+            clearMeleeTacticalPlan();
+            return null;
+        }
+
+        if (!anyThreatCanAttackNow(threats)) {
+            spend(TICK);
+            return true;
+        }
+
+        clearMeleeTacticalPlan();
+        return null;
+    }
+
+    private int chooseMeleeTacticalCell(Mob targetMob, boolean greatCrab) {
+        PathFinder.buildDistanceMap(pos, Dungeon.level.passable);
+
+        int best = -1;
+        int bestScore = Integer.MAX_VALUE;
+
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            int pathDistance = PathFinder.distance[cell];
+            if (pathDistance == Integer.MAX_VALUE
+                    || pathDistance > MELEE_TACTICAL_SEARCH_RADIUS
+                    || !fieldOfView[cell]
+                    || !isKnown(cell)
+                    || !Dungeon.level.passable[cell]
+                    || !isMovementSafe(cell)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != this) {
+                continue;
+            }
+
+            int frontage = meleeFrontage(cell);
+            if (frontage < 2) {
+                continue;
+            }
+
+            int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
+
+            if (greatCrab) {
+                if (targetMob.fieldOfView == null
+                        || targetMob.fieldOfView.length != Dungeon.level.length()
+                        || targetMob.fieldOfView[cell]
+                        || targetDistance < 2
+                        || targetDistance > MELEE_TACTICAL_SEARCH_RADIUS) {
+                    continue;
+                }
+            } else if (frontage > 3) {
+                continue;
+            }
+
+            int score = pathDistance * 12 + frontage * 40;
+            if (greatCrab) {
+                score += Math.abs(targetDistance - 3) * 10;
+            } else {
+                score += Math.abs(targetDistance - 2) * 4;
+                if (frontage == 2) {
+                    score -= 80;
+                }
+            }
+
+            if (best == -1 || score < bestScore || (score == bestScore && cell < best)) {
+                best = cell;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean validMeleeTacticalCell(int cell, Mob targetMob, boolean greatCrab) {
+        if (cell < 0
+                || cell >= Dungeon.level.length()
+                || !Dungeon.level.passable[cell]
+                || !fieldOfView[cell]
+                || !isKnown(cell)
+                || !isMovementSafe(cell)) {
+            return false;
+        }
+
+        Char occupant = Actor.findChar(cell);
+        if (occupant != null && occupant != this) {
+            return false;
+        }
+
+        int frontage = meleeFrontage(cell);
+        if (frontage < 2) {
+            return false;
+        }
+
+        if (greatCrab) {
+            int distance = Dungeon.level.distance(cell, targetMob.pos);
+            return targetMob.fieldOfView != null
+                    && targetMob.fieldOfView.length == Dungeon.level.length()
+                    && !targetMob.fieldOfView[cell]
+                    && distance >= 2
+                    && distance <= MELEE_TACTICAL_SEARCH_RADIUS;
+        }
+
+        return frontage <= 3;
+    }
+
+    private int meleeFrontage(int cell) {
+        int result = 0;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent >= 0
+                    && adjacent < Dungeon.level.length()
+                    && Dungeon.level.distance(cell, adjacent) == 1
+                    && Dungeon.level.passable[adjacent]) {
+                result++;
+            }
+        }
+        return result;
+    }
+
+    private boolean hasRangedPressure(ArrayList<Mob> threats) {
+        for (Mob threat : threats) {
+            if (Dungeon.level.distance(threat.pos, pos) > 1
+                    && threat.coHeroCanAttackFrom(threat.pos, this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean anyThreatCanAttackNow(ArrayList<Mob> threats) {
+        for (Mob threat : threats) {
+            if (threat.coHeroCanAttackFrom(threat.pos, this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void clearMeleeTacticalPlan() {
+        meleeTacticalTargetId = -1;
+        meleeTacticalCell = -1;
     }
 
     /**
