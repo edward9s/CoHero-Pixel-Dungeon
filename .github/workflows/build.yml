@@ -86,6 +86,8 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfMagicMissile.java
+          python cohero/scripts/patch_blastwave_cohero.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfBlastWave.java
           python cohero/scripts/patch_cohero_wand_types.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFrost.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfDisintegration.java \
