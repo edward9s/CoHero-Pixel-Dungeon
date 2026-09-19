@@ -168,7 +168,7 @@ final class CoHeroWardingPlanner {
             }
 
             int coverage = movementCoverage(ward.pos, ward.viewDistance, target);
-            float retainedValue = retainedWardValue(wand, ward, target, coverage);
+            float retainedValue = retainedWardValue(wand, owner, ward, target, coverage);
             int travelDistance = Dungeon.level.distance(owner.pos, ward.pos);
             float gain = replacementValue - retainedValue - 3f * travelDistance;
 
@@ -255,7 +255,7 @@ final class CoHeroWardingPlanner {
     }
 
     private static float retainedWardValue(
-            WandOfWarding wand, Ward ward, Mob target, int coverage) {
+            WandOfWarding wand, CoHeroAlly owner, Ward ward, Mob target, int coverage) {
         float value = coverage * 20f;
         if (canEngage(ward.pos, ward.viewDistance, target)) {
             value += expectedNextZapDamage(wand) * 3f;
@@ -282,7 +282,7 @@ final class CoHeroWardingPlanner {
                 break;
         }
 
-        if (CoHeroHazards.isDangerous(null, ward.pos)) {
+        if (CoHeroHazards.isDangerous(owner, ward.pos)) {
             value *= 0.75f;
         }
         return value;
