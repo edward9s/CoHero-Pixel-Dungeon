@@ -23,8 +23,11 @@ jobs:
           set -euo pipefail
           TAG=$(curl -fsSL https://api.github.com/repos/00-Evan/shattered-pixel-dungeon/releases/latest \
             | python -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          COHERO_VER=$(python cohero/scripts/extract_version.py \
+            cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Using SPD $TAG"
+          echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
+          echo "Using CoHero $COHERO_VER with SPD $TAG"
 
       - name: Checkout Shattered Pixel Dungeon
         uses: actions/checkout@v4
@@ -145,7 +148,7 @@ jobs:
           test -n "$APK" -a -f "$APK"
           test -n "$JAR" -a -f "$JAR"
 
-          BASE_NAME="CoHero-SPD-${{ steps.upstream.outputs.tag }}"
+          BASE_NAME="CoHero-v${{ steps.upstream.outputs.cohero_ver }}-SPD-${{ steps.upstream.outputs.tag }}"
 
           echo "SOURCE_JAR=$JAR" >> "$GITHUB_ENV"
           echo "BASE_NAME=$BASE_NAME" >> "$GITHUB_ENV"
