@@ -2,7 +2,6 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Challenges;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
-import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClothArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfMagicMissile;
@@ -40,9 +39,6 @@ final class CompanionStartingEquipment {
 
         ClothArmor cloth = identified(new ClothArmor());
         if (!Challenges.isItemBlocked(cloth)) {
-            if (heroClass == HeroClass.WARRIOR) {
-                cloth.affixSeal(new BrokenSeal());
-            }
             add(inventory, cloth);
             if (!inventory.equipArmor(cloth)) {
                 throw new IllegalStateException("CoHero could not equip starting cloth armor");
