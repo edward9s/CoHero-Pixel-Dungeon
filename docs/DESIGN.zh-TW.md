@@ -54,6 +54,10 @@ CoHero Pixel Dungeon 的核心不是重做 Shattered Pixel Dungeon，而是在�
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
+### 自然回血
+
+CoHero 使用獨立的 `CompanionRegeneration`：基礎速率固定為每 10 回合回復 1 HP（0.1 HP/turn），沒有 Hero 的飢餓限制，也不繼承 Hero 的 Chalice、Ring of Energy、Salt Cube 等加速。當 SPD 全域 `Regeneration.regenOn()` 被 LockedFloor 等機制關閉時，CoHero 同樣停止自然回血。
+
 ### 低血量時靠近 Hero
 
 低血量不代表出口比較安全；出口只是離層節點，不能當作避難點。
@@ -221,7 +225,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
-- CoHero 原則上不自行使用消耗品；目前唯一例外是已鑑定的治療藥劑。當 HP 低於 35%、目前沒有 `Healing` buff 時，CoHero 會從自己的背包自動喝一瓶 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。這個行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
+- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存型藥劑。當 HP 低於 35% 時，CoHero 會優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`；若治療正在進行或沒有可用治療藥，則可使用 `PotionOfShielding`。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
 
@@ -246,8 +250,9 @@ CoHero 仍不使用卷軸，也不泛化成會自行決策各種 consumable；�
 
 - CoHero 背包允許存放 Potion。這是刻意的：若 UI 只允許真正的 `PotionOfHealing` 放入，會藉由「能不能選」洩漏未鑑定藥水的真實種類。
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
-- HP 低於 35% 且目前沒有 `Healing` buff 時，CoHero 會自動消耗自己背包中的一瓶已鑑定 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。
-- 治療期間不會連續喝下一瓶；若 `Healing` 結束後 HP 仍再次低於 35%，下一回合才可能再消耗一瓶。
+- HP 低於 35% 時，CoHero 先嘗試消耗自己背包中的一瓶已鑑定 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。
+- 治療期間不會連續喝下一瓶治療藥；若仍低於 35%，可以把已鑑定 `PotionOfShielding` 當作次順位生存資源。
+- 已有有效 `Barrier` 時不會再喝第二瓶護盾藥，避免覆蓋仍有價值的護盾。
 - `Pharmacophobia` 只讓玩家 Hero 對治療藥過敏；SPD 原版明確規定其他角色仍正常受治療，因此 CoHero 仍可正常使用治療藥。
 - 其他 Potion 只作為背包資源，可交還 Hero；CoHero 不會自行飲用。
 - Scroll 仍不接受、不使用。

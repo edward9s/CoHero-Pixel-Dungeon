@@ -8,6 +8,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.elixirs.ElixirOfHoneyedHealing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
@@ -98,14 +99,32 @@ public final class CompanionInventory {
     }
 
     Potion takeOneAutoHealingPotion() {
+        return takeOneKnownPotion(PotionOfHealing.class, ElixirOfHoneyedHealing.class);
+    }
+
+    Potion takeOneAutoShieldingPotion() {
+        return takeOneKnownPotion(PotionOfShielding.class);
+    }
+
+    @SafeVarargs
+    private final Potion takeOneKnownPotion(Class<? extends Potion>... types) {
         Potion source = null;
         for (Item item : backpack) {
-            if (isAutoHealingPotion(item)) {
-                Potion potion = (Potion) item;
-                if (potion.isKnown()) {
+            if (!(item instanceof Potion)) {
+                continue;
+            }
+            Potion potion = (Potion) item;
+            if (!potion.isKnown()) {
+                continue;
+            }
+            for (Class<? extends Potion> type : types) {
+                if (type.isInstance(potion)) {
                     source = potion;
                     break;
                 }
+            }
+            if (source != null) {
+                break;
             }
         }
 
@@ -116,20 +135,16 @@ public final class CompanionInventory {
         if (source.quantity() > 1) {
             Item split = source.split(1);
             if (!(split instanceof Potion)) {
-                throw new IllegalStateException("CoHero healing potion stack could not split");
+                throw new IllegalStateException("CoHero potion stack could not split");
             }
             return (Potion) split;
         }
 
         Item removed = removeFromBackpack(source);
         if (!(removed instanceof Potion)) {
-            throw new IllegalStateException("CoHero healing potion disappeared before use");
+            throw new IllegalStateException("CoHero potion disappeared before use");
         }
         return (Potion) removed;
-    }
-
-    private static boolean isAutoHealingPotion(Item item) {
-        return item instanceof PotionOfHealing || item instanceof ElixirOfHoneyedHealing;
     }
 
     boolean containsInBackpack(Item item) {

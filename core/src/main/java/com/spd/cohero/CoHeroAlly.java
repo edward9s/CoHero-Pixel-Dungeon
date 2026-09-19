@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
@@ -18,6 +19,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
@@ -40,7 +42,9 @@ import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
 import com.watabou.noosa.audio.Sample;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
@@ -414,7 +418,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         updateLowHealthRallyState();
-        if (tryAutoHealingPotion()) {
+        if (tryAutoSurvivalPotion()) {
             return true;
         }
 
@@ -525,25 +529,47 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private boolean tryAutoHealingPotion() {
-        if (HT <= 0
-                || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT
-                || buff(Healing.class) != null) {
+    private boolean tryAutoSurvivalPotion() {
+        if (HT <= 0 || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
             return false;
         }
 
-        Potion potion = inventory.takeOneAutoHealingPotion();
-        if (potion == null) {
-            return false;
+        // Healing is the first choice. Do not consume another healing potion while the current
+        // Healing buff is still active.
+        if (buff(Healing.class) == null) {
+            Potion healing = inventory.takeOneAutoHealingPotion();
+            if (healing != null) {
+                // Apply only the Char-safe healing semantics. Do not route through Potion.drink/apply,
+                // which is hard-wired to Hero belongings, Hero talents, and Hero action callbacks.
+                PotionOfHealing.cure(this);
+                PotionOfHealing.heal(this);
+                Sample.INSTANCE.play(Assets.Sounds.DRINK);
+                spend(TICK);
+                return true;
+            }
         }
 
-        // Apply only the Char-safe healing semantics. Do not route through Potion.drink/apply,
-        // which is hard-wired to Hero belongings, Hero talents, and Hero action callbacks.
-        PotionOfHealing.cure(this);
-        PotionOfHealing.heal(this);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
+        // If healing is already running or unavailable, shielding is the fallback. Existing
+        // Barrier means there is still useful shield remaining, so do not overwrite/waste it.
+        Barrier barrier = buff(Barrier.class);
+        if (barrier == null || barrier.shielding() <= 0) {
+            Potion shielding = inventory.takeOneAutoShieldingPotion();
+            if (shielding != null) {
+                int amount = (int) (0.6f * HT + 10);
+                Buff.affect(this, Barrier.class).setShield(amount);
+                if (sprite != null) {
+                    sprite.showStatusWithIcon(
+                            CharSprite.POSITIVE,
+                            Integer.toString(amount),
+                            FloatingText.SHIELDING);
+                }
+                Sample.INSTANCE.play(Assets.Sounds.DRINK);
+                spend(TICK);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void updateLowHealthRallyState() {
