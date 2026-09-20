@@ -240,7 +240,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - TTK（time to kill）依 CoHero 實際當前攻擊規則估算；已建立正確近戰距離時仍以近戰為主，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
 - 臨戰優先序分成「安全／必要狀態處理 → anti-ranged 貼身 → 直接遠程輸出 → 非緊急戰鬥消耗品／buff → 特殊近戰走位 → 普通近戰／接近」。只要目前沒有建立應有的近戰距離，而且存在合法射線，投擲武器、Spirit Bow 或法杖會被視為正常攻擊手段，而不是等所有走位與 setup 都失敗後才使用。若目前首要威脅沒有合法遠程攻擊線，才會在其他可見威脅中選最近的合法遠程目標；但首要威脅已進入正確近戰距離時不會轉頭射遠處敵人。
 - 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死，或 TTD 明顯不優於 TTK，也進入撤退。
-- 無敵敵人不納入可攻擊目標：真正的戰鬥無敵仍沿用 SPD 的 `mob.isInvulnerable(CoHeroAlly.class)` 語意；但 `Challenge.SpectatorFreeze` 明確排除，因為它同時用於 Duelist Challenge 的旁觀者凍結與存檔載入期間的暫時 freeze，不代表應觸發逃跑。被 `SpectatorFreeze` 的角色直接不算當前臨戰威脅。若同時還有可傷害的可見敵人，CoHero 會改打那些目標；若目前可見威脅全部都是真正的戰鬥無敵，則停止近戰／投擲／法杖／setup，優先拉開距離。一般移動無法逃開時，依序嘗試 Blink、Teleportation、Invisibility，最後才用立即生存資源撐住。
+- 無敵敵人不納入可攻擊目標：真正的戰鬥無敵仍沿用 SPD 的 `mob.isInvulnerable(CoHeroAlly.class)` 語意；但 `Challenge.SpectatorFreeze` 明確排除，因為它同時用於 Duelist Challenge 的旁觀者凍結與存檔載入期間的暫時 freeze，不代表應觸發逃跑。被 `SpectatorFreeze` 的角色直接不算當前臨戰威脅。無敵不代表退出整場戰鬥：只要任一真正無敵敵人目前能從其所在格攻擊 CoHero，脫離該敵人的有效攻擊範圍會取得臨戰優先權；移動選格先降低無敵敵人的可攻擊者數量與 incoming DPT，再避免把自己送進其他敵人的火力。離開無敵敵人的射程後，若仍有可傷害敵人，CoHero 立即恢復原本的近戰／投擲／Spirit Bow／法杖決策；若只剩無敵敵人且它們已打不到 CoHero，則原地保持安全距離，不主動靠近。一般移動無法改善無敵火力時，依序嘗試 Blink、Teleportation、Invisibility，最後才用立即生存資源撐住。
 - 撤退有 hysteresis：進入撤退後，不會只拉開一格就立刻回頭。必須降到最多 1 名即時攻擊者、HP 至少 45%，且 TTD 對 TTK 取得明顯安全餘裕，才恢復攻擊。
 - 逃跑路徑不再只最大化「離最近敵人的距離」，而是優先降低候選格上的即時攻擊者數量與總預期 incoming DPT，再以距離作 tie-break。這能處理被多名敵人包圍時「躲開 A 卻走進 B/C 火力」的問題。
 - 若完全沒有合法逃生格，才消耗緊急生存資源；此時 `PotionOfShielding` 因立即生效優先於逐回合恢復的治療藥。若被定身，不能用撤退邏輯非法移動。
