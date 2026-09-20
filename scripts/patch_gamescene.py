@@ -90,6 +90,7 @@ locator_block = (
     "\t\t\t\tcoHeroSafeLeft, coHeroSafeTop, coHeroSafeRight, coHeroSafeBottom);\n"
     "\t\tcoHeroLocator.camera = uiCamera;\n"
     "\t\tadd(coHeroLocator);\n\n"
+)
 text = text.replace(
     layout_anchor,
     locator_block + layout_anchor,
