@@ -708,6 +708,25 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
+            // Tactical exception: when an enemy is actively attacking from range and CoHero has
+            // a melee weapon, closing to adjacency remains more important than trading shots.
+            Boolean rangedEngagement = tryRangedEngagement(combatTarget, visibleThreats);
+            if (rangedEngagement != null) {
+                logBossDecision("ranged_positioning:" + combatTarget.id(),
+                        targetDebug(combatTarget) + " -> ranged positioning");
+                return rangedEngagement;
+            }
+
+            // Direct ranged offense is a normal combat action, not a last-resort fallback.
+            // If the preferred threat cannot be shot, this may select another visible threat that
+            // has a legal missile / Spirit Bow / wand line.
+            Boolean directRanged = tryDirectRangedAttack(combatTarget, visibleThreats);
+            if (directRanged != null) {
+                return directRanged;
+            }
+
+            // Non-emergency consumables and setup should not repeatedly steal turns from an
+            // immediately available ranged attack.
             if (tryUseCombatRunestone(combatTarget, visibleThreats)) {
                 return true;
             }
@@ -718,13 +737,6 @@ public class CoHeroAlly extends DirectableAlly {
 
             if (tryUseCombatStamina(combatTarget, visibleThreats)) {
                 return true;
-            }
-
-            Boolean rangedEngagement = tryRangedEngagement(combatTarget, visibleThreats);
-            if (rangedEngagement != null) {
-                logBossDecision("ranged_positioning:" + combatTarget.id(),
-                        targetDebug(combatTarget) + " -> ranged positioning");
-                return rangedEngagement;
             }
 
             Boolean meleePositioning = tryMeleePositioning(combatTarget, visibleThreats);
@@ -3155,6 +3167,96 @@ public class CoHeroAlly extends DirectableAlly {
         meleeTacticalCell = -1;
     }
 
+    private Boolean tryDirectRangedAttack(
+            Mob preferredTarget, ArrayList<Mob> visibleThreats) {
+        if (preferredTarget == null || visibleThreats == null || visibleThreats.isEmpty()) {
+            return null;
+        }
+
+        // Ordinary melee reach still wins when already established. Against active ranged
+        // pressure, only physical adjacency counts as established melee; extended reach must not
+        // suppress a legal ranged fallback if closing/cover was impossible this turn.
+        boolean preferredMeleeEstablished = canAttack(preferredTarget)
+                && (!isCurrentRangedPressure(preferredTarget)
+                    || Dungeon.level.adjacent(pos, preferredTarget.pos));
+        if (!preferredMeleeEstablished) {
+            RangedChoice preferred = chooseRangedAttack(preferredTarget);
+            if (preferred != null) {
+                return performRangedChoice(preferredTarget, preferred);
+            }
+        }
+
+        Mob alternateTarget = null;
+        RangedChoice alternateChoice = null;
+        int alternateDistance = Integer.MAX_VALUE;
+
+        for (Mob threat : visibleThreats) {
+            if (threat == preferredTarget
+                    || threat == null
+                    || !threat.isAlive()
+                    || threat.invisible > 0) {
+                continue;
+            }
+
+            boolean meleeEstablished = canAttack(threat)
+                    && (!isCurrentRangedPressure(threat)
+                        || Dungeon.level.adjacent(pos, threat.pos));
+            if (meleeEstablished) {
+                continue;
+            }
+
+            RangedChoice choice = chooseRangedAttack(threat);
+            if (choice == null) {
+                continue;
+            }
+
+            int distance = Dungeon.level.distance(pos, threat.pos);
+            if (alternateTarget == null
+                    || distance < alternateDistance
+                    || (distance == alternateDistance && threat.id() < alternateTarget.id())) {
+                alternateTarget = threat;
+                alternateChoice = choice;
+                alternateDistance = distance;
+            }
+        }
+
+        return alternateTarget == null
+                ? null
+                : performRangedChoice(alternateTarget, alternateChoice);
+    }
+
+    private Boolean performRangedChoice(Mob targetMob, RangedChoice ranged) {
+        if (targetMob == null || ranged == null) {
+            return null;
+        }
+
+        state = HUNTING;
+        enemy = targetMob;
+        target = targetMob.pos;
+
+        if (ranged.missile != null) {
+            logBossDecision("missile_attack:" + targetMob.id(),
+                    targetDebug(targetMob) + " -> throw "
+                            + ranged.missile.getClass().getSimpleName());
+            return performMissileAttack(targetMob, ranged.missile);
+        }
+        if (ranged.spiritBow != null) {
+            logBossDecision("spirit_bow:" + targetMob.id(),
+                    targetDebug(targetMob) + " -> Spirit Bow");
+            return performSpiritBowAttack(targetMob, ranged.spiritBow);
+        }
+        if (ranged.wand != null) {
+            logBossDecision(
+                    "wand_attack:" + targetMob.id() + ":"
+                            + ranged.wand.getClass().getSimpleName(),
+                    targetDebug(targetMob) + " -> "
+                            + ranged.wand.getClass().getSimpleName());
+            return performWandCast(ranged.wandTargetCell, ranged.wand);
+        }
+
+        throw new IllegalStateException("Empty CoHero ranged choice");
+    }
+
     /**
      * Returns null when CoHero has no currently usable attack capability and should flee.
      * Otherwise returns the synchronous/asynchronous result expected by Actor.act().
@@ -3167,8 +3269,11 @@ public class CoHeroAlly extends DirectableAlly {
         enemy = targetMob;
         target = targetMob.pos;
 
-        // Contract: if the equipped melee weapon can legally reach, never substitute a ranged attack.
-        if (canAttack(targetMob)) {
+        // Melee is preferred once the intended engagement distance is actually established.
+        // Against a ranged enemy, extended weapon reach is not enough: adjacency is required.
+        boolean rangedPressure = isCurrentRangedPressure(targetMob);
+        if (canAttack(targetMob)
+                && (!rangedPressure || Dungeon.level.adjacent(pos, targetMob.pos))) {
             logBossDecision("melee_attack:" + targetMob.id(),
                     targetDebug(targetMob) + " -> melee attack");
             state = HUNTING;
@@ -3177,20 +3282,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         RangedChoice ranged = chooseRangedAttack(targetMob);
         if (ranged != null) {
-            state = HUNTING;
-            if (ranged.missile != null) {
-                logBossDecision("missile_attack:" + targetMob.id(),
-                        targetDebug(targetMob) + " -> throw " + ranged.missile.getClass().getSimpleName());
-                return performMissileAttack(targetMob, ranged.missile);
-            } else if (ranged.spiritBow != null) {
-                logBossDecision("spirit_bow:" + targetMob.id(),
-                        targetDebug(targetMob) + " -> Spirit Bow");
-                return performSpiritBowAttack(targetMob, ranged.spiritBow);
-            } else {
-                logBossDecision("wand_attack:" + targetMob.id() + ":" + ranged.wand.getClass().getSimpleName(),
-                        targetDebug(targetMob) + " -> " + ranged.wand.getClass().getSimpleName());
-                return performWandCast(ranged.wandTargetCell, ranged.wand);
-            }
+            return performRangedChoice(targetMob, ranged);
         }
 
         Boolean wardRecall = tryWardRecall(targetMob);
