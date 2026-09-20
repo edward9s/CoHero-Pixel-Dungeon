@@ -208,6 +208,18 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     @Override
+    public CharSprite sprite() {
+        CoHeroAllySprite preview = new CoHeroAllySprite();
+        preview.updateArmor(armorTier());
+        return preview;
+    }
+
+    @Override
+    public String description() {
+        return CoHeroMessages.get("companion.desc");
+    }
+
+    @Override
     public String name() {
         HeroClass heroClass = CoHero.companionClass();
         return heroClass == null ? CoHeroMessages.get("companion.name") : heroClass.title();
