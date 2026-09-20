@@ -18,7 +18,6 @@ public class CoHeroInventoryIndicator extends Tag {
     public CoHeroInventoryIndicator() {
         super(0x6E5738);
 
-        setSize(SIZE, SIZE);
         visible = false;
 
         backpack = new ItemSprite(ItemSpriteSheet.BACKPACK);
@@ -31,6 +30,8 @@ public class CoHeroInventoryIndicator extends Tag {
         companionBadge = new Image(companionClass.spritesheet(), 0, 90, 12, 15);
         companionBadge.scale.set(0.4f);
         add(companionBadge);
+
+        setSize(SIZE, SIZE);
     }
 
     @Override
