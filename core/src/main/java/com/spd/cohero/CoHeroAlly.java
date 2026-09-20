@@ -549,6 +549,10 @@ public class CoHeroAlly extends DirectableAlly {
                 return combatPlant;
             }
 
+            if (tryUseCleansingPotion(assessCombatRisk(combatTarget, visibleThreats))) {
+                return true;
+            }
+
             if (tryAutoSurvivalPotion()) {
                 return true;
             }
