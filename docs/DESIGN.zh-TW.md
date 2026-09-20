@@ -40,7 +40,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層，也不需要先抵達出口附近。
 - Hero 觸發普通樓層 transition 時，系統先保存 CoHero 當下的 HP、裝備、背包、buff 與 AI 狀態，再直接換層；下一層由保存狀態在 Hero 附近重新生成 CoHero。
 - 同伴沒有「停止行走」開關；持續前進本身就是壓力來源。
-- Hero 與 CoHero 採用共享視野：`Dungeon.level.heroFOV` 直接是 Hero FOV 與 CoHero FOV 的聯集，因此放大鏡、角色／物件可見性、特效、物品 `seen`、以 `heroFOV` 判斷的技能與其他原版系統都自然把兩人的視野視為玩家團隊已掌握的資訊。CoHero 的基礎 `viewDistance` 每次進層與行動前直接同步 `Dungeon.level.viewDistance`，所以「沒入黑暗」、DARK feeling、特殊 Boss 關卡或其他上游樓層視距調整都會同樣影響 CoHero；若 CoHero 具有原版 `Light` buff，則依原版規則至少提升至 6 格。
+- Hero 與 CoHero 不共享遊戲規則層的 FOV：`Dungeon.level.heroFOV` 始終只代表玩家 Hero 視野。CoHero 另外維持自己的 `fieldOfView`，只在畫面呈現層合併，用來顯示 CoHero 周圍地形、角色與動畫，不讓 CoHero 遠端戰鬥影響 Hero 的行動、技能或其他依賴 `heroFOV` 的原版規則。放大鏡／右鍵檢查是唯一的 UI 例外：若某個 actor 位於 CoHero 當前 FOV，即使不在 Hero FOV，也允許檢視該 actor 的 info；地板、物品、陷阱等仍只依 Hero FOV。CoHero 的基礎 `viewDistance` 每次進層與行動前直接同步 `Dungeon.level.viewDistance`，所以「沒入黑暗」、DARK feeling、特殊 Boss 關卡或其他上游樓層視距調整都會同樣影響 CoHero；若 CoHero 具有原版 `Light` buff，則依原版規則至少提升至 6 格。
 - 載入存檔的 `StartScene` 存檔槽預覽同時顯示 Hero 與 CoHero 的全身 sprite：CoHero 畫在 Hero 後層，與 Hero 使用相同 Y，X 向右偏半個 12px 角色寬（6px），因此只露出右半；兩者各自使用存檔中的職業與護甲 tier。舊存檔若沒有 CoHero armor preview metadata，顯示 tier 0，但不影響實際載入狀態。
 
 設計重點不是「護送一個完全無能的 NPC」，而是：
@@ -68,7 +68,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 ### 視野與火把
 
 - CoHero 背包支援原版 `Torch`；在 `Dungeon.level.viewDistance < Light.DISTANCE` 的低視距樓層且目前沒有 `Light` buff 時，CoHero 會自動消耗一支火把，使用原版 `Light.DURATION` 與 `Light.DISTANCE` 規則，並花費原版 `Torch.TIME_TO_LIGHT` 的行動時間。
-- CoHero 被麻痺時不會點火。點火後立即重算共享 FOV 與 CoHero 側 fog。
+- CoHero 被麻痺時不會點火。點火後立即重算 CoHero 自己的 FOV 與 CoHero 側 fog，不改動 `Dungeon.level.heroFOV`。
 - 在低視距樓層，CoHero 會把已知且可安全取得的火把列為偏好拾取物；正常視距樓層不會為了囤積火把而偏離探索。
 
 ### 自然回血
