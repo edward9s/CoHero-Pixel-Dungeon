@@ -177,7 +177,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - locator 永久顯示目前代表角色的即時 HP bar；血條下方最多顯示 6 個小型 buff icons。
 - CoHero 處於低血量 rally 狀態且 locator 正代表 CoHero 時顯示固定警示符號，不使用持續閃爍。
 - locator 的活動邊界排除 Status/Menu/Boss/Toolbar/Inventory 與 tag 控制區，不覆蓋主要操作按鈕。
-- 玩家背包按鈕右上角內嵌一個小型 CoHero 背包徽章，使用背包圖示加 CoHero 頭像徽章；它不占用 Toolbar 額外空間，CoHero 存在且存活時顯示，點擊直接開啟 CoHero 背包。locator 目前代表 CoHero 時，長按仍可作為快捷入口；代表 Hero 時長按不執行額外動作。
+- CoHero 背包使用 GameScene 標準 Tag stack 提供常駐入口：CoHero 存在且存活時顯示背包圖示加 CoHero 頭像徽章，與 Attack／Loot／Action／Resume indicators 由 `layoutTags()` 統一排列，不占用 Toolbar 空間也不與其他 Tag 重疊；點擊直接開啟 CoHero 背包。locator 目前代表 CoHero 時，長按仍可作為快捷入口；代表 Hero 時長按不執行額外動作。locator 的左右安全邊界使用與 `layoutTags()` 相同的 Tag safe-inset 計算，整條 Tag 欄都排除在 locator 活動區之外。
 - CoHero 本人在畫面內時，頭上血條即使滿血也始終顯示。
 
 ## 5. 玩家對同伴的控制
