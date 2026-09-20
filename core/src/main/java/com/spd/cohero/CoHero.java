@@ -259,6 +259,7 @@ public final class CoHero {
 
         CoHeroAlly companion = new CoHeroAlly();
         int spawn;
+        boolean restoredInPlace = false;
 
         if (companionState != null) {
             companion.restoreFromBundle(companionState);
@@ -271,6 +272,7 @@ public final class CoHero {
                         || (Actor.findChar(spawn) != null && Actor.findChar(spawn) != companion)) {
                     throw new IllegalStateException("Saved CoHero position is not valid on the restored level: " + spawn);
                 }
+                restoredInPlace = true;
             } else {
                 spawn = findSpawnCell();
             }
@@ -287,7 +289,13 @@ public final class CoHero {
 
         companion.enterLevel(spawn);
         GameScene.add(companion);
-        Dungeon.level.occupyCell(companion);
+
+        // Loading a save restores an already-occupied cell; it is not a new step onto that cell.
+        // Replaying occupyCell here can retrigger grass, traps, plants, and other entry effects.
+        // Actual floor entry/rejoin still needs normal occupancy processing.
+        if (!restoredInPlace) {
+            Dungeon.level.occupyCell(companion);
+        }
         CompanionLongPress.ensureInstalled();
     }
 
