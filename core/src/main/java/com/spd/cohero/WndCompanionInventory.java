@@ -27,6 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndBag;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndInfoItem;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
+import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.audio.Sample;
 
 import java.util.Locale;
@@ -419,7 +420,7 @@ public class WndCompanionInventory extends Window {
 
             @Override
             public boolean itemSelectable(Item item) {
-                return CompanionInventory.supported(item) && inventory.canAddToBackpack(item);
+                return inventory.canAddToBackpack(item);
             }
 
             @Override
@@ -443,10 +444,6 @@ public class WndCompanionInventory extends Window {
     }
 
     private Item takeFromPlayer(Item item) {
-        if (!CompanionInventory.supported(item)) {
-            throw new IllegalArgumentException("Unsupported CoHero item: " + item.getClass().getName());
-        }
-
         if (item.isEquipped(Dungeon.hero)) {
             if (!(item instanceof EquipableItem)) {
                 throw new IllegalStateException("Equipped item is not EquipableItem: " + item.getClass().getName());
@@ -493,7 +490,17 @@ public class WndCompanionInventory extends Window {
                 }
             });
         } else {
-            throw new IllegalStateException("Unsupported item reached CoHero backpack UI: " + item.getClass().getName());
+            GameScene.show(new WndOptions(
+                    item.title(),
+                    text("inventory.action_prompt"),
+                    text("inventory.give_to_hero")) {
+                @Override
+                protected void onSelect(int index) {
+                    if (index == 0) {
+                        giveBackpackItemToHero(item);
+                    }
+                }
+            });
         }
     }
 
@@ -651,12 +658,27 @@ public class WndCompanionInventory extends Window {
      */
     private static class CoHeroItemButton extends ItemButton {
 
+        private static final int USABLE_FRAME_COLOR = 0xFFFF44;
+
         private Item displayedItem;
+        private ColorBlock frameTop;
+        private ColorBlock frameBottom;
+        private ColorBlock frameLeft;
+        private ColorBlock frameRight;
 
         @Override
         protected void createChildren() {
             bg = Chrome.get(Chrome.Type.RED_BUTTON);
             add(bg);
+
+            frameTop = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
+            frameBottom = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
+            frameLeft = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
+            frameRight = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
+            add(frameTop);
+            add(frameBottom);
+            add(frameLeft);
+            add(frameRight);
 
             slot = new ItemSlot() {
                 @Override
@@ -685,10 +707,32 @@ public class WndCompanionInventory extends Window {
         }
 
         @Override
+        protected void layout() {
+            super.layout();
+
+            frameTop.x = x;
+            frameTop.y = y;
+            frameTop.size(width, 1);
+
+            frameBottom.x = x;
+            frameBottom.y = y + height - 1;
+            frameBottom.size(width, 1);
+
+            frameLeft.x = x;
+            frameLeft.y = y;
+            frameLeft.size(1, height);
+
+            frameRight.x = x + width - 1;
+            frameRight.y = y;
+            frameRight.size(1, height);
+        }
+
+        @Override
         public void item(Item item) {
             displayedItem = item;
             super.item(item);
             applyItemStateTint();
+            applyCapabilityFrame();
         }
 
         private void applyItemStateTint() {
@@ -714,6 +758,16 @@ public class WndCompanionInventory extends Window {
                     bg.ba = +0.14f;
                 }
             }
+        }
+
+        private void applyCapabilityFrame() {
+            boolean visible = displayedItem != null
+                    && !(displayedItem instanceof WndBag.Placeholder)
+                    && CompanionInventory.usableByCoHero(displayedItem);
+            frameTop.visible = visible;
+            frameBottom.visible = visible;
+            frameLeft.visible = visible;
+            frameRight.visible = visible;
         }
     }
 
