@@ -15,7 +15,7 @@ public final class CompanionEnemySurge extends Buff {
 
     static final int MIN_MULTIPLIER_TENTHS = 10;
     static final int DEFAULT_MULTIPLIER_TENTHS = 15;
-    static final int MAX_MULTIPLIER_TENTHS = 20;
+    static final int MAX_MULTIPLIER_TENTHS = 30;
 
     private static final String MULTIPLIER_TENTHS = "multiplier_tenths";
 
@@ -37,7 +37,7 @@ public final class CompanionEnemySurge extends Buff {
 
     void setMultiplierTenths(int value) {
         if (value < MIN_MULTIPLIER_TENTHS || value > MAX_MULTIPLIER_TENTHS) {
-            throw new IllegalArgumentException("enemy spawn multiplier must be between 1.0x and 2.0x");
+            throw new IllegalArgumentException("enemy spawn multiplier must be between 1.0x and 3.0x");
         }
         multiplierTenths = value;
         extraSpawnCountdown = Float.NaN;
