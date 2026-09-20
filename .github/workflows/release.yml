@@ -343,7 +343,7 @@ jobs:
           cp -a mod/desktop spd/ 2>/dev/null || true
           cp -a mod/assets spd/ 2>/dev/null || true
 
-          python mod/scripts/patch_depth.py 26
+          python mod/scripts/patch_depth.py 26 spd
 
       - name: Patch CoHero-SMM interaction
         if: matrix.variant == 'smm'
