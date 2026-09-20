@@ -2664,7 +2664,7 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        if (lowHealthRally || combatRetreating || heroWaitingAtExit()) {
+        if (lowHealthRally || combatRetreating) {
             clearRangedLurePlan();
             return null;
         }
