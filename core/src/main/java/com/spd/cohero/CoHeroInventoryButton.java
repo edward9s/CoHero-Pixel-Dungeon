@@ -9,7 +9,7 @@ import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.Image;
 
 /**
- * Always-discoverable CoHero inventory entry placed next to the player's inventory control.
+ * Always-discoverable CoHero inventory badge embedded in the player's inventory control.
  */
 public class CoHeroInventoryButton extends Button {
 
