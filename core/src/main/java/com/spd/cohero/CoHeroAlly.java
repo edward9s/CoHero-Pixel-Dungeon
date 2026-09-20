@@ -2016,13 +2016,13 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        if (tryUseCleansingPotion(risk)) {
-            return true;
-        }
-
         Boolean escapeUtility = tryEscapeUtility(threats);
         if (escapeUtility != null) {
             return escapeUtility;
+        }
+
+        if (tryUseCleansingPotion(risk)) {
+            return true;
         }
 
         Boolean retreatPlant = tryKnownRetreatPlant(risk, threats);
