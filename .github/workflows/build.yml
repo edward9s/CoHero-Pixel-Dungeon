@@ -18,11 +18,12 @@ jobs:
 
       - name: Resolve latest Shattered Pixel Dungeon release
         id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG=$(curl -fsSL https://api.github.com/repos/00-Evan/shattered-pixel-dungeon/releases/latest \
-            | python -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name')
           COHERO_VER=$(python cohero/scripts/extract_version.py \
             cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
