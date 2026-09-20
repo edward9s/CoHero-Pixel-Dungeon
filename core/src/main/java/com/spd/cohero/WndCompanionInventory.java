@@ -18,6 +18,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ItemButton;
+import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
@@ -62,8 +63,34 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, statsY, text("inventory.defense"), defenseText());
         addStatCell(2, statsY, text("inventory.speed"), speedText());
 
+        final float enemySpawnLabelY = statsY + 19;
+        RenderedTextBlock enemySpawnLabel = PixelScene.renderTextBlock(text("inventory.enemy_spawn"), 7);
+        enemySpawnLabel.setPos(0, enemySpawnLabelY);
+        add(enemySpawnLabel);
+
+        final RenderedTextBlock enemySpawnValue = PixelScene.renderTextBlock(enemySpawnValueText(), 7);
+        enemySpawnValue.setPos(WIDTH - enemySpawnValue.width(), enemySpawnLabelY);
+        add(enemySpawnValue);
+
+        OptionSlider enemySpawnSlider = new OptionSlider(
+                "",
+                "1.0x",
+                "2.0x",
+                CompanionEnemySurge.MIN_MULTIPLIER_TENTHS,
+                CompanionEnemySurge.MAX_MULTIPLIER_TENTHS) {
+            @Override
+            protected void onChange() {
+                companion.setEnemySpawnMultiplierTenths(getSelectedValue());
+                enemySpawnValue.text(enemySpawnValueText());
+                enemySpawnValue.setPos(WIDTH - enemySpawnValue.width(), enemySpawnLabelY);
+            }
+        };
+        enemySpawnSlider.setSelectedValue(companion.enemySpawnMultiplierTenths());
+        enemySpawnSlider.setRect(0, enemySpawnLabel.bottom() + 1, WIDTH, 21);
+        add(enemySpawnSlider);
+
         RenderedTextBlock equipmentLabel = PixelScene.renderTextBlock(text("inventory.equipment"), 7);
-        equipmentLabel.setPos(0, statsY + 19);
+        equipmentLabel.setPos(0, enemySpawnSlider.bottom() + 3);
         add(equipmentLabel);
 
         float equipmentY = equipmentLabel.bottom() + 2;
@@ -154,6 +181,13 @@ public class WndCompanionInventory extends Window {
 
     private String speedText() {
         return String.format(Locale.ENGLISH, "%.2fx", companion.speed());
+    }
+
+    private String enemySpawnValueText() {
+        return String.format(
+                Locale.ENGLISH,
+                "%.1fx",
+                companion.enemySpawnMultiplierTenths() / 10f);
     }
 
     private void addEquipmentButton(int column, float y, SlotType type) {
