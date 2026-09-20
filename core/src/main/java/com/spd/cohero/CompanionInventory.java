@@ -423,7 +423,7 @@ public final class CompanionInventory {
         }
 
         backpack.add(item);
-        if (item instanceof Wand) {
+        if (item instanceof Wand && CoHeroWandAdapter.supported((Wand) item)) {
             ((Wand) item).charge(owner);
         }
         return true;
