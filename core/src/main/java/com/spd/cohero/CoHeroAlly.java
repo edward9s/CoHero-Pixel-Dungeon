@@ -3502,6 +3502,17 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
+        // In reduced-vision levels, a torch is a core exploration resource rather than generic
+        // warehouse loot. Prefer it before unrelated ranged equipment.
+        if (selected == null && Dungeon.level.viewDistance < Light.DISTANCE) {
+            for (Item item : new ArrayList<>(heap.items)) {
+                if (item instanceof Torch && inventory.canAddToBackpack(item)) {
+                    selected = item;
+                    break;
+                }
+            }
+        }
+
         if (selected == null) {
             for (Item item : new ArrayList<>(heap.items)) {
                 if (item instanceof MissileWeapon) {
@@ -3609,6 +3620,12 @@ public class CoHeroAlly extends DirectableAlly {
                     if (isKnown(cell)
                             && CoHeroWandAdapter.supported(wand)
                             && inventory.canAddToBackpack(wand)) {
+                        lootCandidate = true;
+                    }
+                } else if (item instanceof Torch) {
+                    if (Dungeon.level.viewDistance < Light.DISTANCE
+                            && isKnown(cell)
+                            && inventory.canAddToBackpack(item)) {
                         lootCandidate = true;
                     }
                 } else if (item instanceof Gold && isKnown(cell)) {
