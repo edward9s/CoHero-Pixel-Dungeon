@@ -3179,11 +3179,13 @@ public class CoHeroAlly extends DirectableAlly {
         boolean preferredMeleeEstablished = canAttack(preferredTarget)
                 && (!isCurrentRangedPressure(preferredTarget)
                     || Dungeon.level.adjacent(pos, preferredTarget.pos));
-        if (!preferredMeleeEstablished) {
-            RangedChoice preferred = chooseRangedAttack(preferredTarget);
-            if (preferred != null) {
-                return performRangedChoice(preferredTarget, preferred);
-            }
+        if (preferredMeleeEstablished) {
+            return null;
+        }
+
+        RangedChoice preferred = chooseRangedAttack(preferredTarget);
+        if (preferred != null) {
+            return performRangedChoice(preferredTarget, preferred);
         }
 
         Mob alternateTarget = null;
