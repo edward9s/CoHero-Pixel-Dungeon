@@ -1,0 +1,339 @@
+name: Release CoHero
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 18 * * *' # 02:00 Asia/Taipei
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+      spd_tag: ${{ steps.versions.outputs.spd_tag }}
+      cohero_ver: ${{ steps.versions.outputs.cohero_ver }}
+      smm_ver: ${{ steps.versions.outputs.smm_ver }}
+      release_tag: ${{ steps.versions.outputs.release_tag }}
+
+    steps:
+      - name: Checkout CoHero source
+        uses: actions/checkout@v4
+        with:
+          path: cohero
+
+      - name: Checkout Shattered Master Mode
+        uses: actions/checkout@v4
+        with:
+          repository: edward9s/Shattered-Master-Mode
+          path: mod
+
+      - name: Resolve versions
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SPD_TAG=$(curl -fsSL https://api.github.com/repos/00-Evan/shattered-pixel-dungeon/releases/latest \
+            | python -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          COHERO_VER=$(python cohero/scripts/extract_version.py \
+            cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
+          SMM_VER=$(python mod/scripts/extract_version.py \
+            mod/core/src/main/java/com/spd/mod/ModGame.java)
+          RELEASE_TAG="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}"
+
+          echo "spd_tag=$SPD_TAG" >> "$GITHUB_OUTPUT"
+          echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
+          echo "smm_ver=$SMM_VER" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Check release status
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.versions.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "Release $RELEASE_TAG already exists; scheduled run has nothing to do."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::Release $RELEASE_TAG already exists. Bump the CoHero version or wait for a new SPD release before publishing again."
+              exit 1
+            fi
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [cohero, smm]
+
+    steps:
+      - name: Checkout CoHero source
+        uses: actions/checkout@v4
+        with:
+          path: cohero
+
+      - name: Checkout Shattered Master Mode
+        if: matrix.variant == 'smm'
+        uses: actions/checkout@v4
+        with:
+          repository: edward9s/Shattered-Master-Mode
+          path: mod
+
+      - name: Checkout Shattered Pixel Dungeon
+        uses: actions/checkout@v4
+        with:
+          repository: 00-Evan/shattered-pixel-dungeon
+          ref: ${{ needs.prepare.outputs.spd_tag }}
+          path: spd
+
+      - name: Verify CoHero source isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/verify_source_layout.py cohero
+
+      - name: Overlay CoHero source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a cohero/core/. spd/core/
+
+      - name: Patch CoHero integration seams
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/patch_app_package.py spd/build.gradle
+          python cohero/scripts/patch_gamescene.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java
+          python cohero/scripts/patch_cohero_visual_fov.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java
+          python cohero/scripts/patch_hero_transition.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
+          python cohero/scripts/patch_cohero_class_traits.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
+          python cohero/scripts/patch_equipment_identification.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
+          python cohero/scripts/patch_hero_select.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/HeroSelectScene.java
+          python cohero/scripts/patch_dungeon_save.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/Dungeon.java
+          python cohero/scripts/patch_games_in_progress.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/GamesInProgress.java
+          python cohero/scripts/patch_start_scene.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/StartScene.java
+          python cohero/scripts/patch_version_ui.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java
+          python cohero/scripts/patch_level_mobs.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java
+          python cohero/scripts/patch_mob_cohero.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GreatCrab.java
+          python cohero/scripts/patch_chasm_cohero.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/Chasm.java
+          python cohero/scripts/patch_highgrass.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/HighGrass.java
+          python cohero/scripts/patch_dread_cohero.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/buffs/Dread.java
+          python cohero/scripts/patch_delayed_rockfall.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/DelayedRockFall.java
+          python cohero/scripts/patch_vault_firewall.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java
+          python cohero/scripts/patch_missileweapon.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java
+          python cohero/scripts/patch_special_weapons.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/SpiritBow.java
+          python cohero/scripts/patch_wands.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfMagicMissile.java
+          python cohero/scripts/patch_blastwave_cohero.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfBlastWave.java
+          python cohero/scripts/patch_living_earth.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfLivingEarth.java
+          python cohero/scripts/patch_elemental_blast_living_earth.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/abilities/mage/ElementalBlast.java
+          python cohero/scripts/patch_cohero_wand_types.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFrost.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfDisintegration.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfLightning.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfPrismaticLight.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfRegrowth.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfTransfusion.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorruption.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorrosion.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFireblast.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfWarding.java
+
+      - name: Patch and merge SMM
+        if: matrix.variant == 'smm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python mod/scripts/patch_android.py
+          python mod/scripts/inject_mod.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
+
+          cp -a mod/core spd/ 2>/dev/null || true
+          cp -a mod/android spd/ 2>/dev/null || true
+          cp -a mod/desktop spd/ 2>/dev/null || true
+          cp -a mod/assets spd/ 2>/dev/null || true
+
+          python mod/scripts/patch_depth.py 26
+
+      - name: Patch CoHero-SMM interaction
+        if: matrix.variant == 'smm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/patch_wndgame.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
+          python cohero/scripts/patch_smm_longpress.py \
+            spd/core/src/main/java/com/spd/mod/mechanics/ModAssassinate.java
+
+      - name: Patch CoHero WndGame
+        if: matrix.variant == 'cohero'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/patch_wndgame.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
+
+      - name: Patch CoHero messages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/patch_messages.py \
+            spd/core/src/main/assets/messages/misc \
+            cohero/messages
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release APK and JAR
+        working-directory: spd
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :android:assembleRelease :desktop:release
+
+      - name: Install Android build tools for signer
+        shell: bash
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
+
+      - name: Sign Android APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign
+        with:
+          releaseDirectory: spd/android/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Prepare release files
+        shell: bash
+        env:
+          SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
+          COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
+          SMM_VER: ${{ needs.prepare.outputs.smm_ver }}
+        run: |
+          set -euo pipefail
+
+          JAR=$(find spd/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
+          test -n "$JAR" -a -f "$JAR"
+
+          if [ "${{ matrix.variant }}" = "smm" ]; then
+            BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}-SMM-m${SMM_VER}"
+          else
+            BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}"
+          fi
+
+          mkdir -p out
+          cp "${{ steps.sign.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
+          cp "$JAR" "out/${BASE_NAME}.jar"
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.variant }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: out
+          merge-multiple: true
+
+      - name: Verify release payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          COUNT=$(find out -maxdepth 1 -type f \( -name '*.apk' -o -name '*.jar' \) | wc -l)
+          if [ "$COUNT" -ne 4 ]; then
+            echo "::error::Expected exactly 4 release files, found $COUNT."
+            find out -maxdepth 1 -type f -print
+            exit 1
+          fi
+
+      - name: Write release notes
+        shell: bash
+        env:
+          SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
+          COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
+          SMM_VER: ${{ needs.prepare.outputs.smm_ver }}
+        run: |
+          cat > release-notes.md <<EOF
+          CoHero Pixel Dungeon v${COHERO_VER}, built against Shattered Pixel Dungeon ${SPD_TAG}.
+
+          Files:
+          - CoHero APK
+          - CoHero desktop JAR
+          - CoHero + Shattered Master Mode m${SMM_VER} APK
+          - CoHero + Shattered Master Mode m${SMM_VER} desktop JAR
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          name: ${{ needs.prepare.outputs.release_tag }}
+          body_path: release-notes.md
+          files: out/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
