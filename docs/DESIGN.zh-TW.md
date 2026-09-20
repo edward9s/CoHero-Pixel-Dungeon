@@ -87,24 +87,24 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 - 若兩者已相鄰，CoHero 只有在存在可通行、無角色占用且不會主動驚動睡眠敵人的位置時才主動拉開。
 - 有可見敵人時仍先執行既有戰鬥／逃生判斷；低血量 rally 不會讓 CoHero 無視眼前威脅硬走向 Hero。
 
-### 天狗 Boss 樓層的階段搬運
+### Boss 封鎖生命週期
 
-天狗樓層會在同一個 `PrisonBossLevel` 內多次重寫地圖，且原版 `clearEntities()` 會直接銷毀不在當前保留區的 mob。CoHero 又刻意不使用 stock `Mob.holdAllies()/restoreAllies()`，因此需要獨立處理：
+SPD 在正式 Boss 戰開始時會由 `Level.seal()` 對 Hero 掛上 `LockedFloor`（中文「背水一戰」），Boss 戰結束時則由 `Level.unseal()` 解除。CoHero 直接把這個 buff 的 attach / detach 當作共通 Boss 戰生命週期訊號：
 
-- Hero 踏入第一階段房間、入口門即將重新鎖上前，若 CoHero 同行，先把 CoHero 搬到 `tenguCell` 內、盡量靠近 Hero 的合法空格。
-- 第一階段結束、`clearEntities(tenguCell)` 前，再確認 CoHero 位於 `tenguCell`，避免被地形重建當成一般 mob 清掉。
-- Hero 走到第二階段入口、`clearEntities(pauseSafeArea)` 前，把 CoHero 搬到 `pauseSafeArea` 內靠近 Hero 的合法空格，之後才建立 arena。
-- 第二階段擊敗天狗後沿用原版既有的 ally preservation：所有可移動 `ALLY` 會在 `setMapEnd()` 前暫時移出 mob list，結束地圖建立後重新放回天狗房；CoHero 不需要另一套終局搬運。
-- 這些搬運只在同一樓層的 Boss phase rewrite 使用，不改變 CoHero 一般跨樓層生命週期，也不重新加入 stock held-allies transport。
+- `LockedFloor.attachTo(Dungeon.hero)` 成功時，如果 CoHero 選擇同行，立即把 CoHero 搬到 Hero 身邊最近的合法空格，再讓各 Boss 關卡繼續鎖門、封入口或改地形。
+- `LockedFloor.detach()` 時再次把 CoHero 搬到 Hero 身邊，確保 Boss 戰結束時兩人重新會合。
+- 搬運不依賴特定 Boss class、arena `Rect` 或門的位置，因此 Goo、DM-300、矮人王、Yog 等使用標準 `seal()/unseal()` 的 Boss 都共用同一套規則。
+- CoHero 若被玩家明確留在該 Boss 樓層外，當前樓層不存在 CoHero actor，因此 hook 自然 no-op。
+- 這仍不把 CoHero 加回 stock `Mob.holdAllies()/restoreAllies()`；CoHero 的跨樓層 companion state 與「留在外面」語意保持獨立。
 
-### 矮人王 Boss 樓層的入場搬運
+### 天狗 Boss 樓層的階段重建
 
-矮人王的 `CityBossLevel.seal()` 會在 Hero 進入王房後立刻鎖住下方入口，原版會用 `Mob.holdAllies()/restoreAllies()` 把智能 ally 搬進場內；CoHero 因為有自己的跨樓層生命週期而刻意排除這套 transport，因此需要在 `seal()` 前獨立搬運：
+天狗是例外，因為同一個 `LockedFloor` 生命週期內會多次 destructive map rewrite，而原版 `clearEntities()` 會直接銷毀不在保留區的 mob。因此除了共通的 Boss 開始／結束 hook 外，仍保留最少量的 phase seam：
 
-- Hero 觸發 `seal()` 時，若 CoHero 同行，先把 CoHero 搬到王房內、盡量靠近 Hero 的合法空格。
-- 搬運區明確排除即將變成 `LOCKED_DOOR` 的 `arena.bottom - 1` 那一列，避免 CoHero 被放到門格上。
-- 矮人王關卡沒有像天狗那樣反覆重建整張地圖或 `clearEntities()`，所以只需要處理這一次入場鎖門。
-- 這仍不把 CoHero 加回 stock `heldAllies` transport。
+- 第一階段結束、`clearEntities(tenguCell)` 前，把 CoHero 確保在 `tenguCell`。
+- Hero 走到第二階段入口、`clearEntities(pauseSafeArea)` 前，把 CoHero 搬到 `pauseSafeArea`。
+- 第二階段打敗天狗時，原版會先 `unseal()`，之後才強制移動 Hero、`setMapEnd()` 並重新放置 ally；因此 `LockedFloor.detach()` 的會合時機對最終地圖太早。等 stock ally preservation 把 ally 放回結束地圖後，再額外把 CoHero 搬到 Hero 身邊一次。
+- 第一階段入場不再有天狗專屬搬運；它由 `LockedFloor.attachTo()` 的共通 Boss 開始 hook 處理。
 
 ### 特殊樓層的同行選擇
 
