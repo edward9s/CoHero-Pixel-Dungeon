@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  copilot-requests: write
 
 jobs:
   prepare:
@@ -17,6 +18,7 @@ jobs:
       cohero_ver: ${{ steps.versions.outputs.cohero_ver }}
       smm_ver: ${{ steps.versions.outputs.smm_ver }}
       release_tag: ${{ steps.versions.outputs.release_tag }}
+      prev_tag: ${{ steps.previous.outputs.prev_tag }}
 
     steps:
       - name: Checkout CoHero source
@@ -69,6 +71,144 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Find previous CoHero release
+        id: previous
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREV_TAG=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName --jq '.[].tagName' \
+            | grep '^CoHero-v' | head -1 || true)
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+          if [ -n "$PREV_TAG" ]; then
+            echo "Previous CoHero release: $PREV_TAG"
+          else
+            echo "No previous CoHero release found."
+          fi
+
+  notes:
+    needs: prepare
+    if: needs.prepare.outputs.skip == 'false'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout CoHero source
+        uses: actions/checkout@v4
+        with:
+          path: cohero
+          fetch-depth: 0
+
+      - name: Set up Node.js for Copilot
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Generate CoHero changelog with Copilot
+        continue-on-error: true
+        working-directory: ./cohero
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PREV_TAG: ${{ needs.prepare.outputs.prev_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f release-notes-ai.md
+
+          if [ -n "$PREV_TAG" ] && git rev-parse --verify "$PREV_TAG^{commit}" >/dev/null 2>&1; then
+            SCOPE="Compare git tag $PREV_TAG to HEAD using git log and git diff. Describe the final player-visible changes introduced since that release."
+          else
+            SCOPE="This is the first CoHero release. Inspect the current implementation and git history, and summarize the most important player-visible CoHero features and behavior in this release."
+          fi
+
+          copilot -p "Generate a concise player-facing changelog for CoHero Pixel Dungeon.
+
+          $SCOPE
+
+          Rules:
+          - Describe only meaningful player-visible CoHero gameplay, UI, compatibility, or balance changes.
+          - Merge related commits into one bullet and describe final behavior, not intermediate implementation steps.
+          - Ignore version bumps, CI/build/release workflow changes, documentation-only changes, refactors, cleanup, formatting, tests, and reverted or superseded changes unless they alter player-visible behavior.
+          - Do not summarize Shattered Pixel Dungeon upstream changes; the workflow handles those separately.
+          - Do not summarize Shattered Master Mode changes; it is only an optional bundled variant.
+          - Do not invent changes or infer features not supported by the repository.
+          - Use concise English suitable for GitHub release notes.
+          - Use at most 8 Markdown bullet points, with no heading, preamble, links, or trailing commentary.
+          - If comparing with a previous release and there are no meaningful player-visible CoHero changes, write exactly: NO_USER_FACING_CHANGES
+          - Write only the final result to release-notes-ai.md in the current directory." \
+            --allow-tool='shell(git:*)' \
+            --allow-tool=write \
+            --no-ask-user
+
+          test -s release-notes-ai.md
+
+      - name: Compose release notes
+        working-directory: ./cohero
+        env:
+          PREV_TAG: ${{ needs.prepare.outputs.prev_tag }}
+          SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
+          COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
+          SMM_VER: ${{ needs.prepare.outputs.smm_ver }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANGES_FILE="release-notes-changes.md"
+          NOTES_FILE="release-notes.md"
+          : > "$CHANGES_FILE"
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "- Initial release built against Shattered Pixel Dungeon ${SPD_TAG}." >> "$CHANGES_FILE"
+          else
+            PREV_SPD="${PREV_TAG##*-SPD-}"
+            if [ "$PREV_SPD" != "$SPD_TAG" ]; then
+              echo "- Updated base game from Shattered Pixel Dungeon ${PREV_SPD} to ${SPD_TAG}." >> "$CHANGES_FILE"
+            fi
+          fi
+
+          if [ -s release-notes-ai.md ]; then
+            AI_NOTES=$(cat release-notes-ai.md)
+            if [ "$AI_NOTES" != "NO_USER_FACING_CHANGES" ]; then
+              cat release-notes-ai.md >> "$CHANGES_FILE"
+              echo >> "$CHANGES_FILE"
+            fi
+          elif [ -n "$PREV_TAG" ]; then
+            echo "- CoHero changes are included; see the commit history since ${PREV_TAG} for details." >> "$CHANGES_FILE"
+          fi
+
+          if [ ! -s "$CHANGES_FILE" ]; then
+            echo "- Maintenance release with no player-visible CoHero changes." >> "$CHANGES_FILE"
+          fi
+
+          {
+            echo "## Changes"
+            echo
+            cat "$CHANGES_FILE"
+            echo
+            echo "> Built against Shattered Pixel Dungeon ${SPD_TAG}. The optional CoHero + SMM build uses Shattered Master Mode m${SMM_VER}."
+            echo
+            echo "## Downloads"
+            echo
+            echo "- CoHero Android APK"
+            echo "- CoHero Desktop JAR"
+            echo "- CoHero + SMM Android APK"
+            echo "- CoHero + SMM Desktop JAR"
+          } > "$NOTES_FILE"
+
+          cat "$NOTES_FILE"
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: cohero/release-notes.md
+          if-no-files-found: error
+          retention-days: 7
 
   build:
     needs: prepare
@@ -288,7 +428,7 @@ jobs:
           retention-days: 7
 
   release:
-    needs: [prepare, build]
+    needs: [prepare, build, notes]
     if: needs.prepare.outputs.skip == 'false'
     runs-on: ubuntu-latest
 
@@ -311,29 +451,18 @@ jobs:
             exit 1
           fi
 
-      - name: Write release notes
-        shell: bash
-        env:
-          SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
-          COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
-          SMM_VER: ${{ needs.prepare.outputs.smm_ver }}
-        run: |
-          cat > release-notes.md <<EOF
-          CoHero Pixel Dungeon v${COHERO_VER}, built against Shattered Pixel Dungeon ${SPD_TAG}.
-
-          Files:
-          - CoHero APK
-          - CoHero desktop JAR
-          - CoHero + Shattered Master Mode m${SMM_VER} APK
-          - CoHero + Shattered Master Mode m${SMM_VER} desktop JAR
-          EOF
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: notes
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
           name: ${{ needs.prepare.outputs.release_tag }}
-          body_path: release-notes.md
+          body_path: notes/release-notes.md
           files: out/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
