@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
+import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
@@ -157,6 +158,33 @@ public final class CompanionInventory {
             throw new IllegalStateException("CoHero ankh disappeared before revival");
         }
         return (Ankh) removed;
+    }
+
+    Torch takeOneAutoTorch() {
+        Torch source = null;
+        for (Item item : backpack) {
+            if (item instanceof Torch) {
+                source = (Torch) item;
+                break;
+            }
+        }
+        if (source == null) {
+            return null;
+        }
+
+        if (source.quantity() > 1) {
+            Item split = source.split(1);
+            if (!(split instanceof Torch)) {
+                throw new IllegalStateException("CoHero torch stack could not split");
+            }
+            return (Torch) split;
+        }
+
+        Item removed = removeFromBackpack(source);
+        if (!(removed instanceof Torch)) {
+            throw new IllegalStateException("CoHero torch disappeared before use");
+        }
+        return (Torch) removed;
     }
 
     Potion takeOneAutoHealingPotion() {
@@ -716,6 +744,7 @@ public final class CompanionInventory {
                 || item instanceof StoneOfDeepSleep
                 || item instanceof StoneOfBlink
                 || item instanceof StoneOfFlock
+                || item instanceof Torch
                 || item instanceof Ankh;
     }
 }
