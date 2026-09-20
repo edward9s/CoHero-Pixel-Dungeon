@@ -2576,14 +2576,28 @@ public class CoHeroAlly extends DirectableAlly {
             clearRangedLurePlan();
         }
 
-        // If melee is already legal, let the ordinary combat path attack immediately.
+        boolean rangedPressure = isCurrentRangedPressure(targetMob);
+        boolean continuingLure = rangedLureTargetId == targetMob.id();
+
+        // Weapon reach is not the desired engagement distance against a ranged enemy. A whip,
+        // spear, etc. may already be able to hit from 2+ tiles away, but trading at that distance
+        // leaves the enemy's ranged attack fully online. Prefer an adjacent cell whenever the
+        // target currently has ranged pressure.
+        if (rangedPressure && !Dungeon.level.adjacent(pos, targetMob.pos)) {
+            int closeStep = chooseRangedTargetClosingStep(targetMob, threats);
+            if (closeStep != -1) {
+                clearRangedLurePlan();
+                return moveForRangedEngagement(closeStep);
+            }
+        }
+
+        // Once adjacent, or when the enemy is not exerting ranged pressure, ordinary weapon reach
+        // semantics apply.
         if (canAttack(targetMob)) {
             clearRangedLurePlan();
             return null;
         }
 
-        boolean rangedPressure = isCurrentRangedPressure(targetMob);
-        boolean continuingLure = rangedLureTargetId == targetMob.id();
         if (!rangedPressure && !continuingLure) {
             return null;
         }
@@ -2655,6 +2669,62 @@ public class CoHeroAlly extends DirectableAlly {
                 && targetMob.coHeroCanAttackFrom(targetMob.pos, this);
     }
 
+    private int chooseRangedTargetClosingStep(Mob targetMob, ArrayList<Mob> threats) {
+        if (rooted || targetMob == null) {
+            return -1;
+        }
+
+        boolean[] passable = rangedLurePassable();
+        int bestStep = -1;
+        int bestScore = Integer.MAX_VALUE;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int destination = targetMob.pos + offset;
+            if (!Dungeon.level.insideMap(destination)
+                    || Dungeon.level.distance(destination, targetMob.pos) != 1
+                    || !passable[destination]
+                    || !isMovementSafe(destination)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(destination);
+            if (occupant != null && occupant != this) {
+                continue;
+            }
+
+            PathFinder.Path route =
+                    Dungeon.findPath(this, destination, passable, fieldOfView, true);
+            if (route == null || route.isEmpty()) {
+                continue;
+            }
+
+            int exposedSteps = 0;
+            if (targetMob.fieldOfView != null
+                    && targetMob.fieldOfView.length == Dungeon.level.length()) {
+                for (int routeCell : route) {
+                    if (targetMob.fieldOfView[routeCell]) {
+                        exposedSteps++;
+                    }
+                }
+            }
+
+            int attackers = countCurrentAttackersAtCell(destination, threats);
+            int score = route.size() * 24
+                    + exposedSteps * 18
+                    + attackers * 90;
+
+            int firstStep = route.getFirst();
+            if (bestStep == -1
+                    || score < bestScore
+                    || (score == bestScore && firstStep < bestStep)) {
+                bestStep = firstStep;
+                bestScore = score;
+            }
+        }
+
+        return bestStep;
+    }
+
     /**
      * A "close" ranged enemy is one CoHero can put into legal melee range with one safe movement
      * step. This respects long-reach melee weapons through canAttackFrom().
@@ -2677,7 +2747,7 @@ public class CoHeroAlly extends DirectableAlly {
                     || !isMovementSafe(cell)
                     || (!fieldOfView[cell] && !isKnown(cell))
                     || Actor.findChar(cell) != null
-                    || !canAttackFrom(cell, targetMob)) {
+                    || !Dungeon.level.adjacent(cell, targetMob.pos)) {
                 continue;
             }
 
