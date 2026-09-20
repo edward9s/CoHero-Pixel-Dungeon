@@ -496,6 +496,7 @@ public class CoHeroAlly extends DirectableAlly {
         Weapon attackWeapon = attackingWeapon();
         if (attackWeapon != null) {
             damage = attackWeapon.proc(this, enemy, damage);
+            attackWeapon.coHeroUseForIdentification();
         }
         return damage;
     }
@@ -509,8 +510,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public int defenseProc(Char enemy, int damage) {
-        if (armor() != null) {
-            damage = armor().proc(enemy, this, damage);
+        Armor equippedArmor = armor();
+        if (equippedArmor != null) {
+            damage = equippedArmor.proc(enemy, this, damage);
+            equippedArmor.coHeroUseForIdentification();
         }
 
         WandOfLivingEarth.RockArmor rockArmor =
