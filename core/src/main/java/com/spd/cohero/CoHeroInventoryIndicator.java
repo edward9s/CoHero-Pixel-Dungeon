@@ -12,6 +12,8 @@ import com.watabou.noosa.Image;
 /** Permanent CoHero inventory entry in the standard GameScene tag stack. */
 public class CoHeroInventoryIndicator extends Tag {
 
+    private static final float COMPANION_BADGE_SCALE = 0.7f;
+
     private final ItemSprite backpack;
     private final Image companionBadge;
 
@@ -28,7 +30,7 @@ public class CoHeroInventoryIndicator extends Tag {
             throw new IllegalStateException("CoHero inventory indicator has no selected companion class");
         }
         companionBadge = new Image(companionClass.spritesheet(), 0, 90, 12, 15);
-        companionBadge.scale.set(0.4f);
+        companionBadge.scale.set(COMPANION_BADGE_SCALE);
         add(companionBadge);
 
         setSize(SIZE, SIZE);
