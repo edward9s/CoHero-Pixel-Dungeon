@@ -1,20 +1,51 @@
 # CoHero Pixel Dungeon
 
-CoHero Pixel Dungeon is an experimental Shattered Pixel Dungeon derivative built around one change: the player directly controls one hero while a second hero explores and fights autonomously.
+CoHero Pixel Dungeon is an experimental Shattered Pixel Dungeon mod where you play with an autonomous second hero.
 
-The goal is not to redesign Shattered Pixel Dungeon. The project should preserve upstream mechanics as much as possible and make the new gameplay emerge from having to survive alongside an autonomous second hero while sharing the same dungeon resources.
+You control the main Hero. The CoHero explores, fights, uses items, and tries to survive on its own.
 
-Key ideas:
+## Status
 
-- The player controls only the primary hero.
-- The companion hero has its own inventory and equipment resources.
-- The companion moves and explores autonomously.
-- Either hero dying ends the run.
-- The companion remains visible outside the player's field of view, and its own FOV lights nearby terrain for display only; gameplay logic still treats `Dungeon.level.heroFOV` as the primary Hero's vision.
-- The player cannot stop the companion from progressing.
-- The player does not issue movement or combat commands to the companion; inventory and equipment allocation are the control interface.
-- Companion combat behaviour is driven primarily by currently available combat capabilities, target properties, range, and damage rather than hard-coded class logic.
-- The companion should avoid intentionally waking sleeping enemies when a reasonable route can keep its distance.
-- The project should remain close enough to upstream Shattered Pixel Dungeon to follow future releases and, where practical, support an SMM-like injection path into compatible forks.
+**Early alpha / public playtest.**
 
-See [docs/DESIGN.zh-TW.md](docs/DESIGN.zh-TW.md) for the current design consensus and unresolved questions.
+The core game is playable, but AI behaviour and balance are still being tuned. Bugs and unexpected decisions are expected.
+
+## How it works
+
+- Choose a Hero and a CoHero at the start of a run.
+- You directly control only the main Hero.
+- The CoHero moves, explores, and fights by itself.
+- The CoHero has its own backpack, weapons, armor, rings, wands, and consumables.
+- Dungeon resources are shared between both heroes.
+- Giving the CoHero different equipment is the main way to influence its behaviour.
+- Either Hero dying ends the run.
+- Boss and branch floors let you choose whether the CoHero comes with you.
+- The CoHero backpack includes an enemy spawn multiplier from **1.0x to 2.0x** for difficulty tuning.
+
+Long-press the CoHero locator to open its backpack.
+
+## Downloads
+
+Release builds are provided as:
+
+- **Android:** signed APK
+- **Desktop:** JAR
+- **CoHero + SMM:** optional build with Shattered Master Mode
+
+Download them from the repository's **Releases** page.
+
+## Feedback
+
+Bug reports and gameplay feedback are welcome through GitHub Issues.
+
+The most useful reports include:
+
+- what the CoHero did,
+- what you expected it to do,
+- the floor / situation where it happened.
+
+For implementation details and current design rules, see [docs/DESIGN.zh-TW.md](docs/DESIGN.zh-TW.md).
+
+## About
+
+CoHero aims to keep Shattered Pixel Dungeon's original mechanics intact while adding the pressure of surviving with an autonomous second hero.
