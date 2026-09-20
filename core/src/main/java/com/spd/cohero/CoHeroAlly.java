@@ -557,10 +557,6 @@ public class CoHeroAlly extends DirectableAlly {
         syncSharedLevel();
         syncViewDistance();
 
-        if (tryAutoTorch()) {
-            return true;
-        }
-
         if (fieldOfView == null || fieldOfView.length != Dungeon.level.length()) {
             fieldOfView = new boolean[Dungeon.level.length()];
         }
@@ -569,6 +565,10 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (paralysed > 0) {
             spend(TICK);
+            return true;
+        }
+
+        if (tryAutoTorch()) {
             return true;
         }
 
@@ -3735,6 +3735,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         Buff.affect(this, Light.class, Light.DURATION);
+        revealVisibleCells();
         Catalog.countUse(Torch.class);
         Sample.INSTANCE.play(Assets.Sounds.BURNING);
 
