@@ -73,14 +73,8 @@ if text.count(layout_anchor) != 1:
 text = text.replace(mob_anchor, mob_anchor + "\n" + ready_marker + "\n", 1)
 
 locator_block = (
-    "\t\tRectF coHeroTagInsets = Game.platform.getSafeInsets(PlatformSupport.INSET_ALL)\n"
-    "\t\t\t\t.scale(1f / uiCamera.zoom);\n"
-    "\t\tfloat coHeroTagWidth = Tag.SIZE\n"
-    "\t\t\t\t+ (SPDSettings.flipTags() ? coHeroTagInsets.left : coHeroTagInsets.right);\n"
-    "\t\tfloat coHeroSafeLeft = SPDSettings.flipTags()\n"
-    "\t\t\t\t? coHeroTagWidth : insets.left;\n"
-    "\t\tfloat coHeroSafeRight = SPDSettings.flipTags()\n"
-    "\t\t\t\t? uiCamera.width - insets.right : uiCamera.width - coHeroTagWidth;\n"
+    "\t\tfloat coHeroSafeLeft = insets.left;\n"
+    "\t\tfloat coHeroSafeRight = uiCamera.width - insets.right;\n"
     "\t\tfloat coHeroSafeTop = Math.max(menu.bottom(), boss.bottom());\n"
     "\t\tif (uiSize == 0) coHeroSafeTop = Math.max(coHeroSafeTop, status.bottom());\n"
     "\t\tfloat coHeroSafeBottom = toolbar.top();\n"
@@ -178,6 +172,39 @@ text = text.replace(
     + tag_layout_anchor,
     1,
 )
+
+tag_bounds_anchor = (
+    "\t}\n"
+    "\t\n"
+    "\t@Override\n"
+    "\tprotected void onBackPressed() {\n"
+)
+if text.count(tag_bounds_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene post-tag-layout anchor, found {text.count(tag_bounds_anchor)}"
+    )
+
+tag_bounds_methods = (
+    "\t}\n\n"
+    "\tpublic static RectF coHeroTagBounds() {\n"
+    "\t\tif (scene == null) return null;\n\n"
+    "\t\tRectF bounds = null;\n"
+    "\t\tif (scene.tagAttack) bounds = includeCoHeroTag(bounds, scene.attack);\n"
+    "\t\tif (scene.tagLoot) bounds = includeCoHeroTag(bounds, scene.loot);\n"
+    "\t\tif (scene.tagAction) bounds = includeCoHeroTag(bounds, scene.action);\n"
+    "\t\tif (scene.tagCoHeroInventory) bounds = includeCoHeroTag(bounds, scene.coHeroInventory);\n"
+    "\t\tif (scene.tagResume) bounds = includeCoHeroTag(bounds, scene.resume);\n"
+    "\t\treturn bounds;\n"
+    "\t}\n\n"
+    "\tprivate static RectF includeCoHeroTag(RectF bounds, Tag tag) {\n"
+    "\t\tRectF rect = new RectF(tag.left(), tag.top(), tag.right(), tag.bottom());\n"
+    "\t\treturn bounds == null ? rect : bounds.union(rect);\n"
+    "\t}\n"
+    "\t\n"
+    "\t@Override\n"
+    "\tprotected void onBackPressed() {\n"
+)
+text = text.replace(tag_bounds_anchor, tag_bounds_methods, 1)
 
 targeted_anchor = (
     "\tpublic static TargetedCell targetedCell(int pos, float delay){\n"
