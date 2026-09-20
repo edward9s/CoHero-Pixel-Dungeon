@@ -32,12 +32,15 @@ import java.util.Locale;
 /** Inventory UI for the autonomous companion. */
 public class WndCompanionInventory extends Window {
 
-    private static final int PREFERRED_WIDTH = 134;
-    private static final int PREFERRED_SLOT = 26;
-    private static final int MIN_SLOT = 22;
+    private static final int PORTRAIT_WIDTH = 134;
+    private static final int LANDSCAPE_WIDTH = 236;
+    private static final int PORTRAIT_SLOT = 26;
+    private static final int LANDSCAPE_SLOT = 22;
+    private static final int MIN_PORTRAIT_SLOT = 22;
     private static final int SLOT_GAP = 1;
     private static final int BACKPACK_COLS = 5;
     private static final int CONTROL_INSET = 6;
+    private static final int LANDSCAPE_PANEL_GAP = 4;
 
     private final CoHeroAlly companion;
     private final CompanionInventory inventory;
@@ -52,16 +55,24 @@ public class WndCompanionInventory extends Window {
         this.companion = companion;
         this.inventory = companion.inventory();
 
+        boolean landscape = PixelScene.landscape();
         int availableWidth = Math.max(
                 1,
                 PixelScene.uiCamera.width - (int) Math.ceil(chrome.marginHor()) - 2);
-        layoutWidth = Math.min(PREFERRED_WIDTH, availableWidth);
+
         slotGap = SLOT_GAP;
-        slotSize = Math.max(
-                MIN_SLOT,
-                Math.min(
-                        PREFERRED_SLOT,
-                        (layoutWidth - slotGap * (BACKPACK_COLS - 1)) / BACKPACK_COLS));
+        if (landscape) {
+            layoutWidth = Math.min(LANDSCAPE_WIDTH, availableWidth);
+            slotSize = LANDSCAPE_SLOT;
+        } else {
+            layoutWidth = Math.min(PORTRAIT_WIDTH, availableWidth);
+            slotSize = Math.max(
+                    MIN_PORTRAIT_SLOT,
+                    Math.min(
+                            PORTRAIT_SLOT,
+                            (layoutWidth - slotGap * (BACKPACK_COLS - 1))
+                                    / BACKPACK_COLS));
+        }
 
         RenderedTextBlock title = PixelScene.renderTextBlock(text("inventory.title"), 9);
         title.hardlight(TITLE_COLOR);
@@ -69,7 +80,16 @@ public class WndCompanionInventory extends Window {
         title.setPos(0, 1);
         add(title);
 
-        float statsY = title.bottom() + 4;
+        float contentY = title.bottom() + 4;
+        if (landscape) {
+            layoutLandscape(contentY);
+        } else {
+            layoutPortrait(contentY);
+        }
+    }
+
+    private void layoutPortrait(float startY) {
+        float statsY = startY;
         addStatCell(0, 0, statsY, layoutWidth, text("inventory.level"),
                 Integer.toString(companion.level()));
         addStatCell(1, 0, statsY, layoutWidth, text("inventory.health"), healthText());
@@ -97,10 +117,50 @@ public class WndCompanionInventory extends Window {
         resize(layoutWidth, (int) (backpackY + rows * (slotSize + slotGap)));
     }
 
+    private void layoutLandscape(float startY) {
+        int backpackWidth = BACKPACK_COLS * slotSize
+                + (BACKPACK_COLS - 1) * slotGap;
+        int leftWidth = layoutWidth - LANDSCAPE_PANEL_GAP - backpackWidth;
+        if (leftWidth < 96) {
+            throw new IllegalStateException(
+                    "CoHero inventory cannot fit landscape layout");
+        }
+
+        int backpackX = leftWidth + LANDSCAPE_PANEL_GAP;
+
+        float statsY = startY;
+        addStatCell(0, 0, statsY, leftWidth, text("inventory.level"),
+                Integer.toString(companion.level()));
+        addStatCell(1, 0, statsY, leftWidth, text("inventory.health"), healthText());
+        addStatCell(2, 0, statsY, leftWidth, text("inventory.strength"),
+                Integer.toString(companion.STR()));
+
+        statsY += 18;
+        addStatCell(0, 0, statsY, leftWidth, text("inventory.damage"), damageText());
+        addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
+        addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
+
+        float leftBottom = addControlsAndEquipment(0, statsY + 14, leftWidth);
+
+        RenderedTextBlock backpackLabel = backpackLabel(backpackWidth);
+        backpackLabel.setPos(backpackX, startY);
+        add(backpackLabel);
+
+        float backpackY = backpackLabel.bottom() + 2;
+        for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
+            addBackpackButton(i, backpackX, backpackY);
+        }
+
+        int rows = (int) Math.ceil(
+                CompanionInventory.BACKPACK_CAPACITY / (float) BACKPACK_COLS);
+        float rightBottom = backpackY + rows * (slotSize + slotGap);
+        resize(layoutWidth, (int) Math.max(leftBottom, rightBottom));
+    }
+
     private float addControlsAndEquipment(float x, float startY, int width) {
-        int inset = Math.min(CONTROL_INSET, Math.max(0, (width - 80) / 2));
-        float controlX = x + inset;
-        int controlWidth = width - inset * 2;
+        int inset = Math.min(CONTROL_INSET, Math.max(0, width - 80));
+        int controlWidth = width - inset;
+        float controlX = x + width - controlWidth;
 
         final float enemySpawnLabelY = startY;
         final RenderedTextBlock enemySpawnValue =
