@@ -331,6 +331,44 @@ public class CoHeroAlly extends DirectableAlly {
         syncViewDistance();
     }
 
+    void relocateForLevelRewrite(int cell) {
+        if (Dungeon.level == null
+                || cell < 0
+                || cell >= Dungeon.level.length()
+                || !Dungeon.level.passable[cell]) {
+            throw new IllegalArgumentException("Invalid CoHero level-rewrite destination: " + cell);
+        }
+        Char occupant = Actor.findChar(cell);
+        if (occupant != null && occupant != this) {
+            throw new IllegalArgumentException("CoHero level-rewrite destination is occupied: " + cell);
+        }
+
+        pos = cell;
+        explorationTarget = -1;
+        path = null;
+        target = -1;
+        enemy = null;
+        enemyID = -1;
+        enemySeen = false;
+        alerted = false;
+        defendingPos = -1;
+        movingToDefendPos = false;
+        clearMeleeTacticalPlan();
+        clearRangedLurePlan();
+
+        if (sprite != null) {
+            sprite.interruptMotion();
+            sprite.place(pos);
+        }
+
+        if (fieldOfView == null || fieldOfView.length != Dungeon.level.length()) {
+            fieldOfView = new boolean[Dungeon.level.length()];
+        }
+        Dungeon.level.occupyCell(this);
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+    }
+
     void syncViewDistance() {
         if (Dungeon.level == null) {
             return;
