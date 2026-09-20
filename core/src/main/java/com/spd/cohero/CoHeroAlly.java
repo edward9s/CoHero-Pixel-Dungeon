@@ -268,6 +268,21 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
+    int enemySpawnMultiplierTenths() {
+        CompanionEnemySurge surge = buff(CompanionEnemySurge.class);
+        return surge == null
+                ? CompanionEnemySurge.MIN_MULTIPLIER_TENTHS
+                : surge.multiplierTenths();
+    }
+
+    void setEnemySpawnMultiplierTenths(int value) {
+        CompanionEnemySurge surge = Buff.affect(this, CompanionEnemySurge.class);
+        if (surge == null) {
+            throw new IllegalStateException("CoHero enemy surge buff could not be attached");
+        }
+        surge.setMultiplierTenths(value);
+    }
+
     void enterLevel(int cell) {
         if (!isAlive()) {
             throw new IllegalStateException("Cannot move a dead CoHero companion to a new level");
@@ -296,6 +311,7 @@ public class CoHeroAlly extends DirectableAlly {
         syncedLevel = level();
         updateHT(false);
         Buff.affect(this, CompanionRegeneration.class);
+        Buff.affect(this, CompanionEnemySurge.class);
     }
 
     private void syncSharedLevel() {
