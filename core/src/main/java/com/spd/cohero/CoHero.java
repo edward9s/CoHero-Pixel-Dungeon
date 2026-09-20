@@ -514,7 +514,7 @@ public final class CoHero {
 
     public static void relocateCompanionForLevelRewrite(Rect area, int preferredCell) {
         if (area == null || Dungeon.level == null) {
-            throw new IllegalArgumentException("Boss-phase relocation requires a live level and area");
+            throw new IllegalArgumentException("Level-rewrite relocation requires a live level and area");
         }
 
         CoHeroAlly companion = findCompanion();
