@@ -459,7 +459,7 @@ public final class CoHero {
         }
 
         if (companion.pos != destination) {
-            companion.relocateForLevelRewrite(destination);
+            companion.relocateImmediately(destination);
         }
     }
 
@@ -559,7 +559,7 @@ public final class CoHero {
         }
 
         if (companion.pos != bestCell) {
-            companion.relocateForLevelRewrite(bestCell);
+            companion.relocateImmediately(bestCell);
         }
     }
 
