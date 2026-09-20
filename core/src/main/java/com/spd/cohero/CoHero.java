@@ -44,7 +44,6 @@ public final class CoHero {
     private static boolean restoringSavedGame;
     private static int excludedDepth = -1;
     private static int excludedBranch = -1;
-    private static boolean[] renderFieldOfView;
 
     private CoHero() {
     }
@@ -392,49 +391,36 @@ public final class CoHero {
     }
 
     /**
-     * Display-only visibility union. Gameplay code must continue using Dungeon.level.heroFOV
-     * when it specifically means the player's Hero vision.
+     * Merges the live CoHero FOV into the shared party FOV.
+     *
+     * Level.updateFieldOfView calls this while recomputing Dungeon.level.heroFOV for the Hero.
+     * The companion FOV is refreshed first so moving doors, blindness, Light, special-floor
+     * view distance and other upstream vision rules are reflected immediately.
      */
-    public static boolean[] renderFieldOfView() {
-        if (Dungeon.level == null || Dungeon.level.heroFOV == null) {
-            return null;
+    public static void mergeCompanionFieldOfView(boolean[] sharedFieldOfView) {
+        if (Dungeon.level == null || sharedFieldOfView == null) {
+            return;
         }
-
-        boolean[] heroFOV = Dungeon.level.heroFOV;
-        if (renderFieldOfView == null || renderFieldOfView.length != heroFOV.length) {
-            renderFieldOfView = new boolean[heroFOV.length];
-        }
-        System.arraycopy(heroFOV, 0, renderFieldOfView, 0, heroFOV.length);
-
-        CoHeroAlly companion = findCompanion();
-        if (companion != null
-                && companion.isAlive()
-                && companion.fieldOfView != null
-                && companion.fieldOfView.length == renderFieldOfView.length) {
-            for (int i = 0; i < renderFieldOfView.length; i++) {
-                renderFieldOfView[i] |= companion.fieldOfView[i];
-            }
-        }
-        return renderFieldOfView;
-    }
-
-    public static boolean isVisibleToPlayer(int cell) {
-        if (Dungeon.level == null
-                || Dungeon.level.heroFOV == null
-                || cell < 0
-                || cell >= Dungeon.level.heroFOV.length) {
-            return false;
-        }
-        if (Dungeon.level.heroFOV[cell]) {
-            return true;
+        if (sharedFieldOfView.length != Dungeon.level.length()) {
+            throw new IllegalArgumentException("sharedFieldOfView length does not match current level");
         }
 
         CoHeroAlly companion = findCompanion();
-        return companion != null
-                && companion.isAlive()
-                && companion.fieldOfView != null
-                && cell < companion.fieldOfView.length
-                && companion.fieldOfView[cell];
+        if (companion == null || !companion.isAlive()) {
+            return;
+        }
+
+        if (companion.fieldOfView == null
+                || companion.fieldOfView.length != Dungeon.level.length()) {
+            companion.fieldOfView = new boolean[Dungeon.level.length()];
+        }
+
+        companion.syncViewDistance();
+        Dungeon.level.updateFieldOfView(companion, companion.fieldOfView);
+
+        for (int i = 0; i < sharedFieldOfView.length; i++) {
+            sharedFieldOfView[i] |= companion.fieldOfView[i];
+        }
     }
 
     private static String companionClassKey() {
