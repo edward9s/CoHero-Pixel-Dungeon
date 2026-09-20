@@ -294,6 +294,8 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GreatCrab.java
           python cohero/scripts/patch_prison_boss_cohero.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/PrisonBossLevel.java
+          python cohero/scripts/patch_city_boss_cohero.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/CityBossLevel.java
           python cohero/scripts/patch_chasm_cohero.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/Chasm.java
           python cohero/scripts/patch_highgrass.py \
