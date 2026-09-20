@@ -87,6 +87,16 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 - 若兩者已相鄰，CoHero 只有在存在可通行、無角色占用且不會主動驚動睡眠敵人的位置時才主動拉開。
 - 有可見敵人時仍先執行既有戰鬥／逃生判斷；低血量 rally 不會讓 CoHero 無視眼前威脅硬走向 Hero。
 
+### 天狗 Boss 樓層的階段搬運
+
+天狗樓層會在同一個 `PrisonBossLevel` 內多次重寫地圖，且原版 `clearEntities()` 會直接銷毀不在當前保留區的 mob。CoHero 又刻意不使用 stock `Mob.holdAllies()/restoreAllies()`，因此需要獨立處理：
+
+- Hero 踏入第一階段房間、入口門即將重新鎖上前，若 CoHero 同行，先把 CoHero 搬到 `tenguCell` 內、盡量靠近 Hero 的合法空格。
+- 第一階段結束、`clearEntities(tenguCell)` 前，再確認 CoHero 位於 `tenguCell`，避免被地形重建當成一般 mob 清掉。
+- Hero 走到第二階段入口、`clearEntities(pauseSafeArea)` 前，把 CoHero 搬到 `pauseSafeArea` 內靠近 Hero 的合法空格，之後才建立 arena。
+- 第二階段擊敗天狗後沿用原版既有的 ally preservation：所有可移動 `ALLY` 會在 `setMapEnd()` 前暫時移出 mob list，結束地圖建立後重新放回天狗房；CoHero 不需要另一套終局搬運。
+- 這些搬運只在同一樓層的 Boss phase rewrite 使用，不改變 CoHero 一般跨樓層生命週期，也不重新加入 stock held-allies transport。
+
 ### 特殊樓層的同行選擇
 
 一般樓層仍維持 CoHero 與 Hero 一起跨層；但進入高風險、可獨立完成的特殊樓層時，玩家可以決定是否讓 CoHero 同行：
