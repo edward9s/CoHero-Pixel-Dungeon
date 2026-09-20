@@ -1,6 +1,8 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
+import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Belongings;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
@@ -18,6 +20,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ItemButton;
+import com.shatteredpixel.shatteredpixeldungeon.ui.ItemSlot;
 import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
@@ -26,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndBag;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndInfoItem;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
+import com.watabou.noosa.audio.Sample;
 
 import java.util.Locale;
 
@@ -308,7 +312,7 @@ public class WndCompanionInventory extends Window {
     }
 
     private void addEquipmentButton(int column, float startX, float y, SlotType type) {
-        ItemButton button = new ItemButton() {
+        ItemButton button = new CoHeroItemButton() {
             @Override
             protected void onClick() {
                 Item equipped = equippedItem(type);
@@ -346,7 +350,7 @@ public class WndCompanionInventory extends Window {
         int col = index % BACKPACK_COLS;
         int row = index / BACKPACK_COLS;
 
-        ItemButton button = new ItemButton() {
+        ItemButton button = new CoHeroItemButton() {
             @Override
             protected void onClick() {
                 if (index < inventory.backpack().size()) {
@@ -637,6 +641,77 @@ public class WndCompanionInventory extends Window {
 
     private static String text(String key, Object... args) {
         return CoHeroMessages.get(key, args);
+    }
+
+    /**
+     * Mirrors stock InventorySlot state coloring while preserving the existing CoHero button.
+     */
+    private static class CoHeroItemButton extends ItemButton {
+
+        private Item displayedItem;
+
+        @Override
+        protected void createChildren() {
+            bg = Chrome.get(Chrome.Type.RED_BUTTON);
+            add(bg);
+
+            slot = new ItemSlot() {
+                @Override
+                protected void onPointerDown() {
+                    bg.brightness(1.2f);
+                    Sample.INSTANCE.play(Assets.Sounds.CLICK);
+                }
+
+                @Override
+                protected void onPointerUp() {
+                    applyItemStateTint();
+                }
+
+                @Override
+                protected void onClick() {
+                    CoHeroItemButton.this.onClick();
+                }
+
+                @Override
+                protected boolean onLongClick() {
+                    return CoHeroItemButton.this.onLongClick();
+                }
+            };
+            slot.enable(true);
+            add(slot);
+        }
+
+        @Override
+        public void item(Item item) {
+            displayedItem = item;
+            super.item(item);
+            applyItemStateTint();
+        }
+
+        private void applyItemStateTint() {
+            bg.resetColor();
+
+            Item item = displayedItem;
+            if (item == null || item instanceof WndBag.Placeholder) {
+                return;
+            }
+
+            if (item.cursed && item.cursedKnown) {
+                bg.ra = +0.3f;
+                bg.ga = -0.15f;
+                bg.ba = -0.15f;
+            } else if (!item.isIdentified()) {
+                if ((item instanceof EquipableItem || item instanceof Wand)
+                        && item.cursedKnown) {
+                    bg.ba = +0.3f;
+                    bg.ra = -0.1f;
+                    bg.ga = -0.1f;
+                } else {
+                    bg.ra = +0.35f;
+                    bg.ba = +0.35f;
+                }
+            }
+        }
     }
 
     private enum SlotType {
