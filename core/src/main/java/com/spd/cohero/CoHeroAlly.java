@@ -866,7 +866,7 @@ public class CoHeroAlly extends DirectableAlly {
             int cell = pos + offset;
             if (!Dungeon.level.insideMap(cell)
                     || Dungeon.level.distance(pos, cell) != 1
-                    || !isKnown(cell)
+                    || !Dungeon.level.visited[cell]
                     || !Dungeon.level.passable[cell]
                     || Actor.findChar(cell) != null
                     || !isMovementSafe(cell)) {
@@ -891,7 +891,7 @@ public class CoHeroAlly extends DirectableAlly {
                 continue;
             }
             int cell = plant.pos;
-            if (!isKnown(cell)
+            if (!Dungeon.level.visited[cell]
                     || !Dungeon.level.passable[cell]
                     || Actor.findChar(cell) != null
                     || !isMovementSafe(cell)
