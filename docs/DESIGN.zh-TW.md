@@ -91,7 +91,7 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 
 SPD 在正式 Boss 戰開始時會由 `Level.seal()` 對 Hero 掛上 `LockedFloor`（中文「背水一戰」），Boss 戰結束時則由 `Level.unseal()` 解除。CoHero 直接把這個 buff 的 attach / detach 當作共通 Boss 戰生命週期訊號：
 
-- `LockedFloor.attachTo(Dungeon.hero)` 成功時，如果 CoHero 選擇同行，立即把 CoHero 搬到 Hero 身邊最近的合法空格，再讓各 Boss 關卡繼續鎖門、封入口或改地形。
+- `LockedFloor.attachTo(Dungeon.hero)` 成功時，如果 CoHero 選擇同行，立即把 CoHero 搬到 Hero 身邊最近的合法空格，再讓各 Boss 關卡繼續鎖門、封入口或改地形。`LockedFloor` 會把「本次鎖層已完成開始搬運」寫進存檔；讀取 Boss 戰中的存檔雖然原版會重新呼叫 `attachTo()`，但不會被誤判成新的 Boss 開始而再次搬運。
 - `LockedFloor.detach()` 時再次把 CoHero 搬到 Hero 身邊，確保 Boss 戰結束時兩人重新會合。
 - 搬運不依賴特定 Boss class、arena `Rect` 或門的位置，因此 Goo、DM-300、矮人王、Yog 等使用標準 `seal()/unseal()` 的 Boss 都共用同一套規則。
 - CoHero 若被玩家明確留在該 Boss 樓層外，當前樓層不存在 CoHero actor，因此 hook 自然 no-op。
