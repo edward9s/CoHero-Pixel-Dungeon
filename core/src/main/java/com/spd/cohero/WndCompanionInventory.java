@@ -406,9 +406,13 @@ public class WndCompanionInventory extends Window {
     }
 
     private void selectItemFromHero() {
-        // A WndBag is another window. Close this snapshot first so a fresh inventory window
-        // cannot end up stacked over a stale one after the selection callback.
+        // WndBag is another window. Close this snapshot once, then keep the selector active
+        // across successful transfers so several items can be given to CoHero in sequence.
         hide();
+        openHeroItemSelector();
+    }
+
+    private void openHeroItemSelector() {
         GameScene.selectItem(new WndBag.ItemSelector() {
             @Override
             public String textPrompt() {
@@ -427,14 +431,20 @@ public class WndCompanionInventory extends Window {
 
             @Override
             public void onSelect(Item item) {
-                if (item != null) {
-                    Item moved = takeFromPlayer(item);
-                    if (moved != null && !inventory.addToBackpack(moved)) {
-                        returnToPlayer(moved);
-                        throw new IllegalStateException("Selected CoHero item no longer fits in backpack");
-                    }
+                if (item == null) {
+                    GameScene.show(new WndCompanionInventory(companion));
+                    return;
                 }
-                GameScene.show(new WndCompanionInventory(companion));
+
+                Item moved = takeFromPlayer(item);
+                if (moved != null && !inventory.addToBackpack(moved)) {
+                    returnToPlayer(moved);
+                    throw new IllegalStateException("Selected CoHero item no longer fits in backpack");
+                }
+
+                // Match SMM Tools' Un/Identify selector: a successful action immediately
+                // reopens the item selector. Cancelling is the explicit way back.
+                openHeroItemSelector();
             }
         });
     }
