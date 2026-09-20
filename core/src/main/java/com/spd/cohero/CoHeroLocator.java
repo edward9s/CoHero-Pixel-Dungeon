@@ -18,6 +18,7 @@ import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.ui.Component;
 import com.watabou.utils.PointF;
+import com.watabou.utils.RectF;
 
 import java.util.ArrayList;
 
@@ -30,7 +31,8 @@ public class CoHeroLocator extends Button {
 
     private static final float WIDTH = 50f;
     private static final float HEIGHT = 31f;
-    private static final float EDGE_MARGIN = 2f;
+    private static final float VERTICAL_EDGE_MARGIN = 2f;
+    private static final float TAG_GAP = 1f;
     private static final float RAD_TO_DEG = 180f / 3.1415926f;
 
     private final float safeLeft;
@@ -154,10 +156,10 @@ public class CoHeroLocator extends Button {
 
         direction.angle = (float)Math.atan2(dx, -dy) * RAD_TO_DEG;
 
-        float left = safeLeft + EDGE_MARGIN;
-        float top = safeTop + EDGE_MARGIN;
-        float right = safeRight - EDGE_MARGIN;
-        float bottom = safeBottom - EDGE_MARGIN;
+        float left = safeLeft;
+        float top = safeTop + VERTICAL_EDGE_MARGIN;
+        float right = safeRight;
+        float bottom = safeBottom - VERTICAL_EDGE_MARGIN;
 
         float centerX = (left + right) / 2f;
         float centerY = (top + bottom) / 2f;
@@ -168,9 +170,24 @@ public class CoHeroLocator extends Button {
         float scaleY = dy == 0 ? Float.POSITIVE_INFINITY : halfH / Math.abs(dy);
         float scale = Math.min(scaleX, scaleY);
 
-        setPos(
-                centerX + dx * scale - WIDTH / 2f,
-                centerY + dy * scale - HEIGHT / 2f);
+        float locatorX = centerX + dx * scale - WIDTH / 2f;
+        float locatorY = centerY + dy * scale - HEIGHT / 2f;
+
+        RectF tagBounds = GameScene.coHeroTagBounds();
+        if (tagBounds != null) {
+            RectF locatorBounds =
+                    new RectF(locatorX, locatorY, locatorX + WIDTH, locatorY + HEIGHT);
+            if (!locatorBounds.intersect(tagBounds).isEmpty()) {
+                float screenCenterX = (left + right) / 2f;
+                if (tagBounds.right <= screenCenterX) {
+                    locatorX = Math.min(right - WIDTH, tagBounds.right + TAG_GAP);
+                } else {
+                    locatorX = Math.max(left, tagBounds.left - WIDTH - TAG_GAP);
+                }
+            }
+        }
+
+        setPos(locatorX, locatorY);
     }
 
     private boolean onScreen(PointF point, Camera world) {
