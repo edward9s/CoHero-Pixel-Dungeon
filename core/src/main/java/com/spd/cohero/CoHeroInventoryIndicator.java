@@ -20,6 +20,10 @@ public class CoHeroInventoryIndicator extends Tag {
     public CoHeroInventoryIndicator() {
         super(TOOLBAR_NEUTRAL);
 
+        // Component creates Tag's chrome before Tag(int) has assigned its RGB
+        // fields, so re-apply the intended color after super(...) returns.
+        setColor(TOOLBAR_NEUTRAL);
+
         visible = false;
 
         // Match SPD's normal inventory button glyph exactly: Toolbar uses
