@@ -356,7 +356,7 @@ CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明�
 - `StoneOfBlink` 定位為無安全相鄰逃生格時的直接脫離工具。目的地只從 CoHero 當前 FOV 內、已知、安全、可投射到達且至少讓最近敵人距離增加 2 格的格子選擇；可以在 Roots 定身時使用，因原版 `ScrollOfTeleportation.teleportToLocation()` 成功後會解除 Roots。
 - `StoneOfFlock` 定位為封鎖／拖延：單一遠程敵人若沒有免費 LOS cover 可用，且距離足夠遠時可用羊群包住其周圍；retreat 時也可在 2+ 威脅下作最後的阻隔。中心點必須離 Hero 與 CoHero 超過 2 格，至少有 3 個合法 sheep spawn cell，避免 AI 反而把自己人直接困死。
 - CoHero 有 `MagicImmune` 時不主動使用上述符石；免費走位、既有 wand escape utility 與 anti-ranged cover 仍優先於消耗符石。
-- CoHero 會把已知、可安全到達的植物視為有限場景生存資源：無敵人時，HP < 60% 可走向 6 格 path distance 內的 Sungrass，觸發後留在原格直到補滿或戰鬥打斷；有嚴重負面狀態時，優先走向 4 格內的 Mageroyal。戰鬥中若 Mageroyal / Earthroot 就在安全鄰格，可分別用來清 debuff 或在高威脅戰鬥取得 Earthroot Armor；retreat 且風險很高時，安全鄰格上的 Fadeleaf 會被主動當成免費 teleport。只考慮已 `visited` / `mapped` 的植物，不讀未知地圖。
+- CoHero 會把已知、可安全到達的植物視為有限場景生存資源：無敵人時，HP < 60% 可走向 6 格 path distance 內的 Sungrass，觸發後留在原格直到補滿或戰鬥打斷；有嚴重負面狀態時，優先走向 4 格內的 Mageroyal。戰鬥中若 Mageroyal / Earthroot 就在安全鄰格，可分別用來清 debuff 或在高威脅戰鬥取得 Earthroot Armor；retreat 且風險很高時，安全鄰格上的 Fadeleaf 會被主動當成免費 teleport。只考慮已被 Hero 或 CoHero 視野實際揭露成 `visited` 的植物；單純因 Magic Mapping 成為 `mapped` 的格子不算已知植物，避免 AI 讀到未曾看見的植物種類。
 - 其他 Potion 只作為背包資源，可交還 Hero；CoHero 不會自行飲用。
 
 ### 7.2 力量是共享資源
