@@ -16,6 +16,7 @@ import com.watabou.utils.Bundle;
 import com.watabou.utils.Callback;
 import com.watabou.utils.GameSettings;
 import com.watabou.utils.PathFinder;
+import com.watabou.utils.Rect;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -435,6 +436,57 @@ public final class CoHero {
                 && companion.fieldOfView != null
                 && cell < companion.fieldOfView.length
                 && companion.fieldOfView[cell];
+    }
+
+    public static void relocateCompanionForBossPhase(Rect area, int preferredCell) {
+        if (area == null || Dungeon.level == null) {
+            throw new IllegalArgumentException("Boss-phase relocation requires a live level and area");
+        }
+
+        CoHeroAlly companion = findCompanion();
+        if (companion == null) {
+            // The player may have explicitly chosen to leave CoHero outside this boss floor.
+            return;
+        }
+        if (!companion.isAlive()) {
+            throw new IllegalStateException("Cannot relocate a dead CoHero companion");
+        }
+
+        int bestCell = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int y = area.top; y < area.bottom; y++) {
+            for (int x = area.left; x < area.right; x++) {
+                int cell = x + y * Dungeon.level.width();
+                if (cell < 0
+                        || cell >= Dungeon.level.length()
+                        || !Dungeon.level.passable[cell]) {
+                    continue;
+                }
+
+                com.shatteredpixel.shatteredpixeldungeon.actors.Char occupant = Actor.findChar(cell);
+                if (occupant != null && occupant != companion) {
+                    continue;
+                }
+
+                int distance = Dungeon.level.distance(cell, preferredCell);
+                if (bestCell == -1
+                        || distance < bestDistance
+                        || (distance == bestDistance && cell < bestCell)) {
+                    bestCell = cell;
+                    bestDistance = distance;
+                }
+            }
+        }
+
+        if (bestCell == -1) {
+            throw new IllegalStateException(
+                    "No legal CoHero cell exists in the current boss-phase safe area");
+        }
+
+        if (companion.pos != bestCell) {
+            companion.relocateForLevelRewrite(bestCell);
+        }
     }
 
     public static boolean companionCanSee(int cell) {
