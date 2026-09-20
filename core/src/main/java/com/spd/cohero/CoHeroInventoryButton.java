@@ -22,6 +22,7 @@ public class CoHeroInventoryButton extends Button {
         add(background);
 
         backpack = new ItemSprite(ItemSpriteSheet.BACKPACK);
+        backpack.scale.set(0.625f);
         add(backpack);
 
         HeroClass companionClass = CoHero.companionClass();
@@ -29,7 +30,7 @@ public class CoHeroInventoryButton extends Button {
             throw new IllegalStateException("CoHero inventory button has no selected companion class");
         }
         companionBadge = new Image(companionClass.spritesheet(), 0, 90, 12, 15);
-        companionBadge.scale.set(0.5f);
+        companionBadge.scale.set(0.35f);
         add(companionBadge);
     }
 
