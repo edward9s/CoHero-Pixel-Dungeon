@@ -681,7 +681,20 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         if (!visibleThreats.isEmpty()) {
-            Mob combatTarget = nearestThreat(visibleThreats);
+            ArrayList<Mob> damageableThreats = damageableThreats(visibleThreats);
+            if (damageableThreats.isEmpty()) {
+                Boolean invulnerableRetreat = tryAvoidInvulnerableThreats(visibleThreats);
+                if (invulnerableRetreat != null) {
+                    return invulnerableRetreat;
+                }
+
+                logBossDecision("invulnerable_trapped",
+                        "all visible enemies are invulnerable -> hold/escape unavailable");
+                spend(TICK);
+                return true;
+            }
+
+            Mob combatTarget = nearestThreat(damageableThreats);
 
             Boolean survivalAction = tryCombatSurvival(combatTarget, visibleThreats);
             if (survivalAction != null) {
@@ -720,7 +733,7 @@ public class CoHeroAlly extends DirectableAlly {
             // Direct ranged offense is a normal combat action, not a last-resort fallback.
             // If the preferred threat cannot be shot, this may select another visible threat that
             // has a legal missile / Spirit Bow / wand line.
-            Boolean directRanged = tryDirectRangedAttack(combatTarget, visibleThreats);
+            Boolean directRanged = tryDirectRangedAttack(combatTarget, damageableThreats);
             if (directRanged != null) {
                 return directRanged;
             }
@@ -2163,6 +2176,76 @@ public class CoHeroAlly extends DirectableAlly {
      * conservative: current HP/shield are real effective health, only one usable potion is given
      * partial reserve value, and an Ankh is never treated as expendable combat HP.
      */
+    private ArrayList<Mob> damageableThreats(ArrayList<Mob> threats) {
+        ArrayList<Mob> result = new ArrayList<>();
+        if (threats == null) {
+            return result;
+        }
+
+        for (Mob threat : threats) {
+            if (threat != null
+                    && threat.isAlive()
+                    && !threat.isInvulnerable(getClass())) {
+                result.add(threat);
+            }
+        }
+        return result;
+    }
+
+    private Boolean tryAvoidInvulnerableThreats(ArrayList<Mob> threats) {
+        if (threats == null || threats.isEmpty()) {
+            return null;
+        }
+
+        ArrayList<Mob> invulnerableThreats = new ArrayList<>();
+        for (Mob threat : threats) {
+            if (threat != null
+                    && threat.isAlive()
+                    && threat.isInvulnerable(getClass())) {
+                invulnerableThreats.add(threat);
+            }
+        }
+        if (invulnerableThreats.isEmpty()) {
+            return null;
+        }
+
+        clearMeleeTacticalPlan();
+        clearRangedLurePlan();
+        enemy = null;
+        enemyID = -1;
+        target = -1;
+
+        logBossDecision("invulnerable_retreat",
+                "visible enemy is invulnerable -> retreat");
+
+        int escapeStep = rooted ? -1 : chooseEscapeStep(invulnerableThreats);
+        if (escapeStep != -1) {
+            int oldPos = pos;
+            move(escapeStep, true);
+            spend(1 / speed());
+            Dungeon.level.updateFieldOfView(this, fieldOfView);
+            revealVisibleCells();
+            return moveSprite(oldPos, pos);
+        }
+
+        // If ordinary movement cannot create more distance, use dedicated escape resources rather
+        // than wasting attacks on a target that cannot currently be damaged.
+        if (tryEmergencyBlinkRunestone(invulnerableThreats)) {
+            return true;
+        }
+        if (tryUseTeleportationScroll()) {
+            return true;
+        }
+        if (tryUseInvisibilityPotion()) {
+            return true;
+        }
+        if (tryEmergencySurvivalPotion()) {
+            return true;
+        }
+
+        return null;
+    }
+
     private Boolean tryCombatSurvival(Mob targetMob, ArrayList<Mob> threats) {
         CombatRisk risk = assessCombatRisk(targetMob, threats);
         if (!risk.retreat) {
@@ -3269,7 +3352,7 @@ public class CoHeroAlly extends DirectableAlly {
      * Otherwise returns the synchronous/asynchronous result expected by Actor.act().
      */
     private Boolean tryCombat(Mob targetMob) {
-        if (targetMob == null) {
+        if (targetMob == null || targetMob.isInvulnerable(getClass())) {
             return null;
         }
 
@@ -3314,6 +3397,9 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private RangedChoice chooseRangedAttack(Mob targetMob) {
+        if (targetMob == null || targetMob.isInvulnerable(getClass())) {
+            return null;
+        }
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
         for (MissileWeapon missile : inventory.missileWeapons()) {
             if (supportedMissileWeapon(missile)
