@@ -205,7 +205,7 @@ jobs:
       - name: Upload release notes
         uses: actions/upload-artifact@v4
         with:
-          name: release-notes
+          name: changelog
           path: cohero/release-notes.md
           if-no-files-found: error
           retention-days: 7
@@ -454,7 +454,7 @@ jobs:
       - name: Download release notes
         uses: actions/download-artifact@v4
         with:
-          name: release-notes
+          name: changelog
           path: notes
 
       - name: Create GitHub Release
