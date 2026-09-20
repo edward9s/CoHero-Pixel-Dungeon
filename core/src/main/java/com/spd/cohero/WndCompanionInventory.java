@@ -658,7 +658,7 @@ public class WndCompanionInventory extends Window {
      */
     private static class CoHeroItemButton extends ItemButton {
 
-        private static final int USABLE_FRAME_COLOR = 0xFFFF44;
+        private static final int USABLE_FRAME_COLOR = 0xFFFFFF44;
 
         private Item displayedItem;
         private ColorBlock frameTop;
@@ -675,10 +675,6 @@ public class WndCompanionInventory extends Window {
             frameBottom = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
             frameLeft = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
             frameRight = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
-            add(frameTop);
-            add(frameBottom);
-            add(frameLeft);
-            add(frameRight);
 
             slot = new ItemSlot() {
                 @Override
@@ -704,6 +700,12 @@ public class WndCompanionInventory extends Window {
             };
             slot.enable(true);
             add(slot);
+
+            // Capability frame must render above the slot contents.
+            add(frameTop);
+            add(frameBottom);
+            add(frameLeft);
+            add(frameRight);
         }
 
         @Override
