@@ -3727,7 +3727,7 @@ public class CoHeroAlly extends DirectableAlly {
         return false;
     }
 
-    private boolean supportedMissileWeapon(MissileWeapon missile) {
+    static boolean supportedMissileWeapon(MissileWeapon missile) {
         // Only stock projectile types that use the standard rangedHit/rangedMiss path are enabled.
         // Exact classes are intentional: unknown fork projectile semantics fail closed.
         Class<?> type = missile.getClass();
