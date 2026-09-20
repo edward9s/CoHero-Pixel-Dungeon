@@ -14,13 +14,14 @@ import java.lang.reflect.Field;
 public final class CompanionEnemySurge extends Buff {
 
     static final int MIN_MULTIPLIER_TENTHS = 10;
+    static final int DEFAULT_MULTIPLIER_TENTHS = 15;
     static final int MAX_MULTIPLIER_TENTHS = 20;
 
     private static final String MULTIPLIER_TENTHS = "multiplier_tenths";
 
     private static Field respawnerField;
 
-    private int multiplierTenths = MIN_MULTIPLIER_TENTHS;
+    private int multiplierTenths = DEFAULT_MULTIPLIER_TENTHS;
 
     private transient Level trackedLevel;
     private transient int baseMobLimit = -1;
