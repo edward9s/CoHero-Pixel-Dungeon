@@ -237,7 +237,8 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 每回合先估算目前所有可見、清醒敵人的總 incoming DPT。已能直接攻擊 CoHero 的敵人權重最高；下一步即可進入合法攻擊位置者也納入風險。命中率用攻防值近似，傷害估算使用獨立 RNG stack 取樣，不消耗正式戰鬥 RNG。
 - TTD（time to death）以目前 `HP + shield` 為核心；正在進行的 Healing 與「下一瓶」已鑑定生存藥只提供保守的近程緩衝，不能把整個背包藥量當作額外血條。Ankh 完全不計入可揮霍戰力。
 - CoHero 被推落 chasm 仍視為致命事件：沒有 Ankh 時照常死亡並 Game Over；有 Ankh 時才由 CoHero 自己的復活流程救回。普通 Ankh 維持傳送復活；blessed Ankh 若死亡原因是 chasm，也必須先移到本層合法、非 pit 的安全格，再保留其 15 回合無敵。Ankh 不因此被納入 AI 可冒險的有效生命值。
-- TTK（time to kill）依 CoHero 實際當前攻擊規則估算；近戰可及時沿用近戰優先，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
+- TTK（time to kill）依 CoHero 實際當前攻擊規則估算；已建立正確近戰距離時仍以近戰為主，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
+- 臨戰優先序分成「安全／必要狀態處理 → anti-ranged 貼身 → 直接遠程輸出 → 非緊急戰鬥消耗品／buff → 特殊近戰走位 → 普通近戰／接近」。只要目前沒有建立應有的近戰距離，而且存在合法射線，投擲武器、Spirit Bow 或法杖會被視為正常攻擊手段，而不是等所有走位與 setup 都失敗後才使用。若目前首要威脅沒有合法遠程攻擊線，才會在其他可見威脅中選最近的合法遠程目標；但首要威脅已進入正確近戰距離時不會轉頭射遠處敵人。
 - 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死，或 TTD 明顯不優於 TTK，也進入撤退。
 - 撤退有 hysteresis：進入撤退後，不會只拉開一格就立刻回頭。必須降到最多 1 名即時攻擊者、HP 至少 45%，且 TTD 對 TTK 取得明顯安全餘裕，才恢復攻擊。
 - 逃跑路徑不再只最大化「離最近敵人的距離」，而是優先降低候選格上的即時攻擊者數量與總預期 incoming DPT，再以距離作 tie-break。這能處理被多名敵人包圍時「躲開 A 卻走進 B/C 火力」的問題。
@@ -264,7 +265,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 3. **有投擲武器時**
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
-   - 投擲武器不要求鑑定；只要屬於明確支援類型且實際未詛咒，就可以被 AI 投擲。Spirit Bow 也只要求實際未詛咒。
+   - 投擲武器不要求鑑定，也不要求 `cursedKnown`；只要屬於明確支援類型且實際 `cursed == false`，就可以被 AI 投擲。Spirit Bow 也只要求實際未詛咒。未鑑定本身不會降低使用優先級。
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
    - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 也會把已知地圖上的金錢，以及背包可容納且屬於目前明確支援類型的地面投擲武器與法杖視為高優先 loot，在一般探索前主動前往拾取。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般投擲武器／法杖。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。目前未支援使用的特殊投擲武器或法杖不主動撿拾。
@@ -273,7 +274,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
-   - 法杖不要求鑑定；只要實際未詛咒、有足夠 charge，且屬於 CoHero adapter 已明確支援的類型，就是合法候選。
+   - 法杖不要求鑑定，也不要求 `cursedKnown`；只要實際未詛咒、有足夠 charge，且屬於 CoHero adapter 已明確支援的類型，就是合法候選。原版法杖即使未鑑定也照常持有並回復 charge，因此未知鑑定狀態不會阻止 CoHero 使用。
    - 目前明確支援 `WandOfMagicMissile`、`WandOfBlastWave`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfLivingEarth`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
    - 靈壤法杖保留原版「命中敵人累積 RockArmor → 達門檻生成 EarthGuardian → 後續命中補充 Guardian → Guardian 離戰後把剩餘 HP 還原為 RockArmor」循環。Guardian 新增 owner ID；Hero 與 CoHero 可在同一樓層各自擁有一隻，不會互相吃掉 ownership。舊存檔中沒有 owner ID 的 Guardian 視為玩家 Hero 所有。
    - CoHero 的 `RockArmor` 會像 Hero 一樣在 `defenseProc()` 中吸收傷害。Guardian 的防禦仍以共用隊伍 level 為基礎；CoHero cast 不繼承 Hero 的 Wand Talent / PowerOfMany / Stasis 額外效果。Hero 的 Stasis / PowerOfMany / ElementalBlast 原版互動仍只作用於 Hero-owned Guardian；`EarthGuardian.setInfo(Hero, int, int)` 的原版 public API 也保留，供既有 Hero ability 與下游 fork 相容。
