@@ -695,9 +695,9 @@ public class CoHeroAlly extends DirectableAlly {
                 return survivalAction;
             }
 
-            Boolean combatPlant = tryKnownCombatPlant(combatTarget, visibleThreats);
-            if (combatPlant != null) {
-                return combatPlant;
+            Boolean cleansingPlant = tryKnownCleansingPlant();
+            if (cleansingPlant != null) {
+                return cleansingPlant;
             }
 
             if (tryUseCleansingPotion(assessCombatRisk(combatTarget, visibleThreats))) {
@@ -727,6 +727,11 @@ public class CoHeroAlly extends DirectableAlly {
 
             // Non-emergency consumables and setup should not repeatedly steal turns from an
             // immediately available ranged attack.
+            Boolean armorPlant = tryKnownCombatArmorPlant(combatTarget, visibleThreats);
+            if (armorPlant != null) {
+                return armorPlant;
+            }
+
             if (tryUseCombatRunestone(combatTarget, visibleThreats)) {
                 return true;
             }
@@ -979,31 +984,31 @@ public class CoHeroAlly extends DirectableAlly {
         return null;
     }
 
-    private Boolean tryKnownCombatPlant(Mob targetMob, ArrayList<Mob> threats) {
-        if (rooted || targetMob == null || threats == null || threats.isEmpty()) {
+    private Boolean tryKnownCleansingPlant() {
+        if (rooted || !hasSeriousCleansableNegative()) {
             return null;
         }
 
-        if (hasSeriousCleansableNegative()) {
-            int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
-            if (mageroyal != -1) {
-                return moveOntoAdjacentPlant(mageroyal);
-            }
+        int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
+        return mageroyal == -1 ? null : moveOntoAdjacentPlant(mageroyal);
+    }
+
+    private Boolean tryKnownCombatArmorPlant(Mob targetMob, ArrayList<Mob> threats) {
+        if (rooted || targetMob == null || threats == null || threats.isEmpty()) {
+            return null;
         }
 
         boolean hardFight = threats.size() >= 2
                 || Char.hasProp(targetMob, Char.Property.BOSS)
                 || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-        if (hardFight
-                && buff(Earthroot.Armor.class) == null
-                && Barkskin.currentLevel(this) <= 0) {
-            int earthroot = adjacentKnownPlantCell(Earthroot.class);
-            if (earthroot != -1) {
-                return moveOntoAdjacentPlant(earthroot);
-            }
+        if (!hardFight
+                || buff(Earthroot.Armor.class) != null
+                || Barkskin.currentLevel(this) > 0) {
+            return null;
         }
 
-        return null;
+        int earthroot = adjacentKnownPlantCell(Earthroot.class);
+        return earthroot == -1 ? null : moveOntoAdjacentPlant(earthroot);
     }
 
     private Boolean tryKnownRetreatPlant(CombatRisk risk, ArrayList<Mob> threats) {
