@@ -359,7 +359,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 
 CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存／逃生／戰鬥機動消耗品、六種 combat runestone 與 Ankh。
 
-- CoHero 背包允許存放 Potion。這是刻意的：若 UI 只允許真正的 `PotionOfHealing` 放入，會藉由「能不能選」洩漏未鑑定藥水的真實種類。
+- CoHero 背包允許存放所有正常物品；Potion 只是其中一類。未鑑定 Potion 不會因其隱藏真實種類改變「能不能放」或 capability 框線，避免透過 UI 洩漏身份。
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
 - HP 低於 35% 時，CoHero 先嘗試消耗自己背包中的一瓶已鑑定 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。
 - 治療期間不會連續喝下一瓶治療藥；若仍低於 35%，可以把已鑑定 `PotionOfShielding` 當作次順位生存資源。
@@ -371,11 +371,11 @@ CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明�
 - CoHero 不會主動把 Haste 與 Stamina 疊加：已有其中一種 buff 時，不自動消耗另一瓶。原版 `Char.speed()` 會將兩者相乘，因此這項限制避免 AI 為了 4.5× 移速浪費兩瓶藥。
 - 已鑑定 `PotionOfCleansing` 可處理嚴重負面狀態：Roots、多個負面 buff、持續傷害類 debuff，或低血量下仍存在負面狀態時才會使用。若當前敵方一輪傷害已接近致命，不花一回合清狀態，仍讓 Blink／Teleport／立即護盾優先。若附近有已知 Mageroyal 可安全到達，AI 會先利用免費植物而不是消耗藥劑。
 - 已鑑定 `PotionOfEarthenArmor` 定位為高威脅戰鬥的預防性防禦資源：非 retreat 狀態下遇到 2+ 威脅或 Boss / Miniboss，且目前沒有 Barkskin / Earthroot Armor 時才使用；沿用原版 `Barkskin.conditionallyAppend()`，強度為 `2 + level/3`、interval 50。
-- CoHero 背包允許存放 Scroll，理由與 Potion 相同：若只允許特定 scroll 會從「能不能放入」洩漏未鑑定身份。目前已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意；其他 Scroll 只作為背包資源，可交還 Hero。
+- Scroll 與其他物品一樣都可存放。目前只有已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意；其他 Scroll 只作為背包資源，可交還 Hero。
 - `ScrollOfTeleportation` 是 retreat 的最後直接脫離層：只有普通安全走位、wand escape utility 與可控 `StoneOfBlink` 都不可用時才消耗。它重用原版 `ScrollOfTeleportation.teleportChar(Char)`，所以可解除 Roots；若 teleport 失敗，卷軸會放回 CoHero 背包而不浪費。
 - `ScrollOfTerror` 只在 retreat 且無安全逃生步時使用；若能影響至少 2 名當前可見、清醒敵人，或單一可恐懼敵人已造成立即致命風險，優先於隱形藥。作用範圍使用 CoHero 自己的 FOV，不借用 `Dungeon.level.heroFOV`；失明或 `MagicImmune` 時不讀。效果沿用原版 `Terror.DURATION`，並將恐懼來源設為 CoHero。
 - `ScrollOfDread` 位於普通 Terror 之後，避免先消耗較稀有的高級卷軸。retreat 時至少有 2 名可見清醒威脅，且存在 2+ 當前攻擊者、立即致命風險或 TTD ≤ 2 回合時才用；可 Dread 的目標取得原版 Dread，免疫 Dread 但可 Terror 的目標退化成 Terror。上游 `Dread.act()` 原本把「離開視野且距離 ≥ 6 後消失」硬綁 `Dungeon.hero` / `heroFOV`；CoHero patch 改為依 Dread 保存的 caster `object` 找實際 `Char`，Hero 行為保持等價，CoHero cast 則使用 CoHero 自己的 FOV / 位置。
-- CoHero 目前只支援六種明確定義的戰鬥符石：`StoneOfAggression`、`StoneOfBlast`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock`。Runestone 在 SPD 本來就永遠 identified，因此不存在用符石選擇洩漏未知身份的問題。
+- CoHero 目前只會主動使用六種明確定義的戰鬥符石：`StoneOfAggression`、`StoneOfBlast`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock`；其他 Runestone 仍可存放，但 AI 不會使用。Runestone 在 SPD 本來就永遠 identified，因此不存在用符石選擇洩漏未知身份的問題。
 - 原版 `Runestone.onThrow()` 仍以玩家 Hero 為中心，會讀 `Dungeon.hero`、`curUser` 與 Hero Talent hook；CoHero 不直接呼叫這個入口，而是在自身 AI 中重現六種已確認安全的效果，仍更新 `Catalog.countUse()`、消耗一枚符石、解除 CoHero 自身隱形並花費一回合。
 - `StoneOfBlast` 只在爆炸半徑內至少能命中 2 名可見清醒敵人時使用；只要會炸到 Hero、CoHero、其他友軍／中立角色、睡眠敵人或任何地面 heap 就放棄。實際爆炸仍使用原版 `Bomb.ConjuredBomb.explode()`，因此傷害與地形破壞語意保持原版。
 - `StoneOfAggression` 只在至少 3 名可見清醒威脅時使用，目標必須不是 Boss / Miniboss，並偏好附近還有其他敵人且 HP 較高者，讓敵群互相轉火；已存在 Aggression 的目標不重複浪費。
@@ -437,8 +437,9 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - CoHero 的武器規則與防具／戒指分開：近戰武器只要求實際未詛咒，不要求已知詛咒狀態；防具與戒指仍維持 GhostHero 式的「已確認未詛咒」才能裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - CoHero 已裝備但尚未完全鑑定的近戰武器、護甲與戒指，沿用 SPD 原版被動鑑定進度：武器／護甲需要實際使用並搭配正常戰鬥 EXP 解鎖後續鑑定次數，戒指則依裝備期間取得的正常 EXP 推進。CoHero 不套用 Hero 的 item-ID Talent 加速，倍率固定 1.0；進度仍保存於物品本身，因此 Hero 與 CoHero 之間轉交同一件物品不會重置。Potion of Experience 不推進此被動鑑定。
-- Potion 與 Scroll 都可放入 CoHero 背包，以避免從可選性洩漏未鑑定物品身份。Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility`、`PotionOfHaste`、`PotionOfStamina`、`PotionOfCleansing`、`PotionOfEarthenArmor` 具有自動使用語意；Scroll 目前只有已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意。Runestone 只接受目前明確支援的 `StoneOfAggression`、`StoneOfBlast`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock`；其他符石 fail closed。`Ankh` 具有死亡時自動復活語意。
-- Artifact 與 Trinket 目前仍不支援。
+- CoHero 背包的「可存放」與「可由 CoHero 使用」是兩個獨立概念：任何正常 `Item` 都可交給 CoHero 保存，包括目前沒有 AI 語意的 Artifact、Trinket、食物、種子、未支援符石與第三方物品；storage-only 物品不會被 CoHero 主動使用，但可隨時交還 Hero。
+- CoHero 背包 UI 以框線標示已有明確 CoHero 使用／裝備語意的物品。框線代表已實作 capability，不代表此刻一定能成功使用；裝備仍可能受詛咒或 STR 限制。未鑑定 Potion / Scroll 不依隱藏真實類型顯示 capability，避免從 UI 洩漏鑑定資訊。
+- Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility`、`PotionOfHaste`、`PotionOfStamina`、`PotionOfCleansing`、`PotionOfEarthenArmor` 具有自動使用語意；Scroll 目前只有已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意。Runestone 只有 `StoneOfAggression`、`StoneOfBlast`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock` 具有 CoHero 戰鬥使用語意；其他符石只作為 storage-only 物品。`Ankh` 具有死亡時自動復活語意。
 - `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。
 - 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
 - Wand 目前需要額外 integration seam，因為 SPD 的使用入口與不少個別 Wand 效果仍依賴 `Hero` / `curUser` / `Dungeon.hero`；這是上游 API 的 owner 假設，不代表 AI 設計上應以法杖類別硬編行為。
