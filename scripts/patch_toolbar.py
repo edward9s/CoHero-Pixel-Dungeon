@@ -9,8 +9,11 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
 field_marker = "\tprivate com.spd.cohero.CoHeroInventoryButton btnCoHeroInventory;"
-create_marker = "\t\tadd(btnCoHeroInventory = new com.spd.cohero.CoHeroInventoryButton());"
-layout_marker = "\t\tbtnCoHeroInventory.setRect(btnInventory.left() + 4, btnInventory.top() - 15, 16, 16);"
+create_marker = (
+    "\t\tadd(btnCoHeroInventory = new com.spd.cohero.CoHeroInventoryButton());\n"
+    "\t\tbtnCoHeroInventory.givePointerPriority();"
+)
+layout_marker = "\t\tbtnCoHeroInventory.setRect(btnInventory.right() - 12, btnInventory.top(), 12, 12);"
 
 if field_marker in text or create_marker in text or layout_marker in text:
     raise SystemExit("CoHero Toolbar hooks are already present")
