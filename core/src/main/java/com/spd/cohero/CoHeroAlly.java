@@ -3722,10 +3722,6 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private void revealVisibleCells() {
-        // Rebuild the shared Hero+CoHero FOV first. Level.updateFieldOfView(Hero, heroFOV)
-        // refreshes the companion FOV and merges it into Dungeon.level.heroFOV.
-        Dungeon.observe();
-
         for (int i = 0; i < fieldOfView.length; i++) {
             if (fieldOfView[i]
                     && Dungeon.level.discoverable[i]
@@ -3734,9 +3730,10 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        // Dungeon.observe refreshes the Hero-side fog area. CoHero may be far outside it, so
-        // explicitly refresh the companion-side area after marking its visible cells visited.
+        // CoHero vision is display-only. Refresh its local fog and visible sprites without
+        // changing Dungeon.level.heroFOV or any Hero gameplay visibility rules.
         GameScene.updateFog(pos, viewDistance + 1);
+        GameScene.afterObserve();
     }
 
     private boolean tryAutoTorch() {
@@ -3752,6 +3749,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         Buff.affect(this, Light.class, Light.DURATION);
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
         Catalog.countUse(Torch.class);
         Sample.INSTANCE.play(Assets.Sounds.BURNING);
