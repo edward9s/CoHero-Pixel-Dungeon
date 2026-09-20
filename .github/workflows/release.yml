@@ -334,7 +334,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python mod/scripts/patch_android.py
+          python mod/scripts/patch_android.py spd
           python mod/scripts/inject_mod.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
 
