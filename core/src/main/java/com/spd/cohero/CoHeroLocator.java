@@ -11,6 +11,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Button;
 import com.shatteredpixel.shatteredpixeldungeon.ui.HealthBar;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndBag;
 import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.ColorBlock;
@@ -203,6 +204,10 @@ public class CoHeroLocator extends Button {
         CoHeroAlly companion = CoHero.findCompanion();
         if (locatorTarget == companion && companion != null && companion.isAlive()) {
             GameScene.show(new WndCompanionInventory(companion));
+        } else if (locatorTarget == Dungeon.hero
+                && Dungeon.hero != null
+                && Dungeon.hero.isAlive()) {
+            GameScene.show(new WndBag(Dungeon.hero.belongings.backpack));
         }
 
         // Always consume the long-press gesture so it cannot fall through into a normal
