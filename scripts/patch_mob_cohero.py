@@ -55,6 +55,31 @@ patch = anchor + """	/**
 				&& attacker.canSurpriseAttack();
 	}
 
+	/**
+	 * Sleeping AI normally enters its hostile scan only when chooseEnemy() produced a visible
+	 * target. A sleeping mob can retain a stale Hero target, which makes that gate false even when
+	 * CoHero is standing in its FOV. This helper repairs only that gate; the stock Sleeping logic
+	 * still owns stealth, invisibility, flying, distance, RNG and the actual awaken transition.
+	 */
+	private boolean coHeroHostileInFOV() {
+		if (fieldOfView == null) {
+			return false;
+		}
+		for (Char ch : Actor.chars()) {
+			if (ch instanceof com.spd.cohero.CoHeroAlly
+					&& ch.isAlive()
+					&& ch.invisible <= 0
+					&& ch.alignment != alignment
+					&& ch.alignment != Alignment.NEUTRAL
+					&& ch.pos >= 0
+					&& ch.pos < fieldOfView.length
+					&& fieldOfView[ch.pos]) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 """
 
 if "coHeroCanAttackFrom" in text:
@@ -63,6 +88,19 @@ if text.count(anchor) != 1:
     raise SystemExit(f"expected exactly one Mob.canAttack anchor, found {text.count(anchor)}")
 
 text = text.replace(anchor, patch, 1)
+
+
+sleep_anchor = """			if (enemyInFOV || (enemy != null && enemy.invisible > 0)) {
+"""
+sleep_patch = """			if (enemyInFOV
+					|| (enemy != null && enemy.invisible > 0)
+					|| coHeroHostileInFOV()) {
+"""
+if "|| coHeroHostileInFOV())" in text:
+    raise SystemExit("CoHero sleeping wake gate is already present")
+if text.count(sleep_anchor) != 1:
+    raise SystemExit(f"expected exactly one Mob.Sleeping wake gate, found {text.count(sleep_anchor)}")
+text = text.replace(sleep_anchor, sleep_patch, 1)
 
 defense_anchor = """		if ( !surprisedBy(enemy)
 				&& paralysed == 0
