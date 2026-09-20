@@ -25,10 +25,14 @@ if (ready_marker in text
         or hazard_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
-ready_anchor = "\t\tDungeon.hero.next();\n"
+ready_anchor = (
+    "\t\tDungeon.hero.next();\n"
+    "\n"
+    "\t\tswitch (InterlevelScene.mode){\n"
+)
 if text.count(ready_anchor) != 1:
     raise SystemExit(
-        f"expected exactly one GameScene actor-start anchor, found {text.count(ready_anchor)}"
+        f"expected exactly one GameScene create actor-start anchor, found {text.count(ready_anchor)}"
     )
 
 inventory_field_anchor = "\tprivate ResumeIndicator resume;\n"
