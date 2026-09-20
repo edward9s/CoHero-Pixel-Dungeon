@@ -658,7 +658,7 @@ public class WndCompanionInventory extends Window {
      */
     private static class CoHeroItemButton extends ItemButton {
 
-        private static final int USABLE_FRAME_COLOR = 0xFFFFFF44;
+        private static final int USABLE_FRAME_COLOR = 0xCCB8A45A;
 
         private Item displayedItem;
         private ColorBlock frameTop;
