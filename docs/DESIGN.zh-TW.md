@@ -40,7 +40,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層，也不需要先抵達出口附近。
 - Hero 觸發普通樓層 transition 時，系統先保存 CoHero 當下的 HP、裝備、背包、buff 與 AI 狀態，再直接換層；下一層由保存狀態在 Hero 附近重新生成 CoHero。
 - 同伴沒有「停止行走」開關；持續前進本身就是壓力來源。
-- CoHero 位於玩家 Hero 的 FOV 之外時仍保持可見，而且其自身 FOV 會作為「顯示層第二視野」正常照亮周圍地形、顯示其中角色並播放移動動畫。這個合併視野只用於畫面呈現；遊戲規則中的 `Dungeon.level.heroFOV` 仍只代表玩家 Hero 視野，不會讓卷軸、技能或敵人觸發條件把 CoHero 視野當成 Hero 視野。唯一的 UI 例外是放大鏡／右鍵檢查：既然 CoHero 本身在 Hero FOV 外仍刻意可見，就允許 `GameScene.getObjectsAtCell()` 在該格把 CoHero 當作可檢查物件；其他視野外角色仍遵守原版限制。
+- Hero 與 CoHero 採用共享視野：`Dungeon.level.heroFOV` 直接是 Hero FOV 與 CoHero FOV 的聯集，因此放大鏡、角色／物件可見性、特效、物品 `seen`、以 `heroFOV` 判斷的技能與其他原版系統都自然把兩人的視野視為玩家團隊已掌握的資訊。CoHero 的基礎 `viewDistance` 每次進層與行動前直接同步 `Dungeon.level.viewDistance`，所以「沒入黑暗」、DARK feeling、特殊 Boss 關卡或其他上游樓層視距調整都會同樣影響 CoHero；若 CoHero 具有原版 `Light` buff，則依原版規則至少提升至 6 格。
 - 載入存檔的 `StartScene` 存檔槽預覽同時顯示 Hero 與 CoHero 的全身 sprite：CoHero 畫在 Hero 後層，與 Hero 使用相同 Y，X 向右偏半個 12px 角色寬（6px），因此只露出右半；兩者各自使用存檔中的職業與護甲 tier。舊存檔若沒有 CoHero armor preview metadata，顯示 tier 0，但不影響實際載入狀態。
 
 設計重點不是「護送一個完全無能的 NPC」，而是：
@@ -64,6 +64,12 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 7. 出口發現後 CoHero 不會因為「準備下樓」而停止戰鬥、撿取高優先物品或一般探索；是否離層完全由玩家 Hero 何時觸發 transition 決定。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
+
+### 視野與火把
+
+- CoHero 背包支援原版 `Torch`；在 `Dungeon.level.viewDistance < Light.DISTANCE` 的低視距樓層且目前沒有 `Light` buff 時，CoHero 會自動消耗一支火把，使用原版 `Light.DURATION` 與 `Light.DISTANCE` 規則，並花費原版 `Torch.TIME_TO_LIGHT` 的行動時間。
+- CoHero 被麻痺時不會點火。點火後立即重算共享 FOV 與 CoHero 側 fog。
+- 在低視距樓層，CoHero 會把已知且可安全取得的火把列為偏好拾取物；正常視距樓層不會為了囤積火把而偏離探索。
 
 ### 自然回血
 
