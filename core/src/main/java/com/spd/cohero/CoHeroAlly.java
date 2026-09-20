@@ -271,7 +271,7 @@ public class CoHeroAlly extends DirectableAlly {
     int enemySpawnMultiplierTenths() {
         CompanionEnemySurge surge = buff(CompanionEnemySurge.class);
         return surge == null
-                ? CompanionEnemySurge.MIN_MULTIPLIER_TENTHS
+                ? CompanionEnemySurge.DEFAULT_MULTIPLIER_TENTHS
                 : surge.multiplierTenths();
     }
 
