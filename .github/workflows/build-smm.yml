@@ -205,6 +205,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
+          retention-days: 7
           name: ${{ env.BASE_NAME }}-APK
           path: out/${{ env.BASE_NAME }}.apk
           if-no-files-found: error
@@ -212,6 +213,7 @@ jobs:
       - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
+          retention-days: 7
           name: ${{ env.BASE_NAME }}-JAR
           path: out/${{ env.BASE_NAME }}.jar
           if-no-files-found: error
