@@ -50,29 +50,20 @@ replace_once(
 )
 
 # Tengu's final transition calls unseal() before it teleports the Hero and rewrites the map.
-# LockedFloor.detach therefore fires too early for the final placement. After stock ally
-# preservation restores allies onto the end map, put CoHero beside the Hero one last time.
+# LockedFloor.detach therefore fires too early for the final placement. setMapEnd() also mutates
+# map[] before buildFlagMaps()/cleanMapState() rebuild passable/solid, so never relocate in that
+# stale-flag window. Wait until clearEntities(tenguCell) and cleanMapState() have finished.
 replace_once(
-    "\t\t\t\tfor (Mob m : allies){\n"
-    "\t\t\t\t\tdo{\n"
-    "\t\t\t\t\t\tm.pos = randomTenguCellPos();\n"
-    "\t\t\t\t\t} while (findMob(m.pos) != null || m.pos == Dungeon.hero.pos);\n"
-    "\t\t\t\t\tif (m.sprite != null) m.sprite.place(m.pos);\n"
-    "\t\t\t\t\tmobs.add(m);\n"
-    "\t\t\t\t}\n"
+    "\t\t\t\ttengu.die(Dungeon.hero);\n"
     "\t\t\t\t\n"
-    "\t\t\t\ttengu.die(Dungeon.hero);\n",
-    "\t\t\t\tfor (Mob m : allies){\n"
-    "\t\t\t\t\tdo{\n"
-    "\t\t\t\t\t\tm.pos = randomTenguCellPos();\n"
-    "\t\t\t\t\t} while (findMob(m.pos) != null || m.pos == Dungeon.hero.pos);\n"
-    "\t\t\t\t\tif (m.sprite != null) m.sprite.place(m.pos);\n"
-    "\t\t\t\t\tmobs.add(m);\n"
-    "\t\t\t\t}\n"
-    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionNextToHero();\n"
+    "\t\t\t\tclearEntities(tenguCell);\n"
+    "\t\t\t\tcleanMapState();\n",
+    "\t\t\t\ttengu.die(Dungeon.hero);\n"
     "\t\t\t\t\n"
-    "\t\t\t\ttengu.die(Dungeon.hero);\n",
-    "Tengu final end-map ally restore",
+    "\t\t\t\tclearEntities(tenguCell);\n"
+    "\t\t\t\tcleanMapState();\n"
+    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionNextToHero();\n",
+    "Tengu final post-clean-map reunion",
 )
 
 path.write_text(text, encoding="utf-8")
