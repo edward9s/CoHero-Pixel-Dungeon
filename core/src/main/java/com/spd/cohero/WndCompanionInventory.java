@@ -32,13 +32,21 @@ import java.util.Locale;
 /** Inventory UI for the autonomous companion. */
 public class WndCompanionInventory extends Window {
 
-    private static final int WIDTH = 146;
-    private static final int SLOT = 26;
-    private static final int GAP = 3;
-    private static final int COLS = 5;
+    private static final int PORTRAIT_WIDTH = 146;
+    private static final int LANDSCAPE_MAX_WIDTH = 270;
+    private static final int PORTRAIT_SLOT = 26;
+    private static final int LANDSCAPE_SLOT = 24;
+    private static final int PORTRAIT_GAP = 3;
+    private static final int LANDSCAPE_GAP = 2;
+    private static final int MAX_BACKPACK_COLS = 5;
+    private static final int EQUIPMENT_COLS = 4;
 
     private final CoHeroAlly companion;
     private final CompanionInventory inventory;
+    private final int layoutWidth;
+    private final int slotSize;
+    private final int slotGap;
+    private int backpackCols;
 
     public WndCompanionInventory(CoHeroAlly companion) {
         if (companion == null || !companion.isAlive()) {
@@ -47,30 +55,132 @@ public class WndCompanionInventory extends Window {
         this.companion = companion;
         this.inventory = companion.inventory();
 
+        boolean landscape = PixelScene.landscape();
+        int availableWidth = Math.max(
+                1,
+                PixelScene.uiCamera.width - (int) Math.ceil(chrome.marginHor()) - 2);
+        layoutWidth = Math.min(
+                landscape ? LANDSCAPE_MAX_WIDTH : PORTRAIT_WIDTH,
+                availableWidth);
+        slotSize = landscape ? LANDSCAPE_SLOT : PORTRAIT_SLOT;
+        slotGap = landscape ? LANDSCAPE_GAP : PORTRAIT_GAP;
+
         RenderedTextBlock title = PixelScene.renderTextBlock(text("inventory.title"), 9);
         title.hardlight(TITLE_COLOR);
-        title.maxWidth(WIDTH);
+        title.maxWidth(layoutWidth);
         title.setPos(0, 1);
         add(title);
 
-        float statsY = title.bottom() + 4;
-        addStatCell(0, statsY, text("inventory.level"), Integer.toString(companion.level()));
-        addStatCell(1, statsY, text("inventory.health"), healthText());
-        addStatCell(2, statsY, text("inventory.strength"), Integer.toString(companion.STR()));
+        float contentY = title.bottom() + 4;
+        if (landscape) {
+            layoutLandscape(contentY);
+        } else {
+            layoutPortrait(contentY);
+        }
+    }
+
+    private void layoutPortrait(float startY) {
+        backpackCols = Math.max(
+                1,
+                Math.min(
+                        MAX_BACKPACK_COLS,
+                        (layoutWidth + slotGap) / (slotSize + slotGap)));
+
+        float statsY = startY;
+        addStatCell(0, 0, statsY, layoutWidth, text("inventory.level"),
+                Integer.toString(companion.level()));
+        addStatCell(1, 0, statsY, layoutWidth, text("inventory.health"), healthText());
+        addStatCell(2, 0, statsY, layoutWidth, text("inventory.strength"),
+                Integer.toString(companion.STR()));
 
         statsY += 18;
-        addStatCell(0, statsY, text("inventory.damage"), damageText());
-        addStatCell(1, statsY, text("inventory.defense"), defenseText());
-        addStatCell(2, statsY, text("inventory.speed"), speedText());
+        addStatCell(0, 0, statsY, layoutWidth, text("inventory.damage"), damageText());
+        addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
+        addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
 
-        final float enemySpawnLabelY = statsY + 19;
-        RenderedTextBlock enemySpawnLabel = PixelScene.renderTextBlock(text("inventory.enemy_spawn"), 7);
-        enemySpawnLabel.setPos(0, enemySpawnLabelY);
-        add(enemySpawnLabel);
+        float afterControls = addControlsAndEquipment(0, statsY + 19, layoutWidth);
 
-        final RenderedTextBlock enemySpawnValue = PixelScene.renderTextBlock(enemySpawnValueText(), 7);
-        enemySpawnValue.setPos(WIDTH - enemySpawnValue.width(), enemySpawnLabelY);
+        RenderedTextBlock backpackLabel = backpackLabel(layoutWidth);
+        backpackLabel.setPos(0, afterControls + 3);
+        add(backpackLabel);
+
+        float backpackY = backpackLabel.bottom() + 2;
+        for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
+            addBackpackButton(i, 0, backpackY);
+        }
+
+        int rows = (int) Math.ceil(
+                CompanionInventory.BACKPACK_CAPACITY / (float) backpackCols);
+        resize(layoutWidth, (int) (backpackY + rows * (slotSize + slotGap)));
+    }
+
+    private void layoutLandscape(float startY) {
+        int minPanelWidth = EQUIPMENT_COLS * slotSize
+                + (EQUIPMENT_COLS - 1) * slotGap;
+        int panelGap = 4;
+
+        int leftWidth = Math.max(
+                minPanelWidth,
+                Math.min(130, (layoutWidth - panelGap) / 2));
+        int rightWidth = layoutWidth - leftWidth - panelGap;
+        if (rightWidth < minPanelWidth) {
+            leftWidth = layoutWidth - panelGap - minPanelWidth;
+            rightWidth = minPanelWidth;
+        }
+        if (leftWidth < minPanelWidth) {
+            throw new IllegalStateException(
+                    "CoHero inventory cannot fit minimum landscape layout");
+        }
+
+        int rightX = leftWidth + panelGap;
+        backpackCols = Math.max(
+                1,
+                Math.min(
+                        MAX_BACKPACK_COLS,
+                        (rightWidth + slotGap) / (slotSize + slotGap)));
+
+        float statsY = startY;
+        addStatCell(0, 0, statsY, leftWidth, text("inventory.level"),
+                Integer.toString(companion.level()));
+        addStatCell(1, 0, statsY, leftWidth, text("inventory.health"), healthText());
+        addStatCell(2, 0, statsY, leftWidth, text("inventory.strength"),
+                Integer.toString(companion.STR()));
+
+        statsY += 18;
+        addStatCell(0, 0, statsY, leftWidth, text("inventory.damage"), damageText());
+        addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
+        addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
+
+        float leftBottom = addControlsAndEquipment(0, statsY + 19, leftWidth);
+
+        RenderedTextBlock backpackLabel = backpackLabel(rightWidth);
+        backpackLabel.setPos(rightX, startY);
+        add(backpackLabel);
+
+        float backpackY = backpackLabel.bottom() + 2;
+        for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
+            addBackpackButton(i, rightX, backpackY);
+        }
+
+        int rows = (int) Math.ceil(
+                CompanionInventory.BACKPACK_CAPACITY / (float) backpackCols);
+        float rightBottom = backpackY + rows * (slotSize + slotGap);
+        resize(layoutWidth, (int) Math.max(leftBottom, rightBottom));
+    }
+
+    private float addControlsAndEquipment(float x, float startY, int width) {
+        final float enemySpawnLabelY = startY;
+        final RenderedTextBlock enemySpawnValue =
+                PixelScene.renderTextBlock(enemySpawnValueText(), 7);
+        enemySpawnValue.setPos(x + width - enemySpawnValue.width(), enemySpawnLabelY);
         add(enemySpawnValue);
+
+        RenderedTextBlock enemySpawnLabel =
+                PixelScene.renderTextBlock(text("inventory.enemy_spawn"), 7);
+        enemySpawnLabel.maxWidth(
+                Math.max(1, width - (int) Math.ceil(enemySpawnValue.width()) - 2));
+        enemySpawnLabel.setPos(x, enemySpawnLabelY);
+        add(enemySpawnLabel);
 
         OptionSlider enemySpawnSlider = new OptionSlider(
                 "",
@@ -82,22 +192,25 @@ public class WndCompanionInventory extends Window {
             protected void onChange() {
                 companion.setEnemySpawnMultiplierTenths(getSelectedValue());
                 enemySpawnValue.text(enemySpawnValueText());
-                enemySpawnValue.setPos(WIDTH - enemySpawnValue.width(), enemySpawnLabelY);
+                enemySpawnValue.setPos(
+                        x + width - enemySpawnValue.width(),
+                        enemySpawnLabelY);
             }
         };
         enemySpawnSlider.setSelectedValue(companion.enemySpawnMultiplierTenths());
-        enemySpawnSlider.setRect(0, enemySpawnLabel.bottom() + 1, WIDTH, 21);
+        enemySpawnSlider.setRect(x, enemySpawnLabel.bottom() + 1, width, 21);
         add(enemySpawnSlider);
 
-        RenderedTextBlock equipmentLabel = PixelScene.renderTextBlock(text("inventory.equipment"), 7);
-        equipmentLabel.setPos(0, enemySpawnSlider.bottom() + 3);
+        RenderedTextBlock equipmentLabel =
+                PixelScene.renderTextBlock(text("inventory.equipment"), 7);
+        equipmentLabel.setPos(x, enemySpawnSlider.bottom() + 3);
         add(equipmentLabel);
 
         float equipmentY = equipmentLabel.bottom() + 2;
-        addEquipmentButton(0, equipmentY, SlotType.WEAPON);
-        addEquipmentButton(1, equipmentY, SlotType.ARMOR);
-        addEquipmentButton(2, equipmentY, SlotType.RING_ONE);
-        addEquipmentButton(3, equipmentY, SlotType.RING_TWO);
+        addEquipmentButton(0, x, equipmentY, SlotType.WEAPON);
+        addEquipmentButton(1, x, equipmentY, SlotType.ARMOR);
+        addEquipmentButton(2, x, equipmentY, SlotType.RING_ONE);
+        addEquipmentButton(3, x, equipmentY, SlotType.RING_TWO);
 
         RedButton addItem = new RedButton(text("inventory.add_item")) {
             @Override
@@ -105,27 +218,26 @@ public class WndCompanionInventory extends Window {
                 selectItemFromHero();
             }
         };
-        addItem.setRect(0, equipmentY + SLOT + 4, WIDTH, 16);
+        addItem.setRect(x, equipmentY + slotSize + 4, width, 16);
         add(addItem);
-
-        RenderedTextBlock backpackLabel = PixelScene.renderTextBlock(
-                text("inventory.backpack", inventory.backpack().size(), CompanionInventory.BACKPACK_CAPACITY), 7);
-        backpackLabel.maxWidth(WIDTH);
-        backpackLabel.setPos(0, addItem.bottom() + 3);
-        add(backpackLabel);
-
-        float backpackY = backpackLabel.bottom() + 2;
-        for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
-            addBackpackButton(i, backpackY);
-        }
-
-        int rows = (int) Math.ceil(CompanionInventory.BACKPACK_CAPACITY / (float) COLS);
-        resize(WIDTH, (int) (backpackY + rows * (SLOT + GAP)));
+        return addItem.bottom();
     }
 
-    private void addStatCell(int column, float y, String label, String value) {
-        float cellWidth = WIDTH / 3f;
-        float x = column * cellWidth;
+    private RenderedTextBlock backpackLabel(int width) {
+        RenderedTextBlock label = PixelScene.renderTextBlock(
+                text(
+                        "inventory.backpack",
+                        inventory.backpack().size(),
+                        CompanionInventory.BACKPACK_CAPACITY),
+                7);
+        label.maxWidth(width);
+        return label;
+    }
+
+    private void addStatCell(
+            int column, float areaX, float y, float areaWidth, String label, String value) {
+        float cellWidth = areaWidth / 3f;
+        float x = areaX + column * cellWidth;
 
         RenderedTextBlock statLabel = PixelScene.renderTextBlock(label, 6);
         statLabel.maxWidth((int) cellWidth - 2);
@@ -190,7 +302,7 @@ public class WndCompanionInventory extends Window {
                 companion.enemySpawnMultiplierTenths() / 10f);
     }
 
-    private void addEquipmentButton(int column, float y, SlotType type) {
+    private void addEquipmentButton(int column, float startX, float y, SlotType type) {
         ItemButton button = new ItemButton() {
             @Override
             protected void onClick() {
@@ -216,14 +328,18 @@ public class WndCompanionInventory extends Window {
             }
         };
 
-        button.setRect(column * (SLOT + GAP), y, SLOT, SLOT);
+        button.setRect(
+                startX + column * (slotSize + slotGap),
+                y,
+                slotSize,
+                slotSize);
         button.item(equipmentItemFor(type));
         add(button);
     }
 
-    private void addBackpackButton(int index, float startY) {
-        int col = index % COLS;
-        int row = index / COLS;
+    private void addBackpackButton(int index, float startX, float startY) {
+        int col = index % backpackCols;
+        int row = index / backpackCols;
 
         ItemButton button = new ItemButton() {
             @Override
@@ -245,7 +361,11 @@ public class WndCompanionInventory extends Window {
             }
         };
 
-        button.setRect(col * (SLOT + GAP), startY + row * (SLOT + GAP), SLOT, SLOT);
+        button.setRect(
+                startX + col * (slotSize + slotGap),
+                startY + row * (slotSize + slotGap),
+                slotSize,
+                slotSize);
         button.item(backpackItemFor(index));
         add(button);
     }
