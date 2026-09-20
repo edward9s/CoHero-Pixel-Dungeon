@@ -160,7 +160,7 @@ public class WndCompanionInventory extends Window {
     private float addControlsAndEquipment(float x, float startY, int width) {
         int inset = Math.min(CONTROL_INSET, Math.max(0, width - 80));
         int controlWidth = width - inset;
-        float controlX = x + width - controlWidth;
+        float controlX = x;
 
         final float enemySpawnLabelY = startY;
         final RenderedTextBlock enemySpawnValue =
