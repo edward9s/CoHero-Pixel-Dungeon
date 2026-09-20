@@ -681,8 +681,8 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         if (!visibleThreats.isEmpty()) {
-            ArrayList<Mob> damageableThreats = damageableThreats(visibleThreats);
-            if (damageableThreats.isEmpty()) {
+            ArrayList<Mob> attackableThreats = collectAttackableThreats(visibleThreats);
+            if (attackableThreats.isEmpty()) {
                 Boolean invulnerableRetreat = tryAvoidInvulnerableThreats(visibleThreats);
                 if (invulnerableRetreat != null) {
                     return invulnerableRetreat;
@@ -694,7 +694,7 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
-            Mob combatTarget = nearestThreat(damageableThreats);
+            Mob combatTarget = nearestThreat(attackableThreats);
 
             Boolean survivalAction = tryCombatSurvival(combatTarget, visibleThreats);
             if (survivalAction != null) {
@@ -733,7 +733,7 @@ public class CoHeroAlly extends DirectableAlly {
             // Direct ranged offense is a normal combat action, not a last-resort fallback.
             // If the preferred threat cannot be shot, this may select another visible threat that
             // has a legal missile / Spirit Bow / wand line.
-            Boolean directRanged = tryDirectRangedAttack(combatTarget, damageableThreats);
+            Boolean directRanged = tryDirectRangedAttack(combatTarget, attackableThreats);
             if (directRanged != null) {
                 return directRanged;
             }
@@ -2176,7 +2176,7 @@ public class CoHeroAlly extends DirectableAlly {
      * conservative: current HP/shield are real effective health, only one usable potion is given
      * partial reserve value, and an Ankh is never treated as expendable combat HP.
      */
-    private ArrayList<Mob> damageableThreats(ArrayList<Mob> threats) {
+    private ArrayList<Mob> collectAttackableThreats(ArrayList<Mob> threats) {
         ArrayList<Mob> result = new ArrayList<>();
         if (threats == null) {
             return result;
