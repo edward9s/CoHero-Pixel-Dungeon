@@ -30,7 +30,6 @@ import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
@@ -386,7 +385,7 @@ public final class CompanionInventory {
     }
 
     public boolean canAddToBackpack(Item item) {
-        if (!supported(item)) {
+        if (item == null) {
             return false;
         }
         if (backpack.contains(item)) {
@@ -405,9 +404,6 @@ public final class CompanionInventory {
     public boolean addToBackpack(Item item) {
         if (item == null) {
             throw new IllegalArgumentException("item must not be null");
-        }
-        if (!supported(item)) {
-            throw new IllegalArgumentException("Unsupported CoHero item: " + item.getClass().getName());
         }
         if (backpack.contains(item)) {
             return true;
@@ -672,8 +668,8 @@ public final class CompanionInventory {
 
         backpack.clear();
         for (Bundlable value : bundle.getCollection(BACKPACK)) {
-            if (!(value instanceof Item) || !supported((Item) value)) {
-                throw new IllegalStateException("CoHero save contains an unsupported backpack item");
+            if (!(value instanceof Item)) {
+                throw new IllegalStateException("CoHero save contains a non-item backpack entry");
             }
             backpack.add((Item) value);
         }
@@ -720,7 +716,7 @@ public final class CompanionInventory {
         }
 
         for (Item item : backpack) {
-            if (item instanceof Wand) {
+            if (item instanceof Wand && CoHeroWandAdapter.supported((Wand) item)) {
                 Wand wand = (Wand) item;
                 wand.stopCharging();
                 wand.charge(owner);
@@ -731,20 +727,50 @@ public final class CompanionInventory {
         }
     }
 
-    static boolean supported(Item item) {
-        return item instanceof Weapon
+    static boolean usableByCoHero(Item item) {
+        if (item instanceof MeleeWeapon
                 || item instanceof Armor
                 || item instanceof Ring
-                || item instanceof Wand
-                || item instanceof Potion
-                || item instanceof Scroll
-                || item instanceof StoneOfAggression
+                || item instanceof SpiritBow
+                || item instanceof Torch
+                || item instanceof Ankh) {
+            return true;
+        }
+
+        if (item instanceof MissileWeapon) {
+            return CoHeroAlly.supportedMissileWeapon((MissileWeapon) item);
+        }
+
+        if (item instanceof Wand) {
+            return CoHeroWandAdapter.supported((Wand) item);
+        }
+
+        if (item instanceof Potion) {
+            Potion potion = (Potion) item;
+            return potion.isKnown()
+                    && (potion instanceof PotionOfHealing
+                    || potion instanceof ElixirOfHoneyedHealing
+                    || potion instanceof PotionOfShielding
+                    || potion instanceof PotionOfInvisibility
+                    || potion instanceof PotionOfHaste
+                    || potion instanceof PotionOfStamina
+                    || potion instanceof PotionOfCleansing
+                    || potion instanceof PotionOfEarthenArmor);
+        }
+
+        if (item instanceof Scroll) {
+            Scroll scroll = (Scroll) item;
+            return scroll.isKnown()
+                    && (scroll instanceof ScrollOfTeleportation
+                    || scroll instanceof ScrollOfTerror
+                    || scroll instanceof ScrollOfDread);
+        }
+
+        return item instanceof StoneOfAggression
                 || item instanceof StoneOfBlast
                 || item instanceof StoneOfFear
                 || item instanceof StoneOfDeepSleep
                 || item instanceof StoneOfBlink
-                || item instanceof StoneOfFlock
-                || item instanceof Torch
-                || item instanceof Ankh;
+                || item instanceof StoneOfFlock;
     }
 }
