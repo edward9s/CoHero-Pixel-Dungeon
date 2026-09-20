@@ -1,0 +1,88 @@
+package com.spd.cohero;
+
+import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
+import com.shatteredpixel.shatteredpixeldungeon.ui.Tag;
+import com.watabou.noosa.Image;
+
+/** Permanent CoHero inventory entry in the standard GameScene tag stack. */
+public class CoHeroInventoryIndicator extends Tag {
+
+    private final ItemSprite backpack;
+    private final Image companionBadge;
+
+    public CoHeroInventoryIndicator() {
+        super(0x6E5738);
+
+        setSize(SIZE, SIZE);
+        visible = false;
+
+        backpack = new ItemSprite(ItemSpriteSheet.BACKPACK);
+        add(backpack);
+
+        HeroClass companionClass = CoHero.companionClass();
+        if (companionClass == null) {
+            throw new IllegalStateException("CoHero inventory indicator has no selected companion class");
+        }
+        companionBadge = new Image(companionClass.spritesheet(), 0, 90, 12, 15);
+        companionBadge.scale.set(0.4f);
+        add(companionBadge);
+    }
+
+    @Override
+    public void update() {
+        CoHeroAlly companion = CoHero.findCompanion();
+        boolean shouldShow = Dungeon.hero != null
+                && Dungeon.hero.isAlive()
+                && companion != null
+                && companion.isAlive();
+
+        if (shouldShow && !visible) {
+            flash();
+        }
+        visible = shouldShow;
+
+        super.update();
+    }
+
+    @Override
+    protected void onClick() {
+        super.onClick();
+
+        CoHeroAlly companion = CoHero.findCompanion();
+        if (Dungeon.hero != null
+                && Dungeon.hero.ready
+                && companion != null
+                && companion.isAlive()) {
+            GameScene.show(new WndCompanionInventory(companion));
+        }
+    }
+
+    @Override
+    protected String hoverText() {
+        return CoHeroMessages.get("inventory.title");
+    }
+
+    @Override
+    protected void layout() {
+        super.layout();
+
+        float iconX;
+        if (!flipped) {
+            iconX = x + (SIZE - backpack.width()) / 2f + 1;
+        } else {
+            iconX = x + width - (SIZE + backpack.width()) / 2f - 1;
+        }
+        backpack.x = iconX;
+        backpack.y = y + (height - backpack.height()) / 2f;
+        PixelScene.align(backpack);
+
+        companionBadge.x = backpack.x + backpack.width() - companionBadge.width();
+        companionBadge.y = backpack.y + backpack.height() - companionBadge.height();
+        PixelScene.align(companionBadge);
+    }
+}
