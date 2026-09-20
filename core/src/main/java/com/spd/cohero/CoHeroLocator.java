@@ -44,6 +44,7 @@ public class CoHeroLocator extends Button {
     private final Image heroAvatar;
     private final Image companionAvatar;
     private final Image direction;
+    private final BitmapText identity;
     private final HealthBar hp;
     private final BuffStrip buffs;
     private final BitmapText warning;
@@ -77,6 +78,11 @@ public class CoHeroLocator extends Button {
         direction = Icons.COMPASS.get();
         direction.origin.set(direction.width() / 2f, direction.height() / 2f);
         add(direction);
+
+        identity = new BitmapText(PixelScene.pixelFont);
+        identity.text("CO");
+        identity.measure();
+        add(identity);
 
         hp = new HealthBar();
         add(hp);
@@ -207,6 +213,8 @@ public class CoHeroLocator extends Button {
         locatorTarget = target;
         heroAvatar.visible = target == Dungeon.hero;
         companionAvatar.visible = target == companion;
+        identity.text(target == Dungeon.hero ? "ME" : "CO");
+        identity.measure();
     }
 
     @Override
@@ -246,10 +254,13 @@ public class CoHeroLocator extends Button {
         direction.x = x + width - direction.width() - 2;
         direction.y = y + 2;
 
+        identity.x = x + 16;
+        identity.y = y + 3;
+
         hp.setRect(x + 16, y + 16, width - 20, 2);
         buffs.setRect(x + 2, y + 21, width - 4, 8);
 
-        warning.x = x + 17;
+        warning.x = identity.x + identity.width() + 2;
         warning.y = y + 3;
     }
 
