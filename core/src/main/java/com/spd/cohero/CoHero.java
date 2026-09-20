@@ -415,7 +415,6 @@ public final class CoHero {
             companion.fieldOfView = new boolean[Dungeon.level.length()];
         }
 
-        companion.syncViewDistance();
         Dungeon.level.updateFieldOfView(companion, companion.fieldOfView);
 
         for (int i = 0; i < sharedFieldOfView.length; i++) {
