@@ -62,7 +62,7 @@ public class CoHeroAllySprite extends CharSprite {
         updateArmor(((CoHeroAlly) ch).armorTier());
     }
 
-    private void updateArmor(int tier) {
+    void updateArmor(int tier) {
         if (tier < 0 || tier > 6) {
             throw new IllegalArgumentException("Unsupported companion armor tier: " + tier);
         }
