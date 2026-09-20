@@ -2572,10 +2572,6 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-            clearRangedLurePlan();
-            return null;
-        }
-
         if (rangedLureTargetId != -1 && rangedLureTargetId != targetMob.id()) {
             clearRangedLurePlan();
         }
