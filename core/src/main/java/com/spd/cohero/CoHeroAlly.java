@@ -685,8 +685,13 @@ public class CoHeroAlly extends DirectableAlly {
 
             Boolean survivalAction = tryCombatSurvival(combatTarget, visibleThreats);
             if (survivalAction != null) {
+                CombatRisk debugRisk = assessCombatRisk(combatTarget, visibleThreats);
                 logBossDecision("combat_survival:" + combatTarget.id(),
-                        targetDebug(combatTarget) + " -> survival/retreat");
+                        targetDebug(combatTarget)
+                                + " -> survival/retreat"
+                                + " attackers=" + debugRisk.attackersNow
+                                + " ttd=" + String.format("%.1f", debugRisk.ttd)
+                                + " ttk=" + String.format("%.1f", debugRisk.ttk));
                 return survivalAction;
             }
 
@@ -2242,7 +2247,15 @@ public class CoHeroAlly extends DirectableAlly {
 
         boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
         boolean overwhelmed = attackersNow >= 3;
-        boolean losingRace = incomingDpt > 0.01f && ttd <= ttk + 1.25f;
+
+        // A boss HP pool is not a valid solo-TTK race for CoHero: Hero is expected to contribute
+        // most of the encounter damage. Keep immediate-lethal and overwhelmed retreat rules, but
+        // do not make CoHero flee merely because it cannot personally burn down the whole boss
+        // before taking equivalent damage.
+        boolean bossTarget = targetMob.properties().contains(Char.Property.BOSS);
+        boolean losingRace = !bossTarget
+                && incomingDpt > 0.01f
+                && ttd <= ttk + 1.25f;
         boolean outnumberedRace = attackersNow >= 2
                 && incomingDpt > 0.01f
                 && ttd <= ttk * 1.5f;
