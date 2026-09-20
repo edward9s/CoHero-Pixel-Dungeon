@@ -20,7 +20,7 @@ The core game is playable, but AI behaviour and balance are still being tuned. B
 - Giving the CoHero different equipment is the main way to influence its behaviour.
 - Either Hero dying ends the run.
 - Boss and branch floors let you choose whether the CoHero comes with you.
-- The CoHero backpack includes an enemy spawn multiplier from **1.0x to 2.0x** for difficulty tuning.
+- The CoHero backpack includes an enemy spawn multiplier from **1.0x to 2.0x**, defaulting to **1.5x**, for difficulty tuning.
 
 Long-press the CoHero locator to open its backpack.
 
