@@ -2728,8 +2728,9 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     /**
-     * A "close" ranged enemy is one CoHero can put into legal melee range with one safe movement
-     * step. This respects long-reach melee weapons through canAttackFrom().
+     * Against a ranged enemy, "close" means physically adjacent. Extended melee reach is useful
+     * against ordinary targets, but must not redefine the desired distance for shutting down a
+     * ranged attack.
      */
     private int chooseOneStepMeleeApproach(Mob targetMob, ArrayList<Mob> threats) {
         if (rooted || targetMob == null) {
