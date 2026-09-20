@@ -47,8 +47,6 @@ public class WndCompanionInventory extends Window {
 
     public WndCompanionInventory(CoHeroAlly companion) {
         if (companion == null || !companion.isAlive()) {
-            throw new IllegalArgu    public WndCompanionInventory(CoHeroAlly companion) {
-        if (companion == null || !companion.isAlive()) {
             throw new IllegalArgumentException("companion must be alive");
         }
         this.companion = companion;
@@ -181,7 +179,9 @@ public class WndCompanionInventory extends Window {
         return label;
     }
 
-= areaWidth / 3f;
+    private void addStatCell(
+            int column, float areaX, float y, float areaWidth, String label, String value) {
+        float cellWidth = areaWidth / 3f;
         float x = areaX + column * cellWidth;
 
         RenderedTextBlock statLabel = PixelScene.renderTextBlock(label, 6);
