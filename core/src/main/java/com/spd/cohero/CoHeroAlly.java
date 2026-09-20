@@ -2564,6 +2564,18 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
+        // Bosses often have scripted movement/teleports rather than ordinary pathing. Hiding
+        // behind cover to lure them forward can stall the fight indefinitely (notably Tengu).
+        // Let the normal combat selector use missiles, Spirit Bow, wands, or melee instead.
+        if (targetMob.properties().contains(Char.Property.BOSS)) {
+            clearRangedLurePlan();
+            return null;
+        }
+
+            clearRangedLurePlan();
+            return null;
+        }
+
         if (rangedLureTargetId != -1 && rangedLureTargetId != targetMob.id()) {
             clearRangedLurePlan();
         }
