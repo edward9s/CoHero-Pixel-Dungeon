@@ -331,16 +331,16 @@ public class CoHeroAlly extends DirectableAlly {
         syncViewDistance();
     }
 
-    void relocateForLevelRewrite(int cell) {
+    void relocateImmediately(int cell) {
         if (Dungeon.level == null
                 || cell < 0
                 || cell >= Dungeon.level.length()
                 || !Dungeon.level.passable[cell]) {
-            throw new IllegalArgumentException("Invalid CoHero level-rewrite destination: " + cell);
+            throw new IllegalArgumentException("Invalid CoHero forced relocation destination: " + cell);
         }
         Char occupant = Actor.findChar(cell);
         if (occupant != null && occupant != this) {
-            throw new IllegalArgumentException("CoHero level-rewrite destination is occupied: " + cell);
+            throw new IllegalArgumentException("CoHero forced relocation destination is occupied: " + cell);
         }
 
         pos = cell;
