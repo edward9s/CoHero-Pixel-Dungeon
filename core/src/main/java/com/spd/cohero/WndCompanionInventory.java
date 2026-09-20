@@ -182,7 +182,7 @@ public class WndCompanionInventory extends Window {
         OptionSlider enemySpawnSlider = new OptionSlider(
                 "",
                 "1.0x",
-                "2.0x",
+                "3.0x",
                 CompanionEnemySurge.MIN_MULTIPLIER_TENTHS,
                 CompanionEnemySurge.MAX_MULTIPLIER_TENTHS) {
             @Override
