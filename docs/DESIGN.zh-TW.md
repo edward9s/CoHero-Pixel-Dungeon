@@ -97,6 +97,15 @@ CoHero 在沒有立即可見威脅時採用 hysteresis 式靠攏：
 - 第二階段擊敗天狗後沿用原版既有的 ally preservation：所有可移動 `ALLY` 會在 `setMapEnd()` 前暫時移出 mob list，結束地圖建立後重新放回天狗房；CoHero 不需要另一套終局搬運。
 - 這些搬運只在同一樓層的 Boss phase rewrite 使用，不改變 CoHero 一般跨樓層生命週期，也不重新加入 stock held-allies transport。
 
+### 矮人王 Boss 樓層的入場搬運
+
+矮人王的 `CityBossLevel.seal()` 會在 Hero 進入王房後立刻鎖住下方入口，原版會用 `Mob.holdAllies()/restoreAllies()` 把智能 ally 搬進場內；CoHero 因為有自己的跨樓層生命週期而刻意排除這套 transport，因此需要在 `seal()` 前獨立搬運：
+
+- Hero 觸發 `seal()` 時，若 CoHero 同行，先把 CoHero 搬到王房內、盡量靠近 Hero 的合法空格。
+- 搬運區明確排除即將變成 `LOCKED_DOOR` 的 `arena.bottom - 1` 那一列，避免 CoHero 被放到門格上。
+- 矮人王關卡沒有像天狗那樣反覆重建整張地圖或 `clearEntities()`，所以只需要處理這一次入場鎖門。
+- 這仍不把 CoHero 加回 stock `heldAllies` transport。
+
 ### 特殊樓層的同行選擇
 
 一般樓層仍維持 CoHero 與 Hero 一起跨層；但進入高風險、可獨立完成的特殊樓層時，玩家可以決定是否讓 CoHero 同行：
