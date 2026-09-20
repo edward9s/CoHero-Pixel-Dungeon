@@ -24,12 +24,13 @@ jobs:
 
       - name: Resolve versions
         id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
 
-          SPD_TAG=$(curl -fsSL https://api.github.com/repos/00-Evan/shattered-pixel-dungeon/releases/latest \
-            | python -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+          SPD_TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name')
           SMM_VER=$(python mod/scripts/extract_version.py mod/core/src/main/java/com/spd/mod/ModGame.java)
           COHERO_VER=$(python cohero/scripts/extract_version.py \
             cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
