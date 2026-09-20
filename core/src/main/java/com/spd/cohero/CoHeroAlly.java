@@ -16,6 +16,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Light;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.LostInventory;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicalSleep;
@@ -33,6 +34,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
+import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.bombs.Bomb;
@@ -92,12 +94,14 @@ import com.shatteredpixel.shatteredpixeldungeon.plants.Sungrass;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
+import com.shatteredpixel.shatteredpixeldungeon.effects.particles.FlameParticle;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
 import com.watabou.noosa.audio.Sample;
+import com.watabou.noosa.particles.Emitter;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
@@ -324,6 +328,17 @@ public class CoHeroAlly extends DirectableAlly {
         updateHT(false);
         Buff.affect(this, CompanionRegeneration.class);
         Buff.affect(this, CompanionEnemySurge.class);
+        syncViewDistance();
+    }
+
+    void syncViewDistance() {
+        if (Dungeon.level == null) {
+            return;
+        }
+        int baseViewDistance = Dungeon.level.viewDistance;
+        viewDistance = buff(Light.class) == null
+                ? baseViewDistance
+                : Math.max(baseViewDistance, Light.DISTANCE);
     }
 
     private void syncSharedLevel() {
@@ -540,6 +555,11 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     protected boolean act() {
         syncSharedLevel();
+        syncViewDistance();
+
+        if (tryAutoTorch()) {
+            return true;
+        }
 
         if (fieldOfView == null || fieldOfView.length != Dungeon.level.length()) {
             fieldOfView = new boolean[Dungeon.level.length()];
@@ -3685,6 +3705,10 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private void revealVisibleCells() {
+        // Rebuild the shared Hero+CoHero FOV first. Level.updateFieldOfView(Hero, heroFOV)
+        // refreshes the companion FOV and merges it into Dungeon.level.heroFOV.
+        Dungeon.observe();
+
         for (int i = 0; i < fieldOfView.length; i++) {
             if (fieldOfView[i]
                     && Dungeon.level.discoverable[i]
@@ -3693,10 +3717,37 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        // CoHero vision is a display-only second FOV source. Refresh the local fog and mob
-        // visibility every time its FOV is recomputed, even if all cells were already visited.
+        // Dungeon.observe refreshes the Hero-side fog area. CoHero may be far outside it, so
+        // explicitly refresh the companion-side area after marking its visible cells visited.
         GameScene.updateFog(pos, viewDistance + 1);
-        GameScene.afterObserve();
+    }
+
+    private boolean tryAutoTorch() {
+        if (Dungeon.level == null
+                || Dungeon.level.viewDistance >= Light.DISTANCE
+                || buff(Light.class) != null) {
+            return false;
+        }
+
+        Torch torch = inventory.takeOneAutoTorch();
+        if (torch == null) {
+            return false;
+        }
+
+        Buff.affect(this, Light.class, Light.DURATION);
+        Catalog.countUse(Torch.class);
+        Sample.INSTANCE.play(Assets.Sounds.BURNING);
+
+        if (sprite != null) {
+            sprite.operate(pos);
+            Emitter emitter = sprite.centerEmitter();
+            if (emitter != null) {
+                emitter.start(FlameParticle.FACTORY, 0.2f, 3);
+            }
+        }
+
+        spend(Torch.TIME_TO_LIGHT);
+        return true;
     }
 
     private ArrayList<Mob> visibleAwakeEnemies() {
