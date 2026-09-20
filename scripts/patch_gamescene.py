@@ -13,6 +13,7 @@ locator_marker = "\t\tcom.spd.cohero.CoHeroLocator coHeroLocator = new com.spd.c
 inventory_tag_field_marker = "\tprivate com.spd.cohero.CoHeroInventoryIndicator coHeroInventory;"
 inventory_tag_create_marker = "\t\tcoHeroInventory = new com.spd.cohero.CoHeroInventoryIndicator();"
 inventory_tag_state_marker = "\tprivate boolean tagCoHeroInventory = false;"
+examine_marker = "ch instanceof com.spd.cohero.CoHeroAlly"
 hazard_marker = "\t\tcom.spd.cohero.CoHeroHazards.warn(pos, delay);"
 
 if (ready_marker in text
@@ -20,6 +21,7 @@ if (ready_marker in text
         or inventory_tag_field_marker in text
         or inventory_tag_create_marker in text
         or inventory_tag_state_marker in text
+        or examine_marker in text
         or hazard_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
@@ -205,6 +207,29 @@ tag_bounds_methods = (
     "\tprotected void onBackPressed() {\n"
 )
 text = text.replace(tag_bounds_anchor, tag_bounds_methods, 1)
+
+examine_anchor = (
+    "\t\tif (ch != null && ch != Dungeon.hero){\n"
+    "\t\t\tif (Dungeon.level.heroFOV[cell] || Char.hasProp(ch, Char.Property.OBJECT)){\n"
+    "\t\t\t\tobjects.add(ch);\n"
+    "\t\t\t}\n"
+    "\t\t}\n"
+)
+if text.count(examine_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene examine-object visibility anchor, found {text.count(examine_anchor)}"
+    )
+text = text.replace(
+    examine_anchor,
+    "\t\tif (ch != null && ch != Dungeon.hero){\n"
+    "\t\t\tif (Dungeon.level.heroFOV[cell]\n"
+    "\t\t\t\t\t|| Char.hasProp(ch, Char.Property.OBJECT)\n"
+    "\t\t\t\t\t|| ch instanceof com.spd.cohero.CoHeroAlly){\n"
+    "\t\t\t\tobjects.add(ch);\n"
+    "\t\t\t}\n"
+    "\t\t}\n",
+    1,
+)
 
 targeted_anchor = (
     "\tpublic static TargetedCell targetedCell(int pos, float delay){\n"
