@@ -18,6 +18,7 @@ import com.watabou.utils.GameSettings;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Rect;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -438,7 +439,80 @@ public final class CoHero {
                 && companion.fieldOfView[cell];
     }
 
-    public static void relocateCompanionForBossPhase(Rect area, int preferredCell) {
+    public static void relocateCompanionNextToHero() {
+        if (Dungeon.level == null || Dungeon.hero == null) {
+            return;
+        }
+
+        CoHeroAlly companion = findCompanion();
+        if (companion == null) {
+            // CoHero may have been intentionally left outside this boss floor.
+            return;
+        }
+        if (!companion.isAlive()) {
+            throw new IllegalStateException("Cannot relocate a dead CoHero companion");
+        }
+
+        int destination = nearestFreeCellToHero(companion);
+        if (destination == -1) {
+            throw new IllegalStateException("No legal cell exists near the hero for CoHero relocation");
+        }
+
+        if (companion.pos != destination) {
+            companion.relocateForLevelRewrite(destination);
+        }
+    }
+
+    private static int nearestFreeCellToHero(CoHeroAlly companion) {
+        int length = Dungeon.level.length();
+        int width = Dungeon.level.width();
+        int start = Dungeon.hero.pos;
+
+        boolean[] visited = new boolean[length];
+        ArrayDeque<Integer> queue = new ArrayDeque<>();
+        visited[start] = true;
+        queue.addLast(start);
+
+        while (!queue.isEmpty()) {
+            int from = queue.removeFirst();
+            int fromX = from % width;
+            int fromY = from / width;
+
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) {
+                        continue;
+                    }
+
+                    int x = fromX + dx;
+                    int y = fromY + dy;
+                    if (x < 0 || x >= width || y < 0 || y >= Dungeon.level.height()) {
+                        continue;
+                    }
+
+                    int cell = x + y * width;
+                    if (visited[cell] || !Dungeon.level.passable[cell]) {
+                        continue;
+                    }
+                    visited[cell] = true;
+
+                    com.shatteredpixel.shatteredpixeldungeon.actors.Char occupant =
+                            Actor.findChar(cell);
+                    if (occupant == null || occupant == companion) {
+                        return cell;
+                    }
+
+                    // Actor occupancy is transient; keep searching through the same connected
+                    // terrain component so a crowded boss ending still finds the nearest free cell.
+                    queue.addLast(cell);
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    public static void relocateCompanionForLevelRewrite(Rect area, int preferredCell) {
         if (area == null || Dungeon.level == null) {
             throw new IllegalArgumentException("Boss-phase relocation requires a live level and area");
         }
