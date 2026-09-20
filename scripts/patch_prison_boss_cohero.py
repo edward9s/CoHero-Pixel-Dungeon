@@ -8,7 +8,7 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
-marker = "com.spd.cohero.CoHero.relocateCompanionForBossPhase"
+marker = "com.spd.cohero.CoHero.relocateCompanionForLevelRewrite"
 if marker in text:
     raise SystemExit(f"CoHero PrisonBossLevel patch already applied to {path}")
 
@@ -19,16 +19,6 @@ def replace_once(old: str, new: str, label: str) -> None:
         raise SystemExit(f"expected exactly one {label} anchor, found {count}")
     text = text.replace(old, new, 1)
 
-# Hero has just crossed into Tengu's first room. CoHero is intentionally excluded from
-# Mob.holdAllies(), so move it inside before the door is locked.
-replace_once(
-    "\t\t\t\tseal();\n",
-    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionForBossPhase("
-    "tenguCell, Dungeon.hero.pos);\n"
-    "\t\t\t\tseal();\n",
-    "Tengu fight-start seal",
-)
-
 # Phase 1 rewrites most of the map and destroys every mob outside tenguCell.
 replace_once(
     "\t\t\tcase FIGHT_START:\n"
@@ -36,7 +26,7 @@ replace_once(
     "\t\t\t\tclearEntities( tenguCell ); //clear anything not in tengu's cell\n",
     "\t\t\tcase FIGHT_START:\n"
     "\t\t\t\t\n"
-    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionForBossPhase("
+    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionForLevelRewrite("
     "tenguCell, Dungeon.hero.pos);\n"
     "\t\t\t\tclearEntities( tenguCell ); //clear anything not in tengu's cell\n",
     "Tengu phase-1 rewrite",
@@ -53,10 +43,36 @@ replace_once(
     "\t\t\t\t\n"
     "\t\t\t\tDungeon.hero.interrupt();\n"
     "\t\t\t\t\n"
-    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionForBossPhase("
+    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionForLevelRewrite("
     "pauseSafeArea, Dungeon.hero.pos);\n"
     "\t\t\t\tclearEntities( pauseSafeArea );\n",
     "Tengu phase-2 rewrite",
+)
+
+# Tengu's final transition calls unseal() before it teleports the Hero and rewrites the map.
+# LockedFloor.detach therefore fires too early for the final placement. After stock ally
+# preservation restores allies onto the end map, put CoHero beside the Hero one last time.
+replace_once(
+    "\t\t\t\tfor (Mob m : allies){\n"
+    "\t\t\t\t\tdo{\n"
+    "\t\t\t\t\t\tm.pos = randomTenguCellPos();\n"
+    "\t\t\t\t\t} while (findMob(m.pos) != null || m.pos == Dungeon.hero.pos);\n"
+    "\t\t\t\t\tif (m.sprite != null) m.sprite.place(m.pos);\n"
+    "\t\t\t\t\tmobs.add(m);\n"
+    "\t\t\t\t}\n"
+    "\t\t\t\t\n"
+    "\t\t\t\ttengu.die(Dungeon.hero);\n",
+    "\t\t\t\tfor (Mob m : allies){\n"
+    "\t\t\t\t\tdo{\n"
+    "\t\t\t\t\t\tm.pos = randomTenguCellPos();\n"
+    "\t\t\t\t\t} while (findMob(m.pos) != null || m.pos == Dungeon.hero.pos);\n"
+    "\t\t\t\t\tif (m.sprite != null) m.sprite.place(m.pos);\n"
+    "\t\t\t\t\tmobs.add(m);\n"
+    "\t\t\t\t}\n"
+    "\t\t\t\tcom.spd.cohero.CoHero.relocateCompanionNextToHero();\n"
+    "\t\t\t\t\n"
+    "\t\t\t\ttengu.die(Dungeon.hero);\n",
+    "Tengu final end-map ally restore",
 )
 
 path.write_text(text, encoding="utf-8")
