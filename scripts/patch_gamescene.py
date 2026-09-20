@@ -25,13 +25,11 @@ if (ready_marker in text
         or hazard_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
-mob_anchor = (
-    "\t\tfor (Mob mob : Dungeon.level.mobs) {\n"
-    "\t\t\taddMobSprite( mob );\n"
-    "\t\t}\n"
-)
-if text.count(mob_anchor) != 1:
-    raise SystemExit(f"expected exactly one GameScene mob-loading anchor, found {text.count(mob_anchor)}")
+ready_anchor = "\t\tDungeon.hero.next();\n"
+if text.count(ready_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene actor-start anchor, found {text.count(ready_anchor)}"
+    )
 
 inventory_field_anchor = "\tprivate ResumeIndicator resume;\n"
 if text.count(inventory_field_anchor) != 1:
@@ -72,7 +70,10 @@ layout_anchor = (
 if text.count(layout_anchor) != 1:
     raise SystemExit(f"expected exactly one GameScene HUD layout anchor, found {text.count(layout_anchor)}")
 
-text = text.replace(mob_anchor, mob_anchor + "\n" + ready_marker + "\n", 1)
+# CoHero restoration may call Level.occupyCell(), which can update terrain visuals.
+# Run only after all terrain/fog tilemaps and UI groups are constructed, but before the Hero
+# starts actor scheduling.
+text = text.replace(ready_anchor, ready_marker + "\n\n" + ready_anchor, 1)
 
 locator_block = (
     "\t\tfloat coHeroSafeLeft = insets.left;\n"
