@@ -143,6 +143,7 @@ public class CoHeroAlly extends DirectableAlly {
     private int rangedLureTargetId = -1;
     private int rangedLureCoverCell = -1;
     private int rangedLureWaitTurns;
+    private String lastBossDecisionLog;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -590,6 +591,56 @@ public class CoHeroAlly extends DirectableAlly {
         return super.defenseProc(enemy, damage);
     }
 
+    private void logBossDecision(String key, String detail) {
+        if (Dungeon.level == null || !Dungeon.level.locked) {
+            lastBossDecisionLog = null;
+            return;
+        }
+        if (key.equals(lastBossDecisionLog)) {
+            return;
+        }
+        lastBossDecisionLog = key;
+        GLog.i("CoHero: " + detail);
+    }
+
+    private String targetDebug(Mob targetMob) {
+        if (targetMob == null) {
+            return "no target";
+        }
+        return targetMob.getClass().getSimpleName()
+                + " d=" + Dungeon.level.distance(pos, targetMob.pos)
+                + " HP=" + HP + "/" + HT;
+    }
+
+    private String threatScanDebug() {
+        int enemies = 0;
+        int inFov = 0;
+        int invisibleEnemies = 0;
+        int sleepingEnemies = 0;
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob == this || mob.alignment != Alignment.ENEMY || !mob.isAlive()) {
+                continue;
+            }
+            enemies++;
+            if (mob.pos >= 0
+                    && mob.pos < fieldOfView.length
+                    && fieldOfView[mob.pos]) {
+                inFov++;
+            }
+            if (mob.invisible > 0) {
+                invisibleEnemies++;
+            }
+            if (mob.state == mob.SLEEPING) {
+                sleepingEnemies++;
+            }
+        }
+        return "no visible threat"
+                + " (enemies=" + enemies
+                + ", inFOV=" + inFov
+                + ", invisible=" + invisibleEnemies
+                + ", sleeping=" + sleepingEnemies + ")";
+    }
+
     @Override
     protected boolean act() {
         syncSharedLevel();
@@ -602,11 +653,13 @@ public class CoHeroAlly extends DirectableAlly {
         revealVisibleCells();
 
         if (paralysed > 0) {
+            logBossDecision("paralysed", "paralysed");
             spend(TICK);
             return true;
         }
 
         if (tryAutoTorch()) {
+            logBossDecision("auto_torch", "used torch");
             return true;
         }
 
@@ -614,11 +667,13 @@ public class CoHeroAlly extends DirectableAlly {
 
         Boolean hazardAvoidance = tryAvoidHazard();
         if (hazardAvoidance != null) {
+            logBossDecision("avoid_hazard", "avoiding hazard");
             return hazardAvoidance;
         }
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (visibleThreats.isEmpty()) {
+            logBossDecision("no_visible_threat:" + threatScanDebug(), threatScanDebug());
             Boolean rangedLure = continueRangedLureWithoutVisibleThreat();
             if (rangedLure != null) {
                 return rangedLure;
@@ -630,6 +685,8 @@ public class CoHeroAlly extends DirectableAlly {
 
             Boolean survivalAction = tryCombatSurvival(combatTarget, visibleThreats);
             if (survivalAction != null) {
+                logBossDecision("combat_survival:" + combatTarget.id(),
+                        targetDebug(combatTarget) + " -> survival/retreat");
                 return survivalAction;
             }
 
@@ -660,11 +717,15 @@ public class CoHeroAlly extends DirectableAlly {
 
             Boolean rangedEngagement = tryRangedEngagement(combatTarget, visibleThreats);
             if (rangedEngagement != null) {
+                logBossDecision("ranged_positioning:" + combatTarget.id(),
+                        targetDebug(combatTarget) + " -> ranged positioning");
                 return rangedEngagement;
             }
 
             Boolean meleePositioning = tryMeleePositioning(combatTarget, visibleThreats);
             if (meleePositioning != null) {
+                logBossDecision("melee_positioning:" + combatTarget.id(),
+                        targetDebug(combatTarget) + " -> melee positioning");
                 return meleePositioning;
             }
 
@@ -689,6 +750,8 @@ public class CoHeroAlly extends DirectableAlly {
                 }
             }
 
+            logBossDecision("combat_idle:" + combatTarget.id(),
+                    targetDebug(combatTarget) + " -> no legal combat action");
             spend(TICK);
             return true;
         }
@@ -3012,6 +3075,8 @@ public class CoHeroAlly extends DirectableAlly {
 
         // Contract: if the equipped melee weapon can legally reach, never substitute a ranged attack.
         if (canAttack(targetMob)) {
+            logBossDecision("melee_attack:" + targetMob.id(),
+                    targetDebug(targetMob) + " -> melee attack");
             state = HUNTING;
             return doAttack(targetMob);
         }
@@ -3020,10 +3085,16 @@ public class CoHeroAlly extends DirectableAlly {
         if (ranged != null) {
             state = HUNTING;
             if (ranged.missile != null) {
+                logBossDecision("missile_attack:" + targetMob.id(),
+                        targetDebug(targetMob) + " -> throw " + ranged.missile.getClass().getSimpleName());
                 return performMissileAttack(targetMob, ranged.missile);
             } else if (ranged.spiritBow != null) {
+                logBossDecision("spirit_bow:" + targetMob.id(),
+                        targetDebug(targetMob) + " -> Spirit Bow");
                 return performSpiritBowAttack(targetMob, ranged.spiritBow);
             } else {
+                logBossDecision("wand_attack:" + targetMob.id() + ":" + ranged.wand.getClass().getSimpleName(),
+                        targetDebug(targetMob) + " -> " + ranged.wand.getClass().getSimpleName());
                 return performWandCast(ranged.wandTargetCell, ranged.wand);
             }
         }
@@ -3037,6 +3108,8 @@ public class CoHeroAlly extends DirectableAlly {
         if (hasUsableCombatCapability(targetMob)) {
             int oldPos = pos;
             if (getCloser(targetMob.pos)) {
+                logBossDecision("close_distance:" + targetMob.id(),
+                        targetDebug(targetMob) + " -> close distance");
                 spend(1 / speed());
                 return moveSprite(oldPos, pos);
             }
