@@ -263,6 +263,8 @@ jobs:
           python cohero/scripts/patch_app_package.py spd/build.gradle
           python cohero/scripts/patch_gamescene.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java
+          python cohero/scripts/patch_toolbar.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/Toolbar.java
           python cohero/scripts/patch_cohero_visual_fov.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java \
