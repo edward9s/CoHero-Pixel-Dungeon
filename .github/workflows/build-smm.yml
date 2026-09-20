@@ -93,6 +93,8 @@ jobs:
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/Chasm.java
           python cohero/scripts/patch_highgrass.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/HighGrass.java
+          python cohero/scripts/patch_dread_cohero.py \
+            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/buffs/Dread.java
           python cohero/scripts/patch_delayed_rockfall.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/DelayedRockFall.java
           python cohero/scripts/patch_vault_firewall.py \
