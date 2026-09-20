@@ -49,7 +49,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 ## 3. 同伴探索與路徑
 
-存檔重新載入同一樓層時，CoHero 恢復保存時的原始格子，不重新生成到 Hero 身旁；只有真正進入新樓層時才在 Hero 鄰近可用格重新生成。
+存檔重新載入同一樓層時，CoHero 恢復保存時的原始格子，不重新生成到 Hero 身旁；這是狀態恢復，不視為重新踏入該格，因此不重播 `Level.occupyCell()`，避免讀檔時再次觸發高草、陷阱、植物等 entry effect。只有真正進入新樓層或從被排除樓層重新會合時，才在 Hero 鄰近可用格重新生成並執行正常 occupancy。GameScene 的 CoHero restore hook 必須位於 terrain / fog tilemap 建立完成之後、Hero 開始 actor scheduling 之前。
 
 同伴不應從樓層開始就知道出口位置，否則它會變成出口指南針。
 
