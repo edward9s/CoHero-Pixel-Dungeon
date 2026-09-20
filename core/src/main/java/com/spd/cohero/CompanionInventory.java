@@ -594,6 +594,24 @@ public final class CompanionInventory {
         return EquipFailure.NONE;
     }
 
+    void gainIdentificationExp(float levelPercent) {
+        if (levelPercent <= 0f) {
+            return;
+        }
+        if (weapon != null) {
+            weapon.coHeroGainIdentificationExp(levelPercent);
+        }
+        if (armor != null) {
+            armor.coHeroGainIdentificationExp(levelPercent);
+        }
+        if (ringOne != null) {
+            ringOne.coHeroGainIdentificationExp(levelPercent);
+        }
+        if (ringTwo != null) {
+            ringTwo.coHeroGainIdentificationExp(levelPercent);
+        }
+    }
+
     public boolean cannotUnequip(Item item) {
         return item != null && item.cursed && owner.buff(MagicImmune.class) == null;
     }
