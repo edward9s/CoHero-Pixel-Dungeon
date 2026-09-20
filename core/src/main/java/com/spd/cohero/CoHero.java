@@ -121,6 +121,16 @@ public final class CoHero {
         }
     }
 
+    public static void onHeroGainIdentificationExp(float levelPercent) {
+        if (levelPercent <= 0f) {
+            return;
+        }
+        CoHeroAlly companion = findCompanion();
+        if (companion != null && companion.isAlive()) {
+            companion.inventory().gainIdentificationExp(levelPercent);
+        }
+    }
+
     public static void storeGame(Bundle bundle) {
         if (bundle == null) {
             throw new IllegalArgumentException("bundle must not be null");
