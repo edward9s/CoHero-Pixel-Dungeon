@@ -25,6 +25,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
@@ -2176,6 +2177,18 @@ public class CoHeroAlly extends DirectableAlly {
      * conservative: current HP/shield are real effective health, only one usable potion is given
      * partial reserve value, and an Ankh is never treated as expendable combat HP.
      */
+    private boolean isCombatInvulnerable(Mob threat) {
+        if (threat == null || !threat.isAlive()) {
+            return false;
+        }
+        // SpectatorFreeze is used both by Duelist Challenge spectators and while a saved game is
+        // restored. It is temporary suspension, not an enemy combat phase that CoHero should flee.
+        if (threat.buff(Challenge.SpectatorFreeze.class) != null) {
+            return false;
+        }
+        return isCombatInvulnerable(threat);
+    }
+
     private ArrayList<Mob> collectAttackableThreats(ArrayList<Mob> threats) {
         ArrayList<Mob> result = new ArrayList<>();
         if (threats == null) {
@@ -2185,7 +2198,7 @@ public class CoHeroAlly extends DirectableAlly {
         for (Mob threat : threats) {
             if (threat != null
                     && threat.isAlive()
-                    && !threat.isInvulnerable(getClass())) {
+                    && !isCombatInvulnerable(threat)) {
                 result.add(threat);
             }
         }
@@ -2201,7 +2214,7 @@ public class CoHeroAlly extends DirectableAlly {
         for (Mob threat : threats) {
             if (threat != null
                     && threat.isAlive()
-                    && threat.isInvulnerable(getClass())) {
+                    && isCombatInvulnerable(threat)) {
                 invulnerableThreats.add(threat);
             }
         }
@@ -3352,7 +3365,7 @@ public class CoHeroAlly extends DirectableAlly {
      * Otherwise returns the synchronous/asynchronous result expected by Actor.act().
      */
     private Boolean tryCombat(Mob targetMob) {
-        if (targetMob == null || targetMob.isInvulnerable(getClass())) {
+        if (targetMob == null || isCombatInvulnerable(targetMob)) {
             return null;
         }
 
@@ -3397,7 +3410,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private RangedChoice chooseRangedAttack(Mob targetMob) {
-        if (targetMob == null || targetMob.isInvulnerable(getClass())) {
+        if (targetMob == null || isCombatInvulnerable(targetMob)) {
             return null;
         }
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
@@ -4164,7 +4177,8 @@ public class CoHeroAlly extends DirectableAlly {
                     && mob.isAlive()
                     && mob.invisible <= 0
                     && fieldOfView[mob.pos]
-                    && mob.state != mob.SLEEPING) {
+                    && mob.state != mob.SLEEPING
+                    && mob.buff(Challenge.SpectatorFreeze.class) == null) {
                 result.add(mob);
             }
         }
