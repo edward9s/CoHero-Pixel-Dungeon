@@ -1,28 +1,31 @@
 package com.spd.cohero;
 
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
-import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
-import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Tag;
 import com.watabou.noosa.Image;
 
 /** Permanent CoHero inventory entry in the standard GameScene tag stack. */
 public class CoHeroInventoryIndicator extends Tag {
 
+    private static final int TOOLBAR_NEUTRAL = 0x7B8073;
     private static final float COMPANION_BADGE_SCALE = 0.7f;
 
-    private final ItemSprite backpack;
+    private final Image backpack;
     private final Image companionBadge;
 
     public CoHeroInventoryIndicator() {
-        super(0x6E5738);
+        super(TOOLBAR_NEUTRAL);
 
         visible = false;
 
-        backpack = new ItemSprite(ItemSpriteSheet.BACKPACK);
+        // Match SPD's normal inventory button glyph exactly: Toolbar uses
+        // Assets.Interfaces.TOOLBAR frame (160, 0, 16, 16).
+        backpack = new Image(Assets.Interfaces.TOOLBAR);
+        backpack.frame(160, 0, 16, 16);
         add(backpack);
 
         HeroClass companionClass = CoHero.companionClass();
