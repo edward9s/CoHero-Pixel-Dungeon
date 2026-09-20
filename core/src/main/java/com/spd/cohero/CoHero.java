@@ -294,7 +294,7 @@ public final class CoHero {
 
         CoHeroAlly companion = findCompanion();
         if (companion == null || !companion.isAlive()) {
-            GLog.i(CoHeroMessages.get("exit_required"));
+            GLog.i(CoHeroMessages.get("companion_unavailable"));
             return TRANSITION_BLOCKED;
         }
 
