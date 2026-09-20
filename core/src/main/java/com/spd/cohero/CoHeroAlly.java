@@ -2592,8 +2592,10 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         // Once adjacent, or when the enemy is not exerting ranged pressure, ordinary weapon reach
-        // semantics apply.
-        if (canAttack(targetMob)) {
+        // semantics apply. Extended melee reach must not turn a failed close-in attempt into a
+        // ranged damage trade.
+        if (canAttack(targetMob)
+                && (!rangedPressure || Dungeon.level.adjacent(pos, targetMob.pos))) {
             clearRangedLurePlan();
             return null;
         }
