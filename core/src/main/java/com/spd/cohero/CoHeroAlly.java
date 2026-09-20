@@ -683,14 +683,18 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (!visibleThreats.isEmpty()) {
             ArrayList<Mob> attackableThreats = collectAttackableThreats(visibleThreats);
-            if (attackableThreats.isEmpty()) {
-                Boolean invulnerableRetreat = tryAvoidInvulnerableThreats(visibleThreats);
-                if (invulnerableRetreat != null) {
-                    return invulnerableRetreat;
-                }
 
-                logBossDecision("invulnerable_trapped",
-                        "all visible enemies are invulnerable -> hold/escape unavailable");
+            // Invulnerability does not end the fight. It only has tactical priority while an
+            // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
+            // ordinary combat against any damageable enemies resumes immediately.
+            Boolean invulnerableRetreat = tryAvoidInvulnerableThreats(visibleThreats);
+            if (invulnerableRetreat != null) {
+                return invulnerableRetreat;
+            }
+
+            if (attackableThreats.isEmpty()) {
+                logBossDecision("invulnerable_out_of_range",
+                        "no damageable visible enemy; invulnerable threats cannot attack -> hold");
                 spend(TICK);
                 return true;
             }
@@ -2218,7 +2222,8 @@ public class CoHeroAlly extends DirectableAlly {
                 invulnerableThreats.add(threat);
             }
         }
-        if (invulnerableThreats.isEmpty()) {
+        if (invulnerableThreats.isEmpty()
+                || countCurrentAttackersAtCell(pos, invulnerableThreats) == 0) {
             return null;
         }
 
@@ -2228,10 +2233,12 @@ public class CoHeroAlly extends DirectableAlly {
         enemyID = -1;
         target = -1;
 
-        logBossDecision("invulnerable_retreat",
-                "visible enemy is invulnerable -> retreat");
+        logBossDecision("invulnerable_range_retreat",
+                "invulnerable enemy can attack current cell -> leave attack range");
 
-        int escapeStep = rooted ? -1 : chooseEscapeStep(invulnerableThreats);
+        int escapeStep = rooted
+                ? -1
+                : chooseInvulnerableEscapeStep(invulnerableThreats, threats);
         if (escapeStep != -1) {
             int oldPos = pos;
             move(escapeStep, true);
@@ -2241,8 +2248,9 @@ public class CoHeroAlly extends DirectableAlly {
             return moveSprite(oldPos, pos);
         }
 
-        // If ordinary movement cannot create more distance, use dedicated escape resources rather
-        // than wasting attacks on a target that cannot currently be damaged.
+        // No ordinary step improves the invulnerable threat exposure. Escape resources are allowed
+        // here even when other damageable enemies are present: staying in an attack range that
+        // CoHero cannot answer is the worse failure mode.
         if (tryEmergencyBlinkRunestone(invulnerableThreats)) {
             return true;
         }
@@ -2257,6 +2265,72 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         return null;
+    }
+
+    private int chooseInvulnerableEscapeStep(
+            ArrayList<Mob> invulnerableThreats, ArrayList<Mob> allThreats) {
+        int currentInvulnerableAttackers =
+                countCurrentAttackersAtCell(pos, invulnerableThreats);
+        float currentInvulnerableIncoming =
+                estimatedIncomingDptAtCell(pos, invulnerableThreats);
+        int currentAllAttackers = countCurrentAttackersAtCell(pos, allThreats);
+        float currentAllIncoming = estimatedIncomingDptAtCell(pos, allThreats);
+        int currentDistance = nearestThreatDistance(pos, invulnerableThreats);
+
+        int bestCell = -1;
+        int bestInvulnerableAttackers = currentInvulnerableAttackers;
+        float bestInvulnerableIncoming = currentInvulnerableIncoming;
+        int bestAllAttackers = currentAllAttackers;
+        float bestAllIncoming = currentAllIncoming;
+        int bestDistance = currentDistance;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = pos + offset;
+            if (cell < 0
+                    || cell >= Dungeon.level.length()
+                    || Dungeon.level.distance(pos, cell) != 1
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || !isMovementSafe(cell)) {
+                continue;
+            }
+
+            int invulnerableAttackers =
+                    countCurrentAttackersAtCell(cell, invulnerableThreats);
+            float invulnerableIncoming =
+                    estimatedIncomingDptAtCell(cell, invulnerableThreats);
+            int allAttackers = countCurrentAttackersAtCell(cell, allThreats);
+            float allIncoming = estimatedIncomingDptAtCell(cell, allThreats);
+            int distance = nearestThreatDistance(cell, invulnerableThreats);
+
+            boolean better =
+                    invulnerableAttackers < bestInvulnerableAttackers
+                    || (invulnerableAttackers == bestInvulnerableAttackers
+                        && invulnerableIncoming < bestInvulnerableIncoming - 0.01f)
+                    || (invulnerableAttackers == bestInvulnerableAttackers
+                        && Math.abs(invulnerableIncoming - bestInvulnerableIncoming) <= 0.01f
+                        && allAttackers < bestAllAttackers)
+                    || (invulnerableAttackers == bestInvulnerableAttackers
+                        && Math.abs(invulnerableIncoming - bestInvulnerableIncoming) <= 0.01f
+                        && allAttackers == bestAllAttackers
+                        && allIncoming < bestAllIncoming - 0.01f)
+                    || (invulnerableAttackers == bestInvulnerableAttackers
+                        && Math.abs(invulnerableIncoming - bestInvulnerableIncoming) <= 0.01f
+                        && allAttackers == bestAllAttackers
+                        && Math.abs(allIncoming - bestAllIncoming) <= 0.01f
+                        && distance > bestDistance);
+
+            if (better) {
+                bestCell = cell;
+                bestInvulnerableAttackers = invulnerableAttackers;
+                bestInvulnerableIncoming = invulnerableIncoming;
+                bestAllAttackers = allAttackers;
+                bestAllIncoming = allIncoming;
+                bestDistance = distance;
+            }
+        }
+
+        return bestCell;
     }
 
     private Boolean tryCombatSurvival(Mob targetMob, ArrayList<Mob> threats) {
