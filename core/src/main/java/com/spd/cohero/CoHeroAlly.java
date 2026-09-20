@@ -2186,7 +2186,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (threat.buff(Challenge.SpectatorFreeze.class) != null) {
             return false;
         }
-        return isCombatInvulnerable(threat);
+        return threat.isInvulnerable(getClass());
     }
 
     private ArrayList<Mob> collectAttackableThreats(ArrayList<Mob> threats) {
