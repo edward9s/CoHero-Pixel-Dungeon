@@ -26,11 +26,12 @@ Long-press the CoHero locator to open its backpack.
 
 ## Downloads
 
-Release builds are provided as:
+Each release provides four files:
 
-- **Android:** signed APK
-- **Desktop:** JAR
-- **CoHero + SMM:** optional build with Shattered Master Mode
+- **CoHero Android:** signed APK
+- **CoHero Desktop:** JAR
+- **CoHero + SMM Android:** signed APK
+- **CoHero + SMM Desktop:** JAR
 
 Download them from the repository's **Releases** page.
 
