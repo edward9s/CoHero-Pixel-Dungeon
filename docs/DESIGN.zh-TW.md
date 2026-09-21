@@ -62,7 +62,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 2. 探索路徑可以帶有一定隨機性，但只能存在於合理選擇之間。
 3. **發現出口本身不代表探索結束。** 它只解除 30% 前期探索範圍限制；只要仍有一般未探索 frontier，CoHero 可以繼續探索。出口不是安全區，也不是 CoHero 必須前往等待的集合點。
 4. 「尚有 frontier」只計算 CoHero 目前實際可在當前探索範圍內經由 passable path 抵達的未知格；不能把「只有先離開 30% 才走得到」的格子算成可達 frontier。秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。若已無可達 frontier，CoHero 會在「以 Hero 為中心、依實際可走 path distance 計算最近約 25% 的已探索可通行區域」自主遊走；roaming 的候選與實際路徑同樣限制在該 25% 區域內。出口未發現時，25% roaming 區還必須同時位於當前 30% 探索區內。這個 25% 是「無 frontier 後的遊走區」，與出口發現前的 30% 探索範圍是不同規則。
-5. 普通探索／25% roaming 會被明確的 Hero 支援需求搶占：只要 Hero 原版 `getVisibleEnemies()` 中任一存活敵人位於 Hero 10 格內，或任一已進入 `HUNTING` 且目前仍 `isTargeting(Hero)` 的敵人位於 Hero 10 格內，CoHero 就停止普通探索／漫遊並往 Hero 靠近到 3 格內。前者沿用 Hero 原版 FOV／Mind Vision 等「已知敵人」語意，不要求敵人清醒，因此 Hero 能感知到牆後或睡眠中的敵人也能召回 CoHero；後者用來維持已經發生的交戰，即使敵人暫時被門或轉角遮住，也不會讓守門模式搶走優先權。完全未知、也未與 Hero 交戰的黑霧敵人不會被偷看。距離門檻使用 `Level.distance()`，不是繞牆後的 path distance。
+5. 普通探索／25% roaming 會被明確的 Hero 支援需求搶占：只要任一存活敵人位於 Hero 8 格內，CoHero 就停止普通探索／漫遊並直接往 Hero 靠近。此判斷不要求敵人可見、清醒或正在追擊 Hero，因此門後、牆後或睡眠中的敵人也會觸發支援；規則刻意以 Hero 周邊實際敵人存在作為簡單支援訊號，不再維護額外的已知敵人／追擊狀態。距離門檻使用 `Level.distance()`，不是繞牆後的 path distance。追隨時不維持固定 2～3 格 comfort band；能靠近就持續靠近，已與 Hero 相鄰時才停下。
 6. 在具有原版 `Room` topology 的 `RegularLevel`，若 Hero 位於只有一個目前可用連接（`room.edges().size() == 1`）的非入口／非出口房間，而且沒有第 5 點的近距離已知敵人需要支援，CoHero 會停止普通探索並前往唯一房門外把風。守門時不站在門格堵路，而只在房外、門邊 3 格內的已知、安全、可通行格之間漫遊；若 Hero 10 格內出現已知敵人，第 5 點優先，立即放棄守門並靠近 Hero。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
 7. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
 8. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
