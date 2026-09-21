@@ -864,10 +864,22 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         boolean[] explorationArea = CoHeroActivityArea.preExitExplorationArea();
+        if (explorationArea != null && !explorationAreaAllows(explorationArea, pos)) {
+            explorationTarget = -1;
+            return actFollowHeroDirective();
+        }
+
         boolean unexploredFrontier = hasUnexploredFrontier(explorationArea);
         boolean[] explorationMovementArea = unexploredFrontier
                 ? explorationArea
                 : exploredRoamingMovementArea(explorationArea);
+
+        if (explorationMovementArea != null
+                && !explorationAreaAllows(explorationMovementArea, pos)) {
+            explorationTarget = -1;
+            return actFollowHeroDirective();
+        }
+
         if (explorationTarget == -1
                 || explorationTarget == pos
                 || !Dungeon.level.passable[explorationTarget]
@@ -998,11 +1010,16 @@ public class CoHeroAlly extends DirectableAlly {
         PathFinder.buildDistanceMap(doorCell, passable);
         int[] doorDistance = PathFinder.distance.clone();
 
+        boolean[] routePassable = ordinarySafePassable(false);
+        PathFinder.buildDistanceMap(pos, routePassable);
+        int[] coHeroDistance = PathFinder.distance.clone();
+
         ArrayList<Integer> candidates = new ArrayList<>();
         for (int cell = 0; cell < passable.length; cell++) {
             if (!isValidHeroGuardTarget(heroRoom, doorCell, cell)
                     || doorDistance[cell] == Integer.MAX_VALUE
-                    || doorDistance[cell] > HERO_GUARD_ROAM_RADIUS) {
+                    || doorDistance[cell] > HERO_GUARD_ROAM_RADIUS
+                    || coHeroDistance[cell] == Integer.MAX_VALUE) {
                 continue;
             }
             candidates.add(cell);
