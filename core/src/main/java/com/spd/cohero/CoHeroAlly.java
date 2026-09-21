@@ -896,14 +896,6 @@ public class CoHeroAlly extends DirectableAlly {
             return roomGuard;
         }
 
-        if (heroBlocksOrdinaryExploration()) {
-            explorationTarget = -1;
-            setMovementDecision("guard_explore_gate", Dungeon.hero.pos);
-            return actFollowHeroDirective();
-        }
-
-        clearHeroGuardDirective();
-
         if (recoverPreferredLootAtCurrentCell()) {
             spend(TICK);
             return true;
@@ -920,6 +912,14 @@ public class CoHeroAlly extends DirectableAlly {
                 return moveSprite(oldPos, pos);
             }
         }
+
+        if (heroBlocksOrdinaryExploration()) {
+            explorationTarget = -1;
+            setMovementDecision("guard_explore_gate", Dungeon.hero.pos);
+            return actFollowHeroDirective();
+        }
+
+        clearHeroGuardDirective();
 
         if (explorationTarget == -1
                 || explorationTarget == pos
