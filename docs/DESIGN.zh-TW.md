@@ -62,9 +62,10 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 2. 探索路徑可以帶有一定隨機性，但只能存在於合理且實際可達的選擇之間。秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。
 3. **發現出口本身不代表探索結束，也不改變探索範圍。** 出口不是安全區，也不是 CoHero 必須前往等待的集合點；只要玩家尚未觸發 transition，CoHero 仍可繼續戰鬥、拾取與探索。
 4. 普通探索／漫遊會被明確的 Hero 支援需求搶占。任一存活敵人距 Hero 4 格內時，不論可見、清醒或追擊狀態，CoHero 都停止普通探索／漫遊並直接往 Hero 靠近；原版隱藏中的 `Mimic` 雖暫時是 `Alignment.NEUTRAL`，仍依 SPD 自身慣例視為敵對例外。距離 5～8 格的敵人則直接沿用該 Mob 原生 `canAttack(Hero)` 語意：只要它目前能從非相鄰位置攻擊 Hero，就視為遠距威脅並同樣觸發支援；不維護遠距怪類別清單。距離門檻使用 `Level.distance()`，不是繞牆後的 path distance。追隨時不維持固定 2～3 格 comfort band；能靠近就持續靠近，已與 Hero 相鄰時才停下。
-5. 在具有原版 `Room` topology 的 `RegularLevel`，若 Hero 位於拓樸上只有一個連接（`room.connected.size() == 1`）的非入口／非出口房間，而且沒有第 4 點的附近敵人需要支援，CoHero 進入把風行為。把風區域就是 Hero 房間唯一直接連出去的整個 `outsideRoom`；不判斷它是 ConnectionRoom、走廊、普通房或特殊房，也不限制大小或離 Hero 房門的距離。所有落在該 Room 矩形範圍內、實際可通行且對 CoHero 安全的格子都可作為漫遊空間。
-6. 若把風時 CoHero 不在 `outsideRoom`，會先用 `DirectableAlly.defendPos()` 前往該 Room 中最近的可達安全格；一旦進入 `outsideRoom`，就清除 defend directive，改在同一個 Room 內隨機選擇可達安全格漫遊，而且實際 path 也被限制在該 Room 內，不會為了走捷徑繞出 Room 再進來。若 Hero 離開單出口房，或房間不再符合把風條件，就清除舊 guard directive。第 4 點的 4/8 格回援規則永遠優先於把風。
-7. 單出口判定刻意看 `connected` 而不是 `edges()`。像煉金房、軍械庫等鎖門特殊房間，玩家解鎖後地圖 terrain 會變成 `DOOR`，但生成期的 `Room.Door.type` 仍可能保留 `LOCKED`；因此 `edges()` 不適合拿來判斷房間實際有幾個通道。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
+5. 在具有原版 `Room` topology 的 `RegularLevel`，若 Hero 位於拓樸上只有一個連接（`room.connected.size() == 1`）的非入口／非出口房間，而且沒有第 4 點的附近敵人需要支援，CoHero 進入把風準備。候選把風房就是 Hero 房間唯一直接連出去的整個 `outsideRoom`；不判斷它是 ConnectionRoom、走廊、普通房或特殊房，也不限制大小或離 Hero 房門的距離。
+6. `guardRoom` 不會在發現單出口房時立刻成立。CoHero 必須先真正進入 `outsideRoom` 的內部格，才把該 Room 設成正式把風房。正式到位前，若 CoHero 還在樓層其他地方，就優先使用 `followHero()` 往 Hero 方向靠近；路線一旦進入 `outsideRoom`，下一回合才啟用 `guardRoom`。如果 CoHero 已和 Hero 同處單出口房（例如一起在煉金房裡），則不再追 Hero，而是明確前往 `outsideRoom` 的最近可達安全格。
+7. `guardRoom` 成立後，CoHero 在整個 Room 的可通行安全格中自由漫遊；普通步行若下一步既不在 `guardRoom` 的矩形範圍，也不在當前 Hero 單出口房的矩形範圍，就直接拒絕該步。因此 CoHero 可以進 Hero 房支援，但不能從把風房一路跑進其他外部房間。支援結束而 CoHero 位於 Hero 房內時，會再次前往 `guardRoom`。若傳送等非步行效果把 CoHero 移到這兩個 Room 之外，則取消既有 guard 狀態，重新執行「靠近 Hero → 先進 outsideRoom → 再建立 guardRoom」流程。若 Hero 離開單出口房或拓樸配對改變，也會清除舊 guard directive。第 4 點的 4/8 格回援規則永遠優先於把風。
+8. 單出口判定刻意看 `connected` 而不是 `edges()`。像煉金房、軍械庫等鎖門特殊房間，玩家解鎖後地圖 terrain 會變成 `DOOR`，但生成期的 `Room.Door.type` 仍可能保留 `LOCKED`；因此 `edges()` 不適合拿來判斷房間實際有幾個通道。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
 8. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
 9. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
 
