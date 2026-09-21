@@ -12,7 +12,7 @@ public final class CoHeroClassTraits {
     private static final float HUNTRESS_MISSILE_DURABILITY_MULTIPLIER = 1.2f;
     private static final float DUELIST_MELEE_SPEED_MULTIPLIER = 1.09051f;
     private static final float CLERIC_SOLO_MULTIPLIER = 1.10f;
-    private static final float CLERIC_COOP_MULTIPLIER = 1.25f;
+    private static final float CLERIC_COOP_MULTIPLIER = 1.30f;
     public static final int CLERIC_AURA_RANGE = 3;
     private static final float GENERALIST_HT_MULTIPLIER = 1.05f;
 
