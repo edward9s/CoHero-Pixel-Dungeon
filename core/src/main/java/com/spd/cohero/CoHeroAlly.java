@@ -1309,7 +1309,9 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean getCloser(int target) {
-        if (!CoHeroHazards.hasActiveHazards(this) && !hasVisibleSleepingEnemy()) {
+        if (guardRoom == null
+                && !CoHeroHazards.hasActiveHazards(this)
+                && !hasVisibleSleepingEnemy()) {
             return super.getCloser(target);
         }
         if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
@@ -1317,6 +1319,13 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         boolean[] safePassable = ordinarySafePassable(false);
+        if (guardRoom != null) {
+            for (int cell = 0; cell < safePassable.length; cell++) {
+                safePassable[cell] = safePassable[cell]
+                        && (guardAreaContains(cell) || isRoomBoundsCell(guardHeroRoom, cell));
+            }
+        }
+
         // A CoHero already standing in danger must still be able to path out of it.
         safePassable[pos] = true;
 
@@ -1328,7 +1337,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         path = null;
         move(step);
-        return true;
+        return pos == step;
     }
 
     private boolean hasVisibleSleepingEnemy() {
