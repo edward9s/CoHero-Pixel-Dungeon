@@ -11,22 +11,82 @@ menu_path = Path(sys.argv[2])
 title = title_path.read_text(encoding="utf-8")
 menu = menu_path.read_text(encoding="utf-8")
 
-title_old = 'version = new BitmapText( "v" + Game.version, pixelFont);'
-title_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), pixelFont);'
+title_version_old = 'version = new BitmapText( "v" + Game.version, pixelFont);'
+title_version_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), pixelFont);'
 
 menu_old = 'version = new BitmapText( "v" + Game.version , PixelScene.pixelFont);'
 menu_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), PixelScene.pixelFont);'
 
-if title_new in title or menu_new in menu:
-    raise SystemExit("CoHero version UI hooks are already present")
+title_field_old = """\tprivate Image title;
+"""
+title_field_new = """\tprivate Image title;
+\tprivate BitmapText coHeroTitle;
+"""
 
-if title.count(title_old) != 1:
-    raise SystemExit(f"expected exactly one TitleScene version anchor, found {title.count(title_old)}")
+title_layout_old = """\t\ttitle = BannerSprites.get( landscape() ? BannerSprites.Type.TITLE_LAND : BannerSprites.Type.TITLE_PORT);
+\t\tadd( title );
+\t\t
+\t\tfloat topRegion = Math.max(title.height - 6, h*0.45f);
+
+\t\ttitle.x = insets.left + (w - title.width()) / 2f;
+\t\ttitle.y = insets.top + 2 + (topRegion - title.height()) / 2f;
+
+\t\talign(title);
+"""
+title_layout_new = """\t\ttitle = BannerSprites.get( landscape() ? BannerSprites.Type.TITLE_LAND : BannerSprites.Type.TITLE_PORT);
+\t\tadd( title );
+
+\t\tcoHeroTitle = new BitmapText( "CoHero", pixelFont );
+\t\tcoHeroTitle.scale.set(PixelScene.align(1.5f));
+\t\tcoHeroTitle.hardlight(Window.TITLE_COLOR);
+\t\tcoHeroTitle.measure();
+\t\tadd(coHeroTitle);
+\t\t
+\t\tfloat brandHeight = coHeroTitle.height() + 2;
+\t\tfloat topRegion = Math.max(title.height - 6 + brandHeight, h*0.45f);
+
+\t\ttitle.x = insets.left + (w - title.width()) / 2f;
+\t\ttitle.y = insets.top + 2 + brandHeight
+\t\t\t\t+ (topRegion - brandHeight - title.height()) / 2f;
+
+\t\tcoHeroTitle.x = insets.left + (w - coHeroTitle.width()) / 2f;
+\t\tcoHeroTitle.y = title.y - coHeroTitle.height() - 1;
+
+\t\talign(title);
+\t\talign(coHeroTitle);
+"""
+
+fade_old = """\t\ttitle.am = alpha;
+\t\tleftFB.am = alpha;
+"""
+fade_new = """\t\ttitle.am = alpha;
+\t\tcoHeroTitle.alpha(alpha);
+\t\tleftFB.am = alpha;
+"""
+
+anchors = [
+    ("TitleScene version", title_version_old, title_version_new),
+    ("TitleScene CoHero title field", title_field_old, title_field_new),
+    ("TitleScene CoHero title layout", title_layout_old, title_layout_new),
+    ("TitleScene CoHero title fade", fade_old, fade_new),
+]
+
+for label, old, new in anchors:
+    if new in title:
+        raise SystemExit(f"{label} hook is already present")
+    count = title.count(old)
+    if count != 1:
+        raise SystemExit(f"expected exactly one {label} anchor, found {count}")
+    title = title.replace(old, new, 1)
+
+if menu_new in menu:
+    raise SystemExit("CoHero MenuPane version UI hook is already present")
 if menu.count(menu_old) != 1:
     raise SystemExit(f"expected exactly one MenuPane version anchor, found {menu.count(menu_old)}")
+menu = menu.replace(menu_old, menu_new, 1)
 
-title_path.write_text(title.replace(title_old, title_new, 1), encoding="utf-8")
-menu_path.write_text(menu.replace(menu_old, menu_new, 1), encoding="utf-8")
+title_path.write_text(title, encoding="utf-8")
+menu_path.write_text(menu, encoding="utf-8")
 
 print(f"patched {title_path}")
 print(f"patched {menu_path}")
