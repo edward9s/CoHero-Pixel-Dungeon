@@ -14,8 +14,8 @@ import java.util.Arrays;
 /**
  * Ground overlay for the Cleric cooperation aura.
  *
- * The fill shows the exact current CoHero activity area and the brighter 1px
- * outline shows its boundary. It is attached below fog/mobs, so unexplored
+ * The fill shows the exact current Cleric cooperation area and the brighter
+ * 1px outline shows its boundary. It is attached below fog/mobs, so unexplored
  * terrain is not revealed by the overlay.
  */
 public final class CoHeroClericAura extends Group {
