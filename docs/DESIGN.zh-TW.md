@@ -202,7 +202,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
   - 起始 `SpiritBow` 仍是原版專武。CoHero 透過原版 `SpiritArrow` 射擊；箭為無限彈藥，不進普通投擲物耐久、掉落或回收流程。傷害使用 CoHero 自己的 STR、實際 Sharpshooting 戒指與 Huntress 固有 Sharpshooting +0，並排除 Hero-only talents。
 - **Duelist**：裝備近戰武器時攻擊速度 ×1.09051，等價 `RingOfFuror +0`；真正的 Furor 可再疊加。
-- **Cleric**：以 Cleric CoHero 為中心，`Level.distance()` 不超過 3 格為協同範圍。Cleric 單獨時自身 accuracy / evasion 各 ×1.10；Hero 位於 3 格內時，Hero 與 Cleric 兩人 accuracy / evasion 都提升為 ×1.30。不要求直線視野。視覺上，每個受影響格子各自畫一個稍明顯的灰色半透明方框；共用邊只畫一次，避免內部格線因 alpha 疊加而變深。此範圍與 30%／25% 探索／遊走規則完全獨立。
+- **Cleric**：Cleric CoHero 自身永久視為受到原版 `Bless` 的戰鬥加護；玩家 Hero 位於 Cleric 3 格內（`Level.distance()` ≤ 3）時也分享同一效果。實作不建立永久 `Bless` buff，而是在原版 `Char.hit()` 的最終 accuracy / evasion 擲骰處，把「原版 Bless buff 或 Cleric aura」視為同一個 Bless，因此各自只套一次 ×1.25，不會與正常 Bless 疊成第二層。Cleric 與 Hero 不要求直線視野。視覺上，每個受影響格子各自畫一個稍明顯的灰色半透明方框；共用邊只畫一次，避免內部格線因 alpha 疊加而變深。此範圍與 30%／25% 探索／遊走規則完全獨立。
 - **其他／第三方 HeroClass**：Generalist，HT ×1.05；未知職業使用通用短劍作為安全起始武器，不因缺少 stock case 直接失敗。
 
 ### Hero / CoHero 畫面外監控

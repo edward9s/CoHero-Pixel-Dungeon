@@ -12,8 +12,6 @@ public final class CoHeroClassTraits {
     private static final float ROGUE_MOVE_SPEED_MULTIPLIER = 1.15f;
     private static final float HUNTRESS_MISSILE_DURABILITY_MULTIPLIER = 1.2f;
     private static final float DUELIST_MELEE_SPEED_MULTIPLIER = 1.09051f;
-    private static final float CLERIC_SOLO_MULTIPLIER = 1.10f;
-    private static final float CLERIC_COOP_MULTIPLIER = 1.30f;
     public static final int CLERIC_AURA_RANGE = 3;
     private static final float GENERALIST_HT_MULTIPLIER = 1.05f;
 
@@ -76,29 +74,26 @@ public final class CoHeroClassTraits {
                 : 1f;
     }
 
-    public static float clericAuraMultiplier(Char target) {
+    public static boolean isClericBlessed(Char target) {
         if (Dungeon.hero == null || Dungeon.level == null || target == null) {
-            return 1f;
+            return false;
         }
 
         CoHeroAlly companion = CoHero.findCompanion();
         if (companion == null
                 || !companion.isAlive()
-                || CoHero.companionClass() != HeroClass.CLERIC
-                || (target != Dungeon.hero && target != companion)
-                || target.pos < 0
-                || companion.pos < 0) {
-            return 1f;
+                || CoHero.companionClass() != HeroClass.CLERIC) {
+            return false;
         }
-
-        boolean cooperating = Dungeon.hero.pos >= 0
-                && Dungeon.level.distance(companion.pos, Dungeon.hero.pos) <= CLERIC_AURA_RANGE;
 
         if (target == companion) {
-            return cooperating ? CLERIC_COOP_MULTIPLIER : CLERIC_SOLO_MULTIPLIER;
+            return true;
         }
 
-        return cooperating ? CLERIC_COOP_MULTIPLIER : 1f;
+        return target == Dungeon.hero
+                && target.pos >= 0
+                && companion.pos >= 0
+                && Dungeon.level.distance(companion.pos, target.pos) <= CLERIC_AURA_RANGE;
     }
 
     private static boolean isCompanionClass(Char target, HeroClass heroClass) {

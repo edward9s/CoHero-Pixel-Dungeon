@@ -10,6 +10,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AllyBuff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barkskin;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Bless;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Dread;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
@@ -434,7 +435,6 @@ public class CoHeroAlly extends DirectableAlly {
     private int attackSkillWith(Weapon attackWeapon, Char target) {
         float accuracy = 9 + level();
         accuracy *= RingOfAccuracy.accuracyMultiplier(this);
-        accuracy *= CoHeroClassTraits.clericAuraMultiplier(this);
 
         if (attackWeapon != null) {
             accuracy *= attackWeapon.accuracyFactor(this, target);
@@ -501,8 +501,7 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public int defenseSkill(Char enemy) {
         float evasion = (4 + level())
-                * RingOfEvasion.evasionMultiplier(this)
-                * CoHeroClassTraits.clericAuraMultiplier(this);
+                * RingOfEvasion.evasionMultiplier(this);
         if (armor() != null) {
             float armoredEvasion = armor().evasionFactor(this, evasion);
             int encumbrance = armorEncumbrance();
@@ -2592,11 +2591,18 @@ public class CoHeroAlly extends DirectableAlly {
         try {
             pos = defenderCell;
             return estimatedUniformHitChance(
-                    Math.max(0, threat.attackSkill(this)),
-                    Math.max(0, defenseSkill(threat)));
+                    Math.max(0, threat.attackSkill(this)) * blessRollMultiplier(threat),
+                    Math.max(0, defenseSkill(threat)) * blessRollMultiplier(this));
         } finally {
             pos = livePos;
         }
+    }
+
+    private float blessRollMultiplier(Char target) {
+        return target != null
+                && (target.buff(Bless.class) != null || CoHeroClassTraits.isClericBlessed(target))
+                ? 1.25f
+                : 1f;
     }
 
     private float estimatedUniformHitChance(float accuracy, float evasion) {
@@ -2687,8 +2693,8 @@ public class CoHeroAlly extends DirectableAlly {
             return 1f;
         }
         return estimatedUniformHitChance(
-                Math.max(0, accuracy),
-                Math.max(0, targetMob.defenseSkill(attacker)));
+                Math.max(0, accuracy) * blessRollMultiplier(attacker),
+                Math.max(0, targetMob.defenseSkill(attacker)) * blessRollMultiplier(targetMob));
     }
 
     private float sampledDamageRoll(Char attacker, int salt) {
@@ -3527,14 +3533,20 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         if ((!missiles.isEmpty() || spiritArrow != null) && !damageWands.isEmpty()) {
-            int bestPhysicalAccuracy = 0;
+            float bestPhysicalAccuracy = 0f;
+            float clericAccuracyMultiplier = blessRollMultiplier(this);
             for (MissileWeapon missile : missiles) {
-                bestPhysicalAccuracy = Math.max(bestPhysicalAccuracy, attackSkillWith(missile, targetMob));
+                bestPhysicalAccuracy = Math.max(
+                        bestPhysicalAccuracy,
+                        attackSkillWith(missile, targetMob) * clericAccuracyMultiplier);
             }
             if (spiritArrow != null) {
-                bestPhysicalAccuracy = Math.max(bestPhysicalAccuracy, attackSkillWith(spiritArrow, targetMob));
+                bestPhysicalAccuracy = Math.max(
+                        bestPhysicalAccuracy,
+                        attackSkillWith(spiritArrow, targetMob) * clericAccuracyMultiplier);
             }
-            if (targetMob.defenseSkill(this) > bestPhysicalAccuracy) {
+            float targetEvasion = targetMob.defenseSkill(this) * blessRollMultiplier(targetMob);
+            if (targetEvasion > bestPhysicalAccuracy) {
                 Wand best = bestDamageWand(damageWands, targetMob);
                 return RangedChoice.wand(
                         best, CoHeroWandAdapter.aimCell(best, this, targetMob));

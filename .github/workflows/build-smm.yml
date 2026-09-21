@@ -87,7 +87,7 @@ jobs:
           python cohero/scripts/patch_hero_transition.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
           python cohero/scripts/patch_cohero_class_traits.py \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
+            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java
           python cohero/scripts/patch_equipment_identification.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java \
