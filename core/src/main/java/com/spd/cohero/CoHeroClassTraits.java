@@ -7,6 +7,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 public final class CoHeroClassTraits {
 
     private static final float WARRIOR_MIGHT_HT_MULTIPLIER = 1.035f;
+    private static final float WARRIOR_TENACITY_BASE = 0.85f;
     private static final float MAGE_WAND_CHARGE_MULTIPLIER = 1.175f;
     private static final float ROGUE_MOVE_SPEED_MULTIPLIER = 1.15f;
     private static final float HUNTRESS_MISSILE_DURABILITY_MULTIPLIER = 1.2f;
@@ -33,6 +34,18 @@ public final class CoHeroClassTraits {
             return WARRIOR_MIGHT_HT_MULTIPLIER;
         }
         return isStockClass(heroClass) ? 1f : GENERALIST_HT_MULTIPLIER;
+    }
+
+    public static float tenacityDamageMultiplier(Char target) {
+        if (!isCompanionClass(target, HeroClass.WARRIOR)) {
+            return 1f;
+        }
+        if (target.HT <= 0) {
+            throw new IllegalStateException("Warrior CoHero has non-positive HT");
+        }
+
+        float missingHealthFraction = (float) (target.HT - target.HP) / target.HT;
+        return (float) Math.pow(WARRIOR_TENACITY_BASE, missingHealthFraction);
     }
 
     public static float wandChargeMultiplier(Char target) {
