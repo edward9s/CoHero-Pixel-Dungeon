@@ -718,12 +718,7 @@ public class CoHeroAlly extends DirectableAlly {
             return hazardAvoidance;
         }
 
-        if (activeGuardApplies()) {
-            if (!isActiveGuardDomainCell(pos)) {
-                setMovementDecision("guard_external_support", Dungeon.hero.pos);
-                return actFollowHeroDirective();
-            }
-
+        if (activeGuardApplies() && isActiveGuardDomainCell(pos)) {
             Mob supportThreat = heroSupportThreat();
             guardHeroSupportLock = supportThreat != null
                     && isRoomBoundsCell(guardHeroRoom, pos);
@@ -891,11 +886,6 @@ public class CoHeroAlly extends DirectableAlly {
             return heroSupport;
         }
 
-        Boolean roomGuard = tryGuardSingleExitHeroRoom();
-        if (roomGuard != null) {
-            return roomGuard;
-        }
-
         if (recoverPreferredLootAtCurrentCell()) {
             spend(TICK);
             return true;
@@ -911,6 +901,11 @@ public class CoHeroAlly extends DirectableAlly {
                 spend(1 / speed());
                 return moveSprite(oldPos, pos);
             }
+        }
+
+        Boolean roomGuard = tryGuardSingleExitHeroRoom();
+        if (roomGuard != null) {
+            return roomGuard;
         }
 
         if (heroBlocksOrdinaryExploration()) {
