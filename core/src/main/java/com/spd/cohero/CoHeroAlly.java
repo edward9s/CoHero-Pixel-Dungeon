@@ -127,7 +127,6 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
     private static final int HERO_RALLY_MIN_DISTANCE = 2;
     private static final int HERO_RALLY_MAX_DISTANCE = 3;
-    private static final int PRE_EXIT_EXPLORATION_PERCENT = 30;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
     private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
@@ -837,7 +836,7 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        boolean[] explorationArea = preExitExplorationArea();
+        boolean[] explorationArea = CoHeroActivityArea.preExitExplorationArea();
         boolean unexploredFrontier = hasUnexploredFrontier(explorationArea);
         if (explorationTarget == -1
                 || explorationTarget == pos
@@ -845,7 +844,7 @@ public class CoHeroAlly extends DirectableAlly {
                 || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
                 || !isMovementSafe(explorationTarget)
                 || !explorationAreaAllows(explorationArea, explorationTarget)
-                || (!unexploredFrontier && !isWithinExploredRoamingArea(explorationTarget))) {
+                || (!unexploredFrontier && !CoHeroActivityArea.containsExploredRoamingArea(explorationTarget))) {
             explorationTarget = chooseExplorationTarget(explorationArea);
         }
 
@@ -4332,42 +4331,6 @@ public class CoHeroAlly extends DirectableAlly {
         return isKnown(exit);
     }
 
-    private boolean[] preExitExplorationArea() {
-        if (isExitKnown() || Dungeon.hero == null || !Dungeon.hero.isAlive()) {
-            return null;
-        }
-
-        PathFinder.buildDistanceMap(Dungeon.hero.pos, Dungeon.level.passable);
-
-        ArrayList<Integer> reachable = new ArrayList<>();
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (Dungeon.level.passable[cell]
-                    && Dungeon.level.discoverable[cell]
-                    && PathFinder.distance[cell] < Integer.MAX_VALUE) {
-                reachable.add(cell);
-            }
-        }
-
-        if (reachable.isEmpty()) {
-            return null;
-        }
-
-        reachable.sort((a, b) -> Integer.compare(PathFinder.distance[a], PathFinder.distance[b]));
-        int areaSize = Math.max(
-                1,
-                (reachable.size() * PRE_EXIT_EXPLORATION_PERCENT + 99) / 100);
-        int maxDistance = PathFinder.distance[reachable.get(areaSize - 1)];
-
-        boolean[] allowed = new boolean[Dungeon.level.length()];
-        for (int cell : reachable) {
-            if (PathFinder.distance[cell] > maxDistance) {
-                break;
-            }
-            allowed[cell] = true;
-        }
-        return allowed;
-    }
-
     private boolean explorationAreaAllows(boolean[] explorationArea, int cell) {
         return explorationArea == null
                 || (cell >= 0 && cell < explorationArea.length && explorationArea[cell]);
@@ -4388,37 +4351,6 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return false;
-    }
-
-    private boolean isWithinExploredRoamingArea(int cell) {
-        if (Dungeon.hero == null
-                || !Dungeon.hero.isAlive()
-                || cell < 0
-                || cell >= Dungeon.level.length()
-                || !Dungeon.level.passable[cell]
-                || (!Dungeon.level.visited[cell] && !Dungeon.level.mapped[cell])) {
-            return false;
-        }
-
-        PathFinder.buildDistanceMap(Dungeon.hero.pos, Dungeon.level.passable);
-
-        ArrayList<Integer> reachable = new ArrayList<>();
-        for (int candidate = 0; candidate < Dungeon.level.length(); candidate++) {
-            if (Dungeon.level.passable[candidate]
-                    && (Dungeon.level.visited[candidate] || Dungeon.level.mapped[candidate])
-                    && PathFinder.distance[candidate] < Integer.MAX_VALUE) {
-                reachable.add(candidate);
-            }
-        }
-
-        if (reachable.isEmpty() || PathFinder.distance[cell] == Integer.MAX_VALUE) {
-            return false;
-        }
-
-        reachable.sort((a, b) -> Integer.compare(PathFinder.distance[a], PathFinder.distance[b]));
-        int roamingAreaSize = Math.max(1, (reachable.size() + 3) / 4);
-        int maxDistance = PathFinder.distance[reachable.get(roamingAreaSize - 1)];
-        return PathFinder.distance[cell] <= maxDistance;
     }
 
     private int chooseExplorationTarget(boolean[] explorationArea) {
@@ -4452,32 +4384,15 @@ public class CoHeroAlly extends DirectableAlly {
             return -1;
         }
 
-        PathFinder.buildDistanceMap(Dungeon.hero.pos, Dungeon.level.passable);
-
-        ArrayList<Integer> reachable = new ArrayList<>();
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (Dungeon.level.passable[cell]
-                    && (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell])
-                    && PathFinder.distance[cell] < Integer.MAX_VALUE) {
-                reachable.add(cell);
-            }
-        }
-
-        if (reachable.isEmpty()) {
+        boolean[] roamingArea = CoHeroActivityArea.exploredRoamingArea();
+        if (roamingArea == null) {
             return -1;
         }
 
-        reachable.sort((a, b) -> Integer.compare(PathFinder.distance[a], PathFinder.distance[b]));
-        int roamingAreaSize = Math.max(1, (reachable.size() + 3) / 4);
-
-        int maxDistance = PathFinder.distance[reachable.get(roamingAreaSize - 1)];
-
         ArrayList<Integer> candidates = new ArrayList<>();
-        for (int cell : reachable) {
-            if (PathFinder.distance[cell] > maxDistance) {
-                break;
-            }
-            if (!explorationAreaAllows(explorationArea, cell)
+        for (int cell = 0; cell < roamingArea.length; cell++) {
+            if (!roamingArea[cell]
+                    || !explorationAreaAllows(explorationArea, cell)
                     || cell == pos
                     || cell == Dungeon.hero.pos
                     || !isMovementSafe(cell)) {
