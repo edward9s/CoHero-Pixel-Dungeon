@@ -998,12 +998,12 @@ public class CoHeroAlly extends DirectableAlly {
         if (room == null
                 || room.isEntrance()
                 || room.isExit()
-                || room.edges().size() != 1) {
+                || room.connected.size() != 1) {
             heroGuardTarget = -1;
             return null;
         }
 
-        Room outsideRoom = room.edges().iterator().next();
+        Room outsideRoom = room.connected.keySet().iterator().next();
         Room.Door door = room.connected.get(outsideRoom);
         if (door == null) {
             heroGuardTarget = -1;
