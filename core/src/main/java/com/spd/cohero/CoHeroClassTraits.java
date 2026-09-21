@@ -12,7 +12,6 @@ public final class CoHeroClassTraits {
     private static final float HUNTRESS_MISSILE_DURABILITY_MULTIPLIER = 1.2f;
     private static final float DUELIST_MELEE_SPEED_MULTIPLIER = 1.09051f;
     private static final float CLERIC_AURA_MULTIPLIER = 1.10f;
-    private static final int CLERIC_AURA_DISTANCE = 6;
     private static final float GENERALIST_HT_MULTIPLIER = 1.05f;
 
     private CoHeroClassTraits() {
@@ -77,7 +76,7 @@ public final class CoHeroClassTraits {
             return 1f;
         }
 
-        return Dungeon.level.distance(Dungeon.hero.pos, companion.pos) <= CLERIC_AURA_DISTANCE
+        return CoHeroActivityArea.containsCurrentArea(companion.pos)
                 ? CLERIC_AURA_MULTIPLIER
                 : 1f;
     }
