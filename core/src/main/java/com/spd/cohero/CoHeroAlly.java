@@ -1096,19 +1096,19 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean getCloser(int target) {
-        if (!CoHeroHazards.hasActiveHazards(this)) {
+        if (!CoHeroHazards.hasActiveHazards(this) && !hasVisibleSleepingEnemy()) {
             return super.getCloser(target);
         }
         if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
             return false;
         }
 
-        boolean[] safePassable = CoHeroHazards.maskDangerous(this, Dungeon.level.passable);
+        boolean[] safePassable = ordinarySafePassable(false);
         // A CoHero already standing in danger must still be able to path out of it.
         safePassable[pos] = true;
 
         int step = Dungeon.findStep(this, target, safePassable, fieldOfView, true);
-        if (step == -1 || CoHeroHazards.isDangerous(this, step)) {
+        if (step == -1 || !isMovementSafe(step)) {
             path = null;
             return false;
         }
@@ -1116,6 +1116,21 @@ public class CoHeroAlly extends DirectableAlly {
         path = null;
         move(step);
         return true;
+    }
+
+    private boolean hasVisibleSleepingEnemy() {
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob != this
+                    && mob.alignment == Alignment.ENEMY
+                    && mob.isAlive()
+                    && mob.state == mob.SLEEPING
+                    && mob.pos >= 0
+                    && mob.pos < fieldOfView.length
+                    && fieldOfView[mob.pos]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasSeriousCleansableNegative() {
