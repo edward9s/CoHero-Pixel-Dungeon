@@ -15,6 +15,7 @@ inventory_tag_create_marker = "\t\tcoHeroInventory = new com.spd.cohero.CoHeroIn
 inventory_tag_state_marker = "\tprivate boolean tagCoHeroInventory = false;"
 examine_actor_marker = "com.spd.cohero.CoHero.companionCanSee(cell)"
 hazard_marker = "\t\tcom.spd.cohero.CoHeroHazards.warn(pos, delay);"
+cleric_aura_marker = "\t\tcom.spd.cohero.CoHeroClericAura.install(levelVisuals);"
 
 if (ready_marker in text
         or locator_marker in text
@@ -22,7 +23,8 @@ if (ready_marker in text
         or inventory_tag_create_marker in text
         or inventory_tag_state_marker in text
         or examine_actor_marker in text
-        or hazard_marker in text):
+        or hazard_marker in text
+        or cleric_aura_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
 ready_anchor = (
@@ -78,6 +80,20 @@ if text.count(layout_anchor) != 1:
 # Run only after all terrain/fog tilemaps and UI groups are constructed, but before the Hero
 # starts actor scheduling.
 text = text.replace(ready_anchor, ready_marker + "\n\n" + ready_anchor, 1)
+
+level_visuals_anchor = (
+    "\t\tlevelVisuals = Dungeon.level.addVisuals();\n"
+    "\t\tadd(levelVisuals);\n"
+)
+if text.count(level_visuals_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene level-visuals anchor, found {text.count(level_visuals_anchor)}"
+    )
+text = text.replace(
+    level_visuals_anchor,
+    level_visuals_anchor + "\t\tcom.spd.cohero.CoHeroClericAura.install(levelVisuals);\n",
+    1,
+)
 
 locator_block = (
     "\t\tfloat coHeroSafeLeft = insets.left;\n"
