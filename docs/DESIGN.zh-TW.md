@@ -22,7 +22,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - `CoHero.version()` 只委派給 `CoHeroVersion.version()`，避免出現第二份版本常數。
 - TitleScene 右下角與遊戲內 MenuPane 都顯示短格式：`SPD v<host> | CoH v<cohero>`。例如 `SPD v4.0.0 | CoH v0.1.0`；`CoH` 作為 CoHero 的短標記。
 - UI 使用宿主執行時的 `Game.version`，因此 source patch build 與未來 binary APK injection 都不需要把 SPD 版本複製進 CoHero。
-- App package 固定為原版 package 加 `.cohero`：`com.shatteredpixel.shatteredpixeldungeon.cohero`；一般 CoHero build 的顯示名稱為 `Co Shattered Pixel Dungeon`。
+- App package 固定為原版 package 加 `.cohero`：`com.shatteredpixel.shatteredpixeldungeon.cohero`；一般 CoHero build 的顯示名稱為 `CoShattered Pixel Dungeon`。
 - TitleScene 保留原版 Shattered Pixel Dungeon banner 資產，另外在 banner 上方加入 `CoHero` 文字標記，不複製或重畫上游 logo。
 - CoHero 存檔會另外寫入 `cohero_version`，目前只保留作未來 save migration 的版本識別，不改變既有載入規則。
 - build workflow 從 `CoHeroVersion.java` 抽取版本，artifact 名稱同時標示 CoHero、SPD；SMM build 另外標示 SMM 版本。
