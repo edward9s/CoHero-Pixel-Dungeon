@@ -1,6 +1,7 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.watabou.utils.PathFinder;
 
@@ -18,6 +19,13 @@ public final class CoHeroActivityArea {
 
     static final int PRE_EXIT_EXPLORATION_PERCENT = 30;
     static final int EXPLORED_ROAMING_PERCENT = 25;
+
+    private static Level cachedLevel;
+    private static int cachedHeroPos = -1;
+    private static boolean cachedExitKnown;
+    private static float cachedActorTime = Float.NaN;
+    private static int cachedStateSignature;
+    private static boolean[] cachedClericArea;
 
     private CoHeroActivityArea() {
     }
@@ -44,14 +52,38 @@ public final class CoHeroActivityArea {
      */
     public static boolean[] clericCooperationArea() {
         if (!hasLiveHero()) {
+            clearClericCache();
             return null;
+        }
+
+        Level level = Dungeon.level;
+        int heroPos = Dungeon.hero.pos;
+        boolean exitKnown = isExitKnown();
+        float actorTime = Actor.now();
+
+        if (level == cachedLevel
+                && heroPos == cachedHeroPos
+                && exitKnown == cachedExitKnown
+                && Float.compare(actorTime, cachedActorTime) == 0) {
+            return cachedClericArea;
+        }
+
+        int signature = stateSignature(exitKnown);
+        cachedActorTime = actorTime;
+
+        if (level == cachedLevel
+                && heroPos == cachedHeroPos
+                && exitKnown == cachedExitKnown
+                && signature == cachedStateSignature) {
+            return cachedClericArea;
         }
 
         int[] previousDistance = PathFinder.distance == null
                 ? null
                 : PathFinder.distance.clone();
+        boolean[] area;
         try {
-            return isExitKnown()
+            area = exitKnown
                     ? nearestPercentArea(true, EXPLORED_ROAMING_PERCENT)
                     : nearestPercentArea(false, PRE_EXIT_EXPLORATION_PERCENT);
         } finally {
@@ -66,6 +98,13 @@ public final class CoHeroActivityArea {
                         previousDistance.length);
             }
         }
+
+        cachedLevel = level;
+        cachedHeroPos = heroPos;
+        cachedExitKnown = exitKnown;
+        cachedStateSignature = signature;
+        cachedClericArea = area;
+        return cachedClericArea;
     }
 
     public static boolean containsClericCooperationArea(int cell) {
@@ -127,6 +166,35 @@ public final class CoHeroActivityArea {
             allowed[cell] = true;
         }
         return allowed;
+    }
+
+    private static int stateSignature(boolean exitKnown) {
+        int hash = 1;
+        Level level = Dungeon.level;
+        for (int cell = 0; cell < level.length(); cell++) {
+            int bits = level.passable[cell] ? 1 : 0;
+            if (exitKnown) {
+                if (level.visited[cell]) {
+                    bits |= 2;
+                }
+                if (level.mapped[cell]) {
+                    bits |= 4;
+                }
+            } else if (level.discoverable[cell]) {
+                bits |= 2;
+            }
+            hash = 31 * hash + bits;
+        }
+        return hash;
+    }
+
+    private static void clearClericCache() {
+        cachedLevel = null;
+        cachedHeroPos = -1;
+        cachedExitKnown = false;
+        cachedActorTime = Float.NaN;
+        cachedStateSignature = 0;
+        cachedClericArea = null;
     }
 
     private static boolean hasLiveHero() {
