@@ -15,7 +15,7 @@ inventory_tag_create_marker = "\t\tcoHeroInventory = new com.spd.cohero.CoHeroIn
 inventory_tag_state_marker = "\tprivate boolean tagCoHeroInventory = false;"
 examine_actor_marker = "com.spd.cohero.CoHero.companionCanSee(cell)"
 hazard_marker = "\t\tcom.spd.cohero.CoHeroHazards.warn(pos, delay);"
-cleric_boundary_marker = "\t\tcom.spd.cohero.CoHeroClericBoundary.install(levelVisuals);"
+cleric_range_grid_marker = "\t\tcom.spd.cohero.CoHeroClericRangeGrid.install(levelVisuals);"
 
 if (ready_marker in text
         or locator_marker in text
@@ -24,7 +24,7 @@ if (ready_marker in text
         or inventory_tag_state_marker in text
         or examine_actor_marker in text
         or hazard_marker in text
-        or cleric_boundary_marker in text):
+        or cleric_range_grid_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
 ready_anchor = (
@@ -91,7 +91,7 @@ if text.count(level_visuals_anchor) != 1:
     )
 text = text.replace(
     level_visuals_anchor,
-    level_visuals_anchor + "\t\tcom.spd.cohero.CoHeroClericBoundary.install(levelVisuals);\n",
+    level_visuals_anchor + "\t\tcom.spd.cohero.CoHeroClericRangeGrid.install(levelVisuals);\n",
     1,
 )
 
