@@ -999,6 +999,50 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
+        // Once a guard pair is established, keep using it while Hero remains within the
+        // original Hero-room bounds. This includes shared door/perimeter cells where
+        // RegularLevel.room(hero.pos) intentionally returns null.
+        if (activeGuardApplies()) {
+            explorationTarget = -1;
+
+            if (!isActiveGuardDomainCell(pos)) {
+                setMovementDecision("guard_external_support", Dungeon.hero.pos);
+                return actFollowHeroDirective();
+            }
+
+            if (isRoomInteriorCell(guardHeroRoom, pos)) {
+                Mob supportThreat = heroSupportThreat();
+                if (supportThreat == null) {
+                    heroGuardTarget = nearestReachableGuardCell(guardArea);
+                    if (heroGuardTarget == -1) {
+                        spend(TICK);
+                        return true;
+                    }
+                    setMovementDecision("guard_return_from_hero_room", heroGuardTarget);
+                    return actTowardGuardSetupTarget(heroGuardTarget);
+                }
+            }
+
+            if (guardAreaContains(pos)) {
+                clearDefensingPos();
+                path = null;
+                if (!guardAreaContains(heroGuardTarget) || heroGuardTarget == pos) {
+                    heroGuardTarget = chooseGuardRoamingTarget();
+                }
+                if (heroGuardTarget == -1) {
+                    GLog.i("[CoHeroMove] GUARD no roaming target " + movementContext());
+                    spend(TICK);
+                    return true;
+                }
+                setMovementDecision("guard_roam", heroGuardTarget);
+                return moveWithinGuardArea(heroGuardTarget);
+            }
+
+            // Hero-room door/perimeter: hold unless support/combat logic moved us here.
+            spend(TICK);
+            return true;
+        }
+
         RegularLevel level = (RegularLevel) Dungeon.level;
         Room heroRoom = level.room(Dungeon.hero.pos);
         if (heroRoom == null
@@ -1667,6 +1711,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         int oldPos = pos;
+        setMovementDecision("plant_move", plantCell);
         move(plantCell, true);
         spend(1 / speed());
         Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -2575,6 +2620,7 @@ public class CoHeroAlly extends DirectableAlly {
             int spacingStep = chooseHeroSpacingStep();
             if (spacingStep != -1) {
                 int oldPos = pos;
+                setMovementDecision("low_health_spacing", spacingStep);
                 move(spacingStep, true);
                 spend(1 / speed());
                 return moveSprite(oldPos, pos);
