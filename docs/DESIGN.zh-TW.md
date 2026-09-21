@@ -58,15 +58,15 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 目前共識：
 
-1. 出口尚未發現時，同伴自主探索未知區域，但探索範圍限制在「以 Hero 為中心、依實際可走 path distance 計算最近約 30% 的可通行／可探索區域」。這是範圍上限，不是每回合只從 30% 候選抽樣；普通探索的目的地、可達性判定與實際尋路每一步都必須留在這個範圍內，不能為了走最短路徑暫時繞出 30%。Hero 移動時範圍會跟著重新置中；若重新置中後 CoHero 當下已落在範圍外，不再用探索 mask 嘗試硬走回區域（那會把離開死巷所需的區域外格子全部封死），而是暫時切到 `DirectableAlly.followHero()` 回收，回到 Hero-centered 活動區域後才恢復自主探索。同樣規則也適用於 25% roaming 區重新置中後把 CoHero 留在區外的情況。出口只要透過任何合法地圖情報成為已知，也就是該格已為 `visited` 或 `mapped`，此 30% 限制立即解除；不要求 Hero 或 CoHero 必須以正常視野親自看見，因此 Magic Mapping 等合法映射資訊也會解除限制。戰鬥、逃跑、低血量 rally 與獨立的物品回收／拾取行為不受此普通探索 path mask 限制。
-2. 探索路徑可以帶有一定隨機性，但只能存在於合理選擇之間。
-3. **發現出口本身不代表探索結束。** 它只解除 30% 前期探索範圍限制；只要仍有一般未探索 frontier，CoHero 可以繼續探索。出口不是安全區，也不是 CoHero 必須前往等待的集合點。
-4. 「尚有 frontier」只計算 CoHero 目前實際可在當前探索範圍內經由 passable path 抵達的未知格；不能把「只有先離開 30% 才走得到」的格子算成可達 frontier。秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。若已無可達 frontier，CoHero 會在「以 Hero 為中心、依實際可走 path distance 計算最近約 25% 的已探索可通行區域」自主遊走；roaming 的候選與實際路徑同樣限制在該 25% 區域內。出口未發現時，25% roaming 區還必須同時位於當前 30% 探索區內。這個 25% 是「無 frontier 後的遊走區」，與出口發現前的 30% 探索範圍是不同規則。
-5. 普通探索／25% roaming 會被明確的 Hero 支援需求搶占。任一存活敵人距 Hero 4 格內時，不論可見、清醒或追擊狀態，CoHero 都停止普通探索／漫遊並直接往 Hero 靠近；原版隱藏中的 `Mimic` 雖暫時是 `Alignment.NEUTRAL`，仍依 SPD 自身慣例視為敵對例外。距離 5～8 格的敵人則直接沿用該 Mob 原生 `canAttack(Hero)` 語意：只要它目前能從非相鄰位置攻擊 Hero，就視為遠距威脅並同樣觸發支援；不維護遠距怪類別清單。距離門檻使用 `Level.distance()`，不是繞牆後的 path distance。追隨時不維持固定 2～3 格 comfort band；能靠近就持續靠近，已與 Hero 相鄰時才停下。
-6. 在具有原版 `Room` topology 的 `RegularLevel`，若 Hero 位於拓樸上只有一個連接（`room.connected.size() == 1`）的非入口／非出口房間，而且沒有第 5 點的附近敵人需要支援，CoHero 會停止普通探索並前往唯一房門外把風。這裡刻意看 `connected` 而不是 `edges()`：像煉金房、軍械庫等鎖門特殊房間，玩家解鎖後地圖 terrain 會變成 `DOOR`，但生成期的 `Room.Door.type` 仍可能保留 `LOCKED`，因此 `edges()` 不適合拿來判斷房間實際有幾個通道。召回與守門移動不再維護另一套自製追隨器，而是分別使用 `DirectableAlly.followHero()` 與 `defendPos()` 後執行其 `WANDERING` state；找不到合法守門點時先回退成 `followHero()`，不允許 CoHero 因守門目標失敗而在遠處原地發呆。守門時不站在門格堵路，而只在房外、門邊 3 格內的已知、安全、可通行格之間漫遊；第 5 點的 4/8 格支援規則永遠優先於守門。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
-7. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
-8. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
-9. 出口發現後 CoHero 不會因為「準備下樓」而停止戰鬥、撿取高優先物品或一般探索；是否離層完全由玩家 Hero 何時觸發 transition 決定。
+1. 同伴可在整張目前可達樓層自主探索，不再使用以 Hero 為中心的 25%／30% 活動區域，也不做重新置中或區域外回收。普通探索會優先從目前可達、安全、可通行的未知格中選擇目標；沒有可達未知格時，改在目前可達的已知安全格之間自主漫遊。
+2. 探索路徑可以帶有一定隨機性，但只能存在於合理且實際可達的選擇之間。秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。
+3. **發現出口本身不代表探索結束，也不改變探索範圍。** 出口不是安全區，也不是 CoHero 必須前往等待的集合點；只要玩家尚未觸發 transition，CoHero 仍可繼續戰鬥、拾取與探索。
+4. 普通探索／漫遊會被明確的 Hero 支援需求搶占。任一存活敵人距 Hero 4 格內時，不論可見、清醒或追擊狀態，CoHero 都停止普通探索／漫遊並直接往 Hero 靠近；原版隱藏中的 `Mimic` 雖暫時是 `Alignment.NEUTRAL`，仍依 SPD 自身慣例視為敵對例外。距離 5～8 格的敵人則直接沿用該 Mob 原生 `canAttack(Hero)` 語意：只要它目前能從非相鄰位置攻擊 Hero，就視為遠距威脅並同樣觸發支援；不維護遠距怪類別清單。距離門檻使用 `Level.distance()`，不是繞牆後的 path distance。追隨時不維持固定 2～3 格 comfort band；能靠近就持續靠近，已與 Hero 相鄰時才停下。
+5. 在具有原版 `Room` topology 的 `RegularLevel`，若 Hero 位於拓樸上只有一個連接（`room.connected.size() == 1`）的非入口／非出口房間，而且沒有第 4 點的附近敵人需要支援，CoHero 進入把風行為。把風區域就是 Hero 房間唯一直接連出去的整個 `outsideRoom`；不判斷它是 ConnectionRoom、走廊、普通房或特殊房，也不限制大小或離 Hero 房門的距離。所有落在該 Room 矩形範圍內、實際可通行且對 CoHero 安全的格子都可作為漫遊空間。
+6. 若把風時 CoHero 不在 `outsideRoom`，會先用 `DirectableAlly.defendPos()` 前往該 Room 中最近的可達安全格；一旦進入 `outsideRoom`，就清除 defend directive，改在同一個 Room 內隨機選擇可達安全格漫遊，而且實際 path 也被限制在該 Room 內，不會為了走捷徑繞出 Room 再進來。若 Hero 離開單出口房，或房間不再符合把風條件，就清除舊 guard directive。第 4 點的 4/8 格回援規則永遠優先於把風。
+7. 單出口判定刻意看 `connected` 而不是 `edges()`。像煉金房、軍械庫等鎖門特殊房間，玩家解鎖後地圖 terrain 會變成 `DOOR`，但生成期的 `Room.Door.type` 仍可能保留 `LOCKED`；因此 `edges()` 不適合拿來判斷房間實際有幾個通道。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
+8. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
+9. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
@@ -207,7 +207,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
   - 起始 `SpiritBow` 仍是原版專武。CoHero 透過原版 `SpiritArrow` 射擊；箭為無限彈藥，不進普通投擲物耐久、掉落或回收流程。傷害使用 CoHero 自己的 STR、實際 Sharpshooting 戒指與 Huntress 固有 Sharpshooting +0，並排除 Hero-only talents。
 - **Duelist**：等價 `RingOfFuror +0` 與 `RingOfTenacity +0`：裝備近戰武器時攻擊速度 ×1.09051，並依缺失 HP 比例取得原版 Tenacity 的漸進減傷；真正的 Furor / Tenacity 可再依原版公式疊加。
-- **Cleric**：Cleric CoHero 自身永久視為受到原版 `Bless` 的戰鬥加護；玩家 Hero 位於 Cleric 3 格內（`Level.distance()` ≤ 3）時也分享同一效果。實作不建立永久 `Bless` buff，而是在原版 `Char.hit()` 的最終 accuracy / evasion 擲骰處，把「原版 Bless buff 或 Cleric aura」視為同一個 Bless，因此各自只套一次 ×1.25，不會與正常 Bless 疊成第二層。Cleric 與 Hero 不要求直線視野。視覺上，每個受影響格子各自畫一個稍明顯的灰色半透明方框；共用邊只畫一次，避免內部格線因 alpha 疊加而變深。此範圍與 30%／25% 探索／遊走規則完全獨立。
+- **Cleric**：Cleric CoHero 自身永久視為受到原版 `Bless` 的戰鬥加護；玩家 Hero 位於 Cleric 3 格內（`Level.distance()` ≤ 3）時也分享同一效果。實作不建立永久 `Bless` buff，而是在原版 `Char.hit()` 的最終 accuracy / evasion 擲骰處，把「原版 Bless buff 或 Cleric aura」視為同一個 Bless，因此各自只套一次 ×1.25，不會與正常 Bless 疊成第二層。Cleric 與 Hero 不要求直線視野。視覺上，每個受影響格子各自畫一個稍明顯的灰色半透明方框；共用邊只畫一次，避免內部格線因 alpha 疊加而變深。此範圍與普通探索／把風規則完全獨立。
 - **其他／第三方 HeroClass**：Generalist，HT ×1.05；未知職業使用通用短劍作為安全起始武器，不因缺少 stock case 直接失敗。
 
 ### Hero / CoHero 畫面外監控
@@ -569,7 +569,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 
 - 一名以 `GhostHero` / `DirectableAlly` 為基礎的 companion actor。
 - 自主探索未知區域。
-- 發現出口本身不停止探索，也不會要求 CoHero 前往出口集合；出口發現只解除前期 30% 探索範圍限制。
+- 發現出口本身不停止探索，也不會要求 CoHero 前往出口集合；出口發現不再改變 CoHero 的普通探索範圍。
 - 玩家 Hero 作為唯一樓層 transition 觸發者。
 - 自己的背包 / 裝備資源。
 - 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
