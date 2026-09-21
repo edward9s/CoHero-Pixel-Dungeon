@@ -195,7 +195,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 
 職業特色是 CoHero 額外的固有 trait，不是假戒指，也不占用兩個實際 ring slot；CoHero 真正裝備的戒指仍照原版生效，並與固有 trait 疊加。
 
-- **Warrior**：等價 `RingOfMight +0`：+1 STR、HT ×1.035；真正的 Ring of Might 可再疊加。
+- **Warrior**：等價 `RingOfMight +0` 與 `RingOfTenacity +0`：+1 STR、HT ×1.035，並依缺失 HP 比例取得原版 Tenacity 的漸進減傷；真正的 Ring of Might / Ring of Tenacity 可再依原版公式疊加。
 - **Mage**：法杖自然充能 ×1.175，等價 `RingOfEnergy +0` 的 wand charge；真正的 Ring of Energy 可再疊加。
   - 起始 `MagesStaff(WandOfMagicMissile)` 仍是原版 Mage's Staff；CoHero AI 直接使用 Staff 內嵌的原版 wand 與同一個 charge pool，不建立複製 wand。Staff 近戰與 wand 遠程能力都可使用。
 - **Rogue**：移動速度 ×1.15，等價 `RingOfHaste +0`；真正的 Ring of Haste 可再疊加。
@@ -448,7 +448,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 
 已確定：
 
-- 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。`RingOfTenacity` 另在 CoHero 的 `damage()` 補上與 Hero 相同的 `RingOfTenacity.damageMultiplier()`，避免出現「戒指可裝但減傷未生效」的假支援；`RingOfElements` 等走通用 `Char` 路徑的戒指則直接沿用原版。
+- 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。`RingOfTenacity` 另在 CoHero 的 `damage()` 補上與 Hero 相同的 `RingOfTenacity.damageMultiplier()`；Warrior 固有的 +0 Tenacity 也在同一處以相同 `0.85^missingHP%` 公式相乘，因此與真正裝備的 Tenacity 戒指保持原版等價疊加。`RingOfElements` 等走通用 `Char` 路徑的戒指則直接沿用原版。
 - CoHero 的武器規則與防具／戒指分開：近戰武器只要求實際未詛咒，不要求已知詛咒狀態；防具與戒指仍維持 GhostHero 式的「已確認未詛咒」才能裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - CoHero 已裝備但尚未完全鑑定的近戰武器、護甲與戒指，沿用 SPD 原版被動鑑定進度：武器／護甲需要實際使用並搭配正常戰鬥 EXP 解鎖後續鑑定次數，戒指則依裝備期間取得的正常 EXP 推進。CoHero 不套用 Hero 的 item-ID Talent 加速，倍率固定 1.0；進度仍保存於物品本身，因此 Hero 與 CoHero 之間轉交同一件物品不會重置。Potion of Experience 不推進此被動鑑定。
