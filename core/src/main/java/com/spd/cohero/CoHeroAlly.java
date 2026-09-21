@@ -951,19 +951,28 @@ public class CoHeroAlly extends DirectableAlly {
         Room outsideRoom = heroRoom.connected.keySet().iterator().next();
         explorationTarget = -1;
 
-        boolean inGuardRoom = isGuardRoomCell(outsideRoom, pos);
-        if (!isGuardRoomCell(outsideRoom, heroGuardTarget)
-                || heroGuardTarget == pos) {
-            heroGuardTarget = inGuardRoom
-                    ? chooseGuardRoamingTarget(outsideRoom)
-                    : nearestReachableGuardCell(outsideRoom);
-        }
+        if (isGuardRoomCell(outsideRoom, pos)) {
+            clearDefensingPos();
+            path = null;
 
-        if (heroGuardTarget == -1) {
-            if (inGuardRoom) {
+            if (!isGuardRoomCell(outsideRoom, heroGuardTarget)
+                    || heroGuardTarget == pos) {
+                heroGuardTarget = chooseGuardRoamingTarget(outsideRoom);
+            }
+
+            if (heroGuardTarget == -1) {
                 spend(TICK);
                 return true;
             }
+
+            return moveWithinGuardRoom(outsideRoom, heroGuardTarget);
+        }
+
+        if (!isGuardRoomCell(outsideRoom, heroGuardTarget)) {
+            heroGuardTarget = nearestReachableGuardCell(outsideRoom);
+        }
+
+        if (heroGuardTarget == -1) {
             clearHeroGuardDirective();
             return null;
         }
@@ -974,7 +983,7 @@ public class CoHeroAlly extends DirectableAlly {
         revealVisibleCells();
 
         // DirectableAlly gives up an unreachable defend target by defending its current cell.
-        // Drop that stale target so the next ordinary turn chooses a fresh room destination.
+        // Drop that stale target so the next ordinary turn resolves the outside room again.
         if (defendingPos == pos && heroGuardTarget != pos) {
             heroGuardTarget = -1;
         }
@@ -1008,13 +1017,13 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private int chooseGuardRoamingTarget(Room outsideRoom) {
-        boolean[] passable = ordinarySafePassable(false);
+        boolean[] passable = guardRoomPassable(outsideRoom);
         PathFinder.buildDistanceMap(pos, passable);
 
         ArrayList<Integer> candidates = new ArrayList<>();
         for (int cell = 0; cell < passable.length; cell++) {
             if (cell == pos
-                    || !isGuardRoomCell(outsideRoom, cell)
+                    || !passable[cell]
                     || PathFinder.distance[cell] == Integer.MAX_VALUE) {
                 continue;
             }
@@ -1025,6 +1034,39 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return candidates.isEmpty() ? -1 : Random.element(candidates);
+    }
+
+    private boolean moveWithinGuardRoom(Room outsideRoom, int target) {
+        if (rooted) {
+            spend(TICK);
+            return true;
+        }
+
+        boolean[] passable = guardRoomPassable(outsideRoom);
+        int step = Dungeon.findStep(this, target, passable, fieldOfView, true);
+        if (step == -1 || !passable[step] || !isMovementSafe(step)) {
+            heroGuardTarget = -1;
+            spend(TICK);
+            return true;
+        }
+
+        int oldPos = pos;
+        move(step, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        return moveSprite(oldPos, pos);
+    }
+
+    private boolean[] guardRoomPassable(Room outsideRoom) {
+        boolean[] passable = ordinarySafePassable(false);
+        for (int cell = 0; cell < passable.length; cell++) {
+            passable[cell] = passable[cell] && isGuardRoomCell(outsideRoom, cell);
+        }
+        if (isGuardRoomCell(outsideRoom, pos)) {
+            passable[pos] = true;
+        }
+        return passable;
     }
 
     private boolean isGuardRoomCell(Room room, int cell) {
