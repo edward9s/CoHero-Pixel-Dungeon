@@ -54,7 +54,7 @@ public final class CoHeroClericAura extends Group {
             return;
         }
 
-        boolean[] area = CoHeroActivityArea.currentArea();
+        boolean[] area = CoHeroActivityArea.clericCooperationArea();
         if (area == null) {
             clearRenderedArea();
             return;
