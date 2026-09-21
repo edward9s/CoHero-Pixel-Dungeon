@@ -71,6 +71,8 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
+移動診斷期間，CoHero 會以 `[CoHeroMove]` 前綴輸出 GLog：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果，`GUARD activate` 會附上 outsideRoom 類型、矩形邊界、連接數與 guardArea 格數。這些訊息用來追查把風範圍與 Hero 回援切換問題，屬於暫時診斷輸出。
+
 ### 視野與火把
 
 - CoHero 背包支援原版 `Torch`；在 `Dungeon.level.viewDistance < Light.DISTANCE` 的低視距樓層且目前沒有 `Light` buff 時，CoHero 會自動消耗一支火把，使用原版 `Light.DURATION` 與 `Light.DISTANCE` 規則，並花費原版 `Torch.TIME_TO_LIGHT` 的行動時間。
