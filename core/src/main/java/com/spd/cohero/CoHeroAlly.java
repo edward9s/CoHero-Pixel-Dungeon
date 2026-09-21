@@ -899,29 +899,19 @@ public class CoHeroAlly extends DirectableAlly {
 
         explorationTarget = -1;
         heroGuardTarget = -1;
+        return actFollowHeroDirective();
+    }
 
+    private boolean actFollowHeroDirective() {
         if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
-            return null;
+            return false;
         }
 
-        if (rooted || Dungeon.level.adjacent(pos, Dungeon.hero.pos)) {
-            spend(TICK);
-            return true;
-        }
-
-        int step = safeStepNextToHero();
-        if (step == -1) {
-            spend(TICK);
-            return true;
-        }
-
-        int oldPos = pos;
-        path = null;
-        move(step, true);
-        spend(1 / speed());
+        followHero();
+        boolean result = state.act(false, false);
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        return moveSprite(oldPos, pos);
+        return result;
     }
 
     private boolean heroHasNearbyEnemy() {
@@ -946,43 +936,6 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return false;
-    }
-
-    private int safeStepNextToHero() {
-        boolean[] passable = ordinarySafePassable(false);
-        PathFinder.buildDistanceMap(pos, passable);
-
-        int bestCell = -1;
-        int bestDistance = Integer.MAX_VALUE;
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = Dungeon.hero.pos + offset;
-            if (cell < 0
-                    || cell >= Dungeon.level.length()
-                    || !Dungeon.level.adjacent(cell, Dungeon.hero.pos)
-                    || !passable[cell]
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != this) {
-                continue;
-            }
-
-            int distance = PathFinder.distance[cell];
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestCell = cell;
-            }
-        }
-
-        if (bestCell == -1 || bestDistance == Integer.MAX_VALUE) {
-            return -1;
-        }
-
-        int step = Dungeon.findStep(this, bestCell, passable, fieldOfView, true);
-        return step != -1 && isMovementSafe(step) ? step : -1;
     }
 
     private Boolean tryGuardSingleExitHeroRoom() {
@@ -1019,30 +972,20 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         if (heroGuardTarget == -1) {
-            spend(TICK);
-            return true;
+            return actFollowHeroDirective();
         }
 
-        if (rooted) {
-            spend(TICK);
-            return true;
-        }
-
-        boolean[] passable = ordinarySafePassable(true);
-        int step = Dungeon.findStep(this, heroGuardTarget, passable, fieldOfView, true);
-        if (step == -1 || !isMovementSafe(step)) {
-            heroGuardTarget = -1;
-            spend(TICK);
-            return true;
-        }
-
-        int oldPos = pos;
-        path = null;
-        move(step, true);
-        spend(1 / speed());
+        defendPos(heroGuardTarget);
+        boolean result = state.act(false, false);
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        return moveSprite(oldPos, pos);
+
+        // DirectableAlly gives up an unreachable defend target by defending its current cell.
+        // Do not preserve that as a valid room-guard destination; retry or fall back next turn.
+        if (defendingPos == pos && heroGuardTarget != pos) {
+            heroGuardTarget = -1;
+        }
+        return result;
     }
 
     private int chooseHeroGuardTarget(Room heroRoom, int doorCell) {
@@ -1055,14 +998,11 @@ public class CoHeroAlly extends DirectableAlly {
         PathFinder.buildDistanceMap(doorCell, passable);
         int[] doorDistance = PathFinder.distance.clone();
 
-        PathFinder.buildDistanceMap(pos, passable);
-
         ArrayList<Integer> candidates = new ArrayList<>();
         for (int cell = 0; cell < passable.length; cell++) {
             if (!isValidHeroGuardTarget(heroRoom, doorCell, cell)
                     || doorDistance[cell] == Integer.MAX_VALUE
-                    || doorDistance[cell] > HERO_GUARD_ROAM_RADIUS
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                    || doorDistance[cell] > HERO_GUARD_ROAM_RADIUS) {
                 continue;
             }
             candidates.add(cell);
