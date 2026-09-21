@@ -131,8 +131,7 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
     private static final int HERO_RALLY_MIN_DISTANCE = 2;
     private static final int HERO_RALLY_MAX_DISTANCE = 3;
-    private static final int HERO_SUPPORT_RADIUS = 10;
-    private static final int HERO_SUPPORT_FOLLOW_DISTANCE = 3;
+    private static final int HERO_SUPPORT_RADIUS = 8;
     private static final int HERO_GUARD_ROAM_RADIUS = 3;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
@@ -834,7 +833,7 @@ public class CoHeroAlly extends DirectableAlly {
             return supportAction;
         }
 
-        Boolean heroSupport = tryFollowHeroForKnownThreat();
+        Boolean heroSupport = tryFollowHeroForNearbyEnemy();
         if (heroSupport != null) {
             return heroSupport;
         }
@@ -891,8 +890,8 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private Boolean tryFollowHeroForKnownThreat() {
-        if (!heroHasKnownNearbyEnemy()) {
+    private Boolean tryFollowHeroForNearbyEnemy() {
+        if (!heroHasNearbyEnemy()) {
             return null;
         }
 
@@ -903,110 +902,38 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        if (Dungeon.level.distance(pos, Dungeon.hero.pos) <= HERO_SUPPORT_FOLLOW_DISTANCE) {
-            spend(TICK);
-            return true;
-        }
-
-        if (rooted) {
-            spend(TICK);
-            return true;
-        }
-
-        int step = safeStepTowardHero();
-        if (step == -1) {
+        if (rooted || Dungeon.level.adjacent(pos, Dungeon.hero.pos)) {
             spend(TICK);
             return true;
         }
 
         int oldPos = pos;
         path = null;
-        move(step, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
+        if (getCloser(Dungeon.hero.pos)) {
+            spend(1 / speed());
+            Dungeon.level.updateFieldOfView(this, fieldOfView);
+            revealVisibleCells();
+            return moveSprite(oldPos, pos);
+        }
+
+        spend(TICK);
+        return true;
     }
 
-    private boolean heroHasKnownNearbyEnemy() {
+    private boolean heroHasNearbyEnemy() {
         if (Dungeon.hero == null || !Dungeon.hero.isAlive() || Dungeon.level == null) {
             return false;
         }
 
-        for (Mob mob : Dungeon.hero.getVisibleEnemies()) {
-            if (isNearbyHeroThreat(mob)) {
-                return true;
-            }
-        }
-
-        // A mob that has already acquired the Hero remains a real support threat even when a
-        // door/corner temporarily removes it from Hero FOV. This keeps room-guard behavior from
-        // stealing priority in the middle of an encounter.
         for (Mob mob : Dungeon.level.mobs) {
             if (mob != null
-                    && mob.state == mob.HUNTING
-                    && mob.isTargeting(Dungeon.hero)
-                    && isNearbyHeroThreat(mob)) {
+                    && mob.isAlive()
+                    && mob.alignment == Alignment.ENEMY
+                    && Dungeon.level.distance(Dungeon.hero.pos, mob.pos) <= HERO_SUPPORT_RADIUS) {
                 return true;
             }
         }
-
         return false;
-    }
-
-    private boolean isNearbyHeroThreat(Mob mob) {
-        return mob != null
-                && mob.isAlive()
-                && mob.alignment == Alignment.ENEMY
-                && Dungeon.level.distance(Dungeon.hero.pos, mob.pos) <= HERO_SUPPORT_RADIUS;
-    }
-
-    private int safeStepTowardHero() {
-        boolean[] passable = ordinarySafePassable(false);
-        int width = Dungeon.level.width();
-        int height = Dungeon.level.height();
-        int heroX = Dungeon.hero.pos % width;
-        int heroY = Dungeon.hero.pos / width;
-
-        int bestCell = -1;
-        int bestDistance = Integer.MAX_VALUE;
-
-        PathFinder.buildDistanceMap(pos, passable);
-
-        for (int y = Math.max(0, heroY - HERO_SUPPORT_FOLLOW_DISTANCE);
-             y <= Math.min(height - 1, heroY + HERO_SUPPORT_FOLLOW_DISTANCE);
-             y++) {
-            for (int x = Math.max(0, heroX - HERO_SUPPORT_FOLLOW_DISTANCE);
-                 x <= Math.min(width - 1, heroX + HERO_SUPPORT_FOLLOW_DISTANCE);
-                 x++) {
-                int cell = x + y * width;
-                int heroDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
-                if (heroDistance < 1
-                        || heroDistance > HERO_SUPPORT_FOLLOW_DISTANCE
-                        || !passable[cell]
-                        || !isMovementSafe(cell)) {
-                    continue;
-                }
-
-                Char occupant = Actor.findChar(cell);
-                if (occupant != null && occupant != this) {
-                    continue;
-                }
-
-                int distance = PathFinder.distance[cell];
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    bestCell = cell;
-                }
-            }
-        }
-
-        if (bestCell == -1 || bestDistance == Integer.MAX_VALUE) {
-            return -1;
-        }
-
-        int step = Dungeon.findStep(this, bestCell, passable, fieldOfView, true);
-        return step != -1 && isMovementSafe(step) ? step : -1;
     }
 
     private Boolean tryGuardSingleExitHeroRoom() {
