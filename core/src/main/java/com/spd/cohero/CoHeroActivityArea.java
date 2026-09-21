@@ -7,11 +7,12 @@ import com.watabou.utils.PathFinder;
 import java.util.ArrayList;
 
 /**
- * Single source of truth for CoHero's normal Hero-centered activity area.
+ * Shared Hero-centered percentage-area calculations used by CoHero.
  *
- * Before the exit is known, exploration is limited to the nearest 30% of
- * reachable discoverable cells. Once the exit is known, ordinary roaming is
- * limited to the nearest 25% of reachable explored/mapped cells.
+ * Before the exit is known, exploration uses the nearest 30% of reachable
+ * discoverable cells. The idle explored-roaming rule uses the nearest 25% of
+ * reachable explored/mapped cells. Cleric cooperation reuses those same area
+ * definitions: 30% before the exit is known, 25% afterwards.
  */
 public final class CoHeroActivityArea {
 
@@ -41,7 +42,7 @@ public final class CoHeroActivityArea {
      * combat stat calculation and rendering, where changing shared pathfinder
      * scratch state would be surprising.
      */
-    public static boolean[] currentArea() {
+    public static boolean[] clericCooperationArea() {
         if (!hasLiveHero()) {
             return null;
         }
@@ -67,8 +68,8 @@ public final class CoHeroActivityArea {
         }
     }
 
-    public static boolean containsCurrentArea(int cell) {
-        boolean[] area = currentArea();
+    public static boolean containsClericCooperationArea(int cell) {
+        boolean[] area = clericCooperationArea();
         return area != null
                 && cell >= 0
                 && cell < area.length
