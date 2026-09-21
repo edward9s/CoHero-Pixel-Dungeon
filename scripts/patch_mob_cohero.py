@@ -102,6 +102,74 @@ if text.count(sleep_anchor) != 1:
     raise SystemExit(f"expected exactly one Mob.Sleeping wake gate, found {text.count(sleep_anchor)}")
 text = text.replace(sleep_anchor, sleep_patch, 1)
 
+sleep_selection_anchor = """			if (enemyInFOV
+					|| (enemy != null && enemy.invisible > 0)
+					|| coHeroHostileInFOV()) {
+
+				float highestChance = Float.POSITIVE_INFINITY;
+				Char closestHostile = null;
+
+				for (Char ch : Actor.chars()){
+					if (fieldOfView[ch.pos] && ch.invisible == 0 && ch.alignment != alignment && ch.alignment != Alignment.NEUTRAL){
+						float bestChance = detectionChance(ch);
+						//silent steps rogue talent, which also applies to rogue's shadow clone
+						if ((ch instanceof Hero || ch instanceof ShadowClone.ShadowAlly)
+								&& Dungeon.hero.hasTalent(Talent.SILENT_STEPS)){
+							if (distance(ch) >= 4 - Dungeon.hero.pointsInTalent(Talent.SILENT_STEPS)) {
+								bestChance = Float.POSITIVE_INFINITY;
+							}
+						}
+						//flying characters are naturally stealthy
+						if (ch.flying && distance(ch) >= 2){
+							bestChance = Float.POSITIVE_INFINITY;
+						}
+						if (bestChance < highestChance){
+							highestChance = bestChance;
+							closestHostile = ch;
+						}
+					}
+				}
+
+				if (closestHostile != null && Random.Float() < detectionChance(closestHostile)) {
+"""
+sleep_selection_patch = """			if (enemyInFOV
+					|| (enemy != null && enemy.invisible > 0)
+					|| coHeroHostileInFOV()) {
+
+				float highestChance = 0f;
+				Char easiestHostileToDetect = null;
+
+				for (Char ch : Actor.chars()){
+					if (fieldOfView[ch.pos] && ch.invisible == 0 && ch.alignment != alignment && ch.alignment != Alignment.NEUTRAL){
+						float bestChance = detectionChance(ch);
+						//silent steps rogue talent, which also applies to rogue's shadow clone
+						if ((ch instanceof Hero || ch instanceof ShadowClone.ShadowAlly)
+								&& Dungeon.hero.hasTalent(Talent.SILENT_STEPS)){
+							if (distance(ch) >= 4 - Dungeon.hero.pointsInTalent(Talent.SILENT_STEPS)) {
+								bestChance = 0f;
+							}
+						}
+						//flying characters are naturally stealthy
+						if (ch.flying && distance(ch) >= 2){
+							bestChance = 0f;
+						}
+						if (bestChance > highestChance){
+							highestChance = bestChance;
+							easiestHostileToDetect = ch;
+						}
+					}
+				}
+
+				if (easiestHostileToDetect != null && Random.Float() < highestChance) {
+"""
+if "Char easiestHostileToDetect = null;" in text:
+    raise SystemExit("CoHero sleeping hostile selection fix is already present")
+if text.count(sleep_selection_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one Mob.Sleeping hostile selection block, found {text.count(sleep_selection_anchor)}"
+    )
+text = text.replace(sleep_selection_anchor, sleep_selection_patch, 1)
+
 defense_anchor = """		if ( !surprisedBy(enemy)
 				&& paralysed == 0
 """
