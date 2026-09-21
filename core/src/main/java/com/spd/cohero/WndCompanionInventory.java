@@ -666,7 +666,7 @@ public class WndCompanionInventory extends Window {
 
     private static String titleText(String latestVersion) {
         String title = text("inventory.title");
-        return latestVersion == null ? title : "(new " + latestVersion + ") " + title;
+        return latestVersion == null ? title : title + " (new " + latestVersion + ")";
     }
 
     private static String text(String key, Object... args) {
