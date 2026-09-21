@@ -37,12 +37,12 @@ title_layout_new = """\t\ttitle = BannerSprites.get( landscape() ? BannerSprites
 \t\tadd( title );
 
 \t\tcoHeroTitle = new BitmapText( "CoHero", pixelFont );
-\t\tcoHeroTitle.scale.set(PixelScene.align(2f));
+\t\tcoHeroTitle.scale.set(PixelScene.align(2.5f));
 \t\tcoHeroTitle.hardlight(0xC4D2AF);
 \t\tcoHeroTitle.measure();
 \t\tadd(coHeroTitle);
 \t\t
-\t\tfloat brandHeight = coHeroTitle.height() - 4;
+\t\tfloat brandHeight = coHeroTitle.height() - 8;
 \t\tfloat topRegion = Math.max(title.height - 6 + brandHeight, h*0.45f);
 
 \t\ttitle.x = insets.left + (w - title.width()) / 2f;
@@ -50,7 +50,7 @@ title_layout_new = """\t\ttitle = BannerSprites.get( landscape() ? BannerSprites
 \t\t\t\t+ (topRegion - brandHeight - title.height()) / 2f;
 
 \t\tcoHeroTitle.x = insets.left + (w - coHeroTitle.width()) / 2f;
-\t\tcoHeroTitle.y = title.y - coHeroTitle.height() + 4;
+\t\tcoHeroTitle.y = title.y - coHeroTitle.height() + 8;
 
 \t\talign(title);
 \t\talign(coHeroTitle);
