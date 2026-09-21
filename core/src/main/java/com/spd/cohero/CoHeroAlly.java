@@ -896,6 +896,12 @@ public class CoHeroAlly extends DirectableAlly {
             return roomGuard;
         }
 
+        if (heroBlocksOrdinaryExploration()) {
+            explorationTarget = -1;
+            setMovementDecision("guard_explore_gate", Dungeon.hero.pos);
+            return actFollowHeroDirective();
+        }
+
         clearHeroGuardDirective();
 
         if (recoverPreferredLootAtCurrentCell()) {
@@ -999,6 +1005,11 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
+        if (guardHeroRoom != null
+                && !isRoomBoundsCell(guardHeroRoom, Dungeon.hero.pos)) {
+            clearHeroGuardDirective();
+        }
+
         // Once a guard pair is established, keep using it while Hero remains within the
         // original Hero-room bounds. This includes shared door/perimeter cells where
         // RegularLevel.room(hero.pos) intentionally returns null.
@@ -1049,20 +1060,17 @@ public class CoHeroAlly extends DirectableAlly {
                 || heroRoom.isEntrance()
                 || heroRoom.isExit()
                 || heroRoom.connected.size() != 1) {
-            clearHeroGuardDirective();
             return null;
         }
 
         Room outsideRoom = heroRoom.connected.keySet().iterator().next();
         Room.Door heroDoor = heroRoom.connected.get(outsideRoom);
         if (heroDoor == null) {
-            clearHeroGuardDirective();
             return null;
         }
 
         boolean[] candidateGuardArea = buildGuardArea(level, outsideRoom, heroRoom, heroDoor);
         if (candidateGuardArea == null) {
-            clearHeroGuardDirective();
             return null;
         }
 
@@ -1352,6 +1360,26 @@ public class CoHeroAlly extends DirectableAlly {
                 && point.x <= room.right
                 && point.y >= room.top
                 && point.y <= room.bottom;
+    }
+
+    private boolean heroBlocksOrdinaryExploration() {
+        if (!(Dungeon.level instanceof RegularLevel)
+                || Dungeon.hero == null
+                || !Dungeon.hero.isAlive()) {
+            return false;
+        }
+
+        if (guardHeroRoom != null
+                && isRoomBoundsCell(guardHeroRoom, Dungeon.hero.pos)) {
+            return true;
+        }
+
+        RegularLevel level = (RegularLevel) Dungeon.level;
+        Room heroRoom = level.room(Dungeon.hero.pos);
+        return heroRoom != null
+                && !heroRoom.isEntrance()
+                && !heroRoom.isExit()
+                && heroRoom.connected.size() == 1;
     }
 
     private boolean activeGuardApplies() {
