@@ -134,7 +134,6 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int HERO_RALLY_MAX_DISTANCE = 3;
     private static final int HERO_MELEE_SUPPORT_RADIUS = 4;
     private static final int HERO_RANGED_SUPPORT_RADIUS = 8;
-    private static final int HERO_GUARD_ROAM_RADIUS = 3;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
     private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
@@ -845,7 +844,7 @@ public class CoHeroAlly extends DirectableAlly {
             return roomGuard;
         }
 
-        heroGuardTarget = -1;
+        clearHeroGuardDirective();
 
         if (recoverPreferredLootAtCurrentCell()) {
             spend(TICK);
@@ -863,35 +862,16 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        boolean[] explorationArea = CoHeroActivityArea.preExitExplorationArea();
-        if (explorationArea != null && !explorationAreaAllows(explorationArea, pos)) {
-            explorationTarget = -1;
-            return actFollowHeroDirective();
-        }
-
-        boolean unexploredFrontier = hasUnexploredFrontier(explorationArea);
-        boolean[] explorationMovementArea = unexploredFrontier
-                ? explorationArea
-                : exploredRoamingMovementArea(explorationArea);
-
-        if (explorationMovementArea != null
-                && !explorationAreaAllows(explorationMovementArea, pos)) {
-            explorationTarget = -1;
-            return actFollowHeroDirective();
-        }
-
         if (explorationTarget == -1
                 || explorationTarget == pos
                 || !Dungeon.level.passable[explorationTarget]
                 || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
-                || !isMovementSafe(explorationTarget)
-                || !explorationAreaAllows(explorationMovementArea, explorationTarget)) {
-            explorationTarget = chooseExplorationTarget(explorationArea);
+                || !isMovementSafe(explorationTarget)) {
+            explorationTarget = chooseExplorationTarget();
         }
 
         int oldPos = pos;
-        if (explorationTarget != -1
-                && moveTowardExplorationTarget(explorationTarget, explorationMovementArea)) {
+        if (explorationTarget != -1 && moveTowardExplorationTarget(explorationTarget)) {
             spend(1 / speed());
 
             Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -899,7 +879,7 @@ public class CoHeroAlly extends DirectableAlly {
             return moveSprite(oldPos, pos);
         }
 
-        explorationTarget = chooseExplorationTarget(explorationArea);
+        explorationTarget = chooseExplorationTarget();
         spend(TICK);
         return true;
     }
@@ -954,37 +934,38 @@ public class CoHeroAlly extends DirectableAlly {
         if (!(Dungeon.level instanceof RegularLevel)
                 || Dungeon.hero == null
                 || !Dungeon.hero.isAlive()) {
-            heroGuardTarget = -1;
+            clearHeroGuardDirective();
             return null;
         }
 
         RegularLevel level = (RegularLevel) Dungeon.level;
-        Room room = level.room(Dungeon.hero.pos);
-        if (room == null
-                || room.isEntrance()
-                || room.isExit()
-                || room.connected.size() != 1) {
-            heroGuardTarget = -1;
+        Room heroRoom = level.room(Dungeon.hero.pos);
+        if (heroRoom == null
+                || heroRoom.isEntrance()
+                || heroRoom.isExit()
+                || heroRoom.connected.size() != 1) {
+            clearHeroGuardDirective();
             return null;
         }
 
-        Room outsideRoom = room.connected.keySet().iterator().next();
-        Room.Door door = room.connected.get(outsideRoom);
-        if (door == null) {
-            heroGuardTarget = -1;
-            return null;
-        }
-
-        int doorCell = level.pointToCell(door);
+        Room outsideRoom = heroRoom.connected.keySet().iterator().next();
         explorationTarget = -1;
 
-        if (!isValidHeroGuardTarget(room, doorCell, heroGuardTarget)
+        boolean inGuardRoom = isGuardRoomCell(outsideRoom, pos);
+        if (!isGuardRoomCell(outsideRoom, heroGuardTarget)
                 || heroGuardTarget == pos) {
-            heroGuardTarget = chooseHeroGuardTarget(room, doorCell);
+            heroGuardTarget = inGuardRoom
+                    ? chooseGuardRoamingTarget(outsideRoom)
+                    : nearestReachableGuardCell(outsideRoom);
         }
 
         if (heroGuardTarget == -1) {
-            return actFollowHeroDirective();
+            if (inGuardRoom) {
+                spend(TICK);
+                return true;
+            }
+            clearHeroGuardDirective();
+            return null;
         }
 
         defendPos(heroGuardTarget);
@@ -993,59 +974,79 @@ public class CoHeroAlly extends DirectableAlly {
         revealVisibleCells();
 
         // DirectableAlly gives up an unreachable defend target by defending its current cell.
-        // Do not preserve that as a valid room-guard destination; retry or fall back next turn.
+        // Drop that stale target so the next ordinary turn chooses a fresh room destination.
         if (defendingPos == pos && heroGuardTarget != pos) {
             heroGuardTarget = -1;
         }
         return result;
     }
 
-    private int chooseHeroGuardTarget(Room heroRoom, int doorCell) {
-        boolean[] passable = ordinarySafePassable(true);
-        if (doorCell < 0 || doorCell >= passable.length) {
-            return -1;
+    private int nearestReachableGuardCell(Room outsideRoom) {
+        boolean[] passable = ordinarySafePassable(false);
+        PathFinder.buildDistanceMap(pos, passable);
+
+        int best = -1;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int cell = 0; cell < passable.length; cell++) {
+            if (!isGuardRoomCell(outsideRoom, cell)
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != this) {
+                continue;
+            }
+
+            int distance = PathFinder.distance[cell];
+            if (distance < bestDistance) {
+                best = cell;
+                bestDistance = distance;
+            }
         }
+        return best;
+    }
 
-        passable[doorCell] = Dungeon.level.passable[doorCell];
-        PathFinder.buildDistanceMap(doorCell, passable);
-        int[] doorDistance = PathFinder.distance.clone();
-
-        boolean[] routePassable = ordinarySafePassable(false);
-        PathFinder.buildDistanceMap(pos, routePassable);
-        int[] coHeroDistance = PathFinder.distance.clone();
+    private int chooseGuardRoamingTarget(Room outsideRoom) {
+        boolean[] passable = ordinarySafePassable(false);
+        PathFinder.buildDistanceMap(pos, passable);
 
         ArrayList<Integer> candidates = new ArrayList<>();
         for (int cell = 0; cell < passable.length; cell++) {
-            if (!isValidHeroGuardTarget(heroRoom, doorCell, cell)
-                    || doorDistance[cell] == Integer.MAX_VALUE
-                    || doorDistance[cell] > HERO_GUARD_ROAM_RADIUS
-                    || coHeroDistance[cell] == Integer.MAX_VALUE) {
+            if (cell == pos
+                    || !isGuardRoomCell(outsideRoom, cell)
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
                 continue;
             }
-            candidates.add(cell);
-        }
 
+            Char occupant = Actor.findChar(cell);
+            if (occupant == null || occupant == this) {
+                candidates.add(cell);
+            }
+        }
         return candidates.isEmpty() ? -1 : Random.element(candidates);
     }
 
-    private boolean isValidHeroGuardTarget(Room heroRoom, int doorCell, int cell) {
-        if (cell < 0
+    private boolean isGuardRoomCell(Room room, int cell) {
+        if (room == null
+                || cell < 0
                 || cell >= Dungeon.level.length()
-                || cell == doorCell
-                || Dungeon.level.distance(cell, doorCell) > HERO_GUARD_ROAM_RADIUS
                 || !Dungeon.level.passable[cell]
-                || !isKnown(cell)
                 || !isMovementSafe(cell)) {
             return false;
         }
 
         Point point = Dungeon.level.cellToPoint(cell);
-        if (heroRoom.inside(point)) {
-            return false;
-        }
+        return point.x >= room.left
+                && point.x <= room.right
+                && point.y >= room.top
+                && point.y <= room.bottom;
+    }
 
-        Char occupant = Actor.findChar(cell);
-        return occupant == null || occupant == this;
+    private void clearHeroGuardDirective() {
+        heroGuardTarget = -1;
+        clearDefensingPos();
+        path = null;
     }
 
     private boolean[] ordinarySafePassable(boolean knownOnly) {
@@ -4549,52 +4550,14 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private boolean explorationAreaAllows(boolean[] explorationArea, int cell) {
-        return explorationArea == null
-                || (cell >= 0 && cell < explorationArea.length && explorationArea[cell]);
-    }
-
-    private boolean[] explorationPassable(boolean[] explorationArea) {
-        boolean[] passable = Dungeon.level.passable.clone();
-        if (explorationArea != null) {
-            for (int cell = 0; cell < passable.length; cell++) {
-                if (cell != pos && !explorationArea[cell]) {
-                    passable[cell] = false;
-                }
-            }
-        }
-        passable[pos] = true;
-        return passable;
-    }
-
-    private boolean[] exploredRoamingMovementArea(boolean[] explorationArea) {
-        boolean[] roamingArea = CoHeroActivityArea.exploredRoamingArea();
-        if (roamingArea == null || explorationArea == null) {
-            return roamingArea;
-        }
-
-        boolean[] result = roamingArea.clone();
-        for (int cell = 0; cell < result.length; cell++) {
-            result[cell] = result[cell] && explorationArea[cell];
-        }
-        return result;
-    }
-
-    private boolean moveTowardExplorationTarget(int target, boolean[] explorationArea) {
+    private boolean moveTowardExplorationTarget(int target) {
         if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
             return false;
         }
 
-        boolean[] passable = explorationPassable(explorationArea);
-        if (CoHeroHazards.hasActiveHazards(this)) {
-            passable = CoHeroHazards.maskDangerous(this, passable);
-            // If the CoHero is already standing in danger or just outside a recentered activity
-            // area, it must still be able to take a legal first step back into the allowed area.
-            passable[pos] = true;
-        }
-
+        boolean[] passable = ordinarySafePassable(false);
         int step = Dungeon.findStep(this, target, passable, fieldOfView, true);
-        if (step == -1 || !explorationAreaAllows(explorationArea, step)) {
+        if (step == -1 || !isMovementSafe(step)) {
             path = null;
             return false;
         }
@@ -4604,36 +4567,23 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private boolean hasUnexploredFrontier(boolean[] explorationArea) {
-        PathFinder.buildDistanceMap(pos, explorationPassable(explorationArea));
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (cell != pos
-                    && explorationAreaAllows(explorationArea, cell)
-                    && Dungeon.level.passable[cell]
-                    && Dungeon.level.discoverable[cell]
-                    && !Dungeon.level.visited[cell]
-                    && !Dungeon.level.mapped[cell]
-                    && PathFinder.distance[cell] < Integer.MAX_VALUE
-                    && isMovementSafe(cell)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private int chooseExplorationTarget(boolean[] explorationArea) {
-        PathFinder.buildDistanceMap(pos, explorationPassable(explorationArea));
+    private int chooseExplorationTarget() {
+        boolean[] passable = ordinarySafePassable(false);
+        PathFinder.buildDistanceMap(pos, passable);
 
         ArrayList<Integer> unknown = new ArrayList<>();
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (cell != pos
-                    && explorationAreaAllows(explorationArea, cell)
-                    && Dungeon.level.passable[cell]
-                    && Dungeon.level.discoverable[cell]
-                    && !Dungeon.level.visited[cell]
-                    && !Dungeon.level.mapped[cell]
-                    && PathFinder.distance[cell] < Integer.MAX_VALUE
-                    && isMovementSafe(cell)) {
+            if (cell == pos
+                    || !Dungeon.level.passable[cell]
+                    || !Dungeon.level.discoverable[cell]
+                    || (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell])
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || !isMovementSafe(cell)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant == null || occupant == this) {
                 unknown.add(cell);
             }
         }
@@ -4642,28 +4592,11 @@ public class CoHeroAlly extends DirectableAlly {
             return Random.element(unknown);
         }
 
-        // No reachable unexplored frontier remains. Keep roaming near the Hero instead of
-        // getting stuck retrying isolated/secret cells or wandering across the whole floor.
-        return chooseExploredRoamingTarget(explorationArea);
-    }
-
-    private int chooseExploredRoamingTarget(boolean[] explorationArea) {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
-            return -1;
-        }
-
-        boolean[] roamingArea = exploredRoamingMovementArea(explorationArea);
-        if (roamingArea == null) {
-            return -1;
-        }
-
-        PathFinder.buildDistanceMap(pos, explorationPassable(roamingArea));
-
-        ArrayList<Integer> candidates = new ArrayList<>();
-        for (int cell = 0; cell < roamingArea.length; cell++) {
-            if (!roamingArea[cell]
-                    || cell == pos
-                    || cell == Dungeon.hero.pos
+        ArrayList<Integer> roaming = new ArrayList<>();
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            if (cell == pos
+                    || !isKnown(cell)
+                    || !Dungeon.level.passable[cell]
                     || PathFinder.distance[cell] == Integer.MAX_VALUE
                     || !isMovementSafe(cell)) {
                 continue;
@@ -4671,11 +4604,11 @@ public class CoHeroAlly extends DirectableAlly {
 
             Char occupant = Actor.findChar(cell);
             if (occupant == null || occupant == this) {
-                candidates.add(cell);
+                roaming.add(cell);
             }
         }
 
-        return candidates.isEmpty() ? -1 : Random.element(candidates);
+        return roaming.isEmpty() ? -1 : Random.element(roaming);
     }
 
     private boolean isKnown(int cell) {
