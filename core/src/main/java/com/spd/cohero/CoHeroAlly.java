@@ -140,6 +140,8 @@ public class CoHeroAlly extends DirectableAlly {
 
     private int explorationTarget = -1;
     private int heroGuardTarget = -1;
+    private Room guardRoom;
+    private Room guardHeroRoom;
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
@@ -499,6 +501,12 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public void move(int step, boolean travelling) {
+        if (guardRoom != null
+                && !isRoomBoundsCell(guardRoom, step)
+                && !isRoomBoundsCell(guardHeroRoom, step)) {
+            return;
+        }
+
         super.move(step, travelling);
         if (sprite != null) {
             sprite.visible = true;
@@ -951,40 +959,84 @@ public class CoHeroAlly extends DirectableAlly {
         Room outsideRoom = heroRoom.connected.keySet().iterator().next();
         explorationTarget = -1;
 
-        if (isGuardRoomCell(outsideRoom, pos)) {
-            clearDefensingPos();
-            path = null;
+        // A changed Hero room/outside room pair starts a fresh guard setup.
+        if (guardRoom != null
+                && (guardRoom != outsideRoom || guardHeroRoom != heroRoom)) {
+            clearHeroGuardDirective();
+        }
 
-            if (!isGuardRoomCell(outsideRoom, heroGuardTarget)
-                    || heroGuardTarget == pos) {
-                heroGuardTarget = chooseGuardRoamingTarget(outsideRoom);
+        // Do not establish the hard guard boundary until CoHero has actually
+        // entered the selected outside room.
+        if (guardRoom == null) {
+            if (isRoomBoundsCell(outsideRoom, pos)) {
+                activateGuardRoom(heroRoom, outsideRoom);
+            } else if (isRoomBoundsCell(heroRoom, pos)) {
+                // CoHero and Hero are together in the single-exit room:
+                // explicitly leave for the outside guard room.
+                heroGuardTarget = nearestReachableGuardCell(outsideRoom);
+                if (heroGuardTarget == -1) {
+                    spend(TICK);
+                    return true;
+                }
+                return actTowardGuardSetupTarget(heroGuardTarget);
+            } else {
+                // From elsewhere on the floor, approach the Hero. As soon as
+                // this route enters outsideRoom, the next act activates guard.
+                heroGuardTarget = -1;
+                return actFollowHeroDirective();
             }
+        }
 
+        // Teleports and other non-walking relocation can bypass move().
+        // If that happens, drop the hard boundary and reacquire normally.
+        if (!isRoomBoundsCell(guardRoom, pos)
+                && !isRoomBoundsCell(guardHeroRoom, pos)) {
+            clearHeroGuardDirective();
+            return actFollowHeroDirective();
+        }
+
+        // Hero support may legitimately bring CoHero into Hero's room.
+        // Once ordinary guarding resumes, send it back out before roaming.
+        if (isRoomBoundsCell(guardHeroRoom, pos)) {
+            heroGuardTarget = nearestReachableGuardCell(guardRoom);
             if (heroGuardTarget == -1) {
                 spend(TICK);
                 return true;
             }
-
-            return moveWithinGuardRoom(outsideRoom, heroGuardTarget);
+            return actTowardGuardSetupTarget(heroGuardTarget);
         }
 
-        if (!isGuardRoomCell(outsideRoom, heroGuardTarget)) {
-            heroGuardTarget = nearestReachableGuardCell(outsideRoom);
+        clearDefensingPos();
+        path = null;
+
+        if (!isGuardRoomCell(guardRoom, heroGuardTarget)
+                || heroGuardTarget == pos) {
+            heroGuardTarget = chooseGuardRoamingTarget(guardRoom);
         }
 
         if (heroGuardTarget == -1) {
-            clearHeroGuardDirective();
-            return null;
+            spend(TICK);
+            return true;
         }
 
-        defendPos(heroGuardTarget);
+        return moveWithinGuardRoom(guardRoom, heroGuardTarget);
+    }
+
+    private void activateGuardRoom(Room heroRoom, Room outsideRoom) {
+        guardHeroRoom = heroRoom;
+        guardRoom = outsideRoom;
+        heroGuardTarget = -1;
+        clearDefensingPos();
+        path = null;
+    }
+
+    private boolean actTowardGuardSetupTarget(int target) {
+        defendPos(target);
         boolean result = state.act(false, false);
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
 
-        // DirectableAlly gives up an unreachable defend target by defending its current cell.
-        // Drop that stale target so the next ordinary turn resolves the outside room again.
-        if (defendingPos == pos && heroGuardTarget != pos) {
+        if (defendingPos == pos && target != pos) {
             heroGuardTarget = -1;
         }
         return result;
@@ -1070,11 +1122,15 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean isGuardRoomCell(Room room, int cell) {
+        return isRoomBoundsCell(room, cell)
+                && Dungeon.level.passable[cell]
+                && isMovementSafe(cell);
+    }
+
+    private boolean isRoomBoundsCell(Room room, int cell) {
         if (room == null
                 || cell < 0
-                || cell >= Dungeon.level.length()
-                || !Dungeon.level.passable[cell]
-                || !isMovementSafe(cell)) {
+                || cell >= Dungeon.level.length()) {
             return false;
         }
 
@@ -1087,6 +1143,8 @@ public class CoHeroAlly extends DirectableAlly {
 
     private void clearHeroGuardDirective() {
         heroGuardTarget = -1;
+        guardRoom = null;
+        guardHeroRoom = null;
         clearDefensingPos();
         path = null;
     }
