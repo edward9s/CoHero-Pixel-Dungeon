@@ -97,6 +97,19 @@ SPD 在正式 Boss 戰開始時會由 `Level.seal()` 對 Hero 掛上 `LockedFloo
 - CoHero 若被玩家明確留在該 Boss 樓層外，當前樓層不存在 CoHero actor，因此 hook 自然 no-op。
 - 這仍不把 CoHero 加回 stock `Mob.holdAllies()/restoreAllies()`；CoHero 的跨樓層 companion state 與「留在外面」語意保持獨立。
 
+### Boss 決策診斷
+
+Boss 樓層鎖定期間，CoHero 會以 `GLog` 輸出簡短決策診斷，協助實測 AI 是否卡在錯誤狀態。只有決策 key 改變時才輸出，避免每回合洗版。
+
+目前可看到的資訊包括：
+
+- 沒有可見威脅時的敵人總數、CoHero FOV 內數量、隱形敵人與睡眠敵人數量。
+- 當前選擇近戰、投擲武器、Spirit Bow、法杖、接近目標、戰術走位或撤退。
+- 進入 survival / retreat 時的目前攻擊者數、TTD 與 TTK。
+- hazard avoidance、麻痺、點火等會搶先於一般戰鬥決策的狀態。
+
+這些訊息是除錯輸出，不是新的玩家控制介面，也不改變 AI 本身的決策權。
+
 ### 天狗 Boss 樓層的階段重建
 
 天狗是例外，因為同一個 `LockedFloor` 生命週期內會多次 destructive map rewrite，而原版 `clearEntities()` 會直接銷毀不在保留區的 mob。因此除了共通的 Boss 開始／結束 hook 外，仍保留最少量的 phase seam：
@@ -240,7 +253,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - CoHero 被推落 chasm 仍視為致命事件：沒有 Ankh 時照常死亡並 Game Over；有 Ankh 時才由 CoHero 自己的復活流程救回。普通 Ankh 維持傳送復活；blessed Ankh 若死亡原因是 chasm，也必須先移到本層合法、非 pit 的安全格，再保留其 15 回合無敵。Ankh 不因此被納入 AI 可冒險的有效生命值。
 - TTK（time to kill）依 CoHero 實際當前攻擊規則估算；已建立正確近戰距離時仍以近戰為主，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
 - 臨戰優先序分成「安全／必要狀態處理 → anti-ranged 貼身 → 直接遠程輸出 → 非緊急戰鬥消耗品／buff → 特殊近戰走位 → 普通近戰／接近」。只要目前沒有建立應有的近戰距離，而且存在合法射線，投擲武器、Spirit Bow 或法杖會被視為正常攻擊手段，而不是等所有走位與 setup 都失敗後才使用。若目前首要威脅沒有合法遠程攻擊線，才會在其他可見威脅中選最近的合法遠程目標；但首要威脅已進入正確近戰距離時不會轉頭射遠處敵人。
-- 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死，或 TTD 明顯不優於 TTK，也進入撤退。
+- 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死，或 TTD 明顯不優於 TTK，也進入撤退。Boss 是明確例外：Boss 的整體 HP 並不代表 CoHero 必須單獨完成的擊殺工作量，因此不以「CoHero 個人 TTD ≤ 打完整個 Boss 所需 TTK」作為撤退理由；立即致命與被多名敵人壓制等風險仍照常生效。
 - 無敵敵人不納入可攻擊目標：真正的戰鬥無敵仍沿用 SPD 的 `mob.isInvulnerable(CoHeroAlly.class)` 語意；但 `Challenge.SpectatorFreeze` 明確排除，因為它同時用於 Duelist Challenge 的旁觀者凍結與存檔載入期間的暫時 freeze，不代表應觸發逃跑。被 `SpectatorFreeze` 的角色直接不算當前臨戰威脅。無敵不代表退出整場戰鬥：只要任一真正無敵敵人目前能從其所在格攻擊 CoHero，脫離該敵人的有效攻擊範圍會取得臨戰優先權；移動選格先降低無敵敵人的可攻擊者數量與 incoming DPT，再避免把自己送進其他敵人的火力。離開無敵敵人的射程後，若仍有可傷害敵人，CoHero 立即恢復原本的近戰／投擲／Spirit Bow／法杖決策；若只剩無敵敵人且它們已打不到 CoHero，則原地保持安全距離，不主動靠近。一般移動無法改善無敵火力時，依序嘗試 Blink、Teleportation、Invisibility，最後才用立即生存資源撐住。
 - 撤退有 hysteresis：進入撤退後，不會只拉開一格就立刻回頭。必須降到最多 1 名即時攻擊者、HP 至少 45%，且 TTD 對 TTK 取得明顯安全餘裕，才恢復攻擊。
 - 逃跑路徑不再只最大化「離最近敵人的距離」，而是優先降低候選格上的即時攻擊者數量與總預期 incoming DPT，再以距離作 tie-break。這能處理被多名敵人包圍時「躲開 A 卻走進 B/C 火力」的問題。
@@ -254,6 +267,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 若有遠程敵人已能從距離外攻擊 CoHero，不會為了守狹口原地等待；地形戰術讓位給實際生存／逃跑決策。
 - 對目前能從非相鄰距離攻擊 CoHero 的遠程型敵人，若 CoHero 有近戰武器，會啟用 anti-ranged engagement，而且理想距離明確定義為「與敵人相鄰」，不以武器 `canAttack()` 射程代替。長鞭、長矛等延伸近戰即使在 2–3 格已可攻擊，也不會讓 CoHero 停在遠距與 Shaman / Warlock / DM100 / Scorpio 等敵人交換傷害；AI 會優先規劃通往敵人相鄰安全格的路徑，兼顧路徑長度、暴露步數與其他敵人壓力。若暫時無法直接貼身，才沿用 LOS cover／誘敵策略，而不是因延伸近戰已可命中就原地攻擊。這不硬編特定敵人類別，而是依敵人當下真正的遠距攻擊能力判斷。
 - 到達掩體後，CoHero 暫時不使用自己的遠程武器破壞誘敵策略，而是等待敵人靠近；敵人重新進入視野且一個安全移動步即可建立近戰時，立即貼身。目標完全離開 CoHero 視野時不讀取其牆後新座標，只在既定 cover 最多等待 6 回合；逾時即放棄該 plan，避免永久卡住。低血撤退、立即致命風險與 hazard avoidance 都可中止此 tactic。
+- Boss 不使用這套 ranged lure／LOS cover 誘敵流程。Boss 常有 scripted movement、teleport 或階段機制，若要求它先追進掩體可能讓戰鬥停滯；對 Boss 改回正常的投擲武器、Spirit Bow、法杖、近戰接敵與生存決策。
 
 1. **沒有任何可用攻擊能力時**
    - 同伴不主動攻擊。
@@ -438,7 +452,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - CoHero 的武器規則與防具／戒指分開：近戰武器只要求實際未詛咒，不要求已知詛咒狀態；防具與戒指仍維持 GhostHero 式的「已確認未詛咒」才能裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - CoHero 已裝備但尚未完全鑑定的近戰武器、護甲與戒指，沿用 SPD 原版被動鑑定進度：武器／護甲需要實際使用並搭配正常戰鬥 EXP 解鎖後續鑑定次數，戒指則依裝備期間取得的正常 EXP 推進。CoHero 不套用 Hero 的 item-ID Talent 加速，倍率固定 1.0；進度仍保存於物品本身，因此 Hero 與 CoHero 之間轉交同一件物品不會重置。Potion of Experience 不推進此被動鑑定。
-- CoHero 背包的「可存放」與「可由 CoHero 使用」是兩個獨立概念：任何正常 `Item` 都可交給 CoHero 保存，包括目前沒有 AI 語意的 Artifact、Trinket、食物、種子、未支援符石與第三方物品；storage-only 物品不會被 CoHero 主動使用，但可隨時交還 Hero。
+- CoHero 背包的「可存放」與「可由 CoHero 使用」是兩個獨立概念：任何正常 `Item` 都可交給 CoHero 保存，包括目前沒有 AI 語意的 Artifact、Trinket、食物、種子、未支援符石與第三方物品；storage-only 物品不會被 CoHero 主動使用，但可隨時交還 Hero。Wand 也遵守同一條規則：只有 `CoHeroWandAdapter.supported()` 的法杖在放入 CoHero 背包後會接上 CoHero 的 wand charge 流程；純 storage-only 的未知／未支援法杖不會因為只是存放在 CoHero 背包裡就被動充能。
 - CoHero 背包 UI 以框線標示已有明確 CoHero 使用／裝備語意的物品。框線代表已實作 capability，不代表此刻一定能成功使用；裝備仍可能受詛咒或 STR 限制。未鑑定 Potion / Scroll 不依隱藏真實類型顯示 capability，避免從 UI 洩漏鑑定資訊。
 - Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility`、`PotionOfHaste`、`PotionOfStamina`、`PotionOfCleansing`、`PotionOfEarthenArmor` 具有自動使用語意；Scroll 目前只有已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意。Runestone 只有 `StoneOfAggression`、`StoneOfBlast`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock` 具有 CoHero 戰鬥使用語意；其他符石只作為 storage-only 物品。`Ankh` 具有死亡時自動復活語意。
 - `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。
