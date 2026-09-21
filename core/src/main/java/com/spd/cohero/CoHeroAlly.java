@@ -131,7 +131,8 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
     private static final int HERO_RALLY_MIN_DISTANCE = 2;
     private static final int HERO_RALLY_MAX_DISTANCE = 3;
-    private static final int HERO_SUPPORT_RADIUS = 8;
+    private static final int HERO_MELEE_SUPPORT_RADIUS = 4;
+    private static final int HERO_RANGED_SUPPORT_RADIUS = 8;
     private static final int HERO_GUARD_ROAM_RADIUS = 3;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
@@ -928,10 +929,18 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         for (Mob mob : Dungeon.level.mobs) {
-            if (mob != null
-                    && mob.isAlive()
-                    && mob.alignment == Alignment.ENEMY
-                    && Dungeon.level.distance(Dungeon.hero.pos, mob.pos) <= HERO_SUPPORT_RADIUS) {
+            if (mob == null
+                    || !mob.isAlive()
+                    || mob.alignment != Alignment.ENEMY) {
+                continue;
+            }
+
+            int distance = Dungeon.level.distance(Dungeon.hero.pos, mob.pos);
+            if (distance <= HERO_MELEE_SUPPORT_RADIUS) {
+                return true;
+            }
+            if (distance <= HERO_RANGED_SUPPORT_RADIUS
+                    && mob.coHeroCanAttackFrom(mob.pos, Dungeon.hero)) {
                 return true;
             }
         }
