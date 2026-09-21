@@ -570,7 +570,9 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public void damage(int damage, Object source) {
         int adjusted = (int) Math.ceil(
-                Math.max(0, damage) * RingOfTenacity.damageMultiplier(this));
+                Math.max(0, damage)
+                        * RingOfTenacity.damageMultiplier(this)
+                        * CoHeroClassTraits.tenacityDamageMultiplier(this));
         super.damage(adjusted, source);
     }
 
