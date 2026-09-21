@@ -50,6 +50,7 @@ public class WndCompanionInventory extends Window {
     private final int layoutWidth;
     private final int slotSize;
     private final int slotGap;
+    private String shownUpdateVersion;
 
     public WndCompanionInventory(CoHeroAlly companion) {
         if (companion == null || !companion.isAlive()) {
@@ -57,6 +58,9 @@ public class WndCompanionInventory extends Window {
         }
         this.companion = companion;
         this.inventory = companion.inventory();
+
+        CoHeroUpdates.checkForUpdate();
+        shownUpdateVersion = CoHeroUpdates.latestVersion();
 
         boolean landscape = PixelScene.landscape();
         int availableWidth = Math.max(
@@ -77,7 +81,7 @@ public class WndCompanionInventory extends Window {
                                     / BACKPACK_COLS));
         }
 
-        RenderedTextBlock title = PixelScene.renderTextBlock(text("inventory.title"), 9);
+        RenderedTextBlock title = PixelScene.renderTextBlock(titleText(shownUpdateVersion), 9);
         title.hardlight(TITLE_COLOR);
         title.maxWidth(layoutWidth);
         title.setPos(0, 1);
@@ -88,6 +92,17 @@ public class WndCompanionInventory extends Window {
             layoutLandscape(contentY);
         } else {
             layoutPortrait(contentY);
+        }
+    }
+
+    @Override
+    public void update() {
+        super.update();
+
+        String latest = CoHeroUpdates.latestVersion();
+        if (latest == null ? shownUpdateVersion != null : !latest.equals(shownUpdateVersion)) {
+            shownUpdateVersion = latest;
+            refreshWindow();
         }
     }
 
@@ -647,6 +662,11 @@ public class WndCompanionInventory extends Window {
     private void refreshWindow() {
         hide();
         GameScene.show(new WndCompanionInventory(companion));
+    }
+
+    private static String titleText(String latestVersion) {
+        String title = text("inventory.title");
+        return latestVersion == null ? title : "(new " + latestVersion + ") " + title;
     }
 
     private static String text(String key, Object... args) {
