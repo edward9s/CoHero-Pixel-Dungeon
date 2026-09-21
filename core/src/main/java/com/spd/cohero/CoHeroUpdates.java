@@ -15,7 +15,7 @@ public final class CoHeroUpdates {
             "https://api.github.com/repos/edward9s/CoHero-Pixel-Dungeon/releases?per_page=30";
     private static final long CHECK_DELAY = 1000L * 60L * 60L;
     private static final Pattern RELEASE_VERSION = Pattern.compile(
-            "\\"tag_name\\"\\s*:\\s*\\"CoHero-v([0-9]+(?:\\.[0-9]+)*)-SPD-[^\\"]+\\"");
+            "\\\"tag_name\\\"\\s*:\\s*\\\"CoHero-v([0-9]+(?:\\.[0-9]+)*)-SPD-[^\\\"]+\\\"");
 
     private static long lastCheck = 0L;
     private static boolean checking = false;
