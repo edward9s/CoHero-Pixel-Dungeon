@@ -42,32 +42,6 @@ patch = anchor + """	/**
 	}
 
 	/**
-	 * CoHero support-radius capability. Keep this centralized in Mob so CoHeroAlly does not
-	 * duplicate upstream enemy taxonomy. This is intentionally about meaningful long-range
-	 * threat capability, not merely any non-adjacent reach (e.g. 2-cell spear/pump attacks).
-	 */
-	public boolean coHeroUsesLongRangeSupportRadius() {
-		return this instanceof CrystalWisp
-				|| this instanceof DM100
-				|| this instanceof DM200
-				|| this instanceof DM300
-				|| this instanceof Elemental
-				|| this instanceof Eye
-				|| this instanceof FungalSentry
-				|| this instanceof GnollGeomancer
-				|| this instanceof GnollSapper
-				|| this instanceof GnollTrickster
-				|| this instanceof Necromancer
-				|| this instanceof Pylon
-				|| this instanceof Scorpio
-				|| this instanceof Shaman
-				|| this instanceof Spinner
-				|| this instanceof Tengu
-				|| this instanceof Warlock
-				|| this instanceof YogFist;
-	}
-
-	/**
 	 * CoHero-only surprise semantics. This deliberately does not feed Mob.surprisedBy(), because
 	 * the stock path also records Hero sneak-attack statistics and Hero-specific surprise effects.
 	 */
