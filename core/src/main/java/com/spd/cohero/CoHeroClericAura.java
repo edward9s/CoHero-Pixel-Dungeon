@@ -6,6 +6,8 @@ import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
 import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Group;
+import com.watabou.noosa.NoosaScript;
+import com.watabou.noosa.NoosaScriptNoLighting;
 
 import java.util.Arrays;
 
@@ -87,7 +89,7 @@ public final class CoHeroClericAura extends Group {
             float x = (cell % width) * tile;
             float y = (cell / width) * tile;
 
-            ColorBlock fill = new ColorBlock(tile, tile, AURA_COLOR);
+            ColorBlock fill = new GlowBlock(tile, tile);
             fill.x = x;
             fill.y = y;
             fill.alpha(FILL_ALPHA);
@@ -119,8 +121,20 @@ public final class CoHeroClericAura extends Group {
         }
     }
 
+    private static final class GlowBlock extends ColorBlock {
+
+        GlowBlock(float width, float height) {
+            super(width, height, AURA_COLOR);
+        }
+
+        @Override
+        protected NoosaScript script() {
+            return NoosaScriptNoLighting.get();
+        }
+    }
+
     private void addEdge(float x, float y, float width, float height) {
-        ColorBlock edge = new ColorBlock(width, height, AURA_COLOR);
+        ColorBlock edge = new GlowBlock(width, height);
         edge.x = x;
         edge.y = y;
         edge.alpha(EDGE_ALPHA);
