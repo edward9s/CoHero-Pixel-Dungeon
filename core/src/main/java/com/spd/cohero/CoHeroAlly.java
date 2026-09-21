@@ -157,6 +157,8 @@ public class CoHeroAlly extends DirectableAlly {
     private String lastBossDecisionLog;
     private String movementDecision = "unspecified";
     private int movementDecisionTarget = -1;
+    private boolean guardHeroSupportLock;
+    private boolean allowSupportRoomExit;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -505,11 +507,23 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public void move(int step, boolean travelling) {
         int oldPos = pos;
-        if (guardRoom != null
-                && !guardAreaContains(step)
-                && !isRoomBoundsCell(guardHeroRoom, step)) {
-            logMovement("BLOCKED", oldPos, step);
-            return;
+
+        if (guardRoom != null && isActiveGuardDomainCell(oldPos)) {
+            boolean stepInHeroRoom = isRoomBoundsCell(guardHeroRoom, step);
+            boolean stepInGuardArea = guardAreaContains(step);
+
+            if (guardHeroSupportLock
+                    && isRoomBoundsCell(guardHeroRoom, oldPos)
+                    && !allowSupportRoomExit
+                    && !stepInHeroRoom) {
+                logMovement("BLOCKED_SUPPORT_ROOM", oldPos, step);
+                return;
+            }
+
+            if (!stepInGuardArea && !stepInHeroRoom) {
+                logMovement("BLOCKED_GUARD_DOMAIN", oldPos, step);
+                return;
+            }
         }
 
         super.move(step, travelling);
@@ -673,6 +687,8 @@ public class CoHeroAlly extends DirectableAlly {
     protected boolean act() {
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
+        guardHeroSupportLock = false;
+        allowSupportRoomExit = false;
 
         syncSharedLevel();
         syncViewDistance();
@@ -700,6 +716,23 @@ public class CoHeroAlly extends DirectableAlly {
         if (hazardAvoidance != null) {
             logBossDecision("avoid_hazard", "avoiding hazard");
             return hazardAvoidance;
+        }
+
+        if (activeGuardApplies()) {
+            if (!isActiveGuardDomainCell(pos)) {
+                setMovementDecision("guard_external_support", Dungeon.hero.pos);
+                return actFollowHeroDirective();
+            }
+
+            Mob supportThreat = heroSupportThreat();
+            guardHeroSupportLock = supportThreat != null
+                    && isRoomBoundsCell(guardHeroRoom, pos);
+            if (guardHeroSupportLock) {
+                GLog.i("[CoHeroMove] SUPPORT_LOCK"
+                        + " threat=" + supportThreat.getClass().getSimpleName()
+                        + " threatPos=" + supportThreat.pos
+                        + " " + movementContext());
+            }
         }
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
@@ -812,6 +845,7 @@ public class CoHeroAlly extends DirectableAlly {
             int escapeStep = chooseEscapeStep(visibleThreats);
             if (escapeStep != -1) {
                 int oldPos = pos;
+                allowSupportRoomExit = true;
                 setMovementDecision("combat_escape", escapeStep);
                 if (getCloser(escapeStep)) {
                     spend(1 / speed());
@@ -1020,12 +1054,11 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        // Teleports and other non-walking relocation can bypass move().
-        // Reacquire if CoHero lands outside both the guard area and Hero's room.
+        // External relocation can bypass move(). Keep the established guard pair:
+        // while outside both legal areas, supporting Hero outranks loot and exploration.
         if (!guardAreaContains(pos)
                 && !isRoomBoundsCell(guardHeroRoom, pos)) {
-            clearHeroGuardDirective();
-            setMovementDecision("guard_reacquire_after_external_relocation", Dungeon.hero.pos);
+            setMovementDecision("guard_external_support", Dungeon.hero.pos);
             return actFollowHeroDirective();
         }
 
@@ -1277,6 +1310,18 @@ public class CoHeroAlly extends DirectableAlly {
                 && point.y <= room.bottom;
     }
 
+    private boolean activeGuardApplies() {
+        return guardRoom != null
+                && guardHeroRoom != null
+                && Dungeon.hero != null
+                && Dungeon.hero.isAlive()
+                && isRoomBoundsCell(guardHeroRoom, Dungeon.hero.pos);
+    }
+
+    private boolean isActiveGuardDomainCell(int cell) {
+        return guardAreaContains(cell) || isRoomBoundsCell(guardHeroRoom, cell);
+    }
+
     private void clearHeroGuardDirective() {
         heroGuardTarget = -1;
         guardRoom = null;
@@ -1370,6 +1415,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         int oldPos = pos;
         clearRangedLurePlan();
+        allowSupportRoomExit = true;
         setMovementDecision("hazard_escape", best);
         move(best, true);
         spend(1 / speed());
@@ -1390,10 +1436,16 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         boolean[] safePassable = ordinarySafePassable(false);
-        if (guardRoom != null) {
+        if (guardRoom != null && isActiveGuardDomainCell(pos)) {
             for (int cell = 0; cell < safePassable.length; cell++) {
-                safePassable[cell] = safePassable[cell]
-                        && (guardAreaContains(cell) || isRoomBoundsCell(guardHeroRoom, cell));
+                boolean allowed = guardAreaContains(cell)
+                        || isRoomBoundsCell(guardHeroRoom, cell);
+                if (guardHeroSupportLock
+                        && isRoomBoundsCell(guardHeroRoom, pos)
+                        && !allowSupportRoomExit) {
+                    allowed = isRoomBoundsCell(guardHeroRoom, cell);
+                }
+                safePassable[cell] = safePassable[cell] && allowed;
             }
         }
 
@@ -2733,6 +2785,8 @@ public class CoHeroAlly extends DirectableAlly {
                 : chooseInvulnerableEscapeStep(invulnerableThreats, threats);
         if (escapeStep != -1) {
             int oldPos = pos;
+            allowSupportRoomExit = true;
+            setMovementDecision("invulnerable_escape", escapeStep);
             move(escapeStep, true);
             spend(1 / speed());
             Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -2842,6 +2896,8 @@ public class CoHeroAlly extends DirectableAlly {
             int invisibleEscapeStep = rooted ? -1 : chooseEscapeStep(threats);
             if (invisibleEscapeStep != -1) {
                 int oldPos = pos;
+                allowSupportRoomExit = true;
+                setMovementDecision("combat_survival_invisible_escape", invisibleEscapeStep);
                 move(invisibleEscapeStep, true);
                 spend(1 / speed());
                 Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -2874,6 +2930,8 @@ public class CoHeroAlly extends DirectableAlly {
             }
 
             int oldPos = pos;
+            allowSupportRoomExit = true;
+            setMovementDecision("combat_survival_escape", escapeStep);
             move(escapeStep, true);
             spend(1 / speed());
             Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -3579,6 +3637,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         int oldPos = pos;
         path = null;
+        setMovementDecision("ranged_engagement", step);
         move(step, true);
         spend(1 / speed());
         Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -3676,6 +3735,7 @@ public class CoHeroAlly extends DirectableAlly {
                 int escape = chooseEscapeStep(threats);
                 if (escape != -1) {
                     int oldPos = pos;
+                    setMovementDecision("melee_tactical_escape", escape);
                     move(escape, true);
                     spend(1 / speed());
                     return moveSprite(oldPos, pos);
@@ -3686,6 +3746,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (pos != meleeTacticalCell) {
             int oldPos = pos;
+            setMovementDecision("melee_positioning", meleeTacticalCell);
             if (getCloser(meleeTacticalCell)) {
                 spend(1 / speed());
                 Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -3969,6 +4030,7 @@ public class CoHeroAlly extends DirectableAlly {
         // If we have a usable combat tool but cannot use it from this cell, close distance.
         if (hasUsableCombatCapability(targetMob)) {
             int oldPos = pos;
+            setMovementDecision("combat_close_distance", targetMob.pos);
             if (getCloser(targetMob.pos)) {
                 logBossDecision("close_distance:" + targetMob.id(),
                         targetDebug(targetMob) + " -> close distance");
@@ -4151,6 +4213,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         int oldPos = pos;
+        setMovementDecision("ward_recall_approach", approach);
         move(step, true);
         spend(1 / speed());
         Dungeon.level.updateFieldOfView(this, fieldOfView);
