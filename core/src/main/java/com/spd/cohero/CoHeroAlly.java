@@ -845,18 +845,21 @@ public class CoHeroAlly extends DirectableAlly {
 
         boolean[] explorationArea = CoHeroActivityArea.preExitExplorationArea();
         boolean unexploredFrontier = hasUnexploredFrontier(explorationArea);
+        boolean[] explorationMovementArea = unexploredFrontier
+                ? explorationArea
+                : exploredRoamingMovementArea(explorationArea);
         if (explorationTarget == -1
                 || explorationTarget == pos
                 || !Dungeon.level.passable[explorationTarget]
                 || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
                 || !isMovementSafe(explorationTarget)
-                || !explorationAreaAllows(explorationArea, explorationTarget)
-                || (!unexploredFrontier && !CoHeroActivityArea.containsExploredRoamingArea(explorationTarget))) {
+                || !explorationAreaAllows(explorationMovementArea, explorationTarget)) {
             explorationTarget = chooseExplorationTarget(explorationArea);
         }
 
         int oldPos = pos;
-        if (explorationTarget != -1 && getCloser(explorationTarget)) {
+        if (explorationTarget != -1
+                && moveTowardExplorationTarget(explorationTarget, explorationMovementArea)) {
             spend(1 / speed());
 
             Dungeon.level.updateFieldOfView(this, fieldOfView);
@@ -4351,8 +4354,58 @@ public class CoHeroAlly extends DirectableAlly {
                 || (cell >= 0 && cell < explorationArea.length && explorationArea[cell]);
     }
 
+    private boolean[] explorationPassable(boolean[] explorationArea) {
+        boolean[] passable = Dungeon.level.passable.clone();
+        if (explorationArea != null) {
+            for (int cell = 0; cell < passable.length; cell++) {
+                if (cell != pos && !explorationArea[cell]) {
+                    passable[cell] = false;
+                }
+            }
+        }
+        passable[pos] = true;
+        return passable;
+    }
+
+    private boolean[] exploredRoamingMovementArea(boolean[] explorationArea) {
+        boolean[] roamingArea = CoHeroActivityArea.exploredRoamingArea();
+        if (roamingArea == null || explorationArea == null) {
+            return roamingArea;
+        }
+
+        boolean[] result = roamingArea.clone();
+        for (int cell = 0; cell < result.length; cell++) {
+            result[cell] = result[cell] && explorationArea[cell];
+        }
+        return result;
+    }
+
+    private boolean moveTowardExplorationTarget(int target, boolean[] explorationArea) {
+        if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
+            return false;
+        }
+
+        boolean[] passable = explorationPassable(explorationArea);
+        if (CoHeroHazards.hasActiveHazards(this)) {
+            passable = CoHeroHazards.maskDangerous(this, passable);
+            // If the CoHero is already standing in danger or just outside a recentered activity
+            // area, it must still be able to take a legal first step back into the allowed area.
+            passable[pos] = true;
+        }
+
+        int step = Dungeon.findStep(this, target, passable, fieldOfView, true);
+        if (step == -1 || !explorationAreaAllows(explorationArea, step)) {
+            path = null;
+            return false;
+        }
+
+        path = null;
+        move(step, true);
+        return true;
+    }
+
     private boolean hasUnexploredFrontier(boolean[] explorationArea) {
-        PathFinder.buildDistanceMap(pos, Dungeon.level.passable);
+        PathFinder.buildDistanceMap(pos, explorationPassable(explorationArea));
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell != pos
                     && explorationAreaAllows(explorationArea, cell)
@@ -4369,7 +4422,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private int chooseExplorationTarget(boolean[] explorationArea) {
-        PathFinder.buildDistanceMap(pos, Dungeon.level.passable);
+        PathFinder.buildDistanceMap(pos, explorationPassable(explorationArea));
 
         ArrayList<Integer> unknown = new ArrayList<>();
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
@@ -4399,17 +4452,19 @@ public class CoHeroAlly extends DirectableAlly {
             return -1;
         }
 
-        boolean[] roamingArea = CoHeroActivityArea.exploredRoamingArea();
+        boolean[] roamingArea = exploredRoamingMovementArea(explorationArea);
         if (roamingArea == null) {
             return -1;
         }
 
+        PathFinder.buildDistanceMap(pos, explorationPassable(roamingArea));
+
         ArrayList<Integer> candidates = new ArrayList<>();
         for (int cell = 0; cell < roamingArea.length; cell++) {
             if (!roamingArea[cell]
-                    || !explorationAreaAllows(explorationArea, cell)
                     || cell == pos
                     || cell == Dungeon.hero.pos
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE
                     || !isMovementSafe(cell)) {
                 continue;
             }
