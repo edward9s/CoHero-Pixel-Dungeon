@@ -907,17 +907,19 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        int oldPos = pos;
-        path = null;
-        if (getCloser(Dungeon.hero.pos)) {
-            spend(1 / speed());
-            Dungeon.level.updateFieldOfView(this, fieldOfView);
-            revealVisibleCells();
-            return moveSprite(oldPos, pos);
+        int step = safeStepNextToHero();
+        if (step == -1) {
+            spend(TICK);
+            return true;
         }
 
-        spend(TICK);
-        return true;
+        int oldPos = pos;
+        path = null;
+        move(step, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        return moveSprite(oldPos, pos);
     }
 
     private boolean heroHasNearbyEnemy() {
@@ -934,6 +936,43 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return false;
+    }
+
+    private int safeStepNextToHero() {
+        boolean[] passable = ordinarySafePassable(false);
+        PathFinder.buildDistanceMap(pos, passable);
+
+        int bestCell = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = Dungeon.hero.pos + offset;
+            if (cell < 0
+                    || cell >= Dungeon.level.length()
+                    || !Dungeon.level.adjacent(cell, Dungeon.hero.pos)
+                    || !passable[cell]
+                    || !isMovementSafe(cell)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != this) {
+                continue;
+            }
+
+            int distance = PathFinder.distance[cell];
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestCell = cell;
+            }
+        }
+
+        if (bestCell == -1 || bestDistance == Integer.MAX_VALUE) {
+            return -1;
+        }
+
+        int step = Dungeon.findStep(this, bestCell, passable, fieldOfView, true);
+        return step != -1 && isMovementSafe(step) ? step : -1;
     }
 
     private Boolean tryGuardSingleExitHeroRoom() {
