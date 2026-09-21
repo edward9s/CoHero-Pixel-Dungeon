@@ -1082,6 +1082,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (cell < 0
                 || cell >= Dungeon.level.length()
                 || cell == doorCell
+                || Dungeon.level.distance(cell, doorCell) > HERO_GUARD_ROAM_RADIUS
                 || !Dungeon.level.passable[cell]
                 || !isKnown(cell)
                 || !isMovementSafe(cell)) {
