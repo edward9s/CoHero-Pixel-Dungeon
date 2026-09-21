@@ -30,10 +30,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          SPD_TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name')
+          SPD_TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name // empty')
+          if [ -z "$SPD_TAG" ]; then
+            echo "::error::Unable to resolve the latest SPD release tag."
+            exit 1
+          fi
+
           SMM_VER=$(python mod/scripts/extract_version.py mod/core/src/main/java/com/spd/mod/ModGame.java)
+          if [ -z "$SMM_VER" ]; then
+            echo "::error::Unable to resolve the SMM version."
+            exit 1
+          fi
+
           COHERO_VER=$(python cohero/scripts/extract_version.py \
             cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
+          if [ -z "$COHERO_VER" ]; then
+            echo "::error::Unable to resolve the CoHero version."
+            exit 1
+          fi
 
           echo "spd_tag=$SPD_TAG" >> "$GITHUB_OUTPUT"
           echo "smm_ver=$SMM_VER" >> "$GITHUB_OUTPUT"
