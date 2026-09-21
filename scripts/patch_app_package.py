@@ -9,7 +9,7 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
 name_old = "appName = 'Shattered Pixel Dungeon'"
-name_new = "appName = 'Co Shattered Pixel Dungeon'"
+name_new = "appName = 'CoShattered Pixel Dungeon'"
 package_old = "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon'"
 package_new = "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon.cohero'"
 
@@ -30,6 +30,6 @@ text = text.replace(name_old, name_new, 1)
 text = text.replace(package_old, package_new, 1)
 path.write_text(text, encoding="utf-8")
 print(
-    f"patched {path}: Co Shattered Pixel Dungeon / "
+    f"patched {path}: CoShattered Pixel Dungeon / "
     "com.shatteredpixel.shatteredpixeldungeon.cohero"
 )
