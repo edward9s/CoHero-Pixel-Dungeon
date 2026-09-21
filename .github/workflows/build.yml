@@ -23,9 +23,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name')
+          TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name // empty')
+          if [ -z "$TAG" ]; then
+            echo "::error::Unable to resolve the latest SPD release tag."
+            exit 1
+          fi
+
           COHERO_VER=$(python cohero/scripts/extract_version.py \
             cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
+          if [ -z "$COHERO_VER" ]; then
+            echo "::error::Unable to resolve the CoHero version."
+            exit 1
+          fi
+
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
           echo "Using CoHero $COHERO_VER with SPD $TAG"
