@@ -28,6 +28,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
@@ -931,7 +932,7 @@ public class CoHeroAlly extends DirectableAlly {
         for (Mob mob : Dungeon.level.mobs) {
             if (mob == null
                     || !mob.isAlive()
-                    || mob.alignment != Alignment.ENEMY) {
+                    || (mob.alignment != Alignment.ENEMY && !(mob instanceof Mimic))) {
                 continue;
             }
 
