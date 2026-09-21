@@ -17,7 +17,7 @@ field_new = """\t\tprivate Image companion;
 children_old = """\t\t\tbg = Chrome.get(Chrome.Type.TOAST_TR);
 \t\t\tadd( bg );
 \t\t\t
-\t\t\tname = PixelScene.renderTextBlock(9);
+\t\t\tname = PixelScene.renderTextBlock(8);
 """
 children_new = """\t\t\tbg = Chrome.get(Chrome.Type.TOAST_TR);
 \t\t\tadd( bg );
@@ -62,6 +62,25 @@ existing_new = """\t\t\t} else {
 \t\t\t\tif (info.subClass != HeroSubClass.NONE){
 """
 
+name_old = """\t\t\t\tif (info.subClass != HeroSubClass.NONE){
+\t\t\t\t\tname.text(Messages.titleCase(info.subClass.title()));
+\t\t\t\t} else {
+\t\t\t\t\tname.text(Messages.titleCase(info.heroClass.title()));
+\t\t\t\t}
+"""
+name_new = """\t\t\t\tString playerName;
+\t\t\t\tif (info.subClass != HeroSubClass.NONE){
+\t\t\t\t\tplayerName = Messages.titleCase(info.subClass.title());
+\t\t\t\t} else {
+\t\t\t\t\tplayerName = Messages.titleCase(info.heroClass.title());
+\t\t\t\t}
+\t\t\t\tif (info.companionClass != null) {
+\t\t\t\t\tname.text(playerName + " × " + Messages.titleCase(info.companionClass.title()));
+\t\t\t\t} else {
+\t\t\t\t\tname.text(playerName);
+\t\t\t\t}
+"""
+
 layout_old = """\t\t\tif (hero != null){
 \t\t\t\thero.x = x+8;
 \t\t\t\thero.y = y + (height - hero.height())/2f;
@@ -96,6 +115,7 @@ anchors = [
     ("children", children_old, children_new),
     ("newgame", newgame_old, newgame_new),
     ("existing", existing_anchor, existing_new),
+    ("name", name_old, name_new),
     ("layout", layout_old, layout_new),
 ]
 
