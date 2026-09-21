@@ -934,14 +934,31 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         for (Mob mob : Dungeon.hero.getVisibleEnemies()) {
-            if (mob != null
-                    && mob.isAlive()
-                    && mob.alignment == Alignment.ENEMY
-                    && Dungeon.level.distance(Dungeon.hero.pos, mob.pos) <= HERO_SUPPORT_RADIUS) {
+            if (isNearbyHeroThreat(mob)) {
                 return true;
             }
         }
+
+        // A mob that has already acquired the Hero remains a real support threat even when a
+        // door/corner temporarily removes it from Hero FOV. This keeps room-guard behavior from
+        // stealing priority in the middle of an encounter.
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob != null
+                    && mob.state == mob.HUNTING
+                    && mob.isTargeting(Dungeon.hero)
+                    && isNearbyHeroThreat(mob)) {
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    private boolean isNearbyHeroThreat(Mob mob) {
+        return mob != null
+                && mob.isAlive()
+                && mob.alignment == Alignment.ENEMY
+                && Dungeon.level.distance(Dungeon.hero.pos, mob.pos) <= HERO_SUPPORT_RADIUS;
     }
 
     private int safeStepTowardHero() {
