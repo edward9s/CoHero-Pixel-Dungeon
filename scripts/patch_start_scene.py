@@ -26,7 +26,7 @@ children_new = """\t\t\tbg = Chrome.get(Chrome.Type.TOAST_TR);
 \t\t\tcompanion.visible = false;
 \t\t\tadd(companion);
 \t\t\t
-\t\t\tname = PixelScene.renderTextBlock(5);
+\t\t\tname = PixelScene.renderTextBlock(7);
 """
 
 newgame_old = """\t\t\tif (newGame){
