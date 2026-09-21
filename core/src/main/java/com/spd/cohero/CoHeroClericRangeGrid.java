@@ -10,15 +10,15 @@ import com.watabou.noosa.Group;
 /**
  * Per-cell visual grid for the Cleric aura.
  *
- * Every cell within Level.distance() <= 8 from the Cleric CoHero is outlined
+ * Every cell within Level.distance() <= 6 from the Cleric CoHero is outlined
  * with a very thin translucent grey frame. Shared edges are drawn once so
  * interior grid lines do not become darker than the outer edge.
  */
 public final class CoHeroClericRangeGrid extends Group {
 
     private static final int GRID_COLOR = 0xFFD0D0D0;
-    private static final float GRID_ALPHA = 0.14f;
-    private static final float LINE_WIDTH = 0.5f;
+    private static final float GRID_ALPHA = 0.22f;
+    private static final float LINE_WIDTH = 0.75f;
     private static final float REFRESH_INTERVAL = 0.20f;
 
     private float refreshDelay;
