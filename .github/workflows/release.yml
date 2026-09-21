@@ -338,9 +338,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python mod/scripts/rebase_source.py spd mod
           python mod/scripts/patch_android.py spd
-          python mod/scripts/inject_mod.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
+          python mod/scripts/inject_mod.py spd
 
           cp -a mod/core spd/ 2>/dev/null || true
           cp -a mod/android spd/ 2>/dev/null || true
