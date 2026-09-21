@@ -25,7 +25,7 @@ title_field_new = """\tprivate Image title;
 
 title_layout_old = """\t\ttitle = BannerSprites.get( landscape() ? BannerSprites.Type.TITLE_LAND : BannerSprites.Type.TITLE_PORT);
 \t\tadd( title );
-\t\t
+
 \t\tfloat topRegion = Math.max(title.height - 6, h*0.45f);
 
 \t\ttitle.x = insets.left + (w - title.width()) / 2f;
