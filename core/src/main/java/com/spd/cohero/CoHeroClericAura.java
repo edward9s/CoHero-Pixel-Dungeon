@@ -14,15 +14,16 @@ import java.util.Arrays;
 /**
  * Ground overlay for the Cleric cooperation aura.
  *
- * The fill shows the exact current Cleric cooperation area and the brighter
- * 1px outline shows its boundary. It is attached below fog/mobs, so unexplored
+ * A faint one-cell glow band plus a brighter 1px outline shows the exact
+ * Cleric cooperation boundary. Interior floor is left untouched. The overlay
+ * is attached below fog/mobs, so unexplored
  * terrain is not revealed by the overlay.
  */
 public final class CoHeroClericAura extends Group {
 
-    private static final int AURA_COLOR = 0xFFFFE3A0;
-    private static final float FILL_ALPHA = 0.09f;
-    private static final float EDGE_ALPHA = 0.34f;
+    private static final int AURA_COLOR = 0xFFFFF0B8;
+    private static final float BOUNDARY_GLOW_ALPHA = 0.055f;
+    private static final float EDGE_ALPHA = 0.22f;
     private static final float REFRESH_INTERVAL = 0.20f;
 
     private float refreshDelay;
@@ -86,36 +87,39 @@ public final class CoHeroClericAura extends Group {
                 continue;
             }
 
-            float x = (cell % width) * tile;
-            float y = (cell / width) * tile;
+            int col = cell % width;
+            int row = cell / width;
 
-            ColorBlock fill = new GlowBlock(tile, tile);
-            fill.x = x;
-            fill.y = y;
-            fill.alpha(FILL_ALPHA);
-            add(fill);
-        }
+            boolean top = row == 0 || !area[cell - width];
+            boolean bottom = row == Dungeon.level.height() - 1 || !area[cell + width];
+            boolean left = col == 0 || !area[cell - 1];
+            boolean right = col == width - 1 || !area[cell + 1];
 
-        for (int cell = 0; cell < area.length; cell++) {
-            if (!area[cell]) {
+            if (!top && !bottom && !left && !right) {
                 continue;
             }
 
-            int col = cell % width;
-            int row = cell / width;
             float x = col * tile;
             float y = row * tile;
 
-            if (row == 0 || !area[cell - width]) {
+            // Only boundary cells receive a faint wash. Interior floor keeps
+            // its original colour so the aura reads as a ring, not a yellow map.
+            ColorBlock glow = new GlowBlock(tile, tile);
+            glow.x = x;
+            glow.y = y;
+            glow.alpha(BOUNDARY_GLOW_ALPHA);
+            add(glow);
+
+            if (top) {
                 addEdge(x, y, tile, 1f);
             }
-            if (row == Dungeon.level.height() - 1 || !area[cell + width]) {
+            if (bottom) {
                 addEdge(x, y + tile - 1f, tile, 1f);
             }
-            if (col == 0 || !area[cell - 1]) {
+            if (left) {
                 addEdge(x, y, 1f, tile);
             }
-            if (col == width - 1 || !area[cell + 1]) {
+            if (right) {
                 addEdge(x + tile - 1f, y, 1f, tile);
             }
         }
