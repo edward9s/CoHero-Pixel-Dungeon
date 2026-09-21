@@ -63,7 +63,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 3. **發現出口本身不代表探索結束。** 它只解除 30% 前期探索範圍限制；只要仍有一般未探索 frontier，CoHero 可以繼續探索。出口不是安全區，也不是 CoHero 必須前往等待的集合點。
 4. 「尚有 frontier」只計算 CoHero 目前實際可在當前探索範圍內經由 passable path 抵達的未知格；不能把「只有先離開 30% 才走得到」的格子算成可達 frontier。秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。若已無可達 frontier，CoHero 會在「以 Hero 為中心、依實際可走 path distance 計算最近約 25% 的已探索可通行區域」自主遊走；roaming 的候選與實際路徑同樣限制在該 25% 區域內。出口未發現時，25% roaming 區還必須同時位於當前 30% 探索區內。這個 25% 是「無 frontier 後的遊走區」，與出口發現前的 30% 探索範圍是不同規則。
 5. 普通探索／25% roaming 會被明確的 Hero 支援需求搶占。任一存活敵人距 Hero 4 格內時，不論可見、清醒或追擊狀態，CoHero 都停止普通探索／漫遊並直接往 Hero 靠近；原版隱藏中的 `Mimic` 雖暫時是 `Alignment.NEUTRAL`，仍依 SPD 自身慣例視為敵對例外。距離 5～8 格的敵人則直接沿用該 Mob 原生 `canAttack(Hero)` 語意：只要它目前能從非相鄰位置攻擊 Hero，就視為遠距威脅並同樣觸發支援；不維護遠距怪類別清單。距離門檻使用 `Level.distance()`，不是繞牆後的 path distance。追隨時不維持固定 2～3 格 comfort band；能靠近就持續靠近，已與 Hero 相鄰時才停下。
-6. 在具有原版 `Room` topology 的 `RegularLevel`，若 Hero 位於只有一個目前可用連接（`room.edges().size() == 1`）的非入口／非出口房間，而且沒有第 5 點的近距離已知敵人需要支援，CoHero 會停止普通探索並前往唯一房門外把風。守門時不站在門格堵路，而只在房外、門邊 3 格內的已知、安全、可通行格之間漫遊；若 Hero 10 格內出現已知敵人，第 5 點優先，立即放棄守門並靠近 Hero。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
+6. 在具有原版 `Room` topology 的 `RegularLevel`，若 Hero 位於拓樸上只有一個連接（`room.connected.size() == 1`）的非入口／非出口房間，而且沒有第 5 點的附近敵人需要支援，CoHero 會停止普通探索並前往唯一房門外把風。這裡刻意看 `connected` 而不是 `edges()`：像煉金房、軍械庫等鎖門特殊房間，生成時的 `Door.Type.LOCKED` 會讓 `edges()` 永久排除該連接，即使玩家之後已經開門；但房間實際仍只有一個通道。守門時不站在門格堵路，而只在房外、門邊 3 格內的已知、安全、可通行格之間漫遊；第 5 點的 4/8 格支援規則永遠優先於守門。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
 7. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
 8. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
 9. 出口發現後 CoHero 不會因為「準備下樓」而停止戰鬥、撿取高優先物品或一般探索；是否離層完全由玩家 Hero 何時觸發 transition 決定。
