@@ -24,7 +24,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - UI 使用宿主執行時的 `Game.version`，因此 source patch build 與未來 binary APK injection 都不需要把 SPD 版本複製進 CoHero。
 - CoHero 存檔會另外寫入 `cohero_version`，目前只保留作未來 save migration 的版本識別，不改變既有載入規則。
 - build workflow 從 `CoHeroVersion.java` 抽取版本，artifact 名稱同時標示 CoHero、SPD；SMM build 另外標示 SMM 版本。
-- 開啟 CoHero 背包時會非同步查詢本 repo 的 GitHub Releases；一小時內不重複查詢。若存在高於目前 `CoHeroVersion.VERSION` 的 CoHero release，背包 title 以前綴 `(new <version>)` 顯示取得的新版本號；網路或 GitHub 查詢失敗不改變遊戲流程，之後再次開啟背包可重試。
+- 開啟 CoHero 背包時會非同步查詢本 repo 的 GitHub Releases；一小時內不重複查詢。若存在高於目前 `CoHeroVersion.VERSION` 的 CoHero release，背包 title 以 postfix ` (new <version>)` 顯示取得的新版本號；網路或 GitHub 查詢失敗不改變遊戲流程，之後再次開啟背包可重試。
 
 ## 2. 核心玩法
 
