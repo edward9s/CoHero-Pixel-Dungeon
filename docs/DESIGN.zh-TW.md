@@ -66,8 +66,8 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 6. `guardRoom` 不會在發現單出口房時立刻成立。CoHero 必須先真正進入 `outsideRoom` 的內部格，才把該 Room 設成正式把風房。正式到位前，若 CoHero 還在樓層其他地方，就優先使用 `followHero()` 往 Hero 方向靠近；路線一旦進入 `outsideRoom`，下一回合才啟用 `guardRoom`。如果 CoHero 已和 Hero 同處單出口房（例如一起在煉金房裡），則不再追 Hero，而是明確前往 `outsideRoom` 的最近可達安全格。
 7. `guardRoom` 成立後，CoHero 在整個 Room 的可通行安全格中自由漫遊；普通步行若下一步既不在 `guardRoom` 的矩形範圍，也不在當前 Hero 單出口房的矩形範圍，就直接拒絕該步。因此 CoHero 可以進 Hero 房支援，但不能從把風房一路跑進其他外部房間。支援結束而 CoHero 位於 Hero 房內時，會再次前往 `guardRoom`。若傳送等非步行效果把 CoHero 移到這兩個 Room 之外，則取消既有 guard 狀態，重新執行「靠近 Hero → 先進 outsideRoom → 再建立 guardRoom」流程。若 Hero 離開單出口房或拓樸配對改變，也會清除舊 guard directive。第 4 點的 4/8 格回援規則永遠優先於把風。
 8. 單出口判定刻意看 `connected` 而不是 `edges()`。像煉金房、軍械庫等鎖門特殊房間，玩家解鎖後地圖 terrain 會變成 `DOOR`，但生成期的 `Room.Door.type` 仍可能保留 `LOCKED`；因此 `edges()` 不適合拿來判斷房間實際有幾個通道。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
-8. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
-9. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
+9. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
+10. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
