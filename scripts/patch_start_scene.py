@@ -17,7 +17,7 @@ field_new = """\t\tprivate Image companion;
 children_old = """\t\t\tbg = Chrome.get(Chrome.Type.TOAST_TR);
 \t\t\tadd( bg );
 \t\t\t
-\t\t\tname = PixelScene.renderTextBlock(8);
+\t\t\tname = PixelScene.renderTextBlock(9);
 """
 children_new = """\t\t\tbg = Chrome.get(Chrome.Type.TOAST_TR);
 \t\t\tadd( bg );
@@ -26,7 +26,7 @@ children_new = """\t\t\tbg = Chrome.get(Chrome.Type.TOAST_TR);
 \t\t\tcompanion.visible = false;
 \t\t\tadd(companion);
 \t\t\t
-\t\t\tname = PixelScene.renderTextBlock(9);
+\t\t\tname = PixelScene.renderTextBlock(8);
 """
 
 newgame_old = """\t\t\tif (newGame){
@@ -75,7 +75,7 @@ name_new = """\t\t\t\tString playerName;
 \t\t\t\t\tplayerName = Messages.titleCase(info.heroClass.title());
 \t\t\t\t}
 \t\t\t\tif (info.companionClass != null) {
-\t\t\t\t\tname.text(playerName + " × " + Messages.titleCase(info.companionClass.title()));
+\t\t\t\t\tname.text(playerName + "x" + Messages.titleCase(info.companionClass.title()));
 \t\t\t\t} else {
 \t\t\t\t\tname.text(playerName);
 \t\t\t\t}
