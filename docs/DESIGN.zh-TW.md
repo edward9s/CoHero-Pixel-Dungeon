@@ -202,7 +202,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
   - 起始 `SpiritBow` 仍是原版專武。CoHero 透過原版 `SpiritArrow` 射擊；箭為無限彈藥，不進普通投擲物耐久、掉落或回收流程。傷害使用 CoHero 自己的 STR、實際 Sharpshooting 戒指與 Huntress 固有 Sharpshooting +0，並排除 Hero-only talents。
 - **Duelist**：裝備近戰武器時攻擊速度 ×1.09051，等價 `RingOfFuror +0`；真正的 Furor 可再疊加。
-- **Cleric**：只要 Cleric CoHero 位於目前 CoHero 正常活動區內，Hero 與 Cleric CoHero 的 accuracy / evasion 各 ×1.10，不要求直線視野。活動區直接沿用共通探索規則：出口未知時為以 Hero 為中心、依實際可走 path distance 計算最近約 30% 的可通行／可探索區域；出口已知後為最近約 25% 的已探索可通行區域。GameScene 會在地面以淡色光暈填滿目前有效區域，並以較亮的 1px 邊界標示外緣，因此玩家不需要自行換算百分比對應幾格。
+- **Cleric**：只要 Cleric CoHero 位於目前協同區域內，Hero 與 Cleric CoHero 的 accuracy / evasion 各 ×1.10，不要求直線視野。協同區域共用既有 Hero-centered 百分比範圍的計算方式：出口未知時沿用前期探索的最近約 30% 可通行／可探索區域；出口已知後沿用已探索遊走的最近約 25% 已探索可通行區域。這只定義 Cleric 加成，不額外限制 CoHero 原有的戰鬥、追敵、避險或出口已知後仍有 frontier 時的探索。GameScene 會在地面以淡色光暈填滿目前有效區域，並以較亮的 1px 邊界標示外緣，因此玩家不需要自行換算百分比對應幾格。
 - **其他／第三方 HeroClass**：Generalist，HT ×1.05；未知職業使用通用短劍作為安全起始武器，不因缺少 stock case 直接失敗。
 
 ### Hero / CoHero 畫面外監控
