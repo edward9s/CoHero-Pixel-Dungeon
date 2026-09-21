@@ -515,7 +515,7 @@ public class CoHeroAlly extends DirectableAlly {
             if (guardHeroSupportLock
                     && isRoomBoundsCell(guardHeroRoom, oldPos)
                     && !allowSupportRoomExit
-                    && !stepInHeroRoom) {
+                    && !isRoomInteriorCell(guardHeroRoom, step)) {
                 logMovement("BLOCKED_SUPPORT_ROOM", oldPos, step);
                 return;
             }
@@ -1487,7 +1487,7 @@ public class CoHeroAlly extends DirectableAlly {
                 if (guardHeroSupportLock
                         && isRoomBoundsCell(guardHeroRoom, pos)
                         && !allowSupportRoomExit) {
-                    allowed = isRoomBoundsCell(guardHeroRoom, cell);
+                    allowed = isRoomInteriorCell(guardHeroRoom, cell);
                 }
                 safePassable[cell] = safePassable[cell] && allowed;
             }
