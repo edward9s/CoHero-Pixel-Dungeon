@@ -85,7 +85,9 @@ import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSp
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingStone;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
+import com.shatteredpixel.shatteredpixeldungeon.levels.RegularLevel;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
+import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Earthroot;
@@ -109,6 +111,7 @@ import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
+import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
@@ -128,11 +131,15 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
     private static final int HERO_RALLY_MIN_DISTANCE = 2;
     private static final int HERO_RALLY_MAX_DISTANCE = 3;
+    private static final int HERO_SUPPORT_RADIUS = 10;
+    private static final int HERO_SUPPORT_FOLLOW_DISTANCE = 3;
+    private static final int HERO_GUARD_ROAM_RADIUS = 3;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
     private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
 
     private int explorationTarget = -1;
+    private int heroGuardTarget = -1;
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
@@ -827,6 +834,18 @@ public class CoHeroAlly extends DirectableAlly {
             return supportAction;
         }
 
+        Boolean heroSupport = tryFollowHeroForKnownThreat();
+        if (heroSupport != null) {
+            return heroSupport;
+        }
+
+        Boolean roomGuard = tryGuardSingleExitHeroRoom();
+        if (roomGuard != null) {
+            return roomGuard;
+        }
+
+        heroGuardTarget = -1;
+
         if (recoverPreferredLootAtCurrentCell()) {
             spend(TICK);
             return true;
@@ -870,6 +889,228 @@ public class CoHeroAlly extends DirectableAlly {
         explorationTarget = chooseExplorationTarget(explorationArea);
         spend(TICK);
         return true;
+    }
+
+    private Boolean tryFollowHeroForKnownThreat() {
+        if (!heroHasKnownNearbyEnemy()) {
+            return null;
+        }
+
+        explorationTarget = -1;
+        heroGuardTarget = -1;
+
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            return null;
+        }
+
+        if (Dungeon.level.distance(pos, Dungeon.hero.pos) <= HERO_SUPPORT_FOLLOW_DISTANCE) {
+            spend(TICK);
+            return true;
+        }
+
+        if (rooted) {
+            spend(TICK);
+            return true;
+        }
+
+        int step = safeStepTowardHero();
+        if (step == -1) {
+            spend(TICK);
+            return true;
+        }
+
+        int oldPos = pos;
+        path = null;
+        move(step, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        return moveSprite(oldPos, pos);
+    }
+
+    private boolean heroHasKnownNearbyEnemy() {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive() || Dungeon.level == null) {
+            return false;
+        }
+
+        for (Mob mob : Dungeon.hero.getVisibleEnemies()) {
+            if (mob != null
+                    && mob.isAlive()
+                    && mob.alignment == Alignment.ENEMY
+                    && Dungeon.level.distance(Dungeon.hero.pos, mob.pos) <= HERO_SUPPORT_RADIUS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int safeStepTowardHero() {
+        boolean[] passable = ordinarySafePassable(false);
+        int width = Dungeon.level.width();
+        int height = Dungeon.level.height();
+        int heroX = Dungeon.hero.pos % width;
+        int heroY = Dungeon.hero.pos / width;
+
+        int bestCell = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        PathFinder.buildDistanceMap(pos, passable);
+
+        for (int y = Math.max(0, heroY - HERO_SUPPORT_FOLLOW_DISTANCE);
+             y <= Math.min(height - 1, heroY + HERO_SUPPORT_FOLLOW_DISTANCE);
+             y++) {
+            for (int x = Math.max(0, heroX - HERO_SUPPORT_FOLLOW_DISTANCE);
+                 x <= Math.min(width - 1, heroX + HERO_SUPPORT_FOLLOW_DISTANCE);
+                 x++) {
+                int cell = x + y * width;
+                int heroDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
+                if (heroDistance < 1
+                        || heroDistance > HERO_SUPPORT_FOLLOW_DISTANCE
+                        || !passable[cell]
+                        || !isMovementSafe(cell)) {
+                    continue;
+                }
+
+                Char occupant = Actor.findChar(cell);
+                if (occupant != null && occupant != this) {
+                    continue;
+                }
+
+                int distance = PathFinder.distance[cell];
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestCell = cell;
+                }
+            }
+        }
+
+        if (bestCell == -1 || bestDistance == Integer.MAX_VALUE) {
+            return -1;
+        }
+
+        int step = Dungeon.findStep(this, bestCell, passable, fieldOfView, true);
+        return step != -1 && isMovementSafe(step) ? step : -1;
+    }
+
+    private Boolean tryGuardSingleExitHeroRoom() {
+        if (!(Dungeon.level instanceof RegularLevel)
+                || Dungeon.hero == null
+                || !Dungeon.hero.isAlive()) {
+            heroGuardTarget = -1;
+            return null;
+        }
+
+        RegularLevel level = (RegularLevel) Dungeon.level;
+        Room room = level.room(Dungeon.hero.pos);
+        if (room == null
+                || room.isEntrance()
+                || room.isExit()
+                || room.edges().size() != 1) {
+            heroGuardTarget = -1;
+            return null;
+        }
+
+        Room outsideRoom = room.edges().iterator().next();
+        Room.Door door = room.connected.get(outsideRoom);
+        if (door == null) {
+            heroGuardTarget = -1;
+            return null;
+        }
+
+        int doorCell = level.pointToCell(door);
+        explorationTarget = -1;
+
+        if (!isValidHeroGuardTarget(room, doorCell, heroGuardTarget)
+                || heroGuardTarget == pos) {
+            heroGuardTarget = chooseHeroGuardTarget(room, doorCell);
+        }
+
+        if (heroGuardTarget == -1) {
+            spend(TICK);
+            return true;
+        }
+
+        if (rooted) {
+            spend(TICK);
+            return true;
+        }
+
+        boolean[] passable = ordinarySafePassable(true);
+        int step = Dungeon.findStep(this, heroGuardTarget, passable, fieldOfView, true);
+        if (step == -1 || !isMovementSafe(step)) {
+            heroGuardTarget = -1;
+            spend(TICK);
+            return true;
+        }
+
+        int oldPos = pos;
+        path = null;
+        move(step, true);
+        spend(1 / speed());
+        Dungeon.level.updateFieldOfView(this, fieldOfView);
+        revealVisibleCells();
+        return moveSprite(oldPos, pos);
+    }
+
+    private int chooseHeroGuardTarget(Room heroRoom, int doorCell) {
+        boolean[] passable = ordinarySafePassable(true);
+        if (doorCell < 0 || doorCell >= passable.length) {
+            return -1;
+        }
+
+        passable[doorCell] = Dungeon.level.passable[doorCell];
+        PathFinder.buildDistanceMap(doorCell, passable);
+        int[] doorDistance = PathFinder.distance.clone();
+
+        PathFinder.buildDistanceMap(pos, passable);
+
+        ArrayList<Integer> candidates = new ArrayList<>();
+        for (int cell = 0; cell < passable.length; cell++) {
+            if (!isValidHeroGuardTarget(heroRoom, doorCell, cell)
+                    || doorDistance[cell] == Integer.MAX_VALUE
+                    || doorDistance[cell] > HERO_GUARD_ROAM_RADIUS
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+            candidates.add(cell);
+        }
+
+        return candidates.isEmpty() ? -1 : Random.element(candidates);
+    }
+
+    private boolean isValidHeroGuardTarget(Room heroRoom, int doorCell, int cell) {
+        if (cell < 0
+                || cell >= Dungeon.level.length()
+                || cell == doorCell
+                || !Dungeon.level.passable[cell]
+                || !isKnown(cell)
+                || !isMovementSafe(cell)) {
+            return false;
+        }
+
+        Point point = Dungeon.level.cellToPoint(cell);
+        if (heroRoom.inside(point)) {
+            return false;
+        }
+
+        Char occupant = Actor.findChar(cell);
+        return occupant == null || occupant == this;
+    }
+
+    private boolean[] ordinarySafePassable(boolean knownOnly) {
+        boolean[] result = Dungeon.level.passable.clone();
+        for (int cell = 0; cell < result.length; cell++) {
+            if (cell == pos) {
+                result[cell] = true;
+                continue;
+            }
+            if (!result[cell]
+                    || !isMovementSafe(cell)
+                    || (knownOnly && !isKnown(cell))) {
+                result[cell] = false;
+            }
+        }
+        return result;
     }
 
     private Boolean tryAvoidHazard() {
@@ -4160,14 +4401,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean[] lootRecoveryPassable() {
-        boolean[] result = Dungeon.level.passable.clone();
-        for (int cell = 0; cell < result.length; cell++) {
-            if (cell != pos && result[cell] && !isMovementSafe(cell)) {
-                result[cell] = false;
-            }
-        }
-        result[pos] = true;
-        return result;
+        return ordinarySafePassable(false);
     }
 
     private int lootRecoveryPathDistance(int cell, boolean[] safePassable) {
