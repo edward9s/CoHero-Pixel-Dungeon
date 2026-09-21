@@ -16,7 +16,8 @@ import java.util.Arrays;
  * must remain effective. Do not switch these blocks to NoosaScriptNoLighting,
  * whose shader ignores Noosa lighting/alpha values entirely.
  *
- * Only the actual boundary is drawn. Interior floor tiles are never covered.
+ * Only the outer path-distance contour is drawn. Walls and other excluded
+ * terrain do not create lines, and interior floor tiles are never covered.
  */
 public final class CoHeroClericBoundary extends Group {
 
@@ -85,7 +86,7 @@ public final class CoHeroClericBoundary extends Group {
         float tile = DungeonTilemap.SIZE;
 
         for (int cell = 0; cell < area.length; cell++) {
-            if (!area[cell]) {
+            if (!CoHeroActivityArea.isClericBoundaryCell(cell)) {
                 continue;
             }
 
@@ -94,10 +95,18 @@ public final class CoHeroClericBoundary extends Group {
             float x = col * tile;
             float y = row * tile;
 
-            boolean top = row == 0 || !area[cell - mapWidth];
-            boolean bottom = row == mapHeight - 1 || !area[cell + mapWidth];
-            boolean left = col == 0 || !area[cell - 1];
-            boolean right = col == mapWidth - 1 || !area[cell + 1];
+            // Draw only where the path-distance contour continues into a
+            // farther reachable floor cell. Walls, pits and other excluded
+            // terrain are not cooperation boundaries and must not become a
+            // grid around every room.
+            boolean top = row > 0
+                    && CoHeroActivityArea.isBeyondClericBoundary(cell - mapWidth);
+            boolean bottom = row < mapHeight - 1
+                    && CoHeroActivityArea.isBeyondClericBoundary(cell + mapWidth);
+            boolean left = col > 0
+                    && CoHeroActivityArea.isBeyondClericBoundary(cell - 1);
+            boolean right = col < mapWidth - 1
+                    && CoHeroActivityArea.isBeyondClericBoundary(cell + 1);
 
             if (top) {
                 addHorizontalBoundary(x, y, tile, false);
