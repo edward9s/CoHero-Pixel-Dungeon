@@ -968,9 +968,9 @@ public class CoHeroAlly extends DirectableAlly {
         // Do not establish the hard guard boundary until CoHero has actually
         // entered the selected outside room.
         if (guardRoom == null) {
-            if (isRoomBoundsCell(outsideRoom, pos)) {
+            if (isRoomInteriorCell(outsideRoom, pos)) {
                 activateGuardRoom(heroRoom, outsideRoom);
-            } else if (isRoomBoundsCell(heroRoom, pos)) {
+            } else if (isRoomInteriorCell(heroRoom, pos)) {
                 // CoHero and Hero are together in the single-exit room:
                 // explicitly leave for the outside guard room.
                 heroGuardTarget = nearestReachableGuardCell(outsideRoom);
@@ -997,7 +997,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         // Hero support may legitimately bring CoHero into Hero's room.
         // Once ordinary guarding resumes, send it back out before roaming.
-        if (isRoomBoundsCell(guardHeroRoom, pos)) {
+        if (isRoomInteriorCell(guardHeroRoom, pos)) {
             heroGuardTarget = nearestReachableGuardCell(guardRoom);
             if (heroGuardTarget == -1) {
                 spend(TICK);
@@ -1125,6 +1125,13 @@ public class CoHeroAlly extends DirectableAlly {
         return isRoomBoundsCell(room, cell)
                 && Dungeon.level.passable[cell]
                 && isMovementSafe(cell);
+    }
+
+    private boolean isRoomInteriorCell(Room room, int cell) {
+        return room != null
+                && cell >= 0
+                && cell < Dungeon.level.length()
+                && room.inside(Dungeon.level.cellToPoint(cell));
     }
 
     private boolean isRoomBoundsCell(Room room, int cell) {
