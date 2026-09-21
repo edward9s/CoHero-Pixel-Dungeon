@@ -76,7 +76,7 @@ public final class CoHeroClassTraits {
             return 1f;
         }
 
-        return CoHeroActivityArea.containsCurrentArea(companion.pos)
+        return CoHeroActivityArea.containsClericCooperationArea(companion.pos)
                 ? CLERIC_AURA_MULTIPLIER
                 : 1f;
     }
