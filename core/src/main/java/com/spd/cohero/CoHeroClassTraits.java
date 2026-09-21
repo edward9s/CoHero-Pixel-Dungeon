@@ -3,12 +3,14 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfElements;
 
 public final class CoHeroClassTraits {
 
     private static final float WARRIOR_MIGHT_HT_MULTIPLIER = 1.035f;
-    private static final float WARRIOR_TENACITY_BASE = 0.85f;
+    private static final float TENACITY_BASE = 0.85f;
     private static final float MAGE_WAND_CHARGE_MULTIPLIER = 1.175f;
+    private static final float MAGE_ELEMENTS_BASE = 0.825f;
     private static final float ROGUE_MOVE_SPEED_MULTIPLIER = 1.15f;
     private static final float HUNTRESS_MISSILE_DURABILITY_MULTIPLIER = 1.2f;
     private static final float DUELIST_MELEE_SPEED_MULTIPLIER = 1.09051f;
@@ -34,16 +36,30 @@ public final class CoHeroClassTraits {
         return isStockClass(heroClass) ? 1f : GENERALIST_HT_MULTIPLIER;
     }
 
-    public static float tenacityDamageMultiplier(Char target) {
-        if (!isCompanionClass(target, HeroClass.WARRIOR)) {
+    public static float intrinsicTenacityDamageMultiplier(Char target) {
+        if (!isCompanionClass(target, HeroClass.WARRIOR)
+                && !isCompanionClass(target, HeroClass.DUELIST)) {
             return 1f;
         }
         if (target.HT <= 0) {
-            throw new IllegalStateException("Warrior CoHero has non-positive HT");
+            throw new IllegalStateException("Tenacity CoHero has non-positive HT");
         }
 
         float missingHealthFraction = (float) (target.HT - target.HP) / target.HT;
-        return (float) Math.pow(WARRIOR_TENACITY_BASE, missingHealthFraction);
+        return (float) Math.pow(TENACITY_BASE, missingHealthFraction);
+    }
+
+    public static float elementsResistanceMultiplier(Char target, Class effect) {
+        if (!isCompanionClass(target, HeroClass.MAGE)) {
+            return 1f;
+        }
+
+        for (Class resistance : RingOfElements.RESISTS) {
+            if (resistance.isAssignableFrom(effect)) {
+                return MAGE_ELEMENTS_BASE;
+            }
+        }
+        return 1f;
     }
 
     public static float wandChargeMultiplier(Char target) {
