@@ -4326,11 +4326,6 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private boolean isExitKnown() {
-        int exit = Dungeon.level.exit();
-        return isKnown(exit);
-    }
-
     private boolean explorationAreaAllows(boolean[] explorationArea, int cell) {
         return explorationArea == null
                 || (cell >= 0 && cell < explorationArea.length && explorationArea[cell]);
