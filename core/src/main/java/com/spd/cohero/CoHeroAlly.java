@@ -2416,7 +2416,7 @@ public class CoHeroAlly extends DirectableAlly {
         arrow.throwSound();
 
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
+                && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
             CoHeroPresentation.begin(this);
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
@@ -2446,7 +2446,7 @@ public class CoHeroAlly extends DirectableAlly {
     private boolean performMeleeAttack(Mob targetMob) {
         if (sprite != null
                 && targetMob.sprite != null
-                && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
+                && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
             float delay = attackDelay();
             CoHeroPresentation.begin(this);
             try {
@@ -2491,7 +2491,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         float delay = thrown.castDelay(this, targetMob.pos);
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
+                && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
             CoHeroPresentation.begin(this);
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
@@ -2539,7 +2539,7 @@ public class CoHeroAlly extends DirectableAlly {
             throw new IllegalStateException("CoHero wand choice has no legal aim cell");
         }
 
-        boolean showFx = CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetCell);
+        boolean showFx = CoHeroPresentation.shouldShow(pos, targetCell);
         if (showFx) {
             CoHeroPresentation.begin(this);
         }
@@ -2696,7 +2696,7 @@ public class CoHeroAlly extends DirectableAlly {
         boolean trackPresentation = sprite != null
                 && sprite.isVisible()
                 && sprite.parent != null
-                && (CoHero.heroCanSee(from) || CoHero.heroCanSee(to));
+                && CoHeroPresentation.shouldShow(from, to);
 
         if (trackPresentation) {
             if (presentationMotionPending) {
