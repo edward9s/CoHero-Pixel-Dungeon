@@ -67,7 +67,6 @@ jobs:
           python cohero/scripts/patch_gamescene.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java
           python cohero/scripts/patch_cohero_visual_fov.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java
           python cohero/scripts/patch_hero_transition.py \
@@ -109,6 +108,8 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/DelayedRockFall.java
           python cohero/scripts/patch_vault_firewall.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java
+          python cohero/scripts/patch_action_animation_visibility.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs
           python cohero/scripts/patch_missileweapon.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java
           python cohero/scripts/patch_special_weapons.py \
