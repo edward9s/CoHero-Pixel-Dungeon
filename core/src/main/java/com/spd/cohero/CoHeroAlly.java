@@ -133,6 +133,9 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroSupportController support = new CoHeroSupportController(this);
     private final CoHeroVision vision = new CoHeroVision(this);
     private final CoHeroLoot loot = new CoHeroLoot(this);
+    private final CoHeroCombatRiskEstimator riskEstimator = new CoHeroCombatRiskEstimator(this);
+    private final CoHeroSurvivalController survival = new CoHeroSurvivalController(this);
+    private final CoHeroControlItems controlItems = new CoHeroControlItems(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private MissileWeapon activeMissileWeapon;
@@ -406,7 +409,7 @@ public class CoHeroAlly extends DirectableAlly {
         return attackSkillWith(attackingWeapon(), target);
     }
 
-    private int attackSkillWith(Weapon attackWeapon, Char target) {
+    int attackSkillWith(Weapon attackWeapon, Char target) {
         float accuracy = 9 + level();
         accuracy *= RingOfAccuracy.accuracyMultiplier(this);
 
@@ -700,7 +703,7 @@ public class CoHeroAlly extends DirectableAlly {
 
             Boolean survivalAction = tryCombatSurvival(combatTarget, visibleThreats);
             if (survivalAction != null) {
-                CombatRisk debugRisk = assessCombatRisk(combatTarget, visibleThreats);
+                CoHeroCombatRisk debugRisk = assessCombatRisk(combatTarget, visibleThreats);
                 logBossDecision("combat_survival:" + combatTarget.id(),
                         targetDebug(combatTarget)
                                 + " -> survival/retreat"
@@ -710,16 +713,16 @@ public class CoHeroAlly extends DirectableAlly {
                 return survivalAction;
             }
 
-            Boolean cleansingPlant = tryKnownCleansingPlant();
+            Boolean cleansingPlant = survival.tryKnownCleansingPlant();
             if (cleansingPlant != null) {
                 return cleansingPlant;
             }
 
-            if (tryUseCleansingPotion(assessCombatRisk(combatTarget, visibleThreats))) {
+            if (survival.tryUseCleansingPotion(assessCombatRisk(combatTarget, visibleThreats))) {
                 return true;
             }
 
-            if (tryAutoSurvivalPotion()) {
+            if (survival.tryAutoSurvivalPotion()) {
                 return true;
             }
 
@@ -742,16 +745,16 @@ public class CoHeroAlly extends DirectableAlly {
 
             // Non-emergency consumables and setup should not repeatedly steal turns from an
             // immediately available ranged attack.
-            Boolean armorPlant = tryKnownCombatArmorPlant(combatTarget, visibleThreats);
+            Boolean armorPlant = survival.tryKnownCombatArmorPlant(combatTarget, visibleThreats);
             if (armorPlant != null) {
                 return armorPlant;
             }
 
-            if (tryUseCombatRunestone(combatTarget, visibleThreats)) {
+            if (controlItems.tryUseCombatRunestone(combatTarget, visibleThreats)) {
                 return true;
             }
 
-            if (tryUseCombatEarthenArmor(combatTarget, visibleThreats)) {
+            if (survival.tryUseCombatEarthenArmor(combatTarget, visibleThreats)) {
                 return true;
             }
 
@@ -798,16 +801,16 @@ public class CoHeroAlly extends DirectableAlly {
         combatRetreating = false;
         clearRangedLurePlan();
 
-        Boolean recoveryPlant = tryKnownRecoveryPlant();
+        Boolean recoveryPlant = survival.tryKnownRecoveryPlant();
         if (recoveryPlant != null) {
             return recoveryPlant;
         }
 
-        if (tryUseCleansingPotion(null)) {
+        if (survival.tryUseCleansingPotion(null)) {
             return true;
         }
 
-        if (tryAutoSurvivalPotion()) {
+        if (survival.tryAutoSurvivalPotion()) {
             return true;
         }
 
@@ -923,972 +926,45 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    private boolean hasSeriousCleansableNegative() {
-        int negatives = 0;
-        for (Buff active : buffs()) {
-            if (active.type != Buff.buffType.NEGATIVE
-                    || active instanceof AllyBuff
-                    || active instanceof LostInventory) {
-                continue;
-            }
-            negatives++;
-            if (active instanceof Buff.DOTbuff) {
-                return true;
-            }
-        }
-
-        return rooted
-                || negatives >= 2
-                || (negatives > 0 && HT > 0 && HP * 100 < HT * 50);
-    }
-
-    private boolean tryUseCleansingPotion(CombatRisk risk) {
-        if (!hasSeriousCleansableNegative()) {
-            return false;
-        }
-
-        // Do not spend an emergency turn cleansing when the current volley is already lethal.
-        // Controlled/random teleport or immediate shielding remain safer in that situation.
-        if (risk != null && risk.immediateIncoming * 1.35f >= HP + shielding()) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoCleansingPotion();
-        if (!(potion instanceof PotionOfCleansing)) {
-            return false;
-        }
-
-        PotionOfCleansing.cleanse(this);
-        Catalog.countUse(PotionOfCleansing.class);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
-
-    private Boolean tryKnownRecoveryPlant() {
-        // Sungrass only heals while its target remains on the activation cell.
-        if (buff(Sungrass.Health.class) != null && HP < HT) {
-            spend(TICK);
-            return true;
-        }
-
-        if (hasSeriousCleansableNegative()) {
-            int mageroyal = nearestKnownPlantCell(Mageroyal.class, 4);
-            if (mageroyal != -1) {
-                return moveTowardKnownPlant(mageroyal);
-            }
-        }
-
-        if (HT > 0
-                && HP * 100 < HT * 60
-                && buff(Healing.class) == null) {
-            int sungrass = nearestKnownPlantCell(Sungrass.class, 6);
-            if (sungrass != -1) {
-                return moveTowardKnownPlant(sungrass);
-            }
-        }
-
-        return null;
-    }
-
-    private Boolean tryKnownCleansingPlant() {
-        if (rooted || !hasSeriousCleansableNegative()) {
-            return null;
-        }
-
-        int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
-        return mageroyal == -1 ? null : moveOntoAdjacentPlant(mageroyal);
-    }
-
-    private Boolean tryKnownCombatArmorPlant(Mob targetMob, ArrayList<Mob> threats) {
-        if (rooted || targetMob == null || threats == null || threats.isEmpty()) {
-            return null;
-        }
-
-        boolean hardFight = threats.size() >= 2
-                || Char.hasProp(targetMob, Char.Property.BOSS)
-                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-        if (!hardFight
-                || buff(Earthroot.Armor.class) != null
-                || Barkskin.currentLevel(this) > 0) {
-            return null;
-        }
-
-        int earthroot = adjacentKnownPlantCell(Earthroot.class);
-        return earthroot == -1 ? null : moveOntoAdjacentPlant(earthroot);
-    }
-
-    private Boolean tryKnownRetreatPlant(CombatRisk risk, ArrayList<Mob> threats) {
-        if (rooted || risk == null || threats == null || threats.isEmpty()) {
-            return null;
-        }
-
-        boolean severe = risk.attackersNow >= 2 || risk.ttd <= 3f;
-        if (severe) {
-            int fadeleaf = adjacentKnownPlantCell(Fadeleaf.class);
-            if (fadeleaf != -1) {
-                return moveOntoAdjacentPlant(fadeleaf);
-            }
-        }
-
-        if (hasSeriousCleansableNegative()
-                && risk.immediateIncoming * 1.35f < HP + shielding()) {
-            int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
-            if (mageroyal != -1) {
-                return moveOntoAdjacentPlant(mageroyal);
-            }
-        }
-
-        return null;
-    }
-
-    private int adjacentKnownPlantCell(Class<? extends Plant> plantType) {
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = pos + offset;
-            if (!Dungeon.level.insideMap(cell)
-                    || Dungeon.level.distance(pos, cell) != 1
-                    || !Dungeon.level.visited[cell]
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            Plant plant = Dungeon.level.plants.get(cell);
-            if (plantType.isInstance(plant)) {
-                return cell;
-            }
-        }
-        return -1;
-    }
-
-    private int nearestKnownPlantCell(Class<? extends Plant> plantType, int maxDistance) {
-        PathFinder.buildDistanceMap(pos, Dungeon.level.passable, maxDistance);
-
-        int best = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        for (Plant plant : Dungeon.level.plants.valueList()) {
-            if (!plantType.isInstance(plant)) {
-                continue;
-            }
-            int cell = plant.pos;
-            if (!Dungeon.level.visited[cell]
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            if (PathFinder.distance[cell] < bestDistance) {
-                best = cell;
-                bestDistance = PathFinder.distance[cell];
-            }
-        }
-        return best;
-    }
-
-    private Boolean moveTowardKnownPlant(int plantCell) {
-        if (plantCell == -1 || rooted) {
-            return null;
-        }
-
-        int oldPos = pos;
-        if (!getCloser(plantCell)) {
-            return null;
-        }
-
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
-    }
-
-    private Boolean moveOntoAdjacentPlant(int plantCell) {
-        if (plantCell == -1
-                || rooted
-                || Dungeon.level.distance(pos, plantCell) != 1) {
-            return null;
-        }
-
-        int oldPos = pos;
-        setMovementDecision("plant_move", plantCell);
-        move(plantCell, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-
-        // Fadeleaf teleports during Level.occupyCell(). Its teleport VFX already placed the sprite,
-        // so do not draw a second long-distance movement animation from the pre-plant cell.
-        if (pos != plantCell) {
-            path = null;
-            clearMeleeTacticalPlan();
-            clearRangedLurePlan();
-            return true;
-        }
-        return moveSprite(oldPos, pos);
-    }
-
-    private boolean tryUseCombatEarthenArmor(Mob targetMob, ArrayList<Mob> threats) {
-        if (targetMob == null
-                || threats == null
-                || threats.isEmpty()
-                || combatRetreating
-                || Barkskin.currentLevel(this) > 0
-                || buff(Earthroot.Armor.class) != null) {
-            return false;
-        }
-
-        boolean hardFight = threats.size() >= 2
-                || Char.hasProp(targetMob, Char.Property.BOSS)
-                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-        if (!hardFight) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoEarthenArmorPotion();
-        if (!(potion instanceof PotionOfEarthenArmor)) {
-            return false;
-        }
-
-        Barkskin.conditionallyAppend(this, 2 + level() / 3, 50);
-        Catalog.countUse(PotionOfEarthenArmor.class);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
-
-    private boolean tryAutoSurvivalPotion() {
-        if (!support.isBelowLowHealthThreshold()) {
-            return false;
-        }
-        return consumeSurvivalPotion(false);
-    }
-
-    private boolean tryUseCombatRunestone(Mob targetMob, ArrayList<Mob> threats) {
-        if (targetMob == null
-                || threats == null
-                || threats.isEmpty()
-                || buff(MagicImmune.class) != null
-                || combatRetreating) {
-            return false;
-        }
-
-        // Safe clustered damage: only when at least two awake enemies are caught and no
-        // ally/neutral/sleeping enemy or heap would be hit.
-        int blastCell = chooseSafeBlastCell(threats);
-        if (blastCell != -1 && useBlastStone(blastCell)) {
-            return true;
-        }
-
-        // With 3+ visible threats, redirect the pack onto one non-boss enemy.
-        if (threats.size() >= 3) {
-            Mob aggressionTarget = chooseAggressionTarget(threats);
-            if (aggressionTarget != null && useAggressionStone(aggressionTarget)) {
-                return true;
-            }
-        }
-
-        // With exactly two threats, remove one from the fight rather than spending a stronger
-        // area-control resource. Prefer the non-current target when possible.
-        if (threats.size() == 2
-                && (hasRangedPressure(threats)
-                    || Char.hasProp(targetMob, Char.Property.BOSS)
-                    || Char.hasProp(targetMob, Char.Property.MINIBOSS))) {
-            Mob sleepTarget = chooseDeepSleepTarget(targetMob, threats);
-            if (sleepTarget != null && useDeepSleepStone(sleepTarget)) {
-                return true;
-            }
-        }
-
-        // A lone ranged attacker can be boxed in with sheep while CoHero closes the distance.
-        if (threats.size() == 1
-                && isCurrentRangedPressure(targetMob)
-                && Dungeon.level.distance(pos, targetMob.pos) >= 3
-                && chooseRangedCoverCell(targetMob, threats) == -1
-                && canUseFlockAt(targetMob.pos)
-                && useFlockStone(targetMob.pos)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean tryEmergencyBlinkRunestone(ArrayList<Mob> threats) {
-        if (threats == null
-                || threats.isEmpty()
-                || buff(MagicImmune.class) != null) {
-            return false;
-        }
-
-        int blinkCell = chooseBlinkEscapeCell(threats);
-        return blinkCell != -1 && useBlinkStone(blinkCell);
-    }
-
-    private boolean tryEmergencyRunestone(CombatRisk risk, ArrayList<Mob> threats) {
-        if (risk == null
-                || threats == null
-                || threats.isEmpty()
-                || buff(MagicImmune.class) != null) {
-            return false;
-        }
-
-        boolean immediateLethal = risk.immediateIncoming * 1.35f >= HP + shielding();
-        Mob fearTarget = chooseFearTarget(threats);
-        if (fearTarget != null
-                && (immediateLethal || risk.ttd <= 2.5f || risk.attackersNow >= 2)
-                && useFearStone(fearTarget)) {
-            return true;
-        }
-
-        // Deep sleep is a fallback single-target control when fear is unavailable or ineffective.
-        Mob sleepTarget = chooseEmergencySleepTarget(threats);
-        if (sleepTarget != null
-                && (immediateLethal || risk.attackersNow >= 2)
-                && useDeepSleepStone(sleepTarget)) {
-            return true;
-        }
-
-        // Flock is only used defensively here when it can be centered far enough away not to box
-        // the Hero or CoHero in with the summoned sheep.
-        if (threats.size() >= 2) {
-            int flockCell = chooseEmergencyFlockCell(threats);
-            if (flockCell != -1 && useFlockStone(flockCell)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private int chooseSafeBlastCell(ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfBlast.class)) {
-            return -1;
-        }
-
-        int bestCell = -1;
-        int bestEnemies = 1;
-        for (Mob threat : threats) {
-            if (threat == null || !threat.isAlive() || !fieldOfView[threat.pos]) {
-                continue;
-            }
-
-            boolean[] explodable = new boolean[Dungeon.level.length()];
-            BArray.not(Dungeon.level.solid, explodable);
-            BArray.or(Dungeon.level.flamable, explodable, explodable);
-            PathFinder.buildDistanceMap(threat.pos, explodable, 1);
-
-            int enemies = 0;
-            boolean unsafe = false;
-            for (int cell = 0; cell < PathFinder.distance.length; cell++) {
-                if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
-                    continue;
-                }
-
-                if (Dungeon.level.heaps.get(cell) != null) {
-                    unsafe = true;
-                    break;
-                }
-
-                Char ch = Actor.findChar(cell);
-                if (ch == null) {
-                    continue;
-                }
-                if (ch.alignment != Alignment.ENEMY) {
-                    unsafe = true;
-                    break;
-                }
-                if (ch instanceof Mob && ((Mob) ch).state == ((Mob) ch).SLEEPING) {
-                    unsafe = true;
-                    break;
-                }
-                enemies++;
-            }
-
-            if (!unsafe && enemies >= 2 && enemies > bestEnemies) {
-                bestEnemies = enemies;
-                bestCell = threat.pos;
-            }
-        }
-        return bestCell;
-    }
-
-    private Mob chooseAggressionTarget(ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfAggression.class)) {
-            return null;
-        }
-
-        Mob best = null;
-        int bestScore = Integer.MIN_VALUE;
-        for (Mob mob : threats) {
-            if (mob == null
-                    || !mob.isAlive()
-                    || Char.hasProp(mob, Char.Property.BOSS)
-                    || Char.hasProp(mob, Char.Property.MINIBOSS)
-                    || mob.buff(StoneOfAggression.Aggression.class) != null) {
-                continue;
-            }
-
-            int nearbyEnemies = 0;
-            for (Mob other : threats) {
-                if (other != mob
-                        && other != null
-                        && other.isAlive()
-                        && Dungeon.level.distance(other.pos, mob.pos) <= 5) {
-                    nearbyEnemies++;
-                }
-            }
-
-            int score = nearbyEnemies * 100 + mob.HP;
-            if (best == null || score > bestScore) {
-                best = mob;
-                bestScore = score;
-            }
-        }
-        return best;
-    }
-
-    private Mob chooseDeepSleepTarget(Mob combatTarget, ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfDeepSleep.class)) {
-            return null;
-        }
-
-        Mob fallback = null;
-        for (Mob mob : threats) {
-            if (!canDeepSleep(mob)) {
-                continue;
-            }
-            if (mob != combatTarget) {
-                return mob;
-            }
-            fallback = mob;
-        }
-        return fallback;
-    }
-
-    private Mob chooseEmergencySleepTarget(ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfDeepSleep.class)) {
-            return null;
-        }
-
-        Mob best = null;
-        float bestThreat = Float.NEGATIVE_INFINITY;
-        for (Mob mob : threats) {
-            if (!canDeepSleep(mob)) {
-                continue;
-            }
-            float score = estimatedThreatDamage(mob, pos)
-                    * estimatedHitChance(mob, pos)
-                    * Math.max(0.1f, threatOpportunity(mob, pos));
-            if (best == null || score > bestThreat) {
-                best = mob;
-                bestThreat = score;
-            }
-        }
-        return best;
-    }
-
-    private boolean canDeepSleep(Mob mob) {
-        return mob != null
-                && mob.isAlive()
-                && mob.state != mob.SLEEPING
-                && !mob.isImmune(Sleep.class)
-                && mob.buff(MagicalSleep.class) == null;
-    }
-
-    private Mob chooseFearTarget(ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfFear.class)) {
-            return null;
-        }
-
-        Mob best = null;
-        float bestThreat = Float.NEGATIVE_INFINITY;
-        for (Mob mob : threats) {
-            if (mob == null
-                    || !mob.isAlive()
-                    || mob.isImmune(Terror.class)
-                    || mob.buff(Terror.class) != null) {
-                continue;
-            }
-
-            float score = estimatedThreatDamage(mob, pos)
-                    * estimatedHitChance(mob, pos)
-                    * Math.max(0.1f, threatOpportunity(mob, pos));
-            if (best == null || score > bestThreat) {
-                best = mob;
-                bestThreat = score;
-            }
-        }
-        return best;
-    }
-
-    private int chooseBlinkEscapeCell(ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfBlink.class)) {
-            return -1;
-        }
-
-        int currentDistance = nearestThreatDistance(pos, threats);
-        int best = -1;
-        int bestDistance = currentDistance;
-
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (!fieldOfView[cell]
-                    || !isKnown(cell)
-                    || !Dungeon.level.passable[cell]
-                    || Dungeon.level.pit[cell]
-                    || Dungeon.level.secret[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)
-                    || Dungeon.level.distance(pos, cell) < 3) {
-                continue;
-            }
-
-            Ballistica path = new Ballistica(pos, cell, Ballistica.PROJECTILE);
-            if (path.collisionPos != cell) {
-                continue;
-            }
-
-            int distance = nearestThreatDistance(cell, threats);
-            if (distance < currentDistance + 2) {
-                continue;
-            }
-
-            if (best == -1 || distance > bestDistance
-                    || (distance == bestDistance
-                        && Dungeon.level.distance(pos, cell) < Dungeon.level.distance(pos, best))) {
-                best = cell;
-                bestDistance = distance;
-            }
-        }
-        return best;
-    }
-
-    private boolean canUseFlockAt(int center) {
-        if (!inventory.hasCombatRunestone(StoneOfFlock.class)
-                || !Dungeon.level.insideMap(center)
-                || !fieldOfView[center]
-                || Dungeon.level.distance(pos, center) <= 2
-                || (Dungeon.hero != null && Dungeon.level.distance(Dungeon.hero.pos, center) <= 2)) {
-            return false;
-        }
-
-        boolean[] open = BArray.not(Dungeon.level.solid, null);
-        PathFinder.buildDistanceMap(center, open, 2);
-        int spawnable = 0;
-        for (int cell = 0; cell < PathFinder.distance.length; cell++) {
-            if (PathFinder.distance[cell] != Integer.MAX_VALUE
-                    && Dungeon.level.insideMap(cell)
-                    && Actor.findChar(cell) == null
-                    && !Dungeon.level.pit[cell]) {
-                spawnable++;
-            }
-        }
-        return spawnable >= 3;
-    }
-
-    private int chooseEmergencyFlockCell(ArrayList<Mob> threats) {
-        if (!inventory.hasCombatRunestone(StoneOfFlock.class)) {
-            return -1;
-        }
-
-        int best = -1;
-        int bestNearbyThreats = 0;
-        for (Mob mob : threats) {
-            if (mob == null || !mob.isAlive() || !canUseFlockAt(mob.pos)) {
-                continue;
-            }
-
-            int nearby = 0;
-            for (Mob other : threats) {
-                if (other != null
-                        && other.isAlive()
-                        && Dungeon.level.distance(other.pos, mob.pos) <= 2) {
-                    nearby++;
-                }
-            }
-            if (best == -1 || nearby > bestNearbyThreats) {
-                best = mob.pos;
-                bestNearbyThreats = nearby;
-            }
-        }
-        return best;
-    }
-
-    private boolean useAggressionStone(Mob targetMob) {
-        Runestone stone = inventory.takeOneCombatRunestone(StoneOfAggression.class);
-        if (!(stone instanceof StoneOfAggression)) {
-            return false;
-        }
-
-        Buff.prolong(targetMob,
-                StoneOfAggression.Aggression.class,
-                StoneOfAggression.Aggression.DURATION);
-        CellEmitter.center(targetMob.pos).start(Speck.factory(Speck.SCREAM), 0.3f, 3);
-        return finishRunestoneUse(stone, Assets.Sounds.READ);
-    }
-
-    private boolean useBlastStone(int cell) {
-        Runestone stone = inventory.takeOneCombatRunestone(StoneOfBlast.class);
-        if (!(stone instanceof StoneOfBlast)) {
-            return false;
-        }
-
-        new Bomb.ConjuredBomb().explode(cell);
-        return finishRunestoneUse(stone, null);
-    }
-
-    private boolean useFearStone(Mob targetMob) {
-        Runestone stone = inventory.takeOneCombatRunestone(StoneOfFear.class);
-        if (!(stone instanceof StoneOfFear)) {
-            return false;
-        }
-
-        Terror terror = Buff.affect(targetMob, Terror.class, Terror.DURATION);
-        terror.object = id();
-        return finishRunestoneUse(stone, Assets.Sounds.READ);
-    }
-
-    private boolean useDeepSleepStone(Mob targetMob) {
-        Runestone stone = inventory.takeOneCombatRunestone(StoneOfDeepSleep.class);
-        if (!(stone instanceof StoneOfDeepSleep)) {
-            return false;
-        }
-
-        Buff.affect(targetMob, MagicalSleep.class);
-        if (targetMob.sprite != null) {
-            targetMob.sprite.centerEmitter().start(Speck.factory(Speck.NOTE), 0.3f, 5);
-        }
-        return finishRunestoneUse(stone, Assets.Sounds.LULLABY);
-    }
-
-    private boolean useBlinkStone(int cell) {
-        Runestone stone = inventory.takeOneCombatRunestone(StoneOfBlink.class);
-        if (!(stone instanceof StoneOfBlink)) {
-            return false;
-        }
-
-        if (!ScrollOfTeleportation.teleportToLocation(this, cell)) {
-            inventory.addToBackpack(stone);
-            return false;
-        }
-
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
-        path = null;
-        return finishRunestoneUse(stone, null);
-    }
-
-    private boolean useFlockStone(int center) {
-        Runestone stone = inventory.takeOneCombatRunestone(StoneOfFlock.class);
-        if (!(stone instanceof StoneOfFlock)) {
-            return false;
-        }
-
-        boolean[] open = BArray.not(Dungeon.level.solid, null);
-        PathFinder.buildDistanceMap(center, open, 2);
-        int spawned = 0;
-        for (int cell = 0; cell < PathFinder.distance.length; cell++) {
-            if (PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || !Dungeon.level.insideMap(cell)
-                    || Actor.findChar(cell) != null
-                    || Dungeon.level.pit[cell]) {
-                continue;
-            }
-
-            Sheep sheep = new Sheep();
-            sheep.initialize(8);
-            sheep.pos = cell;
-            GameScene.add(sheep);
-            Dungeon.level.occupyCell(sheep);
-            CellEmitter.get(cell).burst(Speck.factory(Speck.WOOL), 4);
-            spawned++;
-        }
-
-        if (spawned == 0) {
-            inventory.addToBackpack(stone);
-            return false;
-        }
-
-        CellEmitter.get(center).burst(Speck.factory(Speck.WOOL), 4);
-        Sample.INSTANCE.play(Assets.Sounds.PUFF);
-        Sample.INSTANCE.play(Assets.Sounds.SHEEP);
-        return finishRunestoneUse(stone, null);
-    }
-
-    private boolean finishRunestoneUse(Runestone stone, String sound) {
-        if (stone == null) {
-            return false;
-        }
-        Catalog.countUse(stone.getClass());
-        Invisibility.dispel(this);
-        if (sound != null) {
-            Sample.INSTANCE.play(sound);
-        }
-        spend(TICK);
-        return true;
-    }
-
-    private boolean tryUseTeleportationScroll() {
-        Scroll scroll = inventory.takeOneAutoTeleportationScroll();
-        if (!(scroll instanceof ScrollOfTeleportation)) {
-            return false;
-        }
-
-        if (!ScrollOfTeleportation.teleportChar(this)) {
-            inventory.addToBackpack(scroll);
-            return false;
-        }
-
-        Catalog.countUse(ScrollOfTeleportation.class);
-        Invisibility.dispel(this);
-        Sample.INSTANCE.play(Assets.Sounds.READ);
-        path = null;
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        spend(TICK);
-        return true;
-    }
-
-    private int usableDreadTargetCount(ArrayList<Mob> threats) {
-        if (buff(MagicImmune.class) != null || buff(Blindness.class) != null) {
-            return 0;
-        }
-
-        int count = 0;
-        for (Mob mob : threats) {
-            if (mob == null
-                    || !mob.isAlive()
-                    || mob.alignment != Alignment.ENEMY
-                    || mob.invisible > 0
-                    || fieldOfView == null
-                    || !fieldOfView[mob.pos]
-                    || mob.state == mob.SLEEPING
-                    || (mob.isImmune(Dread.class) && mob.isImmune(Terror.class))) {
-                continue;
-            }
-            count++;
-        }
-        return count;
-    }
-
-    private boolean tryUseDreadScroll(ArrayList<Mob> threats) {
-        if (usableDreadTargetCount(threats) == 0) {
-            return false;
-        }
-
-        Scroll scroll = inventory.takeOneAutoDreadScroll();
-        if (!(scroll instanceof ScrollOfDread)) {
-            return false;
-        }
-
-        int affected = 0;
-        for (Mob mob : threats) {
-            if (mob == null
-                    || !mob.isAlive()
-                    || mob.alignment != Alignment.ENEMY
-                    || mob.invisible > 0
-                    || fieldOfView == null
-                    || !fieldOfView[mob.pos]
-                    || mob.state == mob.SLEEPING) {
-                continue;
-            }
-
-            if (!mob.isImmune(Dread.class)) {
-                Dread dread = Buff.affect(mob, Dread.class);
-                if (dread != null) {
-                    dread.object = id();
-                    affected++;
-                }
-            } else if (!mob.isImmune(Terror.class)) {
-                Terror terror = Buff.affect(mob, Terror.class, Terror.DURATION);
-                if (terror != null) {
-                    terror.object = id();
-                    affected++;
-                }
-            }
-        }
-
-        if (affected == 0) {
-            inventory.addToBackpack(scroll);
-            return false;
-        }
-
-        Catalog.countUse(ScrollOfDread.class);
-        Invisibility.dispel(this);
-        Sample.INSTANCE.play(Assets.Sounds.READ);
-        spend(TICK);
-        return true;
-    }
-
-    private boolean tryEmergencyEscapeConsumable(
-            CombatRisk risk, ArrayList<Mob> threats) {
-        boolean immediateLethal = risk.immediateIncoming * 1.35f >= HP + shielding();
-
-        int terrorTargets = usableTerrorTargetCount(threats);
-        if (terrorTargets >= 2 || (terrorTargets >= 1 && immediateLethal)) {
-            if (tryUseTerrorScroll(threats)) {
-                return true;
-            }
-        }
-
-        int dreadTargets = usableDreadTargetCount(threats);
-        boolean criticallyShortTtd = risk.ttd <= 2f;
-        if (dreadTargets >= 2
-                && (risk.attackersNow >= 2 || immediateLethal || criticallyShortTtd)
-                && tryUseDreadScroll(threats)) {
-            return true;
-        }
-
-        boolean lowHealthDanger = support.isBelowLowHealthThreshold();
-        if (risk.attackersNow >= 3 || immediateLethal || lowHealthDanger || criticallyShortTtd) {
-            if (tryUseInvisibilityPotion()) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private int usableTerrorTargetCount(ArrayList<Mob> threats) {
-        if (buff(MagicImmune.class) != null || buff(Blindness.class) != null) {
-            return 0;
-        }
-
-        int count = 0;
-        for (Mob mob : threats) {
-            if (mob != null
-                    && mob.isAlive()
-                    && mob.alignment == Alignment.ENEMY
-                    && mob.invisible <= 0
-                    && fieldOfView != null
-                    && fieldOfView[mob.pos]
-                    && mob.state != mob.SLEEPING
-                    && !mob.isImmune(Terror.class)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private boolean tryUseTerrorScroll(ArrayList<Mob> threats) {
-        if (usableTerrorTargetCount(threats) == 0) {
-            return false;
-        }
-
-        Scroll scroll = inventory.takeOneAutoTerrorScroll();
-        if (!(scroll instanceof ScrollOfTerror)) {
-            return false;
-        }
-
-        int affected = 0;
-        for (Mob mob : threats) {
-            if (mob == null
-                    || !mob.isAlive()
-                    || mob.alignment != Alignment.ENEMY
-                    || mob.invisible > 0
-                    || fieldOfView == null
-                    || !fieldOfView[mob.pos]
-                    || mob.state == mob.SLEEPING
-                    || mob.isImmune(Terror.class)) {
-                continue;
-            }
-
-            Terror terror = Buff.affect(mob, Terror.class, Terror.DURATION);
-            if (terror != null) {
-                terror.object = id();
-                affected++;
-            }
-        }
-
-        if (affected == 0) {
-            // The pre-check should prevent this, but do not consume a known scroll for no effect.
-            inventory.addToBackpack(scroll);
-            return false;
-        }
-
-        Invisibility.dispel(this);
-        Catalog.countUse(ScrollOfTerror.class);
-        Sample.INSTANCE.play(Assets.Sounds.READ);
-        spend(TICK);
-        return true;
-    }
-
-    private boolean tryUseInvisibilityPotion() {
-        if (buff(Invisibility.class) != null) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoInvisibilityPotion();
-        if (!(potion instanceof PotionOfInvisibility)) {
-            return false;
-        }
-
-        Buff.prolong(this, Invisibility.class, Invisibility.DURATION);
-        Catalog.countUse(PotionOfInvisibility.class);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        Sample.INSTANCE.play(Assets.Sounds.MELD);
-        spend(TICK);
-        return true;
-    }
-
-    private boolean shouldUseHasteForRetreat(
-            CombatRisk risk, ArrayList<Mob> threats, int escapeStep) {
-        if (risk == null
-                || threats == null
-                || escapeStep == -1
-                || buff(Haste.class) != null
-                || buff(Stamina.class) != null
-                || buff(Invisibility.class) != null) {
-            return false;
-        }
-
-        // Do not spend a turn drinking when the current incoming volley is already near-lethal.
-        // In that case the immediate movement/control path remains safer.
-        if (risk.immediateIncoming * 1.35f >= HP + shielding()) {
-            return false;
-        }
-
-        int attackersAfterStep = countCurrentAttackersAtCell(escapeStep, threats);
-        float incomingAfterStep = estimatedIncomingDptAtCell(escapeStep, threats);
-
-        boolean fastPursuer = false;
-        for (Mob threat : threats) {
-            if (threat == null || !threat.isAlive()) {
-                continue;
-            }
-            if (threatOpportunity(threat, escapeStep) >= 0.55f
-                    && threat.speed() >= speed() * 0.95f) {
-                fastPursuer = true;
-                break;
-            }
-        }
-
-        return attackersAfterStep > 0
-                || (incomingAfterStep > 0.01f && fastPursuer)
-                || risk.ttd <= 3.5f;
-    }
-
-    private boolean tryUseHastePotion() {
-        if (buff(Haste.class) != null || buff(Stamina.class) != null) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoHastePotion();
-        if (!(potion instanceof PotionOfHaste)) {
-            return false;
-        }
-
-        Buff.prolong(this, Haste.class, Haste.DURATION);
-        Catalog.countUse(PotionOfHaste.class);
-        SpellSprite.show(this, SpellSprite.HASTE, 1f, 1f, 0f);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     private boolean tryUseCombatStamina(Mob targetMob, ArrayList<Mob> threats) {
         if (targetMob == null
@@ -1930,54 +1006,8 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private boolean tryEmergencySurvivalPotion() {
-        return consumeSurvivalPotion(true);
-    }
 
-    private boolean consumeSurvivalPotion(boolean shieldingFirst) {
-        if (shieldingFirst && tryConsumeShieldingPotion()) {
-            return true;
-        }
 
-        // Healing is the normal first choice, but not during a trapped emergency because its
-        // recovery is spread over future turns.
-        if (buff(Healing.class) == null) {
-            Potion healing = inventory.takeOneAutoHealingPotion();
-            if (healing != null) {
-                PotionOfHealing.cure(this);
-                PotionOfHealing.heal(this);
-                Sample.INSTANCE.play(Assets.Sounds.DRINK);
-                spend(TICK);
-                return true;
-            }
-        }
-
-        return shieldingFirst ? false : tryConsumeShieldingPotion();
-    }
-
-    private boolean tryConsumeShieldingPotion() {
-        Barrier barrier = buff(Barrier.class);
-        if (barrier != null && barrier.shielding() > 0) {
-            return false;
-        }
-
-        Potion shielding = inventory.takeOneAutoShieldingPotion();
-        if (shielding == null) {
-            return false;
-        }
-
-        int amount = (int) (0.6f * HT + 10);
-        Buff.affect(this, Barrier.class).setShield(amount);
-        if (sprite != null) {
-            sprite.showStatusWithIcon(
-                    CharSprite.POSITIVE,
-                    Integer.toString(amount),
-                    FloatingText.SHIELDING);
-        }
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
 
 
 
@@ -2173,16 +1203,16 @@ public class CoHeroAlly extends DirectableAlly {
         // No ordinary step improves the invulnerable threat exposure. Escape resources are allowed
         // here even when other damageable enemies are present: staying in an attack range that
         // CoHero cannot answer is the worse failure mode.
-        if (tryEmergencyBlinkRunestone(invulnerableThreats)) {
+        if (controlItems.tryEmergencyBlinkRunestone(invulnerableThreats)) {
             return true;
         }
-        if (tryUseTeleportationScroll()) {
+        if (controlItems.tryUseTeleportationScroll()) {
             return true;
         }
-        if (tryUseInvisibilityPotion()) {
+        if (survival.tryUseInvisibilityPotion()) {
             return true;
         }
-        if (tryEmergencySurvivalPotion()) {
+        if (survival.tryEmergencySurvivalPotion()) {
             return true;
         }
 
@@ -2256,7 +1286,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private Boolean tryCombatSurvival(Mob targetMob, ArrayList<Mob> threats) {
-        CombatRisk risk = assessCombatRisk(targetMob, threats);
+        CoHeroCombatRisk risk = assessCombatRisk(targetMob, threats);
         if (!risk.retreat) {
             combatRetreating = false;
             return null;
@@ -2289,19 +1319,19 @@ public class CoHeroAlly extends DirectableAlly {
             return escapeUtility;
         }
 
-        if (tryUseCleansingPotion(risk)) {
+        if (survival.tryUseCleansingPotion(risk)) {
             return true;
         }
 
-        Boolean retreatPlant = tryKnownRetreatPlant(risk, threats);
+        Boolean retreatPlant = survival.tryKnownRetreatPlant(risk, threats);
         if (retreatPlant != null) {
             return retreatPlant;
         }
 
         int escapeStep = rooted ? -1 : chooseEscapeStep(threats);
         if (escapeStep != -1) {
-            if (shouldUseHasteForRetreat(risk, threats, escapeStep)
-                    && tryUseHastePotion()) {
+            if (controlItems.shouldUseHasteForRetreat(risk, threats, escapeStep)
+                    && survival.tryUseHastePotion()) {
                 return true;
             }
 
@@ -2316,26 +1346,26 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         // No safe movement remains. Controlled Blink is preferred to random teleportation.
-        if (tryEmergencyBlinkRunestone(threats)) {
+        if (controlItems.tryEmergencyBlinkRunestone(threats)) {
             return true;
         }
 
-        if (tryUseTeleportationScroll()) {
+        if (controlItems.tryUseTeleportationScroll()) {
             return true;
         }
 
         // Other control runestones remain ahead of consumable fear/invisibility resources.
-        if (tryEmergencyRunestone(risk, threats)) {
+        if (controlItems.tryEmergencyRunestone(risk, threats)) {
             return true;
         }
 
         // Potions/scrolls remain the next emergency layer.
-        if (tryEmergencyEscapeConsumable(risk, threats)) {
+        if (controlItems.tryEmergencyEscapeConsumable(risk, threats)) {
             return true;
         }
 
         // If control resources are unavailable, fall back to immediate shielding/healing.
-        if (tryEmergencySurvivalPotion()) {
+        if (survival.tryEmergencySurvivalPotion()) {
             return true;
         }
 
@@ -2343,335 +1373,60 @@ public class CoHeroAlly extends DirectableAlly {
         return null;
     }
 
-    private CombatRisk assessCombatRisk(Mob targetMob, ArrayList<Mob> threats) {
-        int attackersNow = countCurrentAttackersAtCell(pos, threats);
-        float incomingDpt = estimatedIncomingDptAtCell(pos, threats);
-        float immediateIncoming = estimatedImmediateIncomingAtCell(pos, threats);
-        float effectiveHp = HP + shielding();
-        float reserve = estimatedNearTermSurvivalReserve(attackersNow);
-        float outgoingDpt = estimateOutgoingDpt(targetMob);
-
-        float ttd = incomingDpt <= 0.01f
-                ? Float.POSITIVE_INFINITY
-                : (effectiveHp + reserve) / incomingDpt;
-        float ttk = outgoingDpt <= 0.01f
-                ? Float.POSITIVE_INFINITY
-                : Math.max(0.25f, targetMob.HP / outgoingDpt);
-
-        boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
-        boolean overwhelmed = attackersNow >= 3;
-
-        // A boss HP pool is not a valid solo-TTK race for CoHero: Hero is expected to contribute
-        // most of the encounter damage. Keep immediate-lethal and overwhelmed retreat rules, but
-        // do not make CoHero flee merely because it cannot personally burn down the whole boss
-        // before taking equivalent damage.
-        boolean bossTarget = targetMob.properties().contains(Char.Property.BOSS);
-        boolean losingRace = !bossTarget
-                && incomingDpt > 0.01f
-                && ttd <= ttk + 1.25f;
-        boolean outnumberedRace = attackersNow >= 2
-                && incomingDpt > 0.01f
-                && ttd <= ttk * 1.5f;
-
-        boolean retreat;
-        if (combatRetreating) {
-            boolean recovered = attackersNow <= 1
-                    && HP * 100 >= HT * 45
-                    && (incomingDpt <= 0.01f
-                        || ttd >= Math.max(4f, ttk * 1.75f));
-            retreat = !recovered;
-        } else {
-            retreat = immediateLethal || overwhelmed || losingRace || outnumberedRace;
-        }
-
-        return new CombatRisk(retreat, attackersNow, incomingDpt, immediateIncoming, ttd, ttk);
+    private CoHeroCombatRisk assessCombatRisk(
+            Mob targetMob, ArrayList<Mob> threats) {
+        return riskEstimator.assess(targetMob, threats, combatRetreating);
     }
 
-    private float estimatedNearTermSurvivalReserve(int attackersNow) {
-        float reserve = 0f;
 
-        Barrier barrier = buff(Barrier.class);
-        if ((barrier == null || barrier.shielding() <= 0)
-                && inventory.autoShieldingPotionCount() > 0) {
-            // Shielding is immediate, but drinking still costs an action.
-            float shieldingPotion = 0.6f * HT + 10f;
-            reserve += shieldingPotion * (attackersNow >= 2 ? 0.45f : 0.75f);
-        }
 
-        if (buff(Healing.class) != null) {
-            // Existing healing is already ticking, but do not pretend the whole buff is instant.
-            reserve += HT * 0.15f;
-        } else if (inventory.autoHealingPotionCount() > 0) {
-            float missingHp = Math.max(0, HT - HP);
-            float potionTotal = Math.min(0.8f * HT + 14f, missingHp);
-            reserve += potionTotal * (attackersNow >= 2 ? 0.20f : 0.35f);
-        }
-
-        return reserve;
+    int countCurrentAttackersAtCell(
+            int defenderCell, ArrayList<Mob> threats) {
+        return riskEstimator.countCurrentAttackersAtCell(defenderCell, threats);
     }
 
-    private int countCurrentAttackersAtCell(int defenderCell, ArrayList<Mob> threats) {
-        int result = 0;
-        for (Mob threat : threats) {
-            if (canThreatAttackCell(threat, defenderCell)) {
-                result++;
-            }
-        }
-        return result;
+
+
+    float estimatedIncomingDptAtCell(
+            int defenderCell, ArrayList<Mob> threats) {
+        return riskEstimator.estimatedIncomingDptAtCell(defenderCell, threats);
     }
 
-    private float estimatedImmediateIncomingAtCell(int defenderCell, ArrayList<Mob> threats) {
-        float result = 0f;
-        for (Mob threat : threats) {
-            if (canThreatAttackCell(threat, defenderCell)) {
-                result += estimatedThreatDamage(threat, defenderCell)
-                        * estimatedHitChance(threat, defenderCell);
-            }
-        }
-        return result;
+    float threatOpportunity(Mob threat, int defenderCell) {
+        return riskEstimator.threatOpportunity(threat, defenderCell);
     }
 
-    private float estimatedIncomingDptAtCell(int defenderCell, ArrayList<Mob> threats) {
-        float result = 0f;
-        for (Mob threat : threats) {
-            float opportunity = threatOpportunity(threat, defenderCell);
-            if (opportunity <= 0f) {
-                continue;
-            }
-            float delay = Math.max(0.25f, threat.attackDelay());
-            result += estimatedThreatDamage(threat, defenderCell)
-                    * estimatedHitChance(threat, defenderCell)
-                    * opportunity
-                    / delay;
-        }
-        result += Math.max(0, incomingDOT()) * 0.20f;
-        return result;
+
+
+
+
+
+
+    float estimatedThreatDamage(Mob threat, int defenderCell) {
+        return riskEstimator.estimatedThreatDamage(threat, defenderCell);
     }
 
-    private float threatOpportunity(Mob threat, int defenderCell) {
-        if (canThreatAttackCell(threat, defenderCell)) {
-            return 1f;
-        }
-        if (threat.rooted || threat.paralysed > 0) {
-            return 0f;
-        }
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int source = threat.pos + offset;
-            if (!Dungeon.level.insideMap(source)
-                    || Dungeon.level.distance(threat.pos, source) != 1
-                    || !enemyCanEnterForRisk(threat, source)) {
-                continue;
-            }
-            if (canThreatAttackFromTo(threat, source, defenderCell)) {
-                return 0.55f;
-            }
-        }
-
-        return Dungeon.level.distance(threat.pos, defenderCell) <= 3 ? 0.10f : 0f;
-    }
-
-    private boolean enemyCanEnterForRisk(Mob threat, int cell) {
-        if (!Dungeon.level.passable[cell]) {
-            if (!threat.flying || Dungeon.level.avoid[cell]) {
-                return false;
-            }
-        }
-        return !Char.hasProp(threat, Char.Property.LARGE) || Dungeon.level.openSpace[cell];
-    }
-
-    private boolean canThreatAttackCell(Mob threat, int defenderCell) {
-        return canThreatAttackFromTo(threat, threat.pos, defenderCell);
-    }
-
-    private boolean canThreatAttackFromTo(Mob threat, int sourceCell, int defenderCell) {
-        int livePos = pos;
-        try {
-            pos = defenderCell;
-            return threat.coHeroCanAttackFrom(sourceCell, this);
-        } finally {
-            pos = livePos;
-        }
-    }
-
-    private float estimatedThreatDamage(Mob threat, int defenderCell) {
-        int livePos = pos;
-        Random.pushGenerator(0xC0E0A11L ^ ((long) threat.id() << 21) ^ defenderCell);
-        try {
-            pos = defenderCell;
-            float total = 0f;
-            for (int i = 0; i < 7; i++) {
-                total += Math.max(0, threat.damageRoll());
-            }
-            // Do not subtract full armor here: ranged/special mob attacks do not always use normal
-            // melee DR. The 0.85 factor gives armor some credit without making the estimate unsafe.
-            return Math.max(0.5f, total / 7f * 0.85f);
-        } finally {
-            pos = livePos;
-            Random.popGenerator();
-        }
-    }
-
-    private float estimatedHitChance(Mob threat, int defenderCell) {
-        int livePos = pos;
-        try {
-            pos = defenderCell;
-            return estimatedUniformHitChance(
-                    Math.max(0, threat.attackSkill(this)) * blessRollMultiplier(threat),
-                    Math.max(0, defenseSkill(threat)) * blessRollMultiplier(this));
-        } finally {
-            pos = livePos;
-        }
+    float estimatedHitChance(Mob threat, int defenderCell) {
+        return riskEstimator.estimatedHitChance(threat, defenderCell);
     }
 
     private float blessRollMultiplier(Char target) {
-        return target != null
-                && (target.buff(Bless.class) != null || CoHeroClassTraits.isClericBlessed(target))
-                ? 1.25f
-                : 1f;
+        return riskEstimator.blessRollMultiplier(target);
     }
 
-    private float estimatedUniformHitChance(float accuracy, float evasion) {
-        if (accuracy <= 0f) {
-            return 0f;
-        }
-        if (evasion <= 0f) {
-            return 1f;
-        }
 
-        float chance;
-        if (accuracy <= evasion) {
-            chance = accuracy / (2f * evasion);
-        } else {
-            chance = 1f - evasion / (2f * accuracy);
-        }
-        // Buffs/champion modifiers are not all encoded in the raw skill values. Keep the survival
-        // estimate conservative instead of allowing a deceptively tiny calculated hit chance.
-        return Math.max(0.20f, Math.min(0.98f, chance));
-    }
 
     private float estimateOutgoingDpt(Mob targetMob) {
-        if (targetMob == null) {
-            return 0f;
-        }
-
-        if (canAttack(targetMob)) {
-            if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(this)) {
-                return 0f;
-            }
-
-            float raw = sampledDamageRoll(this, targetMob.id());
-            float dr = sampledDrRoll(targetMob, id());
-            float effective = Math.max(0.5f, raw - dr);
-            float hitChance = targetMob.coHeroSurprisedBy(this)
-                    ? 1f
-                    : estimatedPhysicalHitChance(attackSkill(targetMob), targetMob, this);
-            return effective * hitChance / Math.max(0.25f, attackDelay());
-        }
-
-        float best = 0f;
-        float targetDr = sampledDrRoll(targetMob, id());
-
-        for (MissileWeapon missile : inventory.missileWeapons()) {
-            if (!supportedMissileWeapon(missile)
-                    || missile.cursed
-                    || new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos != targetMob.pos) {
-                continue;
-            }
-            float hitChance = estimatedPhysicalHitChance(
-                    attackSkillWith(missile, targetMob), targetMob, this);
-            best = Math.max(best,
-                    Math.max(0.5f, expectedMissileDamage(missile) - targetDr) * hitChance);
-        }
-
-        SpiritBow bow = inventory.spiritBow();
-        if (bow != null
-                && !bow.cursed
-                && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
-            MissileWeapon arrow = bow.knockArrow();
-            float hitChance = estimatedPhysicalHitChance(
-                    attackSkillWith(arrow, targetMob), targetMob, this);
-            best = Math.max(best,
-                    Math.max(0.5f, expectedSpiritBowDamage(bow) - targetDr) * hitChance);
-        }
-
-        for (Wand wand : inventory.wands()) {
-            if (!CoHeroWandAdapter.supported(wand)) {
-                continue;
-            }
-            if (CoHeroWandAdapter.guaranteedControl(wand, this, targetMob)) {
-                return Math.max(best, targetMob.HP);
-            }
-            if (CoHeroWandAdapter.canAffectEnemy(wand, this, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                best = Math.max(best, CoHeroWandAdapter.expectedDamage(wand, this, targetMob));
-            }
-        }
-
-        return best;
+        return riskEstimator.estimateOutgoingDpt(targetMob);
     }
 
-    private float estimatedPhysicalHitChance(int accuracy, Mob targetMob, Char attacker) {
-        if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(attacker)) {
-            return 0f;
-        }
-        if (targetMob.coHeroSurprisedBy(attacker)) {
-            return 1f;
-        }
-        return estimatedUniformHitChance(
-                Math.max(0, accuracy) * blessRollMultiplier(attacker),
-                Math.max(0, targetMob.defenseSkill(attacker)) * blessRollMultiplier(targetMob));
-    }
 
-    private float sampledDamageRoll(Char attacker, int salt) {
-        Random.pushGenerator(0xC0E0D4A6L ^ ((long) attacker.id() << 19) ^ salt);
-        try {
-            float total = 0f;
-            for (int i = 0; i < 7; i++) {
-                total += Math.max(0, attacker.damageRoll());
-            }
-            return total / 7f;
-        } finally {
-            Random.popGenerator();
-        }
-    }
 
-    private float sampledDrRoll(Char defender, int salt) {
-        Random.pushGenerator(0xC0E0D2L ^ ((long) defender.id() << 17) ^ salt);
-        try {
-            float total = 0f;
-            for (int i = 0; i < 5; i++) {
-                total += Math.max(0, defender.drRoll());
-            }
-            return total / 5f;
-        } finally {
-            Random.popGenerator();
-        }
-    }
 
-    private static final class CombatRisk {
-        final boolean retreat;
-        final int attackersNow;
-        final float incomingDpt;
-        final float immediateIncoming;
-        final float ttd;
-        final float ttk;
 
-        CombatRisk(
-                boolean retreat,
-                int attackersNow,
-                float incomingDpt,
-                float immediateIncoming,
-                float ttd,
-                float ttk) {
-            this.retreat = retreat;
-            this.attackersNow = attackersNow;
-            this.incomingDpt = incomingDpt;
-            this.immediateIncoming = immediateIncoming;
-            this.ttd = ttd;
-            this.ttk = ttk;
-        }
-    }
+
+
+
 
     /**
      * Ranged enemies are often weakest once CoHero reaches melee. If melee can be established in
@@ -2784,7 +1539,7 @@ public class CoHeroAlly extends DirectableAlly {
         return moveForRangedEngagement(step);
     }
 
-    private boolean isCurrentRangedPressure(Mob targetMob) {
+    boolean isCurrentRangedPressure(Mob targetMob) {
         return targetMob != null
                 && targetMob.isAlive()
                 && Dungeon.level.distance(targetMob.pos, pos) > 1
@@ -2894,7 +1649,7 @@ public class CoHeroAlly extends DirectableAlly {
         return best;
     }
 
-    private int chooseRangedCoverCell(Mob targetMob, ArrayList<Mob> threats) {
+    int chooseRangedCoverCell(Mob targetMob, ArrayList<Mob> threats) {
         if (targetMob == null
                 || targetMob.fieldOfView == null
                 || targetMob.fieldOfView.length != Dungeon.level.length()) {
@@ -3254,7 +2009,7 @@ public class CoHeroAlly extends DirectableAlly {
         return result;
     }
 
-    private boolean hasRangedPressure(ArrayList<Mob> threats) {
+    boolean hasRangedPressure(ArrayList<Mob> threats) {
         for (Mob threat : threats) {
             if (Dungeon.level.distance(threat.pos, pos) > 1
                     && threat.coHeroCanAttackFrom(threat.pos, this)) {
@@ -3689,7 +2444,7 @@ public class CoHeroAlly extends DirectableAlly {
                 || type == ThrowingHammer.class;
     }
 
-    private float expectedMissileDamage(MissileWeapon missile) {
+    float expectedMissileDamage(MissileWeapon missile) {
         int level = missile.buffedLvl()
                 + RingOfSharpshooting.levelDamageBonus(this)
                 + CoHeroClassTraits.missileLevelBonus(this);
@@ -3702,7 +2457,7 @@ public class CoHeroAlly extends DirectableAlly {
         return average;
     }
 
-    private float expectedSpiritBowDamage(SpiritBow bow) {
+    float expectedSpiritBowDamage(SpiritBow bow) {
         float average = (bow.coHeroMin(this) + bow.coHeroMax(this)) / 2f;
         average = bow.augment.damageFactor(average);
         int excessStrength = STR() - bow.STRReq();
@@ -3962,7 +2717,7 @@ public class CoHeroAlly extends DirectableAlly {
         return bestCell;
     }
 
-    private int nearestThreatDistance(int cell, ArrayList<Mob> threats) {
+    int nearestThreatDistance(int cell, ArrayList<Mob> threats) {
         int nearest = Integer.MAX_VALUE;
         for (Mob threat : threats) {
             nearest = Math.min(nearest, Dungeon.level.distance(cell, threat.pos));
@@ -4038,5 +2793,26 @@ public class CoHeroAlly extends DirectableAlly {
 
     void clearRangedLureForNavigation() {
         clearRangedLurePlan();
+    }
+
+    boolean isBelowLowHealthThreshold() {
+        return support.isBelowLowHealthThreshold();
+    }
+
+    boolean combatRetreating() {
+        return combatRetreating;
+    }
+
+    void clearCombatPositioningAfterRelocation() {
+        clearMeleeTacticalPlan();
+        clearRangedLurePlan();
+    }
+
+    boolean trySurvivalInvisibility() {
+        return survival.tryUseInvisibilityPotion();
+    }
+
+    boolean trySurvivalHaste() {
+        return survival.tryUseHastePotion();
     }
 }

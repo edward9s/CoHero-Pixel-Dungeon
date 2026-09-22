@@ -166,7 +166,7 @@ Boss 樓層鎖定期間，CoHero 會以 `GLog` 輸出簡短決策診斷，協助
 
 > `CoHeroAlly` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
 
-`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。
+`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤、`CoHeroCombatRiskEstimator` 專責純戰鬥風險估算、`CoHeroSurvivalController` 專責治療／淨化／生存資源、`CoHeroControlItems` 專責符石與恐懼／傳送等控制資源決策。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。
 
 不把 SPD 全面改造成 multi-Hero 架構，也不透過切換 `Dungeon.hero` 來讓原版系統誤以為 CoHero 是玩家 Hero。
 
