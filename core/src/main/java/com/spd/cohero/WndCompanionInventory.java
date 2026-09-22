@@ -17,6 +17,7 @@ import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
+import com.shatteredpixel.shatteredpixeldungeon.ui.CheckBox;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ItemButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ItemSlot;
 import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
@@ -220,9 +221,24 @@ public class WndCompanionInventory extends Window {
                 21);
         add(enemySpawnSlider);
 
+        CheckBox movementDebugLog = new CheckBox(text("inventory.movement_debug")) {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                companion.setMovementDebugLogEnabled(checked());
+            }
+        };
+        movementDebugLog.checked(companion.movementDebugLogEnabled());
+        movementDebugLog.setRect(
+                controlX,
+                enemySpawnSlider.bottom() + 2,
+                controlWidth,
+                16);
+        add(movementDebugLog);
+
         RenderedTextBlock equipmentLabel =
                 PixelScene.renderTextBlock(text("inventory.equipment"), 7);
-        equipmentLabel.setPos(x, enemySpawnSlider.bottom() + 3);
+        equipmentLabel.setPos(x, movementDebugLog.bottom() + 3);
         add(equipmentLabel);
 
         float equipmentY = equipmentLabel.bottom() + 2;
