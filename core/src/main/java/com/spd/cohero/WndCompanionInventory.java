@@ -1,8 +1,6 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.Assets;
-import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
@@ -18,8 +16,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.CheckBox;
-import com.shatteredpixel.shatteredpixeldungeon.ui.ItemButton;
-import com.shatteredpixel.shatteredpixeldungeon.ui.ItemSlot;
+import com.shatteredpixel.shatteredpixeldungeon.ui.InventorySlot;
 import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
@@ -29,7 +26,6 @@ import com.shatteredpixel.shatteredpixeldungeon.windows.WndBag;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndInfoItem;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.watabou.noosa.ColorBlock;
-import com.watabou.noosa.audio.Sample;
 
 import java.util.Locale;
 
@@ -128,7 +124,7 @@ public class WndCompanionInventory extends Window {
 
         float backpackY = backpackLabel.bottom() + 2;
         for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
-            addBackpackButton(i, 0, backpackY);
+            addBackpackSlot(i, 0, backpackY);
         }
 
         int rows = (int) Math.ceil(
@@ -167,7 +163,7 @@ public class WndCompanionInventory extends Window {
 
         float backpackY = backpackLabel.bottom() + 2;
         for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
-            addBackpackButton(i, backpackX, backpackY);
+            addBackpackSlot(i, backpackX, backpackY);
         }
 
         int rows = (int) Math.ceil(
@@ -342,7 +338,7 @@ public class WndCompanionInventory extends Window {
     }
 
     private void addEquipmentButton(int column, float startX, float y, SlotType type) {
-        ItemButton button = new CoHeroItemButton() {
+        InventorySlot slot = new CoHeroInventorySlot(equipmentItemFor(type)) {
             @Override
             protected void onClick() {
                 Item equipped = equippedItem(type);
@@ -367,20 +363,19 @@ public class WndCompanionInventory extends Window {
             }
         };
 
-        button.setRect(
+        slot.setRect(
                 startX + column * (slotSize + slotGap),
                 y,
                 slotSize,
                 slotSize);
-        button.item(equipmentItemFor(type));
-        add(button);
+        add(slot);
     }
 
-    private void addBackpackButton(int index, float startX, float startY) {
+    private void addBackpackSlot(int index, float startX, float startY) {
         int col = index % BACKPACK_COLS;
         int row = index / BACKPACK_COLS;
 
-        ItemButton button = new CoHeroItemButton() {
+        InventorySlot slot = new CoHeroInventorySlot(backpackItemFor(index)) {
             @Override
             protected void onClick() {
                 if (index < inventory.backpack().size()) {
@@ -400,13 +395,12 @@ public class WndCompanionInventory extends Window {
             }
         };
 
-        button.setRect(
+        slot.setRect(
                 startX + col * (slotSize + slotGap),
                 startY + row * (slotSize + slotGap),
                 slotSize,
                 slotSize);
-        button.item(backpackItemFor(index));
-        add(button);
+        add(slot);
     }
 
     private Item equipmentItemFor(SlotType type) {
@@ -429,10 +423,9 @@ public class WndCompanionInventory extends Window {
     }
 
     private Item backpackItemFor(int index) {
-        if (index < inventory.backpack().size()) {
-            return inventory.backpack().get(index);
-        }
-        return new WndBag.Placeholder(ItemSpriteSheet.SOMETHING);
+        return index < inventory.backpack().size()
+                ? inventory.backpack().get(index)
+                : null;
     }
 
     private void selectItemFromHero() {
@@ -690,9 +683,10 @@ public class WndCompanionInventory extends Window {
     }
 
     /**
-     * Mirrors stock InventorySlot state coloring while preserving the existing CoHero button.
+     * Uses the stock backpack slot chrome and state tinting, with only a subtle
+     * frame to mark items the CoHero can actively use.
      */
-    private static class CoHeroItemButton extends ItemButton {
+    private static class CoHeroInventorySlot extends InventorySlot {
 
         private static final int USABLE_FRAME_COLOR = 0xCCB8A45A;
 
@@ -702,42 +696,20 @@ public class WndCompanionInventory extends Window {
         private ColorBlock frameLeft;
         private ColorBlock frameRight;
 
+        CoHeroInventorySlot(Item item) {
+            super(item);
+        }
+
         @Override
         protected void createChildren() {
-            bg = Chrome.get(Chrome.Type.RED_BUTTON);
-            add(bg);
+            super.createChildren();
 
             frameTop = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
             frameBottom = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
             frameLeft = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
             frameRight = new ColorBlock(1, 1, USABLE_FRAME_COLOR);
 
-            slot = new ItemSlot() {
-                @Override
-                protected void onPointerDown() {
-                    bg.brightness(1.2f);
-                    Sample.INSTANCE.play(Assets.Sounds.CLICK);
-                }
-
-                @Override
-                protected void onPointerUp() {
-                    applyItemStateTint();
-                }
-
-                @Override
-                protected void onClick() {
-                    CoHeroItemButton.this.onClick();
-                }
-
-                @Override
-                protected boolean onLongClick() {
-                    return CoHeroItemButton.this.onLongClick();
-                }
-            };
-            slot.enable(true);
-            add(slot);
-
-            // Capability frame must render above the slot contents.
+            // Capability frame renders above the stock InventorySlot contents.
             add(frameTop);
             add(frameBottom);
             add(frameLeft);
@@ -769,33 +741,13 @@ public class WndCompanionInventory extends Window {
         public void item(Item item) {
             displayedItem = item;
             super.item(item);
-            applyItemStateTint();
+
+            // Stock ItemSlot disables null entries. CoHero keeps empty backpack
+            // cells clickable so they can still open the Hero item selector.
+            if (item == null) {
+                enable(true);
+            }
             applyCapabilityFrame();
-        }
-
-        private void applyItemStateTint() {
-            bg.resetColor();
-
-            Item item = displayedItem;
-            if (item == null || item instanceof WndBag.Placeholder) {
-                return;
-            }
-
-            if (item.cursed && item.cursedKnown) {
-                bg.ra = +0.12f;
-                bg.ga = -0.06f;
-                bg.ba = -0.06f;
-            } else if (!item.isIdentified()) {
-                if ((item instanceof EquipableItem || item instanceof Wand)
-                        && item.cursedKnown) {
-                    bg.ba = +0.12f;
-                    bg.ra = -0.04f;
-                    bg.ga = -0.04f;
-                } else {
-                    bg.ra = +0.14f;
-                    bg.ba = +0.14f;
-                }
-            }
         }
 
         private void applyCapabilityFrame() {
