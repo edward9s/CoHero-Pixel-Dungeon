@@ -254,7 +254,7 @@ final class CoHeroControlItems {
                 if (ch == null) {
                     continue;
                 }
-                if (ch.alignment != Alignment.ENEMY) {
+                if (ch.alignment != Char.Alignment.ENEMY) {
                     unsafe = true;
                     break;
                 }
@@ -618,7 +618,7 @@ final class CoHeroControlItems {
         for (Mob mob : threats) {
             if (mob == null
                     || !mob.isAlive()
-                    || mob.alignment != Alignment.ENEMY
+                    || mob.alignment != Char.Alignment.ENEMY
                     || mob.invisible > 0
                     || owner.fieldOfView == null
                     || !owner.fieldOfView[mob.pos]
@@ -645,7 +645,7 @@ final class CoHeroControlItems {
         for (Mob mob : threats) {
             if (mob == null
                     || !mob.isAlive()
-                    || mob.alignment != Alignment.ENEMY
+                    || mob.alignment != Char.Alignment.ENEMY
                     || mob.invisible > 0
                     || owner.fieldOfView == null
                     || !owner.fieldOfView[mob.pos]
@@ -718,7 +718,7 @@ final class CoHeroControlItems {
         for (Mob mob : threats) {
             if (mob != null
                     && mob.isAlive()
-                    && mob.alignment == Alignment.ENEMY
+                    && mob.alignment == Char.Alignment.ENEMY
                     && mob.invisible <= 0
                     && owner.fieldOfView != null
                     && owner.fieldOfView[mob.pos]
@@ -744,7 +744,7 @@ final class CoHeroControlItems {
         for (Mob mob : threats) {
             if (mob == null
                     || !mob.isAlive()
-                    || mob.alignment != Alignment.ENEMY
+                    || mob.alignment != Char.Alignment.ENEMY
                     || mob.invisible > 0
                     || owner.fieldOfView == null
                     || !owner.fieldOfView[mob.pos]
@@ -790,8 +790,8 @@ final class CoHeroControlItems {
             return false;
         }
 
-        int attackersAfterStep = countCurrentAttackersAtCell(escapeStep, threats);
-        float incomingAfterStep = estimatedIncomingDptAtCell(escapeStep, threats);
+        int attackersAfterStep = owner.countCurrentAttackersAtCell(escapeStep, threats);
+        float incomingAfterStep = owner.estimatedIncomingDptAtCell(escapeStep, threats);
 
         boolean fastPursuer = false;
         for (Mob threat : threats) {
@@ -799,7 +799,7 @@ final class CoHeroControlItems {
                 continue;
             }
             if (owner.threatOpportunity(threat, escapeStep) >= 0.55f
-                    && threat.speed() >= speed() * 0.95f) {
+                    && threat.speed() >= owner.speed() * 0.95f) {
                 fastPursuer = true;
                 break;
             }
