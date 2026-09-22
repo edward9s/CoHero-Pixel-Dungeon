@@ -70,6 +70,15 @@ public final class CoHeroClassTraits {
         return isCompanionClass(target, HeroClass.ROGUE) ? ROGUE_MOVE_SPEED_MULTIPLIER : 1f;
     }
 
+    public static int rogueWealthBonus() {
+        CoHeroAlly companion = CoHero.findCompanion();
+        return companion != null
+                && companion.isAlive()
+                && isCompanionClass(companion, HeroClass.ROGUE)
+                ? 1
+                : 0;
+    }
+
     public static int missileLevelBonus(Char target) {
         return isCompanionClass(target, HeroClass.HUNTRESS) ? 1 : 0;
     }
