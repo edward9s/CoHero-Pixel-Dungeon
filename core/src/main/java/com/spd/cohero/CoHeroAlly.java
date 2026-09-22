@@ -629,6 +629,7 @@ public class CoHeroAlly extends DirectableAlly {
     protected boolean act() {
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
+        resetInheritedDecisionState();
         guard.beginTurn();
 
         syncSharedLevel();
@@ -1115,6 +1116,18 @@ public class CoHeroAlly extends DirectableAlly {
 
     private void resetNavigationAfterAnkhTeleport() {
         navigation.clearExplorationTarget();
+        target = -1;
+        enemy = null;
+        enemyID = -1;
+        enemySeen = false;
+        alerted = false;
+        path = null;
+        defendingPos = -1;
+        movingToDefendPos = false;
+        state = WANDERING;
+    }
+
+    private void resetInheritedDecisionState() {
         target = -1;
         enemy = null;
         enemyID = -1;
@@ -1964,10 +1977,6 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        state = HUNTING;
-        enemy = targetMob;
-        target = targetMob.pos;
-
         if (ranged.missile != null) {
             logBossDecision("missile_attack:" + targetMob.id(),
                     targetDebug(targetMob) + " -> throw "
@@ -2000,9 +2009,6 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        enemy = targetMob;
-        target = targetMob.pos;
-
         // Melee is preferred once the intended engagement distance is actually established.
         // Against a ranged enemy, extended weapon reach is not enough: adjacency is required.
         boolean rangedPressure = isCurrentRangedPressure(targetMob);
@@ -2010,7 +2016,6 @@ public class CoHeroAlly extends DirectableAlly {
                 && (!rangedPressure || Dungeon.level.adjacent(pos, targetMob.pos))) {
             logBossDecision("melee_attack:" + targetMob.id(),
                     targetDebug(targetMob) + " -> melee attack");
-            state = HUNTING;
             return doAttack(targetMob);
         }
 
