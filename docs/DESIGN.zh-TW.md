@@ -211,7 +211,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - **Warrior**：基礎被動等價 `RingOfMight +0`：+1 STR、HT ×1.035。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfTenacity +0` 的漸進減傷；真正的 Ring of Might / Ring of Tenacity 可再依原版公式疊加。
 - **Mage**：基礎被動等價 `RingOfEnergy +0`，法杖自然充能 ×1.175。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfElements +0` 的元素／魔法抗性，對原版 `RingOfElements.RESISTS` 涵蓋效果套用 ×0.825 effectiveness；真正的 Ring of Energy / Ring of Elements 可再依原版公式疊加。
   - 起始 `MagesStaff(WandOfMagicMissile)` 仍是原版 Mage's Staff；CoHero AI 直接使用 Staff 內嵌的原版 wand 與同一個 charge pool，不建立複製 wand。Staff 近戰與 wand 遠程能力都可使用。
-- **Rogue**：基礎被動為移動速度 ×1.15，等價 `RingOfHaste +0`。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfWealth +0` 的固有財富效果。Wealth 直接沿用原版 bonus 計算：有效 bonus 額外 +1，因此一般怪物掉落倍率為原版 `1.20^bonus`，bonus-drop tracker 與 rare-equipment 計算也視同多一枚 +0 Wealth；它不占 ring slot，並可與玩家 Hero 真正裝備的 Ring of Wealth 疊加。只有 Rogue CoHero 實際存活且位於當前樓層時生效；被刻意留在 Boss／支線樓層外時不生效。真正的 Ring of Haste 可再疊加。
+- **Rogue**：基礎被動為移動速度 ×1.15，等價 `RingOfHaste +0`。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfFuror +0` 的攻擊速度效果，近戰武器攻擊速度 ×1.09051；真正裝備的 Ring of Haste / Ring of Furor 仍沿用原版倍率並可疊加。
 - **Huntress**：基礎被動為投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfArcana +0` 的固有奧術效果。Arcana 直接併入原版 `RingOfArcana.enchantPowerMultiplier(Char)` 的有效 bonus，Huntress CoHero 額外 +1，因此武器附魔與護甲刻印的原版效果倍率為 `1.175^bonus`；真正裝備的 Ring of Arcana 依原版 bonus 疊加。`MagicImmune` 時與真正戒指相同，不提供 Arcana bonus。真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
   - 起始 `SpiritBow` 仍是原版專武。CoHero 透過原版 `SpiritArrow` 射擊；箭為無限彈藥，不進普通投擲物耐久、掉落或回收流程。傷害使用 CoHero 自己的 STR、實際 Sharpshooting 戒指與 Huntress 固有 Sharpshooting +0，並排除 Hero-only talents。
 - **Duelist**：基礎被動等價 `RingOfFuror +0`，裝備近戰武器時攻擊速度 ×1.09051。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfTenacity +0` 的漸進減傷；真正的 Furor / Tenacity 可再依原版公式疊加。
@@ -461,7 +461,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 
 已確定：
 
-- 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。`RingOfTenacity` 另在 CoHero 的 `damage()` 補上與 Hero 相同的 `RingOfTenacity.damageMultiplier()`；Warrior / Duelist 固有的 +0 Tenacity 在同一處以相同 `0.85^missingHP%` 公式相乘，因此與真正裝備的 Tenacity 戒指保持原版等價疊加。`RingOfElements` 的真戒效果先沿用原版 `Char.resist()`；Mage 固有的 +0 Elements 再對同一組 `RingOfElements.RESISTS` 來源乘上 `0.825`，因此與真正裝備的 Elements 戒指同樣保持原版等價疊加。Huntress 固有的 +0 Arcana 則直接加入原版 `RingOfArcana.enchantPowerMultiplier(Char)` 的 bonus，因此 Weapon enchant 與 Armor glyph 共用同一條原版倍率路徑，且與真正裝備的 Arcana 戒指按原版 exponent 疊加。
+- 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。`RingOfTenacity` 另在 CoHero 的 `damage()` 補上與 Hero 相同的 `RingOfTenacity.damageMultiplier()`；Warrior / Duelist 固有的 +0 Tenacity 在同一處以相同 `0.85^missingHP%` 公式相乘，因此與真正裝備的 Tenacity 戒指保持原版等價疊加。`RingOfElements` 的真戒效果先沿用原版 `Char.resist()`；Mage 固有的 +0 Elements 再對同一組 `RingOfElements.RESISTS` 來源乘上 `0.825`，因此與真正裝備的 Elements 戒指同樣保持原版等價疊加。Rogue 與 Duelist 的固有 Furor 都走同一個 `meleeAttackSpeedMultiplier()`；Rogue 只在 Hero 已轉職後啟用，Duelist 則是基礎被動。真正裝備的 Ring of Furor 已由原版 `Weapon.delayFactor()` → `RingOfFuror.attackSpeedMultiplier(owner)` 生效，因此會與固有 +0 Furor 自然相乘。Huntress 固有的 +0 Arcana 則直接加入原版 `RingOfArcana.enchantPowerMultiplier(Char)` 的 bonus，因此 Weapon enchant 與 Armor glyph 共用同一條原版倍率路徑，且與真正裝備的 Arcana 戒指按原版 exponent 疊加。
 - CoHero 的武器規則與防具／戒指分開：近戰武器只要求實際未詛咒，不要求已知詛咒狀態；防具與戒指仍維持 GhostHero 式的「已確認未詛咒」才能裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - CoHero 已裝備但尚未完全鑑定的近戰武器、護甲與戒指，沿用 SPD 原版被動鑑定進度：武器／護甲需要實際使用並搭配正常戰鬥 EXP 解鎖後續鑑定次數，戒指則依裝備期間取得的正常 EXP 推進。CoHero 不套用 Hero 的 item-ID Talent 加速，倍率固定 1.0；進度仍保存於物品本身，因此 Hero 與 CoHero 之間轉交同一件物品不會重置。Potion of Experience 不推進此被動鑑定。

@@ -90,9 +90,7 @@ jobs:
           python cohero/scripts/patch_cohero_class_traits.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java
           python cohero/scripts/patch_cohero_ring_traits.py \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfWealth.java \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfArcana.java \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java
+            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfArcana.java
           python cohero/scripts/patch_equipment_identification.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java \

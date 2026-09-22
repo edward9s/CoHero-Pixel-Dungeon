@@ -15,7 +15,7 @@ public final class CoHeroClassTraits {
     private static final float MAGE_ELEMENTS_BASE = 0.825f;
     private static final float ROGUE_MOVE_SPEED_MULTIPLIER = 1.15f;
     private static final float HUNTRESS_MISSILE_DURABILITY_MULTIPLIER = 1.2f;
-    private static final float DUELIST_MELEE_SPEED_MULTIPLIER = 1.09051f;
+    private static final float FUROR_ATTACK_SPEED_MULTIPLIER = 1.09051f;
     public static final int CLERIC_AURA_RANGE = 3;
     private static final float GENERALIST_HT_MULTIPLIER = 1.05f;
 
@@ -73,18 +73,6 @@ public final class CoHeroClassTraits {
         return isCompanionClass(target, HeroClass.ROGUE) ? ROGUE_MOVE_SPEED_MULTIPLIER : 1f;
     }
 
-    public static int rogueWealthBonus() {
-        if (!heroHasSubclass()) {
-            return 0;
-        }
-        CoHeroAlly companion = CoHero.findCompanion();
-        return companion != null
-                && companion.isAlive()
-                && isCompanionClass(companion, HeroClass.ROGUE)
-                ? 1
-                : 0;
-    }
-
     public static int huntressArcanaBonus(Char target) {
         if (!heroHasSubclass() || !isCompanionClass(target, HeroClass.HUNTRESS)) {
             return 0;
@@ -107,9 +95,13 @@ public final class CoHeroClassTraits {
     }
 
     public static float meleeAttackSpeedMultiplier(Char target) {
-        return isCompanionClass(target, HeroClass.DUELIST)
-                ? DUELIST_MELEE_SPEED_MULTIPLIER
-                : 1f;
+        if (isCompanionClass(target, HeroClass.DUELIST)) {
+            return FUROR_ATTACK_SPEED_MULTIPLIER;
+        }
+        if (heroHasSubclass() && isCompanionClass(target, HeroClass.ROGUE)) {
+            return FUROR_ATTACK_SPEED_MULTIPLIER;
+        }
+        return 1f;
     }
 
     public static boolean isClericBlessed(Char target) {
