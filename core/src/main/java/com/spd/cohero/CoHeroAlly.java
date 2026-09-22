@@ -2658,14 +2658,8 @@ public class CoHeroAlly extends DirectableAlly {
         return super.getCloser(target);
     }
 
-    void clearRangedLureForNavigation() {
-    }
-
     boolean isBelowLowHealthThreshold() {
         return support.isBelowLowHealthThreshold();
-    }
-
-    void clearCombatPositioningAfterRelocation() {
     }
 
     boolean trySurvivalInvisibility() {
