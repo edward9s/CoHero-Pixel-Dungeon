@@ -302,7 +302,7 @@ final class CoHeroSurvivalController {
 
         owner.spendActionTime(1 / owner.speed());
         owner.refreshOwnFieldOfView();
-        return owner.finishMovementAnimation(oldPos, owner.pos);
+        return owner.finishMovementAnimation(oldPos);
     }
 
     private Boolean moveOntoAdjacentPlant(int plantCell) {
@@ -322,11 +322,10 @@ final class CoHeroSurvivalController {
         // so do not draw a second long-distance movement animation from the pre-plant cell.
         if (owner.pos != plantCell) {
             owner.clearNavigationPath();
-            clearMeleeTacticalPlan();
-            clearRangedLurePlan();
+            owner.clearCombatPositioningAfterRelocation();
             return true;
         }
-        return owner.finishMovementAnimation(oldPos, owner.pos);
+        return owner.finishMovementAnimation(oldPos);
     }
 
     boolean tryUseCombatEarthenArmor(Mob targetMob, ArrayList<Mob> threats) {
