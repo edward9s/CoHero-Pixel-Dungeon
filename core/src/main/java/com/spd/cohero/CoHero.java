@@ -571,6 +571,14 @@ public final class CoHero {
         }
     }
 
+    public static boolean heroCanSee(int cell) {
+        return Dungeon.level != null
+                && Dungeon.level.heroFOV != null
+                && cell >= 0
+                && cell < Dungeon.level.heroFOV.length
+                && Dungeon.level.heroFOV[cell];
+    }
+
     public static boolean companionCanSee(int cell) {
         if (Dungeon.level == null
                 || cell < 0
