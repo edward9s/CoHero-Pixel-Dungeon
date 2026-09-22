@@ -263,6 +263,10 @@ public class CoHeroAlly extends DirectableAlly {
         debugLogEnabled = bundle.getBoolean(DEBUG_LOG);
 
         loot.restoreFromBundle(bundle);
+
+        // Mob/DirectableAlly serializes its own AI state, but CoHero decisions are rebuilt from
+        // live state. Never carry inherited HUNTING/enemy/target/path decisions across a load.
+        resetInheritedDecisionState();
     }
 
     int enemySpawnMultiplierTenths() {
