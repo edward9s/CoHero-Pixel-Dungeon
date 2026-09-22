@@ -677,21 +677,15 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         Mob guardSupportThreat =
-                guard.isActive() && !combatObjective.isLuring()
-                        ? support.heroSupportThreat()
-                        : null;
+                guard.isActive() ? support.heroSupportThreat() : null;
         guard.prepareMovementScope(guardSupportThreat);
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (visibleThreats.isEmpty()) {
             logBossDecision("no_visible_threat:" + threatScanDebug(), threatScanDebug());
-            if (combatObjective.cancelLureWhenNoVisibleThreats()) {
-                clearRangedLurePlan();
-            } else {
-                Boolean rangedLure = continueRangedLureWithoutVisibleThreat();
-                if (rangedLure != null) {
-                    return rangedLure;
-                }
+            Boolean rangedLure = continueRangedLureWithoutVisibleThreat();
+            if (rangedLure != null) {
+                return rangedLure;
             }
         }
 
