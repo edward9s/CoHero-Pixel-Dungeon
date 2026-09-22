@@ -449,7 +449,8 @@ if "curUser" not in fireblast:
     raise SystemExit("expected Fireblast curUser references")
 fireblast = fireblast.replace("curUser", "zapUser()")
 
-fireblast_fx_old = """	public void fx(Ballistica bolt, Callback callback) {
+fireblast_fx_old = """	@Override
+	public void fx(Ballistica bolt, Callback callback) {
 		//need to perform flame spread logic here so we can determine what cells to put flames in.
 
 		// 5/7/9 distance
@@ -476,6 +477,7 @@ fireblast_fx_new = """	private void prepareCoHeroCone(Ballistica bolt) {
 		prepareCoHeroCone(bolt);
 	}
 
+	@Override
 	public void fx(Ballistica bolt, Callback callback) {
 		if (!coHeroCasting()) {
 			prepareCoHeroCone(bolt);
