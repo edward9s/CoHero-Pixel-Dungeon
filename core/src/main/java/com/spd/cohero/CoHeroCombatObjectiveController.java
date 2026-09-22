@@ -35,9 +35,10 @@ final class CoHeroCombatObjectiveController {
     /**
      * Runs after survival actions but before ordinary offense.
      *
-     * Ranged pressure bypasses the objective completely and restores unrestricted combat movement.
-     * A melee threat already inside the engagement zone also uses ordinary combat. Only visible
-     * melee threats that are still outside the zone are lured inward.
+     * A ranged-capable threat bypasses the objective completely and restores unrestricted combat
+     * movement, even after CoHero has closed to adjacency. A melee-only threat already inside the
+     * engagement zone also uses ordinary combat. Only visible melee-only threats that are still
+     * outside the zone are lured inward.
      */
     Boolean actBeforeOffense(
             ArrayList<Mob> attackableThreats, ArrayList<Mob> visibleThreats) {
@@ -47,9 +48,9 @@ final class CoHeroCombatObjectiveController {
 
         Mob rangedThreat = firstRangedCapableThreat(attackableThreats);
         if (rangedThreat != null) {
-            // Guard scope may already have been prepared earlier in the turn. A ranged enemy that
-            // can attack into the room must hand control to unrestricted ordinary combat instead
-            // of leaving CoHero unable to close or reposition.
+            // Guard scope may already have been prepared earlier in the turn. Ranged capability,
+            // not only current distance, owns this fight so sacrifice lure cannot pull CoHero back
+            // out after anti-ranged combat has already closed to adjacency.
             owner.allowAnyGuardMovement();
             if (owner.debugLogEnabled()) {
                 owner.logDebug("[CoHeroObjective] " + objective.name
