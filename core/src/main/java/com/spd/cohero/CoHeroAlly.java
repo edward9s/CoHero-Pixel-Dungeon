@@ -1488,7 +1488,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (rangedPressure && !Dungeon.level.adjacent(pos, targetMob.pos)) {
             int closeStep = chooseRangedTargetClosingStep(targetMob, threats);
             if (closeStep != -1) {
-                return moveForRangedEngagement(closeStep);
+                return moveForRangedEngagement(closeStep, "ranged_close");
             }
         }
 
@@ -1503,7 +1503,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         int chargeStep = chooseOneStepMeleeApproach(targetMob, threats);
         if (chargeStep != -1) {
-            return moveForRangedEngagement(chargeStep);
+            return moveForRangedEngagement(chargeStep, "ranged_charge");
         }
 
         int coverCell = chooseRangedCoverCell(targetMob, threats);
@@ -1512,7 +1512,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         int step = rangedLureStep(coverCell);
-        return step == -1 ? null : moveForRangedEngagement(step);
+        return step == -1 ? null : moveForRangedEngagement(step, "ranged_cover");
     }
 
     boolean isCurrentRangedPressure(Mob targetMob) {
@@ -1737,14 +1737,14 @@ public class CoHeroAlly extends DirectableAlly {
         return step != -1 && isMovementSafe(step) ? step : -1;
     }
 
-    private Boolean moveForRangedEngagement(int step) {
+    private Boolean moveForRangedEngagement(int step, String decision) {
         if (step == -1 || step == pos) {
             return null;
         }
 
         int oldPos = pos;
         path = null;
-        setMovementDecision("ranged_engagement", step);
+        setMovementDecision(decision, step);
         move(step, true);
         if (pos == oldPos) {
             // Never consume a turn for a tactical move that execution rejected. Fall through to
