@@ -12,6 +12,8 @@ import com.watabou.utils.PathFinder;
  */
 final class CoHeroSupportController {
 
+    private static final int LOW_HEALTH_ENTER_PERCENT = 35;
+    private static final int LOW_HEALTH_EXIT_PERCENT = 60;
     private static final int RALLY_MIN_DISTANCE = 2;
     private static final int RALLY_MAX_DISTANCE = 3;
     private static final int MELEE_SUPPORT_RADIUS = 4;
@@ -43,11 +45,11 @@ final class CoHeroSupportController {
         }
 
         if (lowHealthRally) {
-            if (owner.HP * 100 >= owner.HT * 60) {
+            if (owner.HP * 100 >= owner.HT * LOW_HEALTH_EXIT_PERCENT) {
                 lowHealthRally = false;
                 owner.clearExplorationTarget();
             }
-        } else if (owner.HP * 100 < owner.HT * 35) {
+        } else if (owner.HP * 100 < owner.HT * LOW_HEALTH_ENTER_PERCENT) {
             lowHealthRally = true;
             owner.clearExplorationTarget();
         }
