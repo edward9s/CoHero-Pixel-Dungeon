@@ -116,15 +116,11 @@ import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 public class CoHeroAlly extends DirectableAlly {
 
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
     private static final String INVENTORY = "cohero_inventory";
-    private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
-    private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
     private static final String LOW_HEALTH_RALLY = "cohero_low_health_rally";
     private static final String COMBAT_RETREATING = "cohero_combat_retreating";
 
@@ -136,9 +132,9 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroGuardController guard = new CoHeroGuardController(this);
     private final CoHeroSupportController support = new CoHeroSupportController(this);
     private final CoHeroVision vision = new CoHeroVision(this);
+    private final CoHeroLoot loot = new CoHeroLoot(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
-    private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
     private MissileWeapon activeMissileWeapon;
     private boolean combatRetreating;
     private int meleeTacticalTargetId = -1;
@@ -244,16 +240,7 @@ public class CoHeroAlly extends DirectableAlly {
         inventory.storeInBundle(inventoryBundle);
         bundle.put(INVENTORY, inventoryBundle);
 
-        long[] thrownIDs = new long[thrownOutstanding.size()];
-        int[] thrownCounts = new int[thrownOutstanding.size()];
-        int thrownIndex = 0;
-        for (Map.Entry<Long, Integer> entry : thrownOutstanding.entrySet()) {
-            thrownIDs[thrownIndex] = entry.getKey();
-            thrownCounts[thrownIndex] = entry.getValue();
-            thrownIndex++;
-        }
-        bundle.put(THROWN_SET_IDS, thrownIDs);
-        bundle.put(THROWN_SET_COUNTS, thrownCounts);
+        loot.storeInBundle(bundle);
         bundle.put(LOW_HEALTH_RALLY, support.isLowHealthRally());
         bundle.put(COMBAT_RETREATING, combatRetreating);
     }
@@ -276,19 +263,7 @@ public class CoHeroAlly extends DirectableAlly {
         support.restoreLowHealthRally(bundle.getBoolean(LOW_HEALTH_RALLY));
         combatRetreating = bundle.getBoolean(COMBAT_RETREATING);
 
-        thrownOutstanding.clear();
-        if (bundle.contains(THROWN_SET_IDS) || bundle.contains(THROWN_SET_COUNTS)) {
-            long[] thrownIDs = bundle.getLongArray(THROWN_SET_IDS);
-            int[] thrownCounts = bundle.getIntArray(THROWN_SET_COUNTS);
-            if (thrownIDs.length != thrownCounts.length) {
-                throw new IllegalStateException("Corrupt CoHero thrown-weapon tracking");
-            }
-            for (int i = 0; i < thrownIDs.length; i++) {
-                if (thrownCounts[i] > 0) {
-                    thrownOutstanding.put(thrownIDs[i], thrownCounts[i]);
-                }
-            }
-        }
+        loot.restoreFromBundle(bundle);
     }
 
     int enemySpawnMultiplierTenths() {
@@ -313,7 +288,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         pos = cell;
         navigation.clearExplorationTarget();
-        thrownOutstanding.clear();
+        loot.resetForLevel();
         activeMissileWeapon = null;
         target = -1;
         enemy = null;
@@ -850,22 +825,9 @@ public class CoHeroAlly extends DirectableAlly {
             return heroSupport;
         }
 
-        if (recoverPreferredLootAtCurrentCell()) {
-            spend(TICK);
-            return true;
-        }
-
-        int recoveryCell = nearestPreferredLootCell();
-        if (recoveryCell != -1 && recoveryCell != pos) {
-            int recoveryStep = lootRecoveryStep(recoveryCell);
-            if (recoveryStep != -1) {
-                int oldPos = pos;
-                guard.allowAnyMovement();
-                setMovementDecision("loot_recovery", recoveryCell);
-                move(recoveryStep, true);
-                spend(1 / speed());
-                return moveSprite(oldPos, pos);
-            }
+        Boolean lootAction = loot.actRecovery();
+        if (lootAction != null) {
+            return lootAction;
         }
 
         Boolean guardAction = guard.act();
@@ -3831,7 +3793,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (thrown == null) {
             throw new IllegalStateException("CoHero missile source disappeared before attack");
         }
-        markThrown(thrown.setID, 1);
+        loot.markThrown(thrown.setID, 1);
 
         float delay = thrown.castDelay(this, targetMob.pos);
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
@@ -3867,7 +3829,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         boolean survived = thrown.coHeroResolveThrow(this, targetMob, hit);
         if (!survived) {
-            markRecovered(thrown.setID, 1);
+            loot.markRecovered(thrown.setID, 1);
         }
         Invisibility.dispel(this);
     }
@@ -3908,240 +3870,13 @@ public class CoHeroAlly extends DirectableAlly {
         return false;
     }
 
-    private void markThrown(long setID, int amount) {
-        thrownOutstanding.put(setID, thrownOutstanding.getOrDefault(setID, 0) + amount);
-    }
 
-    private void markRecovered(long setID, int amount) {
-        Integer count = thrownOutstanding.get(setID);
-        if (count == null) {
-            return;
-        }
-        int remaining = count - amount;
-        if (remaining > 0) {
-            thrownOutstanding.put(setID, remaining);
-        } else {
-            thrownOutstanding.remove(setID);
-        }
-    }
 
-    private boolean recoverPreferredLootAtCurrentCell() {
-        Heap heap = Dungeon.level.heaps.get(pos);
-        if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
-            return false;
-        }
 
-        Item selected = null;
-        boolean selectedOwnedMissile = false;
 
-        // Recover CoHero's own thrown weapon before taking unrelated loot from the same heap.
-        for (Item item : new ArrayList<>(heap.items)) {
-            if (!(item instanceof MissileWeapon)) {
-                continue;
-            }
-            MissileWeapon missile = (MissileWeapon) item;
-            Integer outstanding = thrownOutstanding.get(missile.setID);
-            if (outstanding != null
-                    && outstanding > 0
-                    && supportedMissileWeapon(missile)
-                    && inventory.canAddToBackpack(missile)) {
-                selected = missile;
-                selectedOwnedMissile = true;
-                break;
-            }
-        }
 
-        // Gold never consumes backpack capacity, so prefer it over unrelated ranged loot.
-        if (selected == null) {
-            for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof Gold) {
-                    selected = item;
-                    break;
-                }
-            }
-        }
 
-        // In reduced-vision levels, a torch is a core exploration resource rather than generic
-        // warehouse loot. Prefer it before unrelated ranged equipment.
-        if (selected == null && Dungeon.level.viewDistance < Light.DISTANCE) {
-            for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof Torch && inventory.canAddToBackpack(item)) {
-                    selected = item;
-                    break;
-                }
-            }
-        }
 
-        if (selected == null) {
-            for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof MissileWeapon) {
-                    MissileWeapon missile = (MissileWeapon) item;
-                    if (supportedMissileWeapon(missile) && inventory.canAddToBackpack(missile)) {
-                        selected = missile;
-                        break;
-                    }
-                } else if (item instanceof Wand) {
-                    Wand wand = (Wand) item;
-                    if (CoHeroWandAdapter.supported(wand) && inventory.canAddToBackpack(wand)) {
-                        selected = wand;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (selected == null) {
-            return false;
-        }
-
-        heap.remove(selected);
-
-        if (selected instanceof Gold) {
-            collectGold((Gold) selected);
-            return true;
-        }
-
-        if (!inventory.addToBackpack(selected)) {
-            Dungeon.level.drop(selected, pos).sprite.drop();
-            return false;
-        }
-
-        if (selectedOwnedMissile) {
-            MissileWeapon missile = (MissileWeapon) selected;
-            markRecovered(missile.setID, missile.quantity());
-        }
-        return true;
-    }
-
-    private void collectGold(Gold gold) {
-        int amount = gold.quantity();
-        Catalog.setSeen(Gold.class);
-        Statistics.itemTypesDiscovered.add(Gold.class);
-        Dungeon.gold += amount;
-        Statistics.goldCollected += amount;
-        Badges.validateGoldCollected();
-
-        GameScene.pickUp(gold, pos);
-        if (sprite != null) {
-            sprite.showStatusWithIcon(
-                    CharSprite.NEUTRAL,
-                    Integer.toString(amount),
-                    FloatingText.GOLD);
-        }
-        Sample.INSTANCE.play(
-                Assets.Sounds.GOLD,
-                1,
-                1,
-                Random.Float(0.9f, 1.1f));
-    }
-
-    private int nearestPreferredLootCell() {
-        int bestOwnedCell = -1;
-        int bestOwnedDistance = Integer.MAX_VALUE;
-        int bestLootCell = -1;
-        int bestLootDistance = Integer.MAX_VALUE;
-
-        boolean[] safePassable = lootRecoveryPassable();
-
-        for (int cell : Dungeon.level.heaps.keyArray()) {
-            Heap heap = Dungeon.level.heaps.get(cell);
-            if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != this) {
-                continue;
-            }
-
-            boolean ownedCandidate = false;
-            boolean lootCandidate = false;
-
-            for (Item item : heap.items) {
-                if (item instanceof MissileWeapon) {
-                    MissileWeapon missile = (MissileWeapon) item;
-                    Integer outstanding = thrownOutstanding.get(missile.setID);
-                    if (outstanding != null
-                            && outstanding > 0
-                            && supportedMissileWeapon(missile)
-                            && inventory.canAddToBackpack(missile)) {
-                        ownedCandidate = true;
-                        break;
-                    }
-
-                    if (isKnown(cell)
-                            && supportedMissileWeapon(missile)
-                            && inventory.canAddToBackpack(missile)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Wand) {
-                    Wand wand = (Wand) item;
-                    if (isKnown(cell)
-                            && CoHeroWandAdapter.supported(wand)
-                            && inventory.canAddToBackpack(wand)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Torch) {
-                    if (Dungeon.level.viewDistance < Light.DISTANCE
-                            && isKnown(cell)
-                            && inventory.canAddToBackpack(item)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Gold && isKnown(cell)) {
-                    lootCandidate = true;
-                }
-            }
-
-            if (!ownedCandidate && !lootCandidate) {
-                continue;
-            }
-
-            int distance = lootRecoveryPathDistance(cell, safePassable);
-            if (distance == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            if (ownedCandidate) {
-                if (distance < bestOwnedDistance
-                        || (distance == bestOwnedDistance
-                        && (bestOwnedCell == -1 || cell < bestOwnedCell))) {
-                    bestOwnedDistance = distance;
-                    bestOwnedCell = cell;
-                }
-            } else if (distance < bestLootDistance
-                    || (distance == bestLootDistance
-                    && (bestLootCell == -1 || cell < bestLootCell))) {
-                bestLootDistance = distance;
-                bestLootCell = cell;
-            }
-        }
-
-        return bestOwnedCell != -1 ? bestOwnedCell : bestLootCell;
-    }
-
-    private boolean[] lootRecoveryPassable() {
-        return ordinarySafePassable(false);
-    }
-
-    private int lootRecoveryPathDistance(int cell, boolean[] safePassable) {
-        if (cell == pos) {
-            return 0;
-        }
-
-        PathFinder.Path recoveryPath =
-                Dungeon.findPath(this, cell, safePassable, fieldOfView, true);
-        return recoveryPath == null ? Integer.MAX_VALUE : recoveryPath.size();
-    }
-
-    private int lootRecoveryStep(int cell) {
-        if (rooted || cell == pos || !Dungeon.level.insideMap(cell)) {
-            return -1;
-        }
-
-        boolean[] safePassable = lootRecoveryPassable();
-        int step = Dungeon.findStep(this, cell, safePassable, fieldOfView, true);
-        return step != -1 && isMovementSafe(step) ? step : -1;
-    }
 
     private static final class RangedChoice {
         final MissileWeapon missile;
