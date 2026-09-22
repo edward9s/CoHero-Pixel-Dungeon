@@ -66,6 +66,18 @@ final class CoHeroCombatObjectiveController {
             return null;
         }
 
+        Mob rangedThreat = firstCurrentRangedThreat(attackableThreats);
+        if (rangedThreat != null) {
+            if (luring && owner.debugLogEnabled()) {
+                owner.logDebug("[CoHeroObjective] " + objective.name
+                        + " lure_cancel reason=ranged_threat"
+                        + " target=" + rangedThreat.getClass().getSimpleName()
+                        + " targetPos=" + rangedThreat.pos);
+            }
+            clearLure();
+            return null;
+        }
+
         for (Mob threat : attackableThreats) {
             if (objective.engagementZone[threat.pos]) {
                 if (luring && owner.debugLogEnabled()) {
@@ -145,6 +157,32 @@ final class CoHeroCombatObjectiveController {
                 ? "luring"
                 : (engageZoneOnlyThisTurn ? "engage" : "idle");
         return "objective=" + objective.name + " state=" + state;
+    }
+
+    private Mob firstCurrentRangedThreat(ArrayList<Mob> threats) {
+        if (threats == null || threats.isEmpty()) {
+            return null;
+        }
+
+        for (Mob threat : threats) {
+            if (threat == null || !threat.isAlive()) {
+                continue;
+            }
+
+            if (Dungeon.hero != null
+                    && Dungeon.hero.isAlive()
+                    && Dungeon.level.distance(threat.pos, Dungeon.hero.pos) > 1
+                    && threat.coHeroCanAttackFrom(threat.pos, Dungeon.hero)) {
+                return threat;
+            }
+
+            if (Dungeon.level.distance(threat.pos, owner.pos) > 1
+                    && threat.coHeroCanAttackFrom(threat.pos, owner)) {
+                return threat;
+            }
+        }
+
+        return null;
     }
 
     private EngagementObjective resolveSacrificialFireObjective() {
