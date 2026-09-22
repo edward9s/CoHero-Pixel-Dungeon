@@ -123,6 +123,7 @@ public class CoHeroAlly extends DirectableAlly {
     private static final String INVENTORY = "cohero_inventory";
     private static final String LOW_HEALTH_RALLY = "cohero_low_health_rally";
     private static final String COMBAT_RETREATING = "cohero_combat_retreating";
+    private static final String MOVEMENT_DEBUG_LOG = "cohero_movement_debug_log";
 
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
@@ -148,6 +149,7 @@ public class CoHeroAlly extends DirectableAlly {
     private String lastBossDecisionLog;
     private String movementDecision = "unspecified";
     private int movementDecisionTarget = -1;
+    private boolean movementDebugLogEnabled;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -246,6 +248,7 @@ public class CoHeroAlly extends DirectableAlly {
         loot.storeInBundle(bundle);
         bundle.put(LOW_HEALTH_RALLY, support.isLowHealthRally());
         bundle.put(COMBAT_RETREATING, combatRetreating);
+        bundle.put(MOVEMENT_DEBUG_LOG, movementDebugLogEnabled);
     }
 
     @Override
@@ -265,6 +268,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         support.restoreLowHealthRally(bundle.getBoolean(LOW_HEALTH_RALLY));
         combatRetreating = bundle.getBoolean(COMBAT_RETREATING);
+        movementDebugLogEnabled = bundle.getBoolean(MOVEMENT_DEBUG_LOG);
 
         loot.restoreFromBundle(bundle);
     }
@@ -879,7 +883,24 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
+    boolean movementDebugLogEnabled() {
+        return movementDebugLogEnabled;
+    }
+
+    void setMovementDebugLogEnabled(boolean enabled) {
+        movementDebugLogEnabled = enabled;
+    }
+
+    void logMovementDebug(String message) {
+        if (movementDebugLogEnabled) {
+            GLog.i(message);
+        }
+    }
+
     void setMovementDecision(String decision, int target) {
+        if (!movementDebugLogEnabled) {
+            return;
+        }
         movementDecision = decision;
         movementDecisionTarget = target;
         GLog.i("[CoHeroMove] DECIDE"
@@ -889,6 +910,9 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private void logMovement(String result, int oldPos, int requestedStep) {
+        if (!movementDebugLogEnabled) {
+            return;
+        }
         GLog.i("[CoHeroMove] " + result
                 + " decision=" + movementDecision
                 + " target=" + movementDecisionTarget
