@@ -955,94 +955,16 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private Boolean tryAvoidHazard() {
-        if (rooted || !CoHeroHazards.isDangerous(this, pos)) {
-            return null;
-        }
-
-        int best = -1;
-        int bestNearbyDanger = Integer.MAX_VALUE;
-        int bestHeroDistance = Integer.MAX_VALUE;
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = pos + offset;
-            if (cell < 0
-                    || cell >= Dungeon.level.length()
-                    || Dungeon.level.distance(pos, cell) != 1
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            int nearbyDanger = CoHeroHazards.nearbyDangerCount(this, cell);
-            int heroDistance = Dungeon.hero == null
-                    ? 0
-                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
-
-            if (best == -1
-                    || nearbyDanger < bestNearbyDanger
-                    || (nearbyDanger == bestNearbyDanger && heroDistance < bestHeroDistance)) {
-                best = cell;
-                bestNearbyDanger = nearbyDanger;
-                bestHeroDistance = heroDistance;
-            }
-        }
-
-        if (best == -1) {
-            return null;
-        }
-
-        int oldPos = pos;
-        clearRangedLurePlan();
-        guard.allowAnyMovement();
-        setMovementDecision("hazard_escape", best);
-        move(best, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
+        return navigation.tryAvoidHazard();
     }
 
     @Override
+    @Override
     protected boolean getCloser(int target) {
-        if (!guard.isMovementRestricted()
-                && !CoHeroHazards.hasActiveHazards(this)
-                && !hasVisibleSleepingEnemy()) {
-            return super.getCloser(target);
-        }
-        if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
-            return false;
-        }
-
-        boolean[] safePassable = ordinarySafePassable(false);
-        guard.restrictPassable(safePassable);
-
-        safePassable[pos] = true;
-        int step = Dungeon.findStep(this, target, safePassable, fieldOfView, true);
-        if (step == -1 || !isMovementSafe(step)) {
-            path = null;
-            return false;
-        }
-
-        path = null;
-        move(step);
-        return pos == step;
+        return navigation.getCloser(target);
     }
 
-    private boolean hasVisibleSleepingEnemy() {
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob != this
-                    && mob.alignment == Alignment.ENEMY
-                    && mob.isAlive()
-                    && mob.state == mob.SLEEPING
-                    && mob.pos >= 0
-                    && mob.pos < fieldOfView.length
-                    && fieldOfView[mob.pos]) {
-                return true;
-            }
-        }
-        return false;
-    }
+
 
     private boolean hasSeriousCleansableNegative() {
         int negatives = 0;
@@ -4373,5 +4295,25 @@ public class CoHeroAlly extends DirectableAlly {
 
     void prepareGuardHeroSupportMovement() {
         guard.prepareHeroSupportMovement();
+    }
+
+    boolean isGuardMovementRestricted() {
+        return guard.isMovementRestricted();
+    }
+
+    void restrictGuardPassable(boolean[] passable) {
+        guard.restrictPassable(passable);
+    }
+
+    void allowAnyGuardMovement() {
+        guard.allowAnyMovement();
+    }
+
+    boolean getCloserWithoutCoHeroPolicy(int target) {
+        return super.getCloser(target);
+    }
+
+    void clearRangedLureForNavigation() {
+        clearRangedLurePlan();
     }
 }
