@@ -3,6 +3,7 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfElements;
 
 public final class CoHeroClassTraits {
@@ -77,6 +78,13 @@ public final class CoHeroClassTraits {
                 && isCompanionClass(companion, HeroClass.ROGUE)
                 ? 1
                 : 0;
+    }
+
+    public static int huntressArcanaBonus(Char target) {
+        if (!isCompanionClass(target, HeroClass.HUNTRESS)) {
+            return 0;
+        }
+        return target.buff(MagicImmune.class) == null ? 1 : 0;
     }
 
     public static int missileLevelBonus(Char target) {

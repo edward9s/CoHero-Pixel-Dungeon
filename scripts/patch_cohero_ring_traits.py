@@ -2,12 +2,18 @@
 from pathlib import Path
 import sys
 
-if len(sys.argv) != 3:
-    raise SystemExit("usage: patch_rogue_wealth.py <RingOfWealth.java> <Mob.java>")
+if len(sys.argv) != 4:
+    raise SystemExit(
+        "usage: patch_cohero_ring_traits.py "
+        "<RingOfWealth.java> <RingOfArcana.java> <Mob.java>"
+    )
 
-ring_path = Path(sys.argv[1])
-mob_path = Path(sys.argv[2])
-ring = ring_path.read_text(encoding="utf-8")
+wealth_path = Path(sys.argv[1])
+arcana_path = Path(sys.argv[2])
+mob_path = Path(sys.argv[3])
+
+wealth = wealth_path.read_text(encoding="utf-8")
+arcana = arcana_path.read_text(encoding="utf-8")
 mob = mob_path.read_text(encoding="utf-8")
 
 
@@ -18,6 +24,7 @@ def replace_once(text, old, new, label):
     return text.replace(old, new, 1)
 
 
+# Rogue intrinsic Ring of Wealth +0.
 drop_multiplier_old = """	public static float dropChanceMultiplier( Char target ){
 		return (float)Math.pow(1.20, getBuffedBonus(target, Wealth.class));
 	}
@@ -31,8 +38,8 @@ drop_multiplier_new = """	public static int wealthBonus(Char target) {
 		return (float)Math.pow(1.20, wealthBonus(target));
 	}
 """
-ring = replace_once(
-    ring,
+wealth = replace_once(
+    wealth,
     drop_multiplier_old,
     drop_multiplier_new,
     "RingOfWealth dropChanceMultiplier",
@@ -40,14 +47,14 @@ ring = replace_once(
 
 bonus_old = "		int bonus = getBuffedBonus(target, Wealth.class);\n"
 bonus_new = "		int bonus = wealthBonus(target);\n"
-ring = replace_once(ring, bonus_old, bonus_new, "RingOfWealth bonus-drop bonus")
+wealth = replace_once(wealth, bonus_old, bonus_new, "RingOfWealth bonus-drop bonus")
 
 equip_old = "				int equipBonus = 0;\n"
 equip_new = (
     "				int equipBonus = "
     "com.spd.cohero.CoHeroClassTraits.rogueWealthBonus();\n"
 )
-ring = replace_once(ring, equip_old, equip_new, "RingOfWealth equipment bonus")
+wealth = replace_once(wealth, equip_old, equip_new, "RingOfWealth equipment bonus")
 
 gate_old = (
     "		if (Ring.getBuffedBonus(Dungeon.hero, "
@@ -56,7 +63,29 @@ gate_old = (
 gate_new = "		if (RingOfWealth.wealthBonus(Dungeon.hero) > 0) {\n"
 mob = replace_once(mob, gate_old, gate_new, "Mob RingOfWealth bonus-drop gate")
 
-ring_path.write_text(ring, encoding="utf-8")
+
+# Huntress intrinsic Ring of Arcana +0. Weapon enchantments and armor glyphs both
+# already use this single upstream multiplier, so keep the trait centralized here.
+arcana_old = """	public static float enchantPowerMultiplier(Char target ){
+		return (float)Math.pow(1.175f, getBuffedBonus(target, Arcana.class));
+	}
+"""
+arcana_new = """	public static float enchantPowerMultiplier(Char target ){
+		int bonus = getBuffedBonus(target, Arcana.class)
+				+ com.spd.cohero.CoHeroClassTraits.huntressArcanaBonus(target);
+		return (float)Math.pow(1.175f, bonus);
+	}
+"""
+arcana = replace_once(
+    arcana,
+    arcana_old,
+    arcana_new,
+    "RingOfArcana enchantPowerMultiplier",
+)
+
+wealth_path.write_text(wealth, encoding="utf-8")
+arcana_path.write_text(arcana, encoding="utf-8")
 mob_path.write_text(mob, encoding="utf-8")
-print(f"patched {ring_path}")
+print(f"patched {wealth_path}")
+print(f"patched {arcana_path}")
 print(f"patched {mob_path}")
