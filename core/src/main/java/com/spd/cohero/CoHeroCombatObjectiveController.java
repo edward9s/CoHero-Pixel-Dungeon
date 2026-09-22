@@ -45,7 +45,7 @@ final class CoHeroCombatObjectiveController {
             return null;
         }
 
-        Mob rangedThreat = firstCurrentRangedThreat(attackableThreats);
+        Mob rangedThreat = firstRangedCapableThreat(attackableThreats);
         if (rangedThreat != null) {
             // Guard scope may already have been prepared earlier in the turn. A ranged enemy that
             // can attack into the room must hand control to unrestricted ordinary combat instead
@@ -75,7 +75,7 @@ final class CoHeroCombatObjectiveController {
         if (objective == null
                 || attackableThreats == null
                 || attackableThreats.isEmpty()
-                || firstCurrentRangedThreat(attackableThreats) != null) {
+                || firstRangedCapableThreat(attackableThreats) != null) {
             return attackableThreats;
         }
 
@@ -105,25 +105,13 @@ final class CoHeroCombatObjectiveController {
                 : "objective=" + objective.name;
     }
 
-    private Mob firstCurrentRangedThreat(ArrayList<Mob> threats) {
+    private Mob firstRangedCapableThreat(ArrayList<Mob> threats) {
         if (threats == null || threats.isEmpty()) {
             return null;
         }
 
         for (Mob threat : threats) {
-            if (threat == null || !threat.isAlive()) {
-                continue;
-            }
-
-            if (Dungeon.hero != null
-                    && Dungeon.hero.isAlive()
-                    && Dungeon.level.distance(threat.pos, Dungeon.hero.pos) > 1
-                    && threat.coHeroCanAttackFrom(threat.pos, Dungeon.hero)) {
-                return threat;
-            }
-
-            if (Dungeon.level.distance(threat.pos, owner.pos) > 1
-                    && threat.coHeroCanAttackFrom(threat.pos, owner)) {
+            if (owner.hasNonAdjacentAttackCapability(threat)) {
                 return threat;
             }
         }
