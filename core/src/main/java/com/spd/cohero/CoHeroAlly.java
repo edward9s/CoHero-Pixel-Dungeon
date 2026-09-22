@@ -959,7 +959,6 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     @Override
-    @Override
     protected boolean getCloser(int target) {
         return navigation.getCloser(target);
     }
