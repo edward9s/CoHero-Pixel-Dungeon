@@ -43,7 +43,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層，也不需要先抵達出口附近。
 - Hero 觸發普通樓層 transition 時，系統先保存 CoHero 當下的 HP、裝備、背包、buff 與 AI 狀態，再直接換層；下一層由保存狀態在 Hero 附近重新生成 CoHero。
 - 同伴沒有「停止行走」開關；持續前進本身就是壓力來源。
-- Hero 與 CoHero 不共享遊戲規則層的 FOV：`Dungeon.level.heroFOV` 始終只代表玩家 Hero 視野。CoHero 另外維持自己的 `fieldOfView`，只在畫面呈現層合併，用來顯示 CoHero 周圍地形與角色，不讓 CoHero 遠端戰鬥影響 Hero 的行動、技能或其他依賴 `heroFOV` 的原版規則。這個 render visibility union **不得**拿來決定會阻塞 Actor processing 的動畫：移動、近戰、投擲／靈能弓與 Wand FX 等需要等待 motion／callback 的演出，只以 `Dungeon.level.heroFOV` 判斷；Hero 看不到來源與目標時直接結算並省略阻塞式動畫。放大鏡／右鍵檢查維持獨立語意：若某個 actor 位於 CoHero 當前 FOV，即使不在 Hero FOV，也允許檢視該 actor 的 info；地板、物品、陷阱等仍只依 Hero FOV。CoHero 的基礎 `viewDistance` 每次進層與行動前直接同步 `Dungeon.level.viewDistance`，所以「沒入黑暗」、DARK feeling、特殊 Boss 關卡或其他上游樓層視距調整都會同樣影響 CoHero；若 CoHero 具有原版 `Light` buff，則依原版規則至少提升至 6 格。
+- Hero 與 CoHero 不共享遊戲規則層的 FOV：`Dungeon.level.heroFOV` 始終只代表玩家 Hero 視野。CoHero 另外維持自己的 `fieldOfView`，只在畫面呈現層合併，用來顯示 CoHero 周圍地形與角色，不讓 CoHero 遠端戰鬥影響 Hero 的行動、技能或其他依賴 `heroFOV` 的原版規則。這個 render visibility union **不得**拿來決定 Actor processing：CoHero 的移動、近戰、投擲／靈能弓與 Wand gameplay 永遠先依 SPD Actor 時間軸序列結算；Hero FOV 外直接省略 presentation，Hero FOV 內則把動畫登記為非阻塞 presentation，允許與後續 actor 的演出重疊。若同一個 CoHero 在自己的上一個 presentation 尚未結束前再次取得回合，只等待自己的 presentation；當 Actor queue 回到 Hero 時，若本批仍有可見 CoHero presentation，Hero 暫不取得輸入，直到最後一個 pending presentation 結束。因此玩家等待的是可重疊演出中的最慢者，而不是把 CoHero 每個動畫時間逐一相加。放大鏡／右鍵檢查維持獨立語意：若某個 actor 位於 CoHero 當前 FOV，即使不在 Hero FOV，也允許檢視該 actor 的 info；地板、物品、陷阱等仍只依 Hero FOV。CoHero 的基礎 `viewDistance` 每次進層與行動前直接同步 `Dungeon.level.viewDistance`，所以「沒入黑暗」、DARK feeling、特殊 Boss 關卡或其他上游樓層視距調整都會同樣影響 CoHero；若 CoHero 具有原版 `Light` buff，則依原版規則至少提升至 6 格。
 - 載入存檔的 `StartScene` 存檔槽預覽同時顯示 Hero 與 CoHero 的全身 sprite：CoHero 畫在 Hero 後層，與 Hero 使用相同 Y，X 向右偏半個 12px 角色寬（6px），因此只露出右半；兩者各自使用存檔中的職業與護甲 tier。舊存檔若沒有 CoHero armor preview metadata，顯示 tier 0，但不影響實際載入狀態。
 
 設計重點不是「護送一個完全無能的 NPC」，而是：
@@ -167,7 +167,7 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 
 > `CoHeroAlly` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
 
-`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤、`CoHeroCombatRiskEstimator` 專責純戰鬥風險估算、`CoHeroSurvivalController` 專責治療／淨化／生存資源、`CoHeroControlItems` 專責符石與恐懼／傳送等控制資源決策。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。戰鬥與戰術走位不保存跨回合 plan：遠程接敵不記 enemy id／cover cell／wait counter，特殊近戰走位不記 tactical target／cell，retreat 也不保存 hysteresis flag；每回合都從目前 FOV、敵人位置、地形與風險重新推導。CoHero 每回合開始與讀檔完成後都清除繼承自 `Mob/DirectableAlly` 的 `HUNTING/enemy/target/path` 等 decision state；只有需要呼叫原版 `followHero()` 的當回合才暫時使用原版 state machine。另有一個純執行期例外：可見近戰呼叫原版 `Mob.doAttack()` 時，必須把本次攻擊目標暫存在 inherited `enemy`，因為真正傷害由動畫結束後的 `Mob.onAttackComplete()` 透過該欄位結算；下一個 CoHero turn 開始前即清除，不作為跨回合戰術狀態。保留的跨回合 AI 連續性只限於有明確語意者：`GuardSession`（Hero 尚未離開原房）、低血量 rally 的 35%/60% hysteresis，以及經每回合安全性驗證的 exploration target。
+`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤、`CoHeroCombatRiskEstimator` 專責純戰鬥風險估算、`CoHeroSurvivalController` 專責治療／淨化／生存資源、`CoHeroControlItems` 專責符石與恐懼／傳送等控制資源決策，`CoHeroPresentation` 則只追蹤 Hero FOV 內尚未完成的 CoHero 演出，不保存戰術或 gameplay 狀態。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。戰鬥與戰術走位不保存跨回合 plan：遠程接敵不記 enemy id／cover cell／wait counter，特殊近戰走位不記 tactical target／cell，retreat 也不保存 hysteresis flag；每回合都從目前 FOV、敵人位置、地形與風險重新推導。CoHero 每回合開始與讀檔完成後都清除繼承自 `Mob/DirectableAlly` 的 `HUNTING/enemy/target/path` 等 decision state；只有需要呼叫原版 `followHero()` 的當回合才暫時使用原版 state machine。可見近戰不再依賴 `Mob.onAttackComplete()` 才造成傷害，而是在 CoHero Actor 回合立即結算 attack/spend，再把 swing 登記為 presentation；因此 inherited `enemy` 不再承擔可見近戰 callback 狀態。保留的跨回合 AI 連續性只限於有明確語意者：`GuardSession`（Hero 尚未離開原房）、低血量 rally 的 35%/60% hysteresis，以及經每回合安全性驗證的 exploration target。
 
 不把 SPD 全面改造成 multi-Hero 架構，也不透過切換 `Dungeon.hero` 來讓原版系統誤以為 CoHero 是玩家 Hero。
 
@@ -482,7 +482,7 @@ Wand 不同。SPD 的 Wand 使用流程歷史上以玩家 Hero 為中心：
 - 部分 `onZap()` 會讀取 `Dungeon.hero`、Hero Talent、Hero buff 或 Hero belongings。
 - 不同 Wand 的效果語意差異很大；有些是直接傷害，有些是 AOE、位移、地形、召喚、治療、控制或持續效果，不能只用「平均傷害最高」安全概括。
 
-因此採用 fail-closed capability adapter：Wand 保留原版本身的效果；Hero FOV 內的 CoHero cast 保留原版動畫，Hero 看不到時則先完成該 Wand 必要的 targeting／AOE 狀態準備，再跳過 FX callback 直接結算。CoHero adapter 只負責判斷 targeting、安全性與「直接傷害／控制／逃生／支援」語意。未知 Wand 類型不猜測、不自動使用。
+因此採用 fail-closed capability adapter：Wand 保留原版本身的效果，但 CoHero cast 一律先完成必要 targeting／AOE 準備、`onZap()` 與 charge 結算；Hero FOV 外不建立 FX，Hero FOV 內才建立 presentation-only FX，callback 只用來結束 `CoHeroPresentation` pending，不再推進 gameplay 或 Actor 時間。CoHero adapter 只負責判斷 targeting、安全性與「直接傷害／控制／逃生／支援」語意。未知 Wand 類型不猜測、不自動使用。
 
 ## 8. Talent 與職業能力
 
