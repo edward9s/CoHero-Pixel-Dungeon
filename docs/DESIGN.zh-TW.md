@@ -71,7 +71,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
-移動診斷期間，CoHero 會以 `[CoHeroMove]` 前綴輸出 GLog：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態的生命週期，enter 會附上 Hero 房、outsideRoom、共用門與 guard area 格數。這些訊息用來追查把風範圍與 Hero 回援切換問題，屬於暫時診斷輸出。
+移動診斷預設關閉。CoHero 背包提供 `Movement debug log` checkbox；啟用後才以 `[CoHeroMove]` 前綴輸出 GLog：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態的生命週期，enter 會附上 Hero 房、outsideRoom、共用門與 guard area 格數。此 flag 會隨 CoHero 存檔保存；關閉時不建立 movement debug 字串，也不呼叫 GLog，避免高頻診斷影響遊戲流暢度。
 
 ### 視野與火把
 
