@@ -128,23 +128,17 @@ public class CoHeroAlly extends DirectableAlly {
     private static final String LOW_HEALTH_RALLY = "cohero_low_health_rally";
     private static final String COMBAT_RETREATING = "cohero_combat_retreating";
 
-    private static final int LOW_HEALTH_RALLY_ENTER_PERCENT = 35;
-    private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
-    private static final int HERO_RALLY_MIN_DISTANCE = 2;
-    private static final int HERO_RALLY_MAX_DISTANCE = 3;
-    private static final int HERO_MELEE_SUPPORT_RADIUS = 4;
-    private static final int HERO_RANGED_SUPPORT_RADIUS = 8;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
     private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
 
     private final CoHeroNavigation navigation = new CoHeroNavigation(this);
     private final CoHeroGuardController guard = new CoHeroGuardController(this);
+    private final CoHeroSupportController support = new CoHeroSupportController(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
     private MissileWeapon activeMissileWeapon;
-    private boolean lowHealthRally;
     private boolean combatRetreating;
     private int meleeTacticalTargetId = -1;
     private int meleeTacticalCell = -1;
@@ -166,7 +160,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     boolean lowHealthRally() {
-        return lowHealthRally;
+        return support.isLowHealthRally();
     }
 
     public MeleeWeapon weapon() {
@@ -259,7 +253,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
         bundle.put(THROWN_SET_IDS, thrownIDs);
         bundle.put(THROWN_SET_COUNTS, thrownCounts);
-        bundle.put(LOW_HEALTH_RALLY, lowHealthRally);
+        bundle.put(LOW_HEALTH_RALLY, support.isLowHealthRally());
         bundle.put(COMBAT_RETREATING, combatRetreating);
     }
 
@@ -278,7 +272,7 @@ public class CoHeroAlly extends DirectableAlly {
             inventory.restoreFromBundle(bundle.getBundle(INVENTORY));
         }
 
-        lowHealthRally = bundle.getBoolean(LOW_HEALTH_RALLY);
+        support.restoreLowHealthRally(bundle.getBoolean(LOW_HEALTH_RALLY));
         combatRetreating = bundle.getBoolean(COMBAT_RETREATING);
 
         thrownOutstanding.clear();
@@ -694,7 +688,7 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        updateLowHealthRallyState();
+        support.updateLowHealthRallyState();
 
         Boolean hazardAvoidance = tryAvoidHazard();
         if (hazardAvoidance != null) {
@@ -702,7 +696,7 @@ public class CoHeroAlly extends DirectableAlly {
             return hazardAvoidance;
         }
 
-        Mob guardSupportThreat = guard.isActive() ? heroSupportThreat() : null;
+        Mob guardSupportThreat = guard.isActive() ? support.heroSupportThreat() : null;
         guard.prepareMovementScope(guardSupportThreat);
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
@@ -847,8 +841,8 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        if (lowHealthRally) {
-            return actLowHealthRally();
+        if (support.isLowHealthRally()) {
+            return support.actLowHealthRally();
         }
 
         Boolean supportAction = trySupportAction();
@@ -856,7 +850,7 @@ public class CoHeroAlly extends DirectableAlly {
             return supportAction;
         }
 
-        Boolean heroSupport = tryFollowHeroForNearbyEnemy();
+        Boolean heroSupport = support.tryFollowHeroForNearbyEnemy();
         if (heroSupport != null) {
             return heroSupport;
         }
@@ -889,56 +883,9 @@ public class CoHeroAlly extends DirectableAlly {
         return navigation.actExplore();
     }
 
-    private Boolean tryFollowHeroForNearbyEnemy() {
-        Mob threat = heroSupportThreat();
-        if (threat == null) {
-            return null;
-        }
 
-        navigation.clearExplorationTarget();
-        guard.prepareHeroSupportMovement();
-        setMovementDecision(
-                "hero_support threat=" + threat.getClass().getSimpleName()
-                        + " threatPos=" + threat.pos,
-                Dungeon.hero.pos);
-        return actFollowHeroDirective();
-    }
 
-    boolean actFollowHeroDirective() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
-            return false;
-        }
 
-        followHero();
-        boolean result = state.act(false, false);
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return result;
-    }
-
-    private Mob heroSupportThreat() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive() || Dungeon.level == null) {
-            return null;
-        }
-
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob == null
-                    || !mob.isAlive()
-                    || (mob.alignment != Alignment.ENEMY && !(mob instanceof Mimic))) {
-                continue;
-            }
-
-            int distance = Dungeon.level.distance(Dungeon.hero.pos, mob.pos);
-            if (distance <= HERO_MELEE_SUPPORT_RADIUS) {
-                return mob;
-            }
-            if (distance <= HERO_RANGED_SUPPORT_RADIUS
-                    && mob.coHeroCanAttackFrom(mob.pos, Dungeon.hero)) {
-                return mob;
-            }
-        }
-        return null;
-    }
 
 
 
@@ -2154,82 +2101,11 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private void updateLowHealthRallyState() {
-        if (HT <= 0) {
-            lowHealthRally = false;
-            return;
-        }
 
-        if (lowHealthRally) {
-            if (HP * 100 >= HT * LOW_HEALTH_RALLY_EXIT_PERCENT) {
-                lowHealthRally = false;
-                navigation.clearExplorationTarget();
-            }
-        } else if (HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
-            lowHealthRally = true;
-            navigation.clearExplorationTarget();
-        }
-    }
 
-    private boolean actLowHealthRally() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
-            spend(TICK);
-            return true;
-        }
 
-        int distance = Dungeon.level.distance(pos, Dungeon.hero.pos);
 
-        // Far away: approach the Hero normally. Stop once the 2-3 cell comfort band is reached.
-        if (distance > HERO_RALLY_MAX_DISTANCE) {
-            int oldPos = pos;
-            if (getCloser(Dungeon.hero.pos)) {
-                spend(1 / speed());
-                return moveSprite(oldPos, pos);
-            }
-            spend(TICK);
-            return true;
-        }
 
-        // Adjacent is deliberately too close for the low-health Hero rally. Move one step away when a
-        // passable, unoccupied, sleep-safe cell can restore the preferred one-cell gap.
-        if (!rooted && distance < HERO_RALLY_MIN_DISTANCE) {
-            int spacingStep = chooseHeroSpacingStep();
-            if (spacingStep != -1) {
-                int oldPos = pos;
-                setMovementDecision("low_health_spacing", spacingStep);
-                move(spacingStep, true);
-                spend(1 / speed());
-                return moveSprite(oldPos, pos);
-            }
-        }
-
-        // Distances 2-3 are both acceptable. Holding here avoids jitter while the Hero moves.
-        spend(TICK);
-        return true;
-    }
-
-    private int chooseHeroSpacingStep() {
-        int fallback = -1;
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = pos + offset;
-            if (cell < 0
-                    || cell >= Dungeon.level.length()
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            int distance = Dungeon.level.distance(cell, Dungeon.hero.pos);
-            if (distance == HERO_RALLY_MIN_DISTANCE) {
-                return cell;
-            }
-            if (fallback == -1 && distance <= HERO_RALLY_MAX_DISTANCE) {
-                fallback = cell;
-            }
-        }
-        return fallback;
-    }
 
     @Override
     public void die(Object cause) {
@@ -2263,7 +2139,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         HP = HT;
-        lowHealthRally = false;
+        support.clearLowHealthRally();
 
         Statistics.ankhsUsed++;
         Catalog.countUse(Ankh.class);
@@ -3277,7 +3153,7 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        if (lowHealthRally || combatRetreating) {
+        if (support.isLowHealthRally() || combatRetreating) {
             clearRangedLurePlan();
             return null;
         }
@@ -4533,5 +4409,9 @@ public class CoHeroAlly extends DirectableAlly {
 
     boolean actCurrentState() {
         return state.act(false, false);
+    }
+
+    void prepareGuardHeroSupportMovement() {
+        guard.prepareHeroSupportMovement();
     }
 }
