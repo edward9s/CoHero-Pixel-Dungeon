@@ -1197,7 +1197,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean tryAutoSurvivalPotion() {
-        if (HT <= 0 || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
+        if (!support.isBelowLowHealthThreshold()) {
             return false;
         }
         return consumeSurvivalPotion(false);
@@ -1781,7 +1781,7 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        boolean lowHealthDanger = HT > 0 && HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT;
+        boolean lowHealthDanger = support.isBelowLowHealthThreshold();
         if (risk.attackersNow >= 3 || immediateLethal || lowHealthDanger || criticallyShortTtd) {
             if (tryUseInvisibilityPotion()) {
                 return true;
@@ -4279,6 +4279,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     void prepareGuardHeroSupportMovement() {
         guard.prepareHeroSupportMovement();
+    }
+
+    boolean followHeroDirectiveForGuard() {
+        return support.followHeroDirective();
     }
 
     boolean isGuardMovementRestricted() {
