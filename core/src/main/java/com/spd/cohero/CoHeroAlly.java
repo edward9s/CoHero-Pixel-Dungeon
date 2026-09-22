@@ -133,6 +133,7 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroSupportController support = new CoHeroSupportController(this);
     private final CoHeroVision vision = new CoHeroVision(this);
     private final CoHeroLoot loot = new CoHeroLoot(this);
+    private final CoHeroCombatRiskEstimator riskEstimator = new CoHeroCombatRiskEstimator(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private MissileWeapon activeMissileWeapon;
@@ -406,7 +407,7 @@ public class CoHeroAlly extends DirectableAlly {
         return attackSkillWith(attackingWeapon(), target);
     }
 
-    private int attackSkillWith(Weapon attackWeapon, Char target) {
+    int attackSkillWith(Weapon attackWeapon, Char target) {
         float accuracy = 9 + level();
         accuracy *= RingOfAccuracy.accuracyMultiplier(this);
 
@@ -700,7 +701,7 @@ public class CoHeroAlly extends DirectableAlly {
 
             Boolean survivalAction = tryCombatSurvival(combatTarget, visibleThreats);
             if (survivalAction != null) {
-                CombatRisk debugRisk = assessCombatRisk(combatTarget, visibleThreats);
+                CoHeroCombatRisk debugRisk = assessCombatRisk(combatTarget, visibleThreats);
                 logBossDecision("combat_survival:" + combatTarget.id(),
                         targetDebug(combatTarget)
                                 + " -> survival/retreat"
@@ -942,7 +943,7 @@ public class CoHeroAlly extends DirectableAlly {
                 || (negatives > 0 && HT > 0 && HP * 100 < HT * 50);
     }
 
-    private boolean tryUseCleansingPotion(CombatRisk risk) {
+    private boolean tryUseCleansingPotion(CoHeroCombatRisk risk) {
         if (!hasSeriousCleansableNegative()) {
             return false;
         }
@@ -1018,7 +1019,7 @@ public class CoHeroAlly extends DirectableAlly {
         return earthroot == -1 ? null : moveOntoAdjacentPlant(earthroot);
     }
 
-    private Boolean tryKnownRetreatPlant(CombatRisk risk, ArrayList<Mob> threats) {
+    private Boolean tryKnownRetreatPlant(CoHeroCombatRisk risk, ArrayList<Mob> threats) {
         if (rooted || risk == null || threats == null || threats.isEmpty()) {
             return null;
         }
@@ -1225,7 +1226,7 @@ public class CoHeroAlly extends DirectableAlly {
         return blinkCell != -1 && useBlinkStone(blinkCell);
     }
 
-    private boolean tryEmergencyRunestone(CombatRisk risk, ArrayList<Mob> threats) {
+    private boolean tryEmergencyRunestone(CoHeroCombatRisk risk, ArrayList<Mob> threats) {
         if (risk == null
                 || threats == null
                 || threats.isEmpty()
@@ -1725,7 +1726,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean tryEmergencyEscapeConsumable(
-            CombatRisk risk, ArrayList<Mob> threats) {
+            CoHeroCombatRisk risk, ArrayList<Mob> threats) {
         boolean immediateLethal = risk.immediateIncoming * 1.35f >= HP + shielding();
 
         int terrorTargets = usableTerrorTargetCount(threats);
@@ -1836,7 +1837,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean shouldUseHasteForRetreat(
-            CombatRisk risk, ArrayList<Mob> threats, int escapeStep) {
+            CoHeroCombatRisk risk, ArrayList<Mob> threats, int escapeStep) {
         if (risk == null
                 || threats == null
                 || escapeStep == -1
@@ -2256,7 +2257,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private Boolean tryCombatSurvival(Mob targetMob, ArrayList<Mob> threats) {
-        CombatRisk risk = assessCombatRisk(targetMob, threats);
+        CoHeroCombatRisk risk = assessCombatRisk(targetMob, threats);
         if (!risk.retreat) {
             combatRetreating = false;
             return null;
@@ -2343,335 +2344,60 @@ public class CoHeroAlly extends DirectableAlly {
         return null;
     }
 
-    private CombatRisk assessCombatRisk(Mob targetMob, ArrayList<Mob> threats) {
-        int attackersNow = countCurrentAttackersAtCell(pos, threats);
-        float incomingDpt = estimatedIncomingDptAtCell(pos, threats);
-        float immediateIncoming = estimatedImmediateIncomingAtCell(pos, threats);
-        float effectiveHp = HP + shielding();
-        float reserve = estimatedNearTermSurvivalReserve(attackersNow);
-        float outgoingDpt = estimateOutgoingDpt(targetMob);
-
-        float ttd = incomingDpt <= 0.01f
-                ? Float.POSITIVE_INFINITY
-                : (effectiveHp + reserve) / incomingDpt;
-        float ttk = outgoingDpt <= 0.01f
-                ? Float.POSITIVE_INFINITY
-                : Math.max(0.25f, targetMob.HP / outgoingDpt);
-
-        boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
-        boolean overwhelmed = attackersNow >= 3;
-
-        // A boss HP pool is not a valid solo-TTK race for CoHero: Hero is expected to contribute
-        // most of the encounter damage. Keep immediate-lethal and overwhelmed retreat rules, but
-        // do not make CoHero flee merely because it cannot personally burn down the whole boss
-        // before taking equivalent damage.
-        boolean bossTarget = targetMob.properties().contains(Char.Property.BOSS);
-        boolean losingRace = !bossTarget
-                && incomingDpt > 0.01f
-                && ttd <= ttk + 1.25f;
-        boolean outnumberedRace = attackersNow >= 2
-                && incomingDpt > 0.01f
-                && ttd <= ttk * 1.5f;
-
-        boolean retreat;
-        if (combatRetreating) {
-            boolean recovered = attackersNow <= 1
-                    && HP * 100 >= HT * 45
-                    && (incomingDpt <= 0.01f
-                        || ttd >= Math.max(4f, ttk * 1.75f));
-            retreat = !recovered;
-        } else {
-            retreat = immediateLethal || overwhelmed || losingRace || outnumberedRace;
-        }
-
-        return new CombatRisk(retreat, attackersNow, incomingDpt, immediateIncoming, ttd, ttk);
+    private CoHeroCombatRisk assessCombatRisk(
+            Mob targetMob, ArrayList<Mob> threats) {
+        return riskEstimator.assess(targetMob, threats, combatRetreating);
     }
 
-    private float estimatedNearTermSurvivalReserve(int attackersNow) {
-        float reserve = 0f;
 
-        Barrier barrier = buff(Barrier.class);
-        if ((barrier == null || barrier.shielding() <= 0)
-                && inventory.autoShieldingPotionCount() > 0) {
-            // Shielding is immediate, but drinking still costs an action.
-            float shieldingPotion = 0.6f * HT + 10f;
-            reserve += shieldingPotion * (attackersNow >= 2 ? 0.45f : 0.75f);
-        }
 
-        if (buff(Healing.class) != null) {
-            // Existing healing is already ticking, but do not pretend the whole buff is instant.
-            reserve += HT * 0.15f;
-        } else if (inventory.autoHealingPotionCount() > 0) {
-            float missingHp = Math.max(0, HT - HP);
-            float potionTotal = Math.min(0.8f * HT + 14f, missingHp);
-            reserve += potionTotal * (attackersNow >= 2 ? 0.20f : 0.35f);
-        }
-
-        return reserve;
+    private int countCurrentAttackersAtCell(
+            int defenderCell, ArrayList<Mob> threats) {
+        return riskEstimator.countCurrentAttackersAtCell(defenderCell, threats);
     }
 
-    private int countCurrentAttackersAtCell(int defenderCell, ArrayList<Mob> threats) {
-        int result = 0;
-        for (Mob threat : threats) {
-            if (canThreatAttackCell(threat, defenderCell)) {
-                result++;
-            }
-        }
-        return result;
-    }
 
-    private float estimatedImmediateIncomingAtCell(int defenderCell, ArrayList<Mob> threats) {
-        float result = 0f;
-        for (Mob threat : threats) {
-            if (canThreatAttackCell(threat, defenderCell)) {
-                result += estimatedThreatDamage(threat, defenderCell)
-                        * estimatedHitChance(threat, defenderCell);
-            }
-        }
-        return result;
-    }
 
-    private float estimatedIncomingDptAtCell(int defenderCell, ArrayList<Mob> threats) {
-        float result = 0f;
-        for (Mob threat : threats) {
-            float opportunity = threatOpportunity(threat, defenderCell);
-            if (opportunity <= 0f) {
-                continue;
-            }
-            float delay = Math.max(0.25f, threat.attackDelay());
-            result += estimatedThreatDamage(threat, defenderCell)
-                    * estimatedHitChance(threat, defenderCell)
-                    * opportunity
-                    / delay;
-        }
-        result += Math.max(0, incomingDOT()) * 0.20f;
-        return result;
+    private float estimatedIncomingDptAtCell(
+            int defenderCell, ArrayList<Mob> threats) {
+        return riskEstimator.estimatedIncomingDptAtCell(defenderCell, threats);
     }
 
     private float threatOpportunity(Mob threat, int defenderCell) {
-        if (canThreatAttackCell(threat, defenderCell)) {
-            return 1f;
-        }
-        if (threat.rooted || threat.paralysed > 0) {
-            return 0f;
-        }
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int source = threat.pos + offset;
-            if (!Dungeon.level.insideMap(source)
-                    || Dungeon.level.distance(threat.pos, source) != 1
-                    || !enemyCanEnterForRisk(threat, source)) {
-                continue;
-            }
-            if (canThreatAttackFromTo(threat, source, defenderCell)) {
-                return 0.55f;
-            }
-        }
-
-        return Dungeon.level.distance(threat.pos, defenderCell) <= 3 ? 0.10f : 0f;
+        return riskEstimator.threatOpportunity(threat, defenderCell);
     }
 
-    private boolean enemyCanEnterForRisk(Mob threat, int cell) {
-        if (!Dungeon.level.passable[cell]) {
-            if (!threat.flying || Dungeon.level.avoid[cell]) {
-                return false;
-            }
-        }
-        return !Char.hasProp(threat, Char.Property.LARGE) || Dungeon.level.openSpace[cell];
-    }
 
-    private boolean canThreatAttackCell(Mob threat, int defenderCell) {
-        return canThreatAttackFromTo(threat, threat.pos, defenderCell);
-    }
 
-    private boolean canThreatAttackFromTo(Mob threat, int sourceCell, int defenderCell) {
-        int livePos = pos;
-        try {
-            pos = defenderCell;
-            return threat.coHeroCanAttackFrom(sourceCell, this);
-        } finally {
-            pos = livePos;
-        }
-    }
+
+
+
 
     private float estimatedThreatDamage(Mob threat, int defenderCell) {
-        int livePos = pos;
-        Random.pushGenerator(0xC0E0A11L ^ ((long) threat.id() << 21) ^ defenderCell);
-        try {
-            pos = defenderCell;
-            float total = 0f;
-            for (int i = 0; i < 7; i++) {
-                total += Math.max(0, threat.damageRoll());
-            }
-            // Do not subtract full armor here: ranged/special mob attacks do not always use normal
-            // melee DR. The 0.85 factor gives armor some credit without making the estimate unsafe.
-            return Math.max(0.5f, total / 7f * 0.85f);
-        } finally {
-            pos = livePos;
-            Random.popGenerator();
-        }
+        return riskEstimator.estimatedThreatDamage(threat, defenderCell);
     }
 
     private float estimatedHitChance(Mob threat, int defenderCell) {
-        int livePos = pos;
-        try {
-            pos = defenderCell;
-            return estimatedUniformHitChance(
-                    Math.max(0, threat.attackSkill(this)) * blessRollMultiplier(threat),
-                    Math.max(0, defenseSkill(threat)) * blessRollMultiplier(this));
-        } finally {
-            pos = livePos;
-        }
+        return riskEstimator.estimatedHitChance(threat, defenderCell);
     }
 
     private float blessRollMultiplier(Char target) {
-        return target != null
-                && (target.buff(Bless.class) != null || CoHeroClassTraits.isClericBlessed(target))
-                ? 1.25f
-                : 1f;
+        return riskEstimator.blessRollMultiplier(target);
     }
 
-    private float estimatedUniformHitChance(float accuracy, float evasion) {
-        if (accuracy <= 0f) {
-            return 0f;
-        }
-        if (evasion <= 0f) {
-            return 1f;
-        }
 
-        float chance;
-        if (accuracy <= evasion) {
-            chance = accuracy / (2f * evasion);
-        } else {
-            chance = 1f - evasion / (2f * accuracy);
-        }
-        // Buffs/champion modifiers are not all encoded in the raw skill values. Keep the survival
-        // estimate conservative instead of allowing a deceptively tiny calculated hit chance.
-        return Math.max(0.20f, Math.min(0.98f, chance));
-    }
 
     private float estimateOutgoingDpt(Mob targetMob) {
-        if (targetMob == null) {
-            return 0f;
-        }
-
-        if (canAttack(targetMob)) {
-            if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(this)) {
-                return 0f;
-            }
-
-            float raw = sampledDamageRoll(this, targetMob.id());
-            float dr = sampledDrRoll(targetMob, id());
-            float effective = Math.max(0.5f, raw - dr);
-            float hitChance = targetMob.coHeroSurprisedBy(this)
-                    ? 1f
-                    : estimatedPhysicalHitChance(attackSkill(targetMob), targetMob, this);
-            return effective * hitChance / Math.max(0.25f, attackDelay());
-        }
-
-        float best = 0f;
-        float targetDr = sampledDrRoll(targetMob, id());
-
-        for (MissileWeapon missile : inventory.missileWeapons()) {
-            if (!supportedMissileWeapon(missile)
-                    || missile.cursed
-                    || new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos != targetMob.pos) {
-                continue;
-            }
-            float hitChance = estimatedPhysicalHitChance(
-                    attackSkillWith(missile, targetMob), targetMob, this);
-            best = Math.max(best,
-                    Math.max(0.5f, expectedMissileDamage(missile) - targetDr) * hitChance);
-        }
-
-        SpiritBow bow = inventory.spiritBow();
-        if (bow != null
-                && !bow.cursed
-                && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
-            MissileWeapon arrow = bow.knockArrow();
-            float hitChance = estimatedPhysicalHitChance(
-                    attackSkillWith(arrow, targetMob), targetMob, this);
-            best = Math.max(best,
-                    Math.max(0.5f, expectedSpiritBowDamage(bow) - targetDr) * hitChance);
-        }
-
-        for (Wand wand : inventory.wands()) {
-            if (!CoHeroWandAdapter.supported(wand)) {
-                continue;
-            }
-            if (CoHeroWandAdapter.guaranteedControl(wand, this, targetMob)) {
-                return Math.max(best, targetMob.HP);
-            }
-            if (CoHeroWandAdapter.canAffectEnemy(wand, this, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                best = Math.max(best, CoHeroWandAdapter.expectedDamage(wand, this, targetMob));
-            }
-        }
-
-        return best;
+        return riskEstimator.estimateOutgoingDpt(targetMob);
     }
 
-    private float estimatedPhysicalHitChance(int accuracy, Mob targetMob, Char attacker) {
-        if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(attacker)) {
-            return 0f;
-        }
-        if (targetMob.coHeroSurprisedBy(attacker)) {
-            return 1f;
-        }
-        return estimatedUniformHitChance(
-                Math.max(0, accuracy) * blessRollMultiplier(attacker),
-                Math.max(0, targetMob.defenseSkill(attacker)) * blessRollMultiplier(targetMob));
-    }
 
-    private float sampledDamageRoll(Char attacker, int salt) {
-        Random.pushGenerator(0xC0E0D4A6L ^ ((long) attacker.id() << 19) ^ salt);
-        try {
-            float total = 0f;
-            for (int i = 0; i < 7; i++) {
-                total += Math.max(0, attacker.damageRoll());
-            }
-            return total / 7f;
-        } finally {
-            Random.popGenerator();
-        }
-    }
 
-    private float sampledDrRoll(Char defender, int salt) {
-        Random.pushGenerator(0xC0E0D2L ^ ((long) defender.id() << 17) ^ salt);
-        try {
-            float total = 0f;
-            for (int i = 0; i < 5; i++) {
-                total += Math.max(0, defender.drRoll());
-            }
-            return total / 5f;
-        } finally {
-            Random.popGenerator();
-        }
-    }
 
-    private static final class CombatRisk {
-        final boolean retreat;
-        final int attackersNow;
-        final float incomingDpt;
-        final float immediateIncoming;
-        final float ttd;
-        final float ttk;
 
-        CombatRisk(
-                boolean retreat,
-                int attackersNow,
-                float incomingDpt,
-                float immediateIncoming,
-                float ttd,
-                float ttk) {
-            this.retreat = retreat;
-            this.attackersNow = attackersNow;
-            this.incomingDpt = incomingDpt;
-            this.immediateIncoming = immediateIncoming;
-            this.ttd = ttd;
-            this.ttk = ttk;
-        }
-    }
+
+
+
 
     /**
      * Ranged enemies are often weakest once CoHero reaches melee. If melee can be established in
@@ -3689,7 +3415,7 @@ public class CoHeroAlly extends DirectableAlly {
                 || type == ThrowingHammer.class;
     }
 
-    private float expectedMissileDamage(MissileWeapon missile) {
+    float expectedMissileDamage(MissileWeapon missile) {
         int level = missile.buffedLvl()
                 + RingOfSharpshooting.levelDamageBonus(this)
                 + CoHeroClassTraits.missileLevelBonus(this);
@@ -3702,7 +3428,7 @@ public class CoHeroAlly extends DirectableAlly {
         return average;
     }
 
-    private float expectedSpiritBowDamage(SpiritBow bow) {
+    float expectedSpiritBowDamage(SpiritBow bow) {
         float average = (bow.coHeroMin(this) + bow.coHeroMax(this)) / 2f;
         average = bow.augment.damageFactor(average);
         int excessStrength = STR() - bow.STRReq();
