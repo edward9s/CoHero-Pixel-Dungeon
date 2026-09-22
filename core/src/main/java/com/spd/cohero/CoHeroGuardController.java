@@ -22,7 +22,6 @@ import java.util.ArrayList;
 final class CoHeroGuardController {
 
     private final CoHeroAlly owner;
-    private int guardTarget = -1;
     private GuardSession session;
     private MoveScope moveScope = MoveScope.ANY;
 
@@ -85,7 +84,6 @@ final class CoHeroGuardController {
     }
 
     void prepareHeroSupportMovement() {
-        guardTarget = -1;
 
         if (session == null) {
             moveScope = MoveScope.ANY;
@@ -136,7 +134,6 @@ final class CoHeroGuardController {
         }
 
         session = new GuardSession(heroRoom, outsideRoom, heroExit.cell, area);
-        guardTarget = -1;
         owner.clearExplorationTarget();
 
         int areaCells = 0;
@@ -169,10 +166,8 @@ final class CoHeroGuardController {
             owner.clearNavigationPath();
             moveScope = MoveScope.GUARD_DOMAIN;
 
-            if (!areaContains(session.area, guardTarget) || guardTarget == owner.pos) {
-                guardTarget = chooseGuardRoamingTarget();
-            }
-            if (guardTarget == -1) {
+            int roamTarget = chooseGuardRoamingTarget();
+            if (roamTarget == -1) {
                 owner.setMovementDecision("guard_hold", owner.pos);
                 if (owner.debugLogEnabled()) {
                     owner.logDebug("[CoHeroMove] GUARD hold " + owner.movementContext());
@@ -181,31 +176,29 @@ final class CoHeroGuardController {
                 return true;
             }
 
-            owner.setMovementDecision("guard_roam", guardTarget);
-            return moveWithinGuardArea(guardTarget);
+            owner.setMovementDecision("guard_roam", roamTarget);
+            return moveWithinGuardArea(roamTarget);
         }
 
         if (isRoomBoundsCell(session.heroRoom, owner.pos)) {
-            guardTarget = nearestReachableGuardCell(session.area);
-            if (guardTarget == -1) {
+            int returnTarget = nearestReachableGuardCell(session.area);
+            if (returnTarget == -1) {
                 owner.spendActionTime(Actor.TICK);
                 return true;
             }
 
             moveScope = MoveScope.GUARD_DOMAIN;
-            owner.setMovementDecision("guard_return_from_hero_room", guardTarget);
-            return actTowardGuardTarget(guardTarget);
+            owner.setMovementDecision("guard_return_from_hero_room", returnTarget);
+            return actTowardGuardTarget(returnTarget);
         }
 
         // A third room is support-Hero territory. Active guard never transitions to explore.
-        guardTarget = -1;
         moveScope = MoveScope.ANY;
         owner.setMovementDecision("guard_external_support", Dungeon.hero.pos);
         return owner.followHeroDirectiveForGuard();
     }
 
     void clearDirective() {
-        guardTarget = -1;
         owner.clearDefensingPos();
         owner.clearNavigationPath();
     }
@@ -246,7 +239,6 @@ final class CoHeroGuardController {
         }
 
         session = null;
-        guardTarget = -1;
         owner.clearDefensingPos();
         owner.clearNavigationPath();
     }
@@ -455,7 +447,6 @@ final class CoHeroGuardController {
         owner.refreshOwnFieldOfView();
 
         if (owner.defendingPosition() == owner.pos && target != owner.pos) {
-            guardTarget = -1;
         }
         return result;
     }
@@ -522,7 +513,6 @@ final class CoHeroGuardController {
                         + " step=" + step
                         + " " + owner.movementContext());
             }
-            guardTarget = -1;
             owner.spendActionTime(Actor.TICK);
             return true;
         }
