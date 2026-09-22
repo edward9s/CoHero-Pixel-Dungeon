@@ -72,8 +72,8 @@ final class CoHeroGuardController {
 
         if (heroSupportThreat != null && isRoomBoundsCell(session.heroRoom, owner.pos)) {
             moveScope = MoveScope.HERO_ROOM;
-            if (owner.movementDebugLogEnabled()) {
-                owner.logMovementDebug("[CoHeroMove] SUPPORT_LOCK"
+            if (owner.debugLogEnabled()) {
+                owner.logDebug("[CoHeroMove] SUPPORT_LOCK"
                         + " threat=" + heroSupportThreat.getClass().getSimpleName()
                         + " threatPos=" + heroSupportThreat.pos
                         + " " + owner.movementContext());
@@ -146,8 +146,8 @@ final class CoHeroGuardController {
             }
         }
 
-        if (owner.movementDebugLogEnabled()) {
-            owner.logMovementDebug("[CoHeroMove] GUARD_SESSION enter"
+        if (owner.debugLogEnabled()) {
+            owner.logDebug("[CoHeroMove] GUARD_SESSION enter"
                     + " heroRoom=" + heroRoom.getClass().getSimpleName()
                     + " outsideRoom=" + outsideRoom.getClass().getSimpleName()
                     + " door=" + heroExit.cell
@@ -174,8 +174,8 @@ final class CoHeroGuardController {
             }
             if (guardTarget == -1) {
                 owner.setMovementDecision("guard_hold", owner.pos);
-                if (owner.movementDebugLogEnabled()) {
-                    owner.logMovementDebug("[CoHeroMove] GUARD hold " + owner.movementContext());
+                if (owner.debugLogEnabled()) {
+                    owner.logDebug("[CoHeroMove] GUARD hold " + owner.movementContext());
                 }
                 owner.spendActionTime(Actor.TICK);
                 return true;
@@ -237,8 +237,8 @@ final class CoHeroGuardController {
 
     private void leaveSession() {
         if (session != null) {
-            if (owner.movementDebugLogEnabled()) {
-                owner.logMovementDebug("[CoHeroMove] GUARD_SESSION exit"
+            if (owner.debugLogEnabled()) {
+                owner.logDebug("[CoHeroMove] GUARD_SESSION exit"
                         + " heroRoom=" + session.heroRoom.getClass().getSimpleName()
                         + " pos=" + owner.pos
                         + " hero=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
@@ -466,8 +466,8 @@ final class CoHeroGuardController {
         boolean[] passable = guardAreaPassable();
         int step = Dungeon.findStep(owner, target, passable, owner.fieldOfView, true);
         if (step == -1 || !passable[step] || !owner.isMovementSafe(step)) {
-            if (owner.movementDebugLogEnabled()) {
-                owner.logMovementDebug("[CoHeroMove] GUARD path_failed"
+            if (owner.debugLogEnabled()) {
+                owner.logDebug("[CoHeroMove] GUARD path_failed"
                         + " target=" + target
                         + " step=" + step
                         + " " + owner.movementContext());
