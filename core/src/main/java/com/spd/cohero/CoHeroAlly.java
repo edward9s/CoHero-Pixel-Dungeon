@@ -116,37 +116,26 @@ import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 
 public class CoHeroAlly extends DirectableAlly {
 
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
     private static final String INVENTORY = "cohero_inventory";
-    private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
-    private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
     private static final String LOW_HEALTH_RALLY = "cohero_low_health_rally";
     private static final String COMBAT_RETREATING = "cohero_combat_retreating";
 
-    private static final int LOW_HEALTH_RALLY_ENTER_PERCENT = 35;
-    private static final int LOW_HEALTH_RALLY_EXIT_PERCENT = 60;
-    private static final int HERO_RALLY_MIN_DISTANCE = 2;
-    private static final int HERO_RALLY_MAX_DISTANCE = 3;
-    private static final int HERO_MELEE_SUPPORT_RADIUS = 4;
-    private static final int HERO_RANGED_SUPPORT_RADIUS = 8;
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
     private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
 
-    private int explorationTarget = -1;
-    private int guardTarget = -1;
-    private GuardSession guardSession;
-    private MoveScope moveScope = MoveScope.ANY;
+    private final CoHeroNavigation navigation = new CoHeroNavigation(this);
+    private final CoHeroGuardController guard = new CoHeroGuardController(this);
+    private final CoHeroSupportController support = new CoHeroSupportController(this);
+    private final CoHeroVision vision = new CoHeroVision(this);
+    private final CoHeroLoot loot = new CoHeroLoot(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
-    private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
     private MissileWeapon activeMissileWeapon;
-    private boolean lowHealthRally;
     private boolean combatRetreating;
     private int meleeTacticalTargetId = -1;
     private int meleeTacticalCell = -1;
@@ -168,7 +157,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     boolean lowHealthRally() {
-        return lowHealthRally;
+        return support.isLowHealthRally();
     }
 
     public MeleeWeapon weapon() {
@@ -245,23 +234,14 @@ public class CoHeroAlly extends DirectableAlly {
     @Override
     public void storeInBundle(Bundle bundle) {
         super.storeInBundle(bundle);
-        bundle.put(EXPLORATION_TARGET, explorationTarget);
+        bundle.put(EXPLORATION_TARGET, navigation.explorationTarget());
 
         Bundle inventoryBundle = new Bundle();
         inventory.storeInBundle(inventoryBundle);
         bundle.put(INVENTORY, inventoryBundle);
 
-        long[] thrownIDs = new long[thrownOutstanding.size()];
-        int[] thrownCounts = new int[thrownOutstanding.size()];
-        int thrownIndex = 0;
-        for (Map.Entry<Long, Integer> entry : thrownOutstanding.entrySet()) {
-            thrownIDs[thrownIndex] = entry.getKey();
-            thrownCounts[thrownIndex] = entry.getValue();
-            thrownIndex++;
-        }
-        bundle.put(THROWN_SET_IDS, thrownIDs);
-        bundle.put(THROWN_SET_COUNTS, thrownCounts);
-        bundle.put(LOW_HEALTH_RALLY, lowHealthRally);
+        loot.storeInBundle(bundle);
+        bundle.put(LOW_HEALTH_RALLY, support.isLowHealthRally());
         bundle.put(COMBAT_RETREATING, combatRetreating);
     }
 
@@ -271,30 +251,19 @@ public class CoHeroAlly extends DirectableAlly {
 
         syncedLevel = level();
 
-        explorationTarget = bundle.contains(EXPLORATION_TARGET)
-                ? bundle.getInt(EXPLORATION_TARGET)
-                : -1;
+        navigation.restoreExplorationTarget(
+                bundle.contains(EXPLORATION_TARGET)
+                        ? bundle.getInt(EXPLORATION_TARGET)
+                        : -1);
 
         if (bundle.contains(INVENTORY)) {
             inventory.restoreFromBundle(bundle.getBundle(INVENTORY));
         }
 
-        lowHealthRally = bundle.getBoolean(LOW_HEALTH_RALLY);
+        support.restoreLowHealthRally(bundle.getBoolean(LOW_HEALTH_RALLY));
         combatRetreating = bundle.getBoolean(COMBAT_RETREATING);
 
-        thrownOutstanding.clear();
-        if (bundle.contains(THROWN_SET_IDS) || bundle.contains(THROWN_SET_COUNTS)) {
-            long[] thrownIDs = bundle.getLongArray(THROWN_SET_IDS);
-            int[] thrownCounts = bundle.getIntArray(THROWN_SET_COUNTS);
-            if (thrownIDs.length != thrownCounts.length) {
-                throw new IllegalStateException("Corrupt CoHero thrown-weapon tracking");
-            }
-            for (int i = 0; i < thrownIDs.length; i++) {
-                if (thrownCounts[i] > 0) {
-                    thrownOutstanding.put(thrownIDs[i], thrownCounts[i]);
-                }
-            }
-        }
+        loot.restoreFromBundle(bundle);
     }
 
     int enemySpawnMultiplierTenths() {
@@ -318,8 +287,8 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         pos = cell;
-        explorationTarget = -1;
-        thrownOutstanding.clear();
+        navigation.clearExplorationTarget();
+        loot.resetForLevel();
         activeMissileWeapon = null;
         target = -1;
         enemy = null;
@@ -357,7 +326,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         pos = cell;
-        explorationTarget = -1;
+        navigation.clearExplorationTarget();
         path = null;
         target = -1;
         enemy = null;
@@ -383,13 +352,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     void syncViewDistance() {
-        if (Dungeon.level == null) {
-            return;
-        }
-        int baseViewDistance = Dungeon.level.viewDistance;
-        viewDistance = buff(Light.class) == null
-                ? baseViewDistance
-                : Math.max(baseViewDistance, Light.DISTANCE);
+        vision.syncViewDistance();
     }
 
     private void syncSharedLevel() {
@@ -505,18 +468,10 @@ public class CoHeroAlly extends DirectableAlly {
     public void move(int step, boolean travelling) {
         int oldPos = pos;
 
-        if (guardSession != null) {
-            if (moveScope == MoveScope.HERO_ROOM
-                    && !isRoomInteriorCell(guardSession.heroRoom, step)) {
-                logMovement("BLOCKED_HERO_ROOM", oldPos, step);
-                return;
-            }
-            if (moveScope == MoveScope.GUARD_DOMAIN
-                    && !areaContains(guardSession.area, step)
-                    && !isRoomBoundsCell(guardSession.heroRoom, step)) {
-                logMovement("BLOCKED_GUARD_DOMAIN", oldPos, step);
-                return;
-            }
+        String blockedMovement = guard.blockedMovementReason(step);
+        if (blockedMovement != null) {
+            logMovement(blockedMovement, oldPos, step);
+            return;
         }
 
         super.move(step, travelling);
@@ -680,7 +635,7 @@ public class CoHeroAlly extends DirectableAlly {
     protected boolean act() {
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
-        moveScope = MoveScope.ANY;
+        guard.beginTurn();
 
         syncSharedLevel();
         syncViewDistance();
@@ -690,7 +645,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        updateGuardSession();
+        guard.updateSession();
 
         if (paralysed > 0) {
             logBossDecision("paralysed", "paralysed");
@@ -703,7 +658,7 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        updateLowHealthRallyState();
+        support.updateLowHealthRallyState();
 
         Boolean hazardAvoidance = tryAvoidHazard();
         if (hazardAvoidance != null) {
@@ -711,20 +666,8 @@ public class CoHeroAlly extends DirectableAlly {
             return hazardAvoidance;
         }
 
-        Mob guardSupportThreat = guardSession == null ? null : heroSupportThreat();
-        if (guardSession != null) {
-            if (guardSupportThreat != null
-                    && isRoomBoundsCell(guardSession.heroRoom, pos)) {
-                moveScope = MoveScope.HERO_ROOM;
-                GLog.i("[CoHeroMove] SUPPORT_LOCK"
-                        + " threat=" + guardSupportThreat.getClass().getSimpleName()
-                        + " threatPos=" + guardSupportThreat.pos
-                        + " " + movementContext());
-            } else if (areaContains(guardSession.area, pos)
-                    || isRoomBoundsCell(guardSession.heroRoom, pos)) {
-                moveScope = MoveScope.GUARD_DOMAIN;
-            }
-        }
+        Mob guardSupportThreat = guard.isActive() ? support.heroSupportThreat() : null;
+        guard.prepareMovementScope(guardSupportThreat);
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (visibleThreats.isEmpty()) {
@@ -836,7 +779,7 @@ public class CoHeroAlly extends DirectableAlly {
             int escapeStep = chooseEscapeStep(visibleThreats);
             if (escapeStep != -1) {
                 int oldPos = pos;
-                moveScope = MoveScope.ANY;
+                guard.allowAnyMovement();
                 setMovementDecision("combat_escape", escapeStep);
                 if (getCloser(escapeStep)) {
                     spend(1 / speed());
@@ -868,8 +811,8 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        if (lowHealthRally) {
-            return actLowHealthRally();
+        if (support.isLowHealthRally()) {
+            return support.actLowHealthRally();
         }
 
         Boolean supportAction = trySupportAction();
@@ -877,495 +820,63 @@ public class CoHeroAlly extends DirectableAlly {
             return supportAction;
         }
 
-        Boolean heroSupport = tryFollowHeroForNearbyEnemy();
+        Boolean heroSupport = support.tryFollowHeroForNearbyEnemy();
         if (heroSupport != null) {
             return heroSupport;
         }
 
-        if (recoverPreferredLootAtCurrentCell()) {
-            spend(TICK);
-            return true;
+        Boolean lootAction = loot.actRecovery();
+        if (lootAction != null) {
+            return lootAction;
         }
 
-        int recoveryCell = nearestPreferredLootCell();
-        if (recoveryCell != -1 && recoveryCell != pos) {
-            int recoveryStep = lootRecoveryStep(recoveryCell);
-            if (recoveryStep != -1) {
-                int oldPos = pos;
-                moveScope = MoveScope.ANY;
-                setMovementDecision("loot_recovery", recoveryCell);
-                move(recoveryStep, true);
-                spend(1 / speed());
-                return moveSprite(oldPos, pos);
-            }
+        Boolean guardAction = guard.act();
+        if (guardAction != null) {
+            return guardAction;
         }
 
-        if (guardSession != null) {
-            return actGuard(guardSession);
-        }
+        guard.clearDirective();
 
-        clearGuardDirective();
-
-        if (explorationTarget == -1
-                || explorationTarget == pos
-                || !Dungeon.level.passable[explorationTarget]
-                || (Actor.findChar(explorationTarget) != null && Actor.findChar(explorationTarget) != this)
-                || !isMovementSafe(explorationTarget)) {
-            explorationTarget = chooseExplorationTarget();
-        }
-
-        int oldPos = pos;
-        if (explorationTarget != -1) {
-            setMovementDecision("explore", explorationTarget);
-        }
-        if (explorationTarget != -1 && moveTowardExplorationTarget(explorationTarget)) {
-            spend(1 / speed());
-
-            Dungeon.level.updateFieldOfView(this, fieldOfView);
-            revealVisibleCells();
-            return moveSprite(oldPos, pos);
-        }
-
-        explorationTarget = chooseExplorationTarget();
-        spend(TICK);
-        return true;
+        return navigation.actExplore();
     }
 
-    private Boolean tryFollowHeroForNearbyEnemy() {
-        Mob threat = heroSupportThreat();
-        if (threat == null) {
-            return null;
-        }
 
-        explorationTarget = -1;
-        guardTarget = -1;
-        if (guardSession == null) {
-            moveScope = MoveScope.ANY;
-        } else if (isRoomBoundsCell(guardSession.heroRoom, pos)) {
-            moveScope = MoveScope.HERO_ROOM;
-        } else if (areaContains(guardSession.area, pos)) {
-            moveScope = MoveScope.GUARD_DOMAIN;
-        } else {
-            moveScope = MoveScope.ANY;
-        }
-        setMovementDecision(
-                "hero_support threat=" + threat.getClass().getSimpleName()
-                        + " threatPos=" + threat.pos,
-                Dungeon.hero.pos);
-        return actFollowHeroDirective();
-    }
 
-    private boolean actFollowHeroDirective() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
-            return false;
-        }
 
-        followHero();
-        boolean result = state.act(false, false);
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return result;
-    }
 
-    private Mob heroSupportThreat() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive() || Dungeon.level == null) {
-            return null;
-        }
 
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob == null
-                    || !mob.isAlive()
-                    || (mob.alignment != Alignment.ENEMY && !(mob instanceof Mimic))) {
-                continue;
-            }
 
-            int distance = Dungeon.level.distance(Dungeon.hero.pos, mob.pos);
-            if (distance <= HERO_MELEE_SUPPORT_RADIUS) {
-                return mob;
-            }
-            if (distance <= HERO_RANGED_SUPPORT_RADIUS
-                    && mob.coHeroCanAttackFrom(mob.pos, Dungeon.hero)) {
-                return mob;
-            }
-        }
-        return null;
-    }
 
-    private void updateGuardSession() {
-        if (!(Dungeon.level instanceof RegularLevel)
-                || Dungeon.hero == null
-                || !Dungeon.hero.isAlive()) {
-            leaveGuardSession();
-            return;
-        }
 
-        if (guardSession != null) {
-            if (isRoomBoundsCell(guardSession.heroRoom, Dungeon.hero.pos)) {
-                return;
-            }
-            leaveGuardSession();
-        }
 
-        RegularLevel level = (RegularLevel) Dungeon.level;
-        Room heroRoom = level.room(Dungeon.hero.pos);
-        if (heroRoom == null || heroRoom.isEntrance() || heroRoom.isExit()) {
-            return;
-        }
 
-        ArrayList<RoomExit> exits = runtimeRoomExits(level, heroRoom);
-        if (exits.size() != 1) {
-            return;
-        }
 
-        RoomExit heroExit = exits.get(0);
-        Room outsideRoom = findOutsideRoom(level, heroRoom, heroExit);
-        if (outsideRoom == null) {
-            return;
-        }
 
-        boolean[] area = buildGuardArea(level, outsideRoom, heroExit.cell);
-        if (area == null) {
-            return;
-        }
 
-        guardSession = new GuardSession(heroRoom, outsideRoom, heroExit.cell, area);
-        guardTarget = -1;
-        explorationTarget = -1;
 
-        int areaCells = 0;
-        for (boolean allowed : area) {
-            if (allowed) {
-                areaCells++;
-            }
-        }
-        GLog.i("[CoHeroMove] GUARD_SESSION enter"
-                + " heroRoom=" + heroRoom.getClass().getSimpleName()
-                + " outsideRoom=" + outsideRoom.getClass().getSimpleName()
-                + " door=" + heroExit.cell
-                + " areaCells=" + areaCells
-                + " pos=" + pos
-                + " hero=" + Dungeon.hero.pos);
-    }
 
-    private void leaveGuardSession() {
-        if (guardSession != null) {
-            GLog.i("[CoHeroMove] GUARD_SESSION exit"
-                    + " heroRoom=" + guardSession.heroRoom.getClass().getSimpleName()
-                    + " pos=" + pos
-                    + " hero=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
-        }
-        guardSession = null;
-        guardTarget = -1;
-        clearDefensingPos();
-        path = null;
-    }
 
-    private ArrayList<RoomExit> runtimeRoomExits(RegularLevel level, Room room) {
-        ArrayList<RoomExit> exits = new ArrayList<>();
 
-        for (int x = room.left + 1; x < room.right; x++) {
-            addRuntimeRoomExit(level, exits, x, room.top, 0, 1);
-            addRuntimeRoomExit(level, exits, x, room.bottom, 0, -1);
-        }
-        for (int y = room.top + 1; y < room.bottom; y++) {
-            addRuntimeRoomExit(level, exits, room.left, y, 1, 0);
-            addRuntimeRoomExit(level, exits, room.right, y, -1, 0);
-        }
 
-        return exits;
-    }
 
-    private void addRuntimeRoomExit(
-            RegularLevel level,
-            ArrayList<RoomExit> exits,
-            int x,
-            int y,
-            int inwardDx,
-            int inwardDy) {
-        Point boundary = new Point(x, y);
-        int cell = level.pointToCell(boundary);
-        Point inwardPoint = new Point(x + inwardDx, y + inwardDy);
-        Point outwardPoint = new Point(x - inwardDx, y - inwardDy);
 
-        if (inwardPoint.x < 0
-                || inwardPoint.y < 0
-                || outwardPoint.x < 0
-                || outwardPoint.y < 0
-                || inwardPoint.x >= level.width()
-                || outwardPoint.x >= level.width()
-                || inwardPoint.y >= level.height()
-                || outwardPoint.y >= level.height()) {
-            return;
-        }
 
-        int inwardCell = level.pointToCell(inwardPoint);
-        int outwardCell = level.pointToCell(outwardPoint);
-        if (!level.passable[cell]
-                || !level.passable[inwardCell]
-                || !level.passable[outwardCell]) {
-            return;
-        }
 
-        exits.add(new RoomExit(cell, outwardCell));
-    }
 
-    private Room findOutsideRoom(RegularLevel level, Room heroRoom, RoomExit heroExit) {
-        Room interiorMatch = null;
-        Point outsidePoint = level.cellToPoint(heroExit.outsideCell);
-        for (Room candidate : level.rooms()) {
-            if (candidate == heroRoom) {
-                continue;
-            }
-            if (candidate.inside(outsidePoint)) {
-                if (interiorMatch != null) {
-                    return null;
-                }
-                interiorMatch = candidate;
-            }
-        }
-        if (interiorMatch != null) {
-            return interiorMatch;
-        }
 
-        Room boundsMatch = null;
-        for (Room candidate : level.rooms()) {
-            if (candidate == heroRoom
-                    || !isRoomBoundsCell(candidate, heroExit.outsideCell)) {
-                continue;
-            }
-            if (boundsMatch != null) {
-                return null;
-            }
-            boundsMatch = candidate;
-        }
-        return boundsMatch;
-    }
 
-    private Boolean actGuard(GuardSession session) {
-        explorationTarget = -1;
 
-        if (areaContains(session.area, pos)) {
-            clearDefensingPos();
-            path = null;
-            moveScope = MoveScope.GUARD_DOMAIN;
 
-            if (!areaContains(session.area, guardTarget) || guardTarget == pos) {
-                guardTarget = chooseGuardRoamingTarget(session);
-            }
-            if (guardTarget == -1) {
-                GLog.i("[CoHeroMove] GUARD no roaming target " + movementContext());
-                spend(TICK);
-                return true;
-            }
 
-            setMovementDecision("guard_roam", guardTarget);
-            return moveWithinGuardArea(session, guardTarget);
-        }
 
-        if (isRoomBoundsCell(session.heroRoom, pos)) {
-            guardTarget = nearestReachableGuardCell(session.area);
-            if (guardTarget == -1) {
-                spend(TICK);
-                return true;
-            }
 
-            moveScope = MoveScope.GUARD_DOMAIN;
-            setMovementDecision("guard_return_from_hero_room", guardTarget);
-            return actTowardGuardTarget(guardTarget);
-        }
 
-        // Any third room is support-Hero territory. GUARD has no explore transition.
-        guardTarget = -1;
-        moveScope = MoveScope.ANY;
-        setMovementDecision("guard_external_support", Dungeon.hero.pos);
-        return actFollowHeroDirective();
-    }
 
-    private boolean[] buildGuardArea(
-            RegularLevel level,
-            Room outsideRoom,
-            int heroDoorCell) {
-        boolean[] roomPassable = new boolean[level.length()];
-        for (int cell = 0; cell < roomPassable.length; cell++) {
-            roomPassable[cell] = level.passable[cell] && isRoomBoundsCell(outsideRoom, cell);
-        }
-        if (heroDoorCell < 0 || heroDoorCell >= roomPassable.length) {
-            return null;
-        }
-        roomPassable[heroDoorCell] = true;
 
-        PathFinder.buildDistanceMap(heroDoorCell, roomPassable);
-        int[] heroDoorDistance = PathFinder.distance.clone();
 
-        ArrayList<int[]> competingDistances = new ArrayList<>();
-        for (RoomExit exit : runtimeRoomExits(level, outsideRoom)) {
-            if (exit.cell == heroDoorCell) {
-                continue;
-            }
 
-            boolean[] distancePassable = roomPassable.clone();
-            distancePassable[exit.cell] = true;
-            PathFinder.buildDistanceMap(exit.cell, distancePassable);
-            competingDistances.add(PathFinder.distance.clone());
-        }
 
-        boolean[] area = new boolean[level.length()];
-        boolean any = false;
-        for (int cell = 0; cell < area.length; cell++) {
-            if (!level.passable[cell]
-                    || !isRoomBoundsCell(outsideRoom, cell)
-                    || heroDoorDistance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            boolean heroSide = true;
-            for (int[] otherDistance : competingDistances) {
-                if (otherDistance[cell] <= heroDoorDistance[cell]) {
-                    heroSide = false;
-                    break;
-                }
-            }
-
-            if (heroSide) {
-                area[cell] = true;
-                any = true;
-            }
-        }
-
-        return any ? area : null;
-    }
-
-    private boolean actTowardGuardTarget(int target) {
-        defendPos(target);
-        boolean result = state.act(false, false);
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-
-        if (defendingPos == pos && target != pos) {
-            guardTarget = -1;
-        }
-        return result;
-    }
-
-    private int nearestReachableGuardCell(boolean[] area) {
-        boolean[] passable = ordinarySafePassable(false);
-        PathFinder.buildDistanceMap(pos, passable);
-
-        int best = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        for (int cell = 0; cell < passable.length; cell++) {
-            if (!areaContains(area, cell)
-                    || !isMovementSafe(cell)
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != this) {
-                continue;
-            }
-
-            int distance = PathFinder.distance[cell];
-            if (distance < bestDistance) {
-                best = cell;
-                bestDistance = distance;
-            }
-        }
-        return best;
-    }
-
-    private int chooseGuardRoamingTarget(GuardSession session) {
-        boolean[] passable = guardAreaPassable(session);
-        PathFinder.buildDistanceMap(pos, passable);
-
-        ArrayList<Integer> candidates = new ArrayList<>();
-        for (int cell = 0; cell < passable.length; cell++) {
-            if (cell == pos
-                    || !passable[cell]
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant == null || occupant == this) {
-                candidates.add(cell);
-            }
-        }
-        return candidates.isEmpty() ? -1 : Random.element(candidates);
-    }
-
-    private boolean moveWithinGuardArea(GuardSession session, int target) {
-        if (rooted) {
-            spend(TICK);
-            return true;
-        }
-
-        boolean[] passable = guardAreaPassable(session);
-        int step = Dungeon.findStep(this, target, passable, fieldOfView, true);
-        if (step == -1 || !passable[step] || !isMovementSafe(step)) {
-            GLog.i("[CoHeroMove] GUARD path_failed"
-                    + " target=" + target
-                    + " step=" + step
-                    + " " + movementContext());
-            guardTarget = -1;
-            spend(TICK);
-            return true;
-        }
-
-        int oldPos = pos;
-        move(step, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
-    }
-
-    private boolean[] guardAreaPassable(GuardSession session) {
-        boolean[] passable = ordinarySafePassable(false);
-        for (int cell = 0; cell < passable.length; cell++) {
-            passable[cell] = passable[cell] && areaContains(session.area, cell);
-        }
-        if (isRoomBoundsCell(session.heroRoom, pos)) {
-            passable[pos] = true;
-        }
-        return passable;
-    }
-
-    private boolean areaContains(boolean[] area, int cell) {
-        return area != null
-                && cell >= 0
-                && cell < area.length
-                && area[cell];
-    }
-
-    private boolean isRoomInteriorCell(Room room, int cell) {
-        return room != null
-                && cell >= 0
-                && cell < Dungeon.level.length()
-                && room.inside(Dungeon.level.cellToPoint(cell));
-    }
-
-    private boolean isRoomBoundsCell(Room room, int cell) {
-        if (room == null
-                || cell < 0
-                || cell >= Dungeon.level.length()) {
-            return false;
-        }
-
-        Point point = Dungeon.level.cellToPoint(cell);
-        return point.x >= room.left
-                && point.x <= room.right
-                && point.y >= room.top
-                && point.y <= room.bottom;
-    }
-
-    private void clearGuardDirective() {
-        guardTarget = -1;
-        clearDefensingPos();
-        path = null;
-    }
-
-    private void setMovementDecision(String decision, int target) {
+    void setMovementDecision(String decision, int target) {
         movementDecision = decision;
         movementDecisionTarget = target;
         GLog.i("[CoHeroMove] DECIDE"
@@ -1384,164 +895,33 @@ public class CoHeroAlly extends DirectableAlly {
                 + " " + movementContext());
     }
 
-    private String movementContext() {
+    String movementContext() {
         int heroPos = Dungeon.hero == null ? -1 : Dungeon.hero.pos;
         return "pos=" + pos
                 + " hero=" + heroPos
-                + " guard=" + (guardSession != null)
-                + " inGuardArea="
-                + (guardSession != null && areaContains(guardSession.area, pos))
-                + " inHeroRoom="
-                + (guardSession != null && isRoomBoundsCell(guardSession.heroRoom, pos))
-                + " scope=" + moveScope;
+                + " " + guard.debugState();
     }
 
-    private enum MoveScope {
-        ANY,
-        GUARD_DOMAIN,
-        HERO_ROOM
-    }
 
-    private static final class RoomExit {
-        final int cell;
-        final int outsideCell;
 
-        RoomExit(int cell, int outsideCell) {
-            this.cell = cell;
-            this.outsideCell = outsideCell;
-        }
-    }
 
-    private static final class GuardSession {
-        final Room heroRoom;
-        final Room outsideRoom;
-        final int heroDoorCell;
-        final boolean[] area;
 
-        GuardSession(Room heroRoom, Room outsideRoom, int heroDoorCell, boolean[] area) {
-            this.heroRoom = heroRoom;
-            this.outsideRoom = outsideRoom;
-            this.heroDoorCell = heroDoorCell;
-            this.area = area;
-        }
-    }
 
-    private boolean[] ordinarySafePassable(boolean knownOnly) {
-        boolean[] result = Dungeon.level.passable.clone();
-        for (int cell = 0; cell < result.length; cell++) {
-            if (cell == pos) {
-                result[cell] = true;
-                continue;
-            }
-            if (!result[cell]
-                    || !isMovementSafe(cell)
-                    || (knownOnly && !isKnown(cell))) {
-                result[cell] = false;
-            }
-        }
-        return result;
+
+    boolean[] ordinarySafePassable(boolean knownOnly) {
+        return navigation.ordinarySafePassable(knownOnly);
     }
 
     private Boolean tryAvoidHazard() {
-        if (rooted || !CoHeroHazards.isDangerous(this, pos)) {
-            return null;
-        }
-
-        int best = -1;
-        int bestNearbyDanger = Integer.MAX_VALUE;
-        int bestHeroDistance = Integer.MAX_VALUE;
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = pos + offset;
-            if (cell < 0
-                    || cell >= Dungeon.level.length()
-                    || Dungeon.level.distance(pos, cell) != 1
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            int nearbyDanger = CoHeroHazards.nearbyDangerCount(this, cell);
-            int heroDistance = Dungeon.hero == null
-                    ? 0
-                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
-
-            if (best == -1
-                    || nearbyDanger < bestNearbyDanger
-                    || (nearbyDanger == bestNearbyDanger && heroDistance < bestHeroDistance)) {
-                best = cell;
-                bestNearbyDanger = nearbyDanger;
-                bestHeroDistance = heroDistance;
-            }
-        }
-
-        if (best == -1) {
-            return null;
-        }
-
-        int oldPos = pos;
-        clearRangedLurePlan();
-        moveScope = MoveScope.ANY;
-        setMovementDecision("hazard_escape", best);
-        move(best, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
+        return navigation.tryAvoidHazard();
     }
 
     @Override
     protected boolean getCloser(int target) {
-        if (moveScope == MoveScope.ANY
-                && !CoHeroHazards.hasActiveHazards(this)
-                && !hasVisibleSleepingEnemy()) {
-            return super.getCloser(target);
-        }
-        if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
-            return false;
-        }
-
-        boolean[] safePassable = ordinarySafePassable(false);
-        if (guardSession != null && moveScope != MoveScope.ANY) {
-            for (int cell = 0; cell < safePassable.length; cell++) {
-                boolean allowed;
-                if (moveScope == MoveScope.HERO_ROOM) {
-                    allowed = isRoomInteriorCell(guardSession.heroRoom, cell);
-                } else {
-                    allowed = areaContains(guardSession.area, cell)
-                            || isRoomBoundsCell(guardSession.heroRoom, cell);
-                }
-                safePassable[cell] = safePassable[cell] && allowed;
-            }
-        }
-
-        safePassable[pos] = true;
-        int step = Dungeon.findStep(this, target, safePassable, fieldOfView, true);
-        if (step == -1 || !isMovementSafe(step)) {
-            path = null;
-            return false;
-        }
-
-        path = null;
-        move(step);
-        return pos == step;
+        return navigation.getCloser(target);
     }
 
-    private boolean hasVisibleSleepingEnemy() {
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob != this
-                    && mob.alignment == Alignment.ENEMY
-                    && mob.isAlive()
-                    && mob.state == mob.SLEEPING
-                    && mob.pos >= 0
-                    && mob.pos < fieldOfView.length
-                    && fieldOfView[mob.pos]) {
-                return true;
-            }
-        }
-        return false;
-    }
+
 
     private boolean hasSeriousCleansableNegative() {
         int negatives = 0;
@@ -1779,7 +1159,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean tryAutoSurvivalPotion() {
-        if (HT <= 0 || HP * 100 >= HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
+        if (!support.isBelowLowHealthThreshold()) {
             return false;
         }
         return consumeSurvivalPotion(false);
@@ -2363,7 +1743,7 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        boolean lowHealthDanger = HT > 0 && HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT;
+        boolean lowHealthDanger = support.isBelowLowHealthThreshold();
         if (risk.attackersNow >= 3 || immediateLethal || lowHealthDanger || criticallyShortTtd) {
             if (tryUseInvisibilityPotion()) {
                 return true;
@@ -2599,82 +1979,11 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private void updateLowHealthRallyState() {
-        if (HT <= 0) {
-            lowHealthRally = false;
-            return;
-        }
 
-        if (lowHealthRally) {
-            if (HP * 100 >= HT * LOW_HEALTH_RALLY_EXIT_PERCENT) {
-                lowHealthRally = false;
-                explorationTarget = -1;
-            }
-        } else if (HP * 100 < HT * LOW_HEALTH_RALLY_ENTER_PERCENT) {
-            lowHealthRally = true;
-            explorationTarget = -1;
-        }
-    }
 
-    private boolean actLowHealthRally() {
-        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
-            spend(TICK);
-            return true;
-        }
 
-        int distance = Dungeon.level.distance(pos, Dungeon.hero.pos);
 
-        // Far away: approach the Hero normally. Stop once the 2-3 cell comfort band is reached.
-        if (distance > HERO_RALLY_MAX_DISTANCE) {
-            int oldPos = pos;
-            if (getCloser(Dungeon.hero.pos)) {
-                spend(1 / speed());
-                return moveSprite(oldPos, pos);
-            }
-            spend(TICK);
-            return true;
-        }
 
-        // Adjacent is deliberately too close for the low-health Hero rally. Move one step away when a
-        // passable, unoccupied, sleep-safe cell can restore the preferred one-cell gap.
-        if (!rooted && distance < HERO_RALLY_MIN_DISTANCE) {
-            int spacingStep = chooseHeroSpacingStep();
-            if (spacingStep != -1) {
-                int oldPos = pos;
-                setMovementDecision("low_health_spacing", spacingStep);
-                move(spacingStep, true);
-                spend(1 / speed());
-                return moveSprite(oldPos, pos);
-            }
-        }
-
-        // Distances 2-3 are both acceptable. Holding here avoids jitter while the Hero moves.
-        spend(TICK);
-        return true;
-    }
-
-    private int chooseHeroSpacingStep() {
-        int fallback = -1;
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = pos + offset;
-            if (cell < 0
-                    || cell >= Dungeon.level.length()
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            int distance = Dungeon.level.distance(cell, Dungeon.hero.pos);
-            if (distance == HERO_RALLY_MIN_DISTANCE) {
-                return cell;
-            }
-            if (fallback == -1 && distance <= HERO_RALLY_MAX_DISTANCE) {
-                fallback = cell;
-            }
-        }
-        return fallback;
-    }
 
     @Override
     public void die(Object cause) {
@@ -2708,7 +2017,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         HP = HT;
-        lowHealthRally = false;
+        support.clearLowHealthRally();
 
         Statistics.ankhsUsed++;
         Catalog.countUse(Ankh.class);
@@ -2752,7 +2061,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private void resetNavigationAfterAnkhTeleport() {
-        explorationTarget = -1;
+        navigation.clearExplorationTarget();
         target = -1;
         enemy = null;
         enemyID = -1;
@@ -2852,7 +2161,7 @@ public class CoHeroAlly extends DirectableAlly {
                 : chooseInvulnerableEscapeStep(invulnerableThreats, threats);
         if (escapeStep != -1) {
             int oldPos = pos;
-            moveScope = MoveScope.ANY;
+            guard.allowAnyMovement();
             setMovementDecision("invulnerable_escape", escapeStep);
             move(escapeStep, true);
             spend(1 / speed());
@@ -2963,7 +2272,7 @@ public class CoHeroAlly extends DirectableAlly {
             int invisibleEscapeStep = rooted ? -1 : chooseEscapeStep(threats);
             if (invisibleEscapeStep != -1) {
                 int oldPos = pos;
-                moveScope = MoveScope.ANY;
+                guard.allowAnyMovement();
                 setMovementDecision("combat_survival_invisible_escape", invisibleEscapeStep);
                 move(invisibleEscapeStep, true);
                 spend(1 / speed());
@@ -2997,7 +2306,7 @@ public class CoHeroAlly extends DirectableAlly {
             }
 
             int oldPos = pos;
-            moveScope = MoveScope.ANY;
+            guard.allowAnyMovement();
             setMovementDecision("combat_survival_escape", escapeStep);
             move(escapeStep, true);
             spend(1 / speed());
@@ -3722,7 +3031,7 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        if (lowHealthRally || combatRetreating) {
+        if (support.isLowHealthRally() || combatRetreating) {
             clearRangedLurePlan();
             return null;
         }
@@ -4484,7 +3793,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (thrown == null) {
             throw new IllegalStateException("CoHero missile source disappeared before attack");
         }
-        markThrown(thrown.setID, 1);
+        loot.markThrown(thrown.setID, 1);
 
         float delay = thrown.castDelay(this, targetMob.pos);
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
@@ -4520,7 +3829,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         boolean survived = thrown.coHeroResolveThrow(this, targetMob, hit);
         if (!survived) {
-            markRecovered(thrown.setID, 1);
+            loot.markRecovered(thrown.setID, 1);
         }
         Invisibility.dispel(this);
     }
@@ -4561,240 +3870,13 @@ public class CoHeroAlly extends DirectableAlly {
         return false;
     }
 
-    private void markThrown(long setID, int amount) {
-        thrownOutstanding.put(setID, thrownOutstanding.getOrDefault(setID, 0) + amount);
-    }
 
-    private void markRecovered(long setID, int amount) {
-        Integer count = thrownOutstanding.get(setID);
-        if (count == null) {
-            return;
-        }
-        int remaining = count - amount;
-        if (remaining > 0) {
-            thrownOutstanding.put(setID, remaining);
-        } else {
-            thrownOutstanding.remove(setID);
-        }
-    }
 
-    private boolean recoverPreferredLootAtCurrentCell() {
-        Heap heap = Dungeon.level.heaps.get(pos);
-        if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
-            return false;
-        }
 
-        Item selected = null;
-        boolean selectedOwnedMissile = false;
 
-        // Recover CoHero's own thrown weapon before taking unrelated loot from the same heap.
-        for (Item item : new ArrayList<>(heap.items)) {
-            if (!(item instanceof MissileWeapon)) {
-                continue;
-            }
-            MissileWeapon missile = (MissileWeapon) item;
-            Integer outstanding = thrownOutstanding.get(missile.setID);
-            if (outstanding != null
-                    && outstanding > 0
-                    && supportedMissileWeapon(missile)
-                    && inventory.canAddToBackpack(missile)) {
-                selected = missile;
-                selectedOwnedMissile = true;
-                break;
-            }
-        }
 
-        // Gold never consumes backpack capacity, so prefer it over unrelated ranged loot.
-        if (selected == null) {
-            for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof Gold) {
-                    selected = item;
-                    break;
-                }
-            }
-        }
 
-        // In reduced-vision levels, a torch is a core exploration resource rather than generic
-        // warehouse loot. Prefer it before unrelated ranged equipment.
-        if (selected == null && Dungeon.level.viewDistance < Light.DISTANCE) {
-            for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof Torch && inventory.canAddToBackpack(item)) {
-                    selected = item;
-                    break;
-                }
-            }
-        }
 
-        if (selected == null) {
-            for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof MissileWeapon) {
-                    MissileWeapon missile = (MissileWeapon) item;
-                    if (supportedMissileWeapon(missile) && inventory.canAddToBackpack(missile)) {
-                        selected = missile;
-                        break;
-                    }
-                } else if (item instanceof Wand) {
-                    Wand wand = (Wand) item;
-                    if (CoHeroWandAdapter.supported(wand) && inventory.canAddToBackpack(wand)) {
-                        selected = wand;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (selected == null) {
-            return false;
-        }
-
-        heap.remove(selected);
-
-        if (selected instanceof Gold) {
-            collectGold((Gold) selected);
-            return true;
-        }
-
-        if (!inventory.addToBackpack(selected)) {
-            Dungeon.level.drop(selected, pos).sprite.drop();
-            return false;
-        }
-
-        if (selectedOwnedMissile) {
-            MissileWeapon missile = (MissileWeapon) selected;
-            markRecovered(missile.setID, missile.quantity());
-        }
-        return true;
-    }
-
-    private void collectGold(Gold gold) {
-        int amount = gold.quantity();
-        Catalog.setSeen(Gold.class);
-        Statistics.itemTypesDiscovered.add(Gold.class);
-        Dungeon.gold += amount;
-        Statistics.goldCollected += amount;
-        Badges.validateGoldCollected();
-
-        GameScene.pickUp(gold, pos);
-        if (sprite != null) {
-            sprite.showStatusWithIcon(
-                    CharSprite.NEUTRAL,
-                    Integer.toString(amount),
-                    FloatingText.GOLD);
-        }
-        Sample.INSTANCE.play(
-                Assets.Sounds.GOLD,
-                1,
-                1,
-                Random.Float(0.9f, 1.1f));
-    }
-
-    private int nearestPreferredLootCell() {
-        int bestOwnedCell = -1;
-        int bestOwnedDistance = Integer.MAX_VALUE;
-        int bestLootCell = -1;
-        int bestLootDistance = Integer.MAX_VALUE;
-
-        boolean[] safePassable = lootRecoveryPassable();
-
-        for (int cell : Dungeon.level.heaps.keyArray()) {
-            Heap heap = Dungeon.level.heaps.get(cell);
-            if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != this) {
-                continue;
-            }
-
-            boolean ownedCandidate = false;
-            boolean lootCandidate = false;
-
-            for (Item item : heap.items) {
-                if (item instanceof MissileWeapon) {
-                    MissileWeapon missile = (MissileWeapon) item;
-                    Integer outstanding = thrownOutstanding.get(missile.setID);
-                    if (outstanding != null
-                            && outstanding > 0
-                            && supportedMissileWeapon(missile)
-                            && inventory.canAddToBackpack(missile)) {
-                        ownedCandidate = true;
-                        break;
-                    }
-
-                    if (isKnown(cell)
-                            && supportedMissileWeapon(missile)
-                            && inventory.canAddToBackpack(missile)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Wand) {
-                    Wand wand = (Wand) item;
-                    if (isKnown(cell)
-                            && CoHeroWandAdapter.supported(wand)
-                            && inventory.canAddToBackpack(wand)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Torch) {
-                    if (Dungeon.level.viewDistance < Light.DISTANCE
-                            && isKnown(cell)
-                            && inventory.canAddToBackpack(item)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Gold && isKnown(cell)) {
-                    lootCandidate = true;
-                }
-            }
-
-            if (!ownedCandidate && !lootCandidate) {
-                continue;
-            }
-
-            int distance = lootRecoveryPathDistance(cell, safePassable);
-            if (distance == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            if (ownedCandidate) {
-                if (distance < bestOwnedDistance
-                        || (distance == bestOwnedDistance
-                        && (bestOwnedCell == -1 || cell < bestOwnedCell))) {
-                    bestOwnedDistance = distance;
-                    bestOwnedCell = cell;
-                }
-            } else if (distance < bestLootDistance
-                    || (distance == bestLootDistance
-                    && (bestLootCell == -1 || cell < bestLootCell))) {
-                bestLootDistance = distance;
-                bestLootCell = cell;
-            }
-        }
-
-        return bestOwnedCell != -1 ? bestOwnedCell : bestLootCell;
-    }
-
-    private boolean[] lootRecoveryPassable() {
-        return ordinarySafePassable(false);
-    }
-
-    private int lootRecoveryPathDistance(int cell, boolean[] safePassable) {
-        if (cell == pos) {
-            return 0;
-        }
-
-        PathFinder.Path recoveryPath =
-                Dungeon.findPath(this, cell, safePassable, fieldOfView, true);
-        return recoveryPath == null ? Integer.MAX_VALUE : recoveryPath.size();
-    }
-
-    private int lootRecoveryStep(int cell) {
-        if (rooted || cell == pos || !Dungeon.level.insideMap(cell)) {
-            return -1;
-        }
-
-        boolean[] safePassable = lootRecoveryPassable();
-        int step = Dungeon.findStep(this, cell, safePassable, fieldOfView, true);
-        return step != -1 && isMovementSafe(step) ? step : -1;
-    }
 
     private static final class RangedChoice {
         final MissileWeapon missile;
@@ -4827,64 +3909,15 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private void revealVisibleCells() {
-        for (int i = 0; i < fieldOfView.length; i++) {
-            if (fieldOfView[i]
-                    && Dungeon.level.discoverable[i]
-                    && !Dungeon.level.visited[i]) {
-                Dungeon.level.visited[i] = true;
-            }
-        }
-
-        // CoHero vision is display-only. Refresh its local fog and visible sprites without
-        // changing Dungeon.level.heroFOV or any Hero gameplay visibility rules.
-        GameScene.updateFog(pos, viewDistance + 1);
-        GameScene.afterObserve();
+        vision.revealVisibleCells();
     }
 
     private boolean tryAutoTorch() {
-        if (Dungeon.level == null
-                || Dungeon.level.viewDistance >= Light.DISTANCE
-                || buff(Light.class) != null) {
-            return false;
-        }
-
-        Torch torch = inventory.takeOneAutoTorch();
-        if (torch == null) {
-            return false;
-        }
-
-        Buff.affect(this, Light.class, Light.DURATION);
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        Catalog.countUse(Torch.class);
-        Sample.INSTANCE.play(Assets.Sounds.BURNING);
-
-        if (sprite != null) {
-            sprite.operate(pos);
-            Emitter emitter = sprite.centerEmitter();
-            if (emitter != null) {
-                emitter.start(FlameParticle.FACTORY, 0.2f, 3);
-            }
-        }
-
-        spend(Torch.TIME_TO_LIGHT);
-        return true;
+        return vision.tryAutoTorch();
     }
 
     private ArrayList<Mob> visibleAwakeEnemies() {
-        ArrayList<Mob> result = new ArrayList<>();
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob != this
-                    && mob.alignment == Alignment.ENEMY
-                    && mob.isAlive()
-                    && mob.invisible <= 0
-                    && fieldOfView[mob.pos]
-                    && mob.state != mob.SLEEPING
-                    && mob.buff(Challenge.SpectatorFreeze.class) == null) {
-                result.add(mob);
-            }
-        }
-        return result;
+        return vision.visibleAwakeEnemies();
     }
 
     private int chooseEscapeStep(ArrayList<Mob> threats) {
@@ -4937,88 +3970,73 @@ public class CoHeroAlly extends DirectableAlly {
         return nearest;
     }
 
-    private boolean isMovementSafe(int cell) {
-        return !CoHeroHazards.isDangerous(this, cell) && isSleepSafe(cell);
+    boolean isMovementSafe(int cell) {
+        return navigation.isMovementSafe(cell);
     }
 
-    private boolean isSleepSafe(int cell) {
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob != this
-                    && mob.alignment == Alignment.ENEMY
-                    && mob.isAlive()
-                    && mob.state == mob.SLEEPING
-                    && fieldOfView[mob.pos]
-                    && Dungeon.level.distance(cell, mob.pos) <= 1) {
-                return false;
-            }
-        }
-        return true;
+
+
+
+
+
+
+    boolean isKnown(int cell) {
+        return navigation.isKnown(cell);
     }
 
-    private boolean moveTowardExplorationTarget(int target) {
-        if (rooted || target == pos || !Dungeon.level.insideMap(target)) {
-            return false;
-        }
+    void spendActionTime(float time) {
+        spend(time);
+    }
 
-        boolean[] passable = ordinarySafePassable(false);
-        int step = Dungeon.findStep(this, target, passable, fieldOfView, true);
-        if (step == -1 || !isMovementSafe(step)) {
-            path = null;
-            return false;
-        }
-
+    void clearNavigationPath() {
         path = null;
-        move(step, true);
-        return true;
     }
 
-    private int chooseExplorationTarget() {
-        boolean[] passable = ordinarySafePassable(false);
-        PathFinder.buildDistanceMap(pos, passable);
-
-        ArrayList<Integer> unknown = new ArrayList<>();
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (cell == pos
-                    || !Dungeon.level.passable[cell]
-                    || !Dungeon.level.discoverable[cell]
-                    || (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell])
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant == null || occupant == this) {
-                unknown.add(cell);
-            }
-        }
-
-        if (!unknown.isEmpty()) {
-            return Random.element(unknown);
-        }
-
-        ArrayList<Integer> roaming = new ArrayList<>();
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (cell == pos
-                    || !isKnown(cell)
-                    || !Dungeon.level.passable[cell]
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant == null || occupant == this) {
-                roaming.add(cell);
-            }
-        }
-
-        return roaming.isEmpty() ? -1 : Random.element(roaming);
+    int defendingPosition() {
+        return defendingPos;
     }
 
-    private boolean isKnown(int cell) {
-        return cell >= 0
-                && cell < Dungeon.level.length()
-                && (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell]);
+    boolean finishMovementAnimation(int oldPos) {
+        return moveSprite(oldPos, pos);
+    }
+
+    void refreshOwnFieldOfView() {
+        vision.refreshOwnFieldOfView();
+    }
+
+    void clearExplorationTarget() {
+        navigation.clearExplorationTarget();
+    }
+
+    boolean actCurrentState() {
+        return state.act(false, false);
+    }
+
+    void prepareGuardHeroSupportMovement() {
+        guard.prepareHeroSupportMovement();
+    }
+
+    boolean followHeroDirectiveForGuard() {
+        return support.followHeroDirective();
+    }
+
+    boolean isGuardMovementRestricted() {
+        return guard.isMovementRestricted();
+    }
+
+    void restrictGuardPassable(boolean[] passable) {
+        guard.restrictPassable(passable);
+    }
+
+    void allowAnyGuardMovement() {
+        guard.allowAnyMovement();
+    }
+
+    boolean getCloserWithoutCoHeroPolicy(int target) {
+        return super.getCloser(target);
+    }
+
+    void clearRangedLureForNavigation() {
+        clearRangedLurePlan();
     }
 }
