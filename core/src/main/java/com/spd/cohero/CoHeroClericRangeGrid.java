@@ -10,7 +10,8 @@ import com.watabou.noosa.Group;
 /**
  * Per-cell visual grid for the Cleric aura.
  *
- * Every cell within Level.distance() <= 6 from the Cleric CoHero is outlined
+ * After the player Hero chooses a subclass, every cell within the Cleric aura
+ * is outlined
  * with a very thin translucent grey frame. Shared edges are drawn once so
  * interior grid lines do not become darker than the outer edge.
  */
@@ -48,6 +49,7 @@ public final class CoHeroClericRangeGrid extends Group {
         if (companion == null
                 || !companion.isAlive()
                 || CoHero.companionClass() != HeroClass.CLERIC
+                || !CoHeroClassTraits.heroHasSubclass()
                 || Dungeon.level == null
                 || companion.pos < 0
                 || companion.pos >= Dungeon.level.length()) {

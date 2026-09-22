@@ -206,16 +206,16 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 
 ### CoHero 職業固有能力
 
-職業特色是 CoHero 額外的固有 trait，不是假戒指，也不占用兩個實際 ring slot；CoHero 真正裝備的戒指仍照原版生效，並與固有 trait 疊加。
+職業特色是 CoHero 額外的固有 trait，不是假戒指，也不占用兩個實際 ring slot；CoHero 真正裝備的戒指仍照原版生效，並與固有 trait 疊加。每個官方職業分成「基礎被動」與「轉職後被動」兩層；轉職後被動的唯一 gate 是玩家 Hero 已使用天狗面具完成轉職，也就是 `Dungeon.hero.subClass != HeroSubClass.NONE`。不另外保存面具旗標。
 
-- **Warrior**：等價 `RingOfMight +0` 與 `RingOfTenacity +0`：+1 STR、HT ×1.035，並依缺失 HP 比例取得原版 Tenacity 的漸進減傷；真正的 Ring of Might / Ring of Tenacity 可再依原版公式疊加。
-- **Mage**：等價 `RingOfEnergy +0` 的 wand charge 與 `RingOfElements +0`：法杖自然充能 ×1.175，並對原版 `RingOfElements.RESISTS` 涵蓋的元素／魔法效果套用 ×0.825 effectiveness；真正的 Ring of Energy / Ring of Elements 可再依原版公式疊加。
+- **Warrior**：基礎被動等價 `RingOfMight +0`：+1 STR、HT ×1.035。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfTenacity +0` 的漸進減傷；真正的 Ring of Might / Ring of Tenacity 可再依原版公式疊加。
+- **Mage**：基礎被動等價 `RingOfEnergy +0`，法杖自然充能 ×1.175。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfElements +0` 的元素／魔法抗性，對原版 `RingOfElements.RESISTS` 涵蓋效果套用 ×0.825 effectiveness；真正的 Ring of Energy / Ring of Elements 可再依原版公式疊加。
   - 起始 `MagesStaff(WandOfMagicMissile)` 仍是原版 Mage's Staff；CoHero AI 直接使用 Staff 內嵌的原版 wand 與同一個 charge pool，不建立複製 wand。Staff 近戰與 wand 遠程能力都可使用。
-- **Rogue**：移動速度 ×1.15，等價 `RingOfHaste +0`；另具有等價 `RingOfWealth +0` 的固有財富效果。Wealth 直接沿用原版 bonus 計算：有效 bonus 額外 +1，因此一般怪物掉落倍率為原版 `1.20^bonus`，bonus-drop tracker 與 rare-equipment 計算也視同多一枚 +0 Wealth；它不占 ring slot，並可與玩家 Hero 真正裝備的 Ring of Wealth 疊加。只有 Rogue CoHero 實際存活且位於當前樓層時生效；被刻意留在 Boss／支線樓層外時不生效。真正的 Ring of Haste 可再疊加。
-- **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；另具有等價 `RingOfArcana +0` 的固有奧術效果。Arcana 直接併入原版 `RingOfArcana.enchantPowerMultiplier(Char)` 的有效 bonus，Huntress CoHero 額外 +1，因此武器附魔與護甲刻印的原版效果倍率為 `1.175^bonus`；真正裝備的 Ring of Arcana 依原版 bonus 疊加。`MagicImmune` 時與真正戒指相同，不提供 Arcana bonus。真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
+- **Rogue**：基礎被動為移動速度 ×1.15，等價 `RingOfHaste +0`。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfWealth +0` 的固有財富效果。Wealth 直接沿用原版 bonus 計算：有效 bonus 額外 +1，因此一般怪物掉落倍率為原版 `1.20^bonus`，bonus-drop tracker 與 rare-equipment 計算也視同多一枚 +0 Wealth；它不占 ring slot，並可與玩家 Hero 真正裝備的 Ring of Wealth 疊加。只有 Rogue CoHero 實際存活且位於當前樓層時生效；被刻意留在 Boss／支線樓層外時不生效。真正的 Ring of Haste 可再疊加。
+- **Huntress**：基礎被動為投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfArcana +0` 的固有奧術效果。Arcana 直接併入原版 `RingOfArcana.enchantPowerMultiplier(Char)` 的有效 bonus，Huntress CoHero 額外 +1，因此武器附魔與護甲刻印的原版效果倍率為 `1.175^bonus`；真正裝備的 Ring of Arcana 依原版 bonus 疊加。`MagicImmune` 時與真正戒指相同，不提供 Arcana bonus。真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
   - 起始 `SpiritBow` 仍是原版專武。CoHero 透過原版 `SpiritArrow` 射擊；箭為無限彈藥，不進普通投擲物耐久、掉落或回收流程。傷害使用 CoHero 自己的 STR、實際 Sharpshooting 戒指與 Huntress 固有 Sharpshooting +0，並排除 Hero-only talents。
-- **Duelist**：等價 `RingOfFuror +0` 與 `RingOfTenacity +0`：裝備近戰武器時攻擊速度 ×1.09051，並依缺失 HP 比例取得原版 Tenacity 的漸進減傷；真正的 Furor / Tenacity 可再依原版公式疊加。
-- **Cleric**：Cleric CoHero 自身永久視為受到原版 `Bless` 的戰鬥加護；玩家 Hero 位於 Cleric 3 格內（`Level.distance()` ≤ 3）時也分享同一效果。實作不建立永久 `Bless` buff，而是在原版 `Char.hit()` 的最終 accuracy / evasion 擲骰處，把「原版 Bless buff 或 Cleric aura」視為同一個 Bless，因此各自只套一次 ×1.25，不會與正常 Bless 疊成第二層。Cleric 與 Hero 不要求直線視野。視覺上，每個受影響格子各自畫一個稍明顯的灰色半透明方框；共用邊只畫一次，避免內部格線因 alpha 疊加而變深。此範圍與普通探索／把風規則完全獨立。
+- **Duelist**：基礎被動等價 `RingOfFuror +0`，裝備近戰武器時攻擊速度 ×1.09051。玩家 Hero 完成天狗面具轉職後，才再取得等價 `RingOfTenacity +0` 的漸進減傷；真正的 Furor / Tenacity 可再依原版公式疊加。
+- **Cleric**：基礎被動是 Cleric CoHero 自身永久視為受到原版 `Bless` 的戰鬥加護。玩家 Hero 完成天狗面具轉職後，才解鎖 3 格加護 aura：此時才顯示灰色半透明格線，且玩家 Hero 位於 Cleric 3 格內（`Level.distance()` ≤ 3）時分享同一 Bless 效果。實作不建立永久 `Bless` buff，而是在原版 `Char.hit()` 的最終 accuracy / evasion 擲骰處，把「原版 Bless buff 或 Cleric aura」視為同一個 Bless，因此各自只套一次 ×1.25，不會與正常 Bless 疊成第二層。Cleric 與 Hero 不要求直線視野；此範圍與普通探索／把風規則完全獨立。
 - **其他／第三方 HeroClass**：Generalist，HT ×1.05；未知職業使用通用短劍作為安全起始武器，不因缺少 stock case 直接失敗。
 
 ### Hero / CoHero 畫面外監控

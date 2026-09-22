@@ -3,6 +3,7 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfElements;
 
@@ -38,8 +39,9 @@ public final class CoHeroClassTraits {
     }
 
     public static float intrinsicTenacityDamageMultiplier(Char target) {
-        if (!isCompanionClass(target, HeroClass.WARRIOR)
-                && !isCompanionClass(target, HeroClass.DUELIST)) {
+        if (!heroHasSubclass()
+                || (!isCompanionClass(target, HeroClass.WARRIOR)
+                    && !isCompanionClass(target, HeroClass.DUELIST))) {
             return 1f;
         }
         if (target.HT <= 0) {
@@ -51,7 +53,7 @@ public final class CoHeroClassTraits {
     }
 
     public static float elementsResistanceMultiplier(Char target, Class effect) {
-        if (!isCompanionClass(target, HeroClass.MAGE)) {
+        if (!heroHasSubclass() || !isCompanionClass(target, HeroClass.MAGE)) {
             return 1f;
         }
 
@@ -72,6 +74,9 @@ public final class CoHeroClassTraits {
     }
 
     public static int rogueWealthBonus() {
+        if (!heroHasSubclass()) {
+            return 0;
+        }
         CoHeroAlly companion = CoHero.findCompanion();
         return companion != null
                 && companion.isAlive()
@@ -81,7 +86,7 @@ public final class CoHeroClassTraits {
     }
 
     public static int huntressArcanaBonus(Char target) {
-        if (!isCompanionClass(target, HeroClass.HUNTRESS)) {
+        if (!heroHasSubclass() || !isCompanionClass(target, HeroClass.HUNTRESS)) {
             return 0;
         }
         return target.buff(MagicImmune.class) == null ? 1 : 0;
@@ -122,11 +127,18 @@ public final class CoHeroClassTraits {
         if (target == companion) {
             return true;
         }
+        if (!heroHasSubclass()) {
+            return false;
+        }
 
         return target == Dungeon.hero
                 && target.pos >= 0
                 && companion.pos >= 0
                 && Dungeon.level.distance(companion.pos, target.pos) <= CLERIC_AURA_RANGE;
+    }
+
+    public static boolean heroHasSubclass() {
+        return Dungeon.hero != null && Dungeon.hero.subClass != HeroSubClass.NONE;
     }
 
     private static boolean isCompanionClass(Char target, HeroClass heroClass) {
