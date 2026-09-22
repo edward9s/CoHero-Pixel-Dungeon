@@ -349,8 +349,9 @@ final class CoHeroGuardController {
             return null;
         }
 
+        ArrayList<RoomExit> outsideExits = runtimeRoomExits(level, outsideRoom);
         boolean[] otherExit = new boolean[level.length()];
-        for (RoomExit exit : runtimeRoomExits(level, outsideRoom)) {
+        for (RoomExit exit : outsideExits) {
             if (exit.cell != heroExit.cell
                     && exit.cell >= 0
                     && exit.cell < otherExit.length) {
@@ -358,17 +359,56 @@ final class CoHeroGuardController {
             }
         }
 
+        // Open rooms need an area, not a single topology branch point. Partition the room
+        // by live path distance to its exits and keep the Hero-door side. Ties are kept:
+        // they are still part of the doorway-side room region, while the competing exit
+        // cells themselves naturally lose because their own distance is zero.
+        boolean[] distancePassable = roomPassable.clone();
+        if (heroExit.cell >= 0 && heroExit.cell < distancePassable.length) {
+            distancePassable[heroExit.cell] = true;
+        }
+        PathFinder.buildDistanceMap(heroExit.cell, distancePassable);
+        int[] heroDoorDistance = PathFinder.distance.clone();
+
+        ArrayList<int[]> competingDistances = new ArrayList<>();
+        for (RoomExit exit : outsideExits) {
+            if (exit.cell == heroExit.cell) {
+                continue;
+            }
+
+            boolean[] competitorPassable = distancePassable.clone();
+            competitorPassable[exit.cell] = true;
+            PathFinder.buildDistanceMap(exit.cell, competitorPassable);
+            competingDistances.add(PathFinder.distance.clone());
+        }
+
         boolean[] area = new boolean[level.length()];
+        for (int cell = 0; cell < area.length; cell++) {
+            if (!areaContains(roomPassable, cell)
+                    || heroDoorDistance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            boolean heroSide = true;
+            for (int[] competitorDistance : competingDistances) {
+                if (competitorDistance[cell] < heroDoorDistance[cell]) {
+                    heroSide = false;
+                    break;
+                }
+            }
+
+            if (heroSide) {
+                area[cell] = true;
+            }
+        }
+
+        // A one-cell corridor is a special topology: exit-distance partitioning would
+        // arbitrarily cut a perfectly valid guard corridor in half. Follow its unique
+        // continuation and union the whole corridor segment into the room-side area.
         int previous = heroExit.cell;
         int current = startCell;
-        boolean any = false;
-
-        // Follow the live cardinal floor topology from the Hero-room exit.
-        // A straight/cornering one-cell corridor has exactly one forward continuation.
-        // The first branch, open room, dead end, or another room exit ends the guard domain.
         while (areaContains(roomPassable, current) && !otherExit[current]) {
             area[current] = true;
-            any = true;
 
             int next = -1;
             int forwardChoices = 0;
@@ -376,8 +416,7 @@ final class CoHeroGuardController {
                 int candidate = current + offset;
                 if (!level.insideMap(candidate)
                         || candidate == previous
-                        || !areaContains(roomPassable, candidate)
-                        || area[candidate]) {
+                        || !areaContains(roomPassable, candidate)) {
                     continue;
                 }
 
@@ -394,6 +433,17 @@ final class CoHeroGuardController {
 
             previous = current;
             current = next;
+        }
+
+        // Keep only the component that is actually connected to the Hero-side entry.
+        // This prevents odd room geometry from creating unreachable roaming islands.
+        PathFinder.buildDistanceMap(startCell, area);
+        boolean any = false;
+        for (int cell = 0; cell < area.length; cell++) {
+            if (area[cell] && PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                area[cell] = false;
+            }
+            any |= area[cell];
         }
 
         return any ? area : null;
