@@ -195,7 +195,7 @@ final class CoHeroGuardController {
         guardTarget = -1;
         moveScope = MoveScope.ANY;
         owner.setMovementDecision("guard_external_support", Dungeon.hero.pos);
-        return owner.actFollowHeroDirective();
+        return owner.followHeroDirectiveForGuard();
     }
 
     void clearDirective() {
