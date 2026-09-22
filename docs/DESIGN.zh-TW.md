@@ -43,7 +43,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 - 真正的樓層 transition 永遠由玩家 Hero 觸發；CoHero 不直接切換樓層，也不需要先抵達出口附近。
 - Hero 觸發普通樓層 transition 時，系統先保存 CoHero 當下的 HP、裝備、背包、buff 與 AI 狀態，再直接換層；下一層由保存狀態在 Hero 附近重新生成 CoHero。
 - 同伴沒有「停止行走」開關；持續前進本身就是壓力來源。
-- Hero 與 CoHero 不共享遊戲規則層的 FOV：`Dungeon.level.heroFOV` 始終只代表玩家 Hero 視野。CoHero 另外維持自己的 `fieldOfView`，只在畫面呈現層合併，用來顯示 CoHero 周圍地形、角色與動畫，不讓 CoHero 遠端戰鬥影響 Hero 的行動、技能或其他依賴 `heroFOV` 的原版規則。放大鏡／右鍵檢查是唯一的 UI 例外：若某個 actor 位於 CoHero 當前 FOV，即使不在 Hero FOV，也允許檢視該 actor 的 info；地板、物品、陷阱等仍只依 Hero FOV。CoHero 的基礎 `viewDistance` 每次進層與行動前直接同步 `Dungeon.level.viewDistance`，所以「沒入黑暗」、DARK feeling、特殊 Boss 關卡或其他上游樓層視距調整都會同樣影響 CoHero；若 CoHero 具有原版 `Light` buff，則依原版規則至少提升至 6 格。
+- Hero 與 CoHero 不共享遊戲規則層的 FOV：`Dungeon.level.heroFOV` 始終只代表玩家 Hero 視野。CoHero 另外維持自己的 `fieldOfView`，只在畫面呈現層合併，用來顯示 CoHero 周圍地形與角色，不讓 CoHero 遠端戰鬥影響 Hero 的行動、技能或其他依賴 `heroFOV` 的原版規則。這個 render visibility union **不得**拿來決定會阻塞 Actor processing 的動畫：移動、近戰、投擲／靈能弓與 Wand FX 等需要等待 motion／callback 的演出，只以 `Dungeon.level.heroFOV` 判斷；Hero 看不到來源與目標時直接結算並省略阻塞式動畫。放大鏡／右鍵檢查維持獨立語意：若某個 actor 位於 CoHero 當前 FOV，即使不在 Hero FOV，也允許檢視該 actor 的 info；地板、物品、陷阱等仍只依 Hero FOV。CoHero 的基礎 `viewDistance` 每次進層與行動前直接同步 `Dungeon.level.viewDistance`，所以「沒入黑暗」、DARK feeling、特殊 Boss 關卡或其他上游樓層視距調整都會同樣影響 CoHero；若 CoHero 具有原版 `Light` buff，則依原版規則至少提升至 6 格。
 - 載入存檔的 `StartScene` 存檔槽預覽同時顯示 Hero 與 CoHero 的全身 sprite：CoHero 畫在 Hero 後層，與 Hero 使用相同 Y，X 向右偏半個 12px 角色寬（6px），因此只露出右半；兩者各自使用存檔中的職業與護甲 tier。舊存檔若沒有 CoHero armor preview metadata，顯示 tier 0，但不影響實際載入狀態。
 
 設計重點不是「護送一個完全無能的 NPC」，而是：
@@ -482,7 +482,7 @@ Wand 不同。SPD 的 Wand 使用流程歷史上以玩家 Hero 為中心：
 - 部分 `onZap()` 會讀取 `Dungeon.hero`、Hero Talent、Hero buff 或 Hero belongings。
 - 不同 Wand 的效果語意差異很大；有些是直接傷害，有些是 AOE、位移、地形、召喚、治療、控制或持續效果，不能只用「平均傷害最高」安全概括。
 
-因此採用 fail-closed capability adapter：Wand 保留原版本身的效果與動畫，CoHero adapter 只負責判斷 targeting、安全性與「直接傷害／控制／逃生／支援」語意。未知 Wand 類型不猜測、不自動使用。
+因此採用 fail-closed capability adapter：Wand 保留原版本身的效果；Hero FOV 內的 CoHero cast 保留原版動畫，Hero 看不到時則先完成該 Wand 必要的 targeting／AOE 狀態準備，再跳過 FX callback 直接結算。CoHero adapter 只負責判斷 targeting、安全性與「直接傷害／控制／逃生／支援」語意。未知 Wand 類型不猜測、不自動使用。
 
 ## 8. Talent 與職業能力
 
