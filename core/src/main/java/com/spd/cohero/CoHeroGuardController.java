@@ -73,10 +73,12 @@ final class CoHeroGuardController {
 
         if (heroSupportThreat != null && isRoomBoundsCell(session.heroRoom, owner.pos)) {
             moveScope = MoveScope.HERO_ROOM;
-            GLog.i("[CoHeroMove] SUPPORT_LOCK"
-                    + " threat=" + heroSupportThreat.getClass().getSimpleName()
-                    + " threatPos=" + heroSupportThreat.pos
-                    + " " + owner.movementContext());
+            if (owner.movementDebugLogEnabled()) {
+                owner.logMovementDebug("[CoHeroMove] SUPPORT_LOCK"
+                        + " threat=" + heroSupportThreat.getClass().getSimpleName()
+                        + " threatPos=" + heroSupportThreat.pos
+                        + " " + owner.movementContext());
+            }
         } else if (areaContains(session.area, owner.pos)
                 || isRoomBoundsCell(session.heroRoom, owner.pos)) {
             moveScope = MoveScope.GUARD_DOMAIN;
@@ -145,13 +147,15 @@ final class CoHeroGuardController {
             }
         }
 
-        GLog.i("[CoHeroMove] GUARD_SESSION enter"
-                + " heroRoom=" + heroRoom.getClass().getSimpleName()
-                + " outsideRoom=" + outsideRoom.getClass().getSimpleName()
-                + " door=" + heroExit.cell
-                + " areaCells=" + areaCells
-                + " pos=" + owner.pos
-                + " hero=" + Dungeon.hero.pos);
+        if (owner.movementDebugLogEnabled()) {
+            owner.logMovementDebug("[CoHeroMove] GUARD_SESSION enter"
+                    + " heroRoom=" + heroRoom.getClass().getSimpleName()
+                    + " outsideRoom=" + outsideRoom.getClass().getSimpleName()
+                    + " door=" + heroExit.cell
+                    + " areaCells=" + areaCells
+                    + " pos=" + owner.pos
+                    + " hero=" + Dungeon.hero.pos);
+        }
     }
 
     Boolean act() {
@@ -171,7 +175,9 @@ final class CoHeroGuardController {
             }
             if (guardTarget == -1) {
                 owner.setMovementDecision("guard_hold", owner.pos);
-                GLog.i("[CoHeroMove] GUARD hold " + owner.movementContext());
+                if (owner.movementDebugLogEnabled()) {
+                    owner.logMovementDebug("[CoHeroMove] GUARD hold " + owner.movementContext());
+                }
                 owner.spendActionTime(Actor.TICK);
                 return true;
             }
@@ -232,10 +238,12 @@ final class CoHeroGuardController {
 
     private void leaveSession() {
         if (session != null) {
-            GLog.i("[CoHeroMove] GUARD_SESSION exit"
-                    + " heroRoom=" + session.heroRoom.getClass().getSimpleName()
-                    + " pos=" + owner.pos
-                    + " hero=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
+            if (owner.movementDebugLogEnabled()) {
+                owner.logMovementDebug("[CoHeroMove] GUARD_SESSION exit"
+                        + " heroRoom=" + session.heroRoom.getClass().getSimpleName()
+                        + " pos=" + owner.pos
+                        + " hero=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
+            }
         }
 
         session = null;
@@ -459,10 +467,12 @@ final class CoHeroGuardController {
         boolean[] passable = guardAreaPassable();
         int step = Dungeon.findStep(owner, target, passable, owner.fieldOfView, true);
         if (step == -1 || !passable[step] || !owner.isMovementSafe(step)) {
-            GLog.i("[CoHeroMove] GUARD path_failed"
-                    + " target=" + target
-                    + " step=" + step
-                    + " " + owner.movementContext());
+            if (owner.movementDebugLogEnabled()) {
+                owner.logMovementDebug("[CoHeroMove] GUARD path_failed"
+                        + " target=" + target
+                        + " step=" + step
+                        + " " + owner.movementContext());
+            }
             guardTarget = -1;
             owner.spendActionTime(Actor.TICK);
             return true;
