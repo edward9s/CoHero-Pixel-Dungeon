@@ -122,12 +122,10 @@ public class CoHeroAlly extends DirectableAlly {
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
     private static final String INVENTORY = "cohero_inventory";
     private static final String LOW_HEALTH_RALLY = "cohero_low_health_rally";
-    private static final String COMBAT_RETREATING = "cohero_combat_retreating";
     private static final String DEBUG_LOG = "cohero_debug_log";
 
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
-    private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
 
     private final CoHeroNavigation navigation = new CoHeroNavigation(this);
     private final CoHeroGuardController guard = new CoHeroGuardController(this);
@@ -142,12 +140,6 @@ public class CoHeroAlly extends DirectableAlly {
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private MissileWeapon activeMissileWeapon;
-    private boolean combatRetreating;
-    private int meleeTacticalTargetId = -1;
-    private int meleeTacticalCell = -1;
-    private int rangedLureTargetId = -1;
-    private int rangedLureCoverCell = -1;
-    private int rangedLureWaitTurns;
     private String lastBossDecisionLog;
     private String movementDecision = "unspecified";
     private int movementDecisionTarget = -1;
@@ -249,7 +241,6 @@ public class CoHeroAlly extends DirectableAlly {
 
         loot.storeInBundle(bundle);
         bundle.put(LOW_HEALTH_RALLY, support.isLowHealthRally());
-        bundle.put(COMBAT_RETREATING, combatRetreating);
         bundle.put(DEBUG_LOG, debugLogEnabled);
     }
 
@@ -269,7 +260,6 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         support.restoreLowHealthRally(bundle.getBoolean(LOW_HEALTH_RALLY));
-        combatRetreating = bundle.getBoolean(COMBAT_RETREATING);
         debugLogEnabled = bundle.getBoolean(DEBUG_LOG);
 
         loot.restoreFromBundle(bundle);
@@ -308,9 +298,6 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
-        combatRetreating = false;
         timeToNow();
 
         // Recreate item-owned buffs against this live Char after save restoration / floor transfer.
@@ -344,8 +331,6 @@ public class CoHeroAlly extends DirectableAlly {
         alerted = false;
         defendingPos = -1;
         movingToDefendPos = false;
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
 
         if (sprite != null) {
             sprite.interruptMotion();
@@ -683,10 +668,6 @@ public class CoHeroAlly extends DirectableAlly {
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (visibleThreats.isEmpty()) {
             logBossDecision("no_visible_threat:" + threatScanDebug(), threatScanDebug());
-            Boolean rangedLure = continueRangedLureWithoutVisibleThreat();
-            if (rangedLure != null) {
-                return rangedLure;
-            }
         }
 
         if (!visibleThreats.isEmpty()) {
@@ -818,9 +799,6 @@ public class CoHeroAlly extends DirectableAlly {
             spend(TICK);
             return true;
         }
-
-        combatRetreating = false;
-        clearRangedLurePlan();
 
         Boolean recoveryPlant = survival.tryKnownRecoveryPlant();
         if (recoveryPlant != null) {
@@ -1015,7 +993,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (targetMob == null
                 || threats == null
                 || threats.isEmpty()
-                || combatRetreating
+                || isRetreatingNow(targetMob, threats)
                 || buff(Stamina.class) != null
                 || buff(Haste.class) != null
                 || buff(Invisibility.class) != null) {
@@ -1146,9 +1124,6 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
-        combatRetreating = false;
     }
 
     private String companionDeathMessage(Object cause) {
@@ -1221,9 +1196,6 @@ public class CoHeroAlly extends DirectableAlly {
                 || countCurrentAttackersAtCell(pos, invulnerableThreats) == 0) {
             return null;
         }
-
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
         enemy = null;
         enemyID = -1;
         target = -1;
@@ -1333,13 +1305,8 @@ public class CoHeroAlly extends DirectableAlly {
     private Boolean tryCombatSurvival(Mob targetMob, ArrayList<Mob> threats) {
         CoHeroCombatRisk risk = assessCombatRisk(targetMob, threats);
         if (!risk.retreat) {
-            combatRetreating = false;
             return null;
         }
-
-        combatRetreating = true;
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
 
         // Once invisibility has been spent as an escape resource, preserve it: move away instead
         // of immediately breaking it with another attack or offensive utility.
@@ -1420,7 +1387,14 @@ public class CoHeroAlly extends DirectableAlly {
 
     private CoHeroCombatRisk assessCombatRisk(
             Mob targetMob, ArrayList<Mob> threats) {
-        return riskEstimator.assess(targetMob, threats, combatRetreating);
+        return riskEstimator.assess(targetMob, threats);
+    }
+
+    boolean isRetreatingNow(Mob targetMob, ArrayList<Mob> threats) {
+        return targetMob != null
+                && threats != null
+                && !threats.isEmpty()
+                && assessCombatRisk(targetMob, threats).retreat;
     }
 
 
@@ -1480,108 +1454,43 @@ public class CoHeroAlly extends DirectableAlly {
      */
     private Boolean tryRangedEngagement(Mob targetMob, ArrayList<Mob> threats) {
         if (weapon() == null || targetMob == null || threats == null || threats.isEmpty()) {
-            clearRangedLurePlan();
             return null;
         }
 
-        // Bosses often have scripted movement/teleports rather than ordinary pathing. Hiding
-        // behind cover to lure them forward can stall the fight indefinitely (notably Tengu).
-        // Let the normal combat selector use missiles, Spirit Bow, wands, or melee instead.
         if (targetMob.properties().contains(Char.Property.BOSS)) {
-            clearRangedLurePlan();
             return null;
-        }
-
-        if (rangedLureTargetId != -1 && rangedLureTargetId != targetMob.id()) {
-            clearRangedLurePlan();
         }
 
         boolean rangedPressure = isCurrentRangedPressure(targetMob);
-        boolean continuingLure = rangedLureTargetId == targetMob.id();
 
-        // Weapon reach is not the desired engagement distance against a ranged enemy. A whip,
-        // spear, etc. may already be able to hit from 2+ tiles away, but trading at that distance
-        // leaves the enemy's ranged attack fully online. Prefer an adjacent cell whenever the
-        // target currently has ranged pressure.
         if (rangedPressure && !Dungeon.level.adjacent(pos, targetMob.pos)) {
             int closeStep = chooseRangedTargetClosingStep(targetMob, threats);
             if (closeStep != -1) {
-                clearRangedLurePlan();
                 return moveForRangedEngagement(closeStep);
             }
         }
 
-        // Once adjacent, or when the enemy is not exerting ranged pressure, ordinary weapon reach
-        // semantics apply. Extended melee reach must not turn a failed close-in attempt into a
-        // ranged damage trade.
         if (canAttack(targetMob)
                 && (!rangedPressure || Dungeon.level.adjacent(pos, targetMob.pos))) {
-            clearRangedLurePlan();
             return null;
-        }
-
-        if (!rangedPressure && !continuingLure) {
-            return null;
-        }
-
-        int chargeStep = chooseOneStepMeleeApproach(targetMob, threats);
-        if (chargeStep != -1) {
-            clearRangedLurePlan();
-            return moveForRangedEngagement(chargeStep);
-        }
-
-        if (continuingLure) {
-            // If the current cell has become proper cover after the enemy moved, hold here rather
-            // than walking back to an obsolete planned cover cell.
-            if (!rangedPressure && isRangedCoverCell(pos, targetMob)) {
-                rangedLureCoverCell = pos;
-            }
-
-            if (rangedLureCoverCell != -1
-                    && isRangedCoverCell(rangedLureCoverCell, targetMob)) {
-                if (pos != rangedLureCoverCell) {
-                    int step = rangedLureStep(rangedLureCoverCell);
-                    if (step != -1) {
-                        rangedLureWaitTurns = 0;
-                        return moveForRangedEngagement(step);
-                    }
-                    clearRangedLurePlan();
-                    return null;
-                }
-
-                // We have broken the enemy's line of sight. Do not immediately leave cover just
-                // because CoHero still has some ranged option; force the ranged enemy to advance.
-                if (!rangedPressure) {
-                    if (++rangedLureWaitTurns <= RANGED_LURE_MAX_WAIT_TURNS) {
-                        spend(TICK);
-                        return true;
-                    }
-                    clearRangedLurePlan();
-                    return null;
-                }
-            }
         }
 
         if (!rangedPressure) {
             return null;
         }
 
+        int chargeStep = chooseOneStepMeleeApproach(targetMob, threats);
+        if (chargeStep != -1) {
+            return moveForRangedEngagement(chargeStep);
+        }
+
         int coverCell = chooseRangedCoverCell(targetMob, threats);
         if (coverCell == -1) {
-            clearRangedLurePlan();
             return null;
         }
-
-        rangedLureTargetId = targetMob.id();
-        rangedLureCoverCell = coverCell;
-        rangedLureWaitTurns = 0;
 
         int step = rangedLureStep(coverCell);
-        if (step == -1) {
-            clearRangedLurePlan();
-            return null;
-        }
-        return moveForRangedEngagement(step);
+        return step == -1 ? null : moveForRangedEngagement(step);
     }
 
     boolean isCurrentRangedPressure(Mob targetMob) {
@@ -1822,52 +1731,13 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     /**
-     * Once cover hides the target, do not read the target actor's hidden position. CoHero merely
-     * waits at the already-known cover cell for a few turns; normal perception resumes the tactic
-     * when the enemy becomes visible again.
-     */
-    private Boolean continueRangedLureWithoutVisibleThreat() {
-        if (rangedLureTargetId == -1) {
-            return null;
-        }
-
-        if (support.isLowHealthRally() || combatRetreating) {
-            clearRangedLurePlan();
-            return null;
-        }
-
-        if (rangedLureCoverCell != -1 && pos != rangedLureCoverCell) {
-            int step = rangedLureStep(rangedLureCoverCell);
-            if (step != -1) {
-                return moveForRangedEngagement(step);
-            }
-            clearRangedLurePlan();
-            return null;
-        }
-
-        if (++rangedLureWaitTurns <= RANGED_LURE_MAX_WAIT_TURNS) {
-            spend(TICK);
-            return true;
-        }
-
-        clearRangedLurePlan();
-        return null;
-    }
-
-    private void clearRangedLurePlan() {
-        rangedLureTargetId = -1;
-        rangedLureCoverCell = -1;
-        rangedLureWaitTurns = 0;
-    }
-
-    /**
+     * Repositions melee CoHero before committing to an attack    /**
      * Repositions melee CoHero before committing to an attack when terrain can materially improve
      * the exchange. Great Crab needs an unseen strike, while Swarms and multiple melee attackers
      * are much safer when pulled into a narrow approach instead of fought in open space.
      */
     private Boolean tryMeleePositioning(Mob targetMob, ArrayList<Mob> threats) {
         if (weapon() == null || targetMob == null || threats == null || threats.isEmpty()) {
-            clearMeleeTacticalPlan();
             return null;
         }
 
@@ -1882,29 +1752,21 @@ public class CoHeroAlly extends DirectableAlly {
 
         boolean crowdedMelee = threats.size() >= 2 && !hasRangedPressure(threats);
         if (!greatCrab && !swarmPressure && !crowdedMelee) {
-            clearMeleeTacticalPlan();
             return null;
         }
 
         if (greatCrab
                 && targetMob.coHeroSurprisedBy(this)
                 && canAttack(targetMob)) {
-            clearMeleeTacticalPlan();
             return null;
         }
 
         if (!greatCrab && meleeFrontage(pos) <= 2) {
-            clearMeleeTacticalPlan();
             return null;
         }
 
-        if (meleeTacticalTargetId != targetMob.id()
-                || !validMeleeTacticalCell(meleeTacticalCell, targetMob, greatCrab)) {
-            meleeTacticalTargetId = targetMob.id();
-            meleeTacticalCell = chooseMeleeTacticalCell(targetMob, greatCrab);
-        }
-
-        if (meleeTacticalCell == -1) {
+        int tacticalCell = chooseMeleeTacticalCell(targetMob, greatCrab);
+        if (tacticalCell == -1) {
             if (greatCrab
                     && canAttack(targetMob)
                     && !targetMob.coHeroSurprisedBy(this)) {
@@ -1920,22 +1782,20 @@ public class CoHeroAlly extends DirectableAlly {
             return null;
         }
 
-        if (pos != meleeTacticalCell) {
+        if (pos != tacticalCell) {
             int oldPos = pos;
-            setMovementDecision("melee_positioning", meleeTacticalCell);
-            if (getCloser(meleeTacticalCell)) {
+            setMovementDecision("melee_positioning", tacticalCell);
+            if (getCloser(tacticalCell)) {
                 spend(1 / speed());
                 Dungeon.level.updateFieldOfView(this, fieldOfView);
                 revealVisibleCells();
                 return moveSprite(oldPos, pos);
             }
-            clearMeleeTacticalPlan();
             return null;
         }
 
         if (canAttack(targetMob)
                 && (!greatCrab || targetMob.coHeroSurprisedBy(this))) {
-            clearMeleeTacticalPlan();
             return null;
         }
 
@@ -1944,7 +1804,6 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        clearMeleeTacticalPlan();
         return null;
     }
 
@@ -2008,39 +1867,7 @@ public class CoHeroAlly extends DirectableAlly {
         return best;
     }
 
-    private boolean validMeleeTacticalCell(int cell, Mob targetMob, boolean greatCrab) {
-        if (cell < 0
-                || cell >= Dungeon.level.length()
-                || !Dungeon.level.passable[cell]
-                || !fieldOfView[cell]
-                || !isKnown(cell)
-                || !isMovementSafe(cell)) {
-            return false;
-        }
-
-        Char occupant = Actor.findChar(cell);
-        if (occupant != null && occupant != this) {
-            return false;
-        }
-
-        int frontage = meleeFrontage(cell);
-        if (frontage < 2) {
-            return false;
-        }
-
-        if (greatCrab) {
-            int distance = Dungeon.level.distance(cell, targetMob.pos);
-            return targetMob.fieldOfView != null
-                    && targetMob.fieldOfView.length == Dungeon.level.length()
-                    && !targetMob.fieldOfView[cell]
-                    && distance >= 2
-                    && distance <= MELEE_TACTICAL_SEARCH_RADIUS;
-        }
-
-        return frontage <= 3;
-    }
-
-    private int meleeFrontage(int cell) {
+    private int meleeFrontage(int cell) {    private int meleeFrontage(int cell) {
         int result = 0;
         for (int offset : PathFinder.NEIGHBOURS8) {
             int adjacent = cell + offset;
@@ -2071,11 +1898,6 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
         return false;
-    }
-
-    private void clearMeleeTacticalPlan() {
-        meleeTacticalTargetId = -1;
-        meleeTacticalCell = -1;
     }
 
     private Boolean tryDirectRangedAttack(
@@ -2837,20 +2659,13 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     void clearRangedLureForNavigation() {
-        clearRangedLurePlan();
     }
 
     boolean isBelowLowHealthThreshold() {
         return support.isBelowLowHealthThreshold();
     }
 
-    boolean combatRetreating() {
-        return combatRetreating;
-    }
-
     void clearCombatPositioningAfterRelocation() {
-        clearMeleeTacticalPlan();
-        clearRangedLurePlan();
     }
 
     boolean trySurvivalInvisibility() {
