@@ -132,6 +132,8 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroNavigation navigation = new CoHeroNavigation(this);
     private final CoHeroGuardController guard = new CoHeroGuardController(this);
     private final CoHeroSupportController support = new CoHeroSupportController(this);
+    private final CoHeroCombatObjectiveController combatObjective =
+            new CoHeroCombatObjectiveController(this);
     private final CoHeroVision vision = new CoHeroVision(this);
     private final CoHeroLoot loot = new CoHeroLoot(this);
     private final CoHeroCombatRiskEstimator riskEstimator = new CoHeroCombatRiskEstimator(this);
@@ -653,6 +655,7 @@ public class CoHeroAlly extends DirectableAlly {
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
         guard.updateSession();
+        combatObjective.update();
 
         if (paralysed > 0) {
             logBossDecision("paralysed", "paralysed");
@@ -673,15 +676,22 @@ public class CoHeroAlly extends DirectableAlly {
             return hazardAvoidance;
         }
 
-        Mob guardSupportThreat = guard.isActive() ? support.heroSupportThreat() : null;
+        Mob guardSupportThreat =
+                guard.isActive() && !combatObjective.isActive()
+                        ? support.heroSupportThreat()
+                        : null;
         guard.prepareMovementScope(guardSupportThreat);
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (visibleThreats.isEmpty()) {
             logBossDecision("no_visible_threat:" + threatScanDebug(), threatScanDebug());
-            Boolean rangedLure = continueRangedLureWithoutVisibleThreat();
-            if (rangedLure != null) {
-                return rangedLure;
+            if (combatObjective.isActive()) {
+                clearRangedLurePlan();
+            } else {
+                Boolean rangedLure = continueRangedLureWithoutVisibleThreat();
+                if (rangedLure != null) {
+                    return rangedLure;
+                }
             }
         }
 
@@ -730,6 +740,19 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
+            Boolean objectiveAction =
+                    combatObjective.actBeforeOffense(attackableThreats, visibleThreats);
+            if (objectiveAction != null) {
+                return objectiveAction;
+            }
+
+            attackableThreats = combatObjective.offensiveThreats(attackableThreats);
+            if (attackableThreats.isEmpty()) {
+                throw new IllegalStateException(
+                        "Active CoHero combat objective produced no offensive target");
+            }
+            combatTarget = nearestThreat(attackableThreats);
+
             // Tactical exception: when an enemy is actively attacking from range and CoHero has
             // a melee weapon, closing to adjacency remains more important than trading shots.
             Boolean rangedEngagement = tryRangedEngagement(combatTarget, visibleThreats);
@@ -754,7 +777,7 @@ public class CoHeroAlly extends DirectableAlly {
                 return armorPlant;
             }
 
-            if (controlItems.tryUseCombatRunestone(combatTarget, visibleThreats)) {
+            if (controlItems.tryUseCombatRunestone(combatTarget, attackableThreats)) {
                 return true;
             }
 
@@ -825,6 +848,11 @@ public class CoHeroAlly extends DirectableAlly {
         Boolean supportAction = trySupportAction();
         if (supportAction != null) {
             return supportAction;
+        }
+
+        Boolean objectiveSetup = combatObjective.actWithoutVisibleThreats();
+        if (objectiveSetup != null) {
+            return objectiveSetup;
         }
 
         Boolean heroSupport = support.tryFollowHeroForNearbyEnemy();
@@ -929,7 +957,8 @@ public class CoHeroAlly extends DirectableAlly {
         int heroPos = Dungeon.hero == null ? -1 : Dungeon.hero.pos;
         return "pos=" + pos
                 + " hero=" + heroPos
-                + " " + guard.debugState();
+                + " " + guard.debugState()
+                + " " + combatObjective.debugState();
     }
 
 
