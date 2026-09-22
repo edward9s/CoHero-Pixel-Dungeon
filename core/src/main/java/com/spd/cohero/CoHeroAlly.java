@@ -677,7 +677,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         Mob guardSupportThreat =
-                guard.isActive() && !combatObjective.isActive()
+                guard.isActive() && !combatObjective.isLuring()
                         ? support.heroSupportThreat()
                         : null;
         guard.prepareMovementScope(guardSupportThreat);
