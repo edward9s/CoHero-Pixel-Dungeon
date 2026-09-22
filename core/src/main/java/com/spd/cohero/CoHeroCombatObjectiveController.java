@@ -52,7 +52,7 @@ final class CoHeroCombatObjectiveController {
         objective = resolved;
     }
 
-    boolean isActive() {
+    boolean isLuring() {
         return objective != null && luring;
     }
 
@@ -98,8 +98,8 @@ final class CoHeroCombatObjectiveController {
     }
 
     /**
-     * Keeps CoHero staged inside the objective even before a visible enemy arrives.
-     * This prevents ordinary guard behavior from placing CoHero at the doorway first.
+     * Continues an already-triggered lure while the enemy is temporarily out of sight.
+     * Before any enemy triggers the objective, ordinary guard behavior remains untouched.
      */
     Boolean actWithoutVisibleThreats() {
         if (objective == null || !luring) {
@@ -109,7 +109,7 @@ final class CoHeroCombatObjectiveController {
     }
 
     /**
-     * Once an objective is active, ordinary offense only considers enemies already inside its
+     * While luring or engaging, ordinary offense only considers enemies already inside its
      * engagement zone. If lure positioning is impossible while CoHero is under immediate attack,
      * fail open for this turn so the AI cannot deadlock and die at the boundary.
      */
