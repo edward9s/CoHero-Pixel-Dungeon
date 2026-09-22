@@ -116,7 +116,7 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
 
-        float afterControls = addControlsAndEquipment(0, statsY + 19, layoutWidth);
+        float afterControls = addControlsAndEquipment(0, statsY + 19, layoutWidth, true);
 
         RenderedTextBlock backpackLabel = backpackLabel(layoutWidth);
         backpackLabel.setPos(0, afterControls + 3);
@@ -155,10 +155,11 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
 
-        float leftBottom = addControlsAndEquipment(0, statsY + 14, leftWidth);
+        float leftBottom = addControlsAndEquipment(0, statsY + 14, leftWidth, false);
 
+        float backpackHeaderBottom = addItemButton(backpackX, startY, backpackWidth);
         RenderedTextBlock backpackLabel = backpackLabel(backpackWidth);
-        backpackLabel.setPos(backpackX, startY);
+        backpackLabel.setPos(backpackX, backpackHeaderBottom + 3);
         add(backpackLabel);
 
         float backpackY = backpackLabel.bottom() + 2;
@@ -172,7 +173,8 @@ public class WndCompanionInventory extends Window {
         resize(layoutWidth, (int) Math.max(leftBottom, rightBottom));
     }
 
-    private float addControlsAndEquipment(float x, float startY, int width) {
+    private float addControlsAndEquipment(
+            float x, float startY, int width, boolean includeAddItemButton) {
         int inset = Math.min(CONTROL_INSET, Math.max(0, width - 80));
         int controlWidth = width - inset;
         float controlX = x;
@@ -243,17 +245,21 @@ public class WndCompanionInventory extends Window {
         addEquipmentButton(2, x, equipmentY, SlotType.RING_ONE);
         addEquipmentButton(3, x, equipmentY, SlotType.RING_TWO);
 
+        float equipmentBottom = equipmentY + slotSize;
+        if (!includeAddItemButton) {
+            return equipmentBottom;
+        }
+        return addItemButton(controlX, equipmentBottom + 3, controlWidth);
+    }
+
+    private float addItemButton(float x, float y, int width) {
         RedButton addItem = new RedButton(text("inventory.add_item")) {
             @Override
             protected void onClick() {
                 selectItemFromHero();
             }
         };
-        addItem.setRect(
-                controlX,
-                equipmentY + slotSize + 3,
-                controlWidth,
-                16);
+        addItem.setRect(x, y, width, 16);
         add(addItem);
         return addItem.bottom();
     }
