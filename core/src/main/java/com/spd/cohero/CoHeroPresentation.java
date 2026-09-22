@@ -31,6 +31,18 @@ public final class CoHeroPresentation {
         waitingActors.clear();
     }
 
+    public static boolean shouldShow(int... cells) {
+        if (cells == null || cells.length == 0) {
+            return false;
+        }
+        for (int cell : cells) {
+            if (CoHero.isVisibleToPlayer(cell)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static synchronized void begin(Char actor) {
         if (actor == null) {
             throw new IllegalArgumentException("Presentation actor is required");
