@@ -533,7 +533,6 @@ final class CoHeroControlItems {
         }
 
         owner.refreshOwnFieldOfView();
-        owner.clearCombatPositioningAfterRelocation();
         owner.clearNavigationPath();
         return finishRunestoneUse(stone, null);
     }
@@ -603,7 +602,6 @@ final class CoHeroControlItems {
         Invisibility.dispel(owner);
         Sample.INSTANCE.play(Assets.Sounds.READ);
         owner.clearNavigationPath();
-        owner.clearCombatPositioningAfterRelocation();
         owner.refreshOwnFieldOfView();
         owner.spendActionTime(Actor.TICK);
         return true;
