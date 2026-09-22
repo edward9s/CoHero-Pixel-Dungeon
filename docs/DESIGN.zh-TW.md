@@ -62,16 +62,16 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 2. 探索路徑可以帶有一定隨機性，但只能存在於合理且實際可達的選擇之間。秘密區、隔離格或其他目前無路可達的未知格不會讓 AI 卡在反覆尋路。
 3. **發現出口本身不代表探索結束，也不改變探索範圍。** 出口不是安全區，也不是 CoHero 必須前往等待的集合點；只要玩家尚未觸發 transition，CoHero 仍可繼續戰鬥、拾取與探索。
 4. 普通探索／漫遊會被明確的 Hero 支援需求搶占。任一存活敵人距 Hero 4 格內時，不論可見、清醒或追擊狀態，CoHero 都停止普通探索／漫遊並直接往 Hero 靠近；原版隱藏中的 `Mimic` 雖暫時是 `Alignment.NEUTRAL`，仍依 SPD 自身慣例視為敵對例外。距離 5～8 格的敵人則直接沿用該 Mob 原生 `canAttack(Hero)` 語意：只要它目前能從非相鄰位置攻擊 Hero，就視為遠距威脅並同樣觸發支援；不維護遠距怪類別清單。距離門檻使用 `Level.distance()`，不是繞牆後的 path distance。追隨時不維持固定 2～3 格 comfort band；能靠近就持續靠近，已與 Hero 相鄰時才停下。
-5. 在具有原版 `Room` topology 的 `RegularLevel`，每個 CoHero 回合都直接由 Hero 當下位置解析一次 `GuardContext`；不保存「把風已成立」之類的跨回合 guard state。只有 Hero 位於拓樸上單一連接（`room.connected.size() == 1`）的非入口／非出口房間時才存在 `GuardContext`。Context 只包含當回合的 Hero 房、唯一直接相連的 `outsideRoom` 與把風區。
-6. 把風區仍以 room-internal path distance 分割：`outsideRoom` 每個可通行格比較「到 Hero 房共用門」與「到其他目前可通行出口」的距離；只有前者嚴格較短的格子屬於 guard area，等距中線不算。若沒有其他可通行出口，則使用該 Room 內所有可達格。
-7. 非戰鬥行為的控制權只有一條直線：Hero 附近的 4/8 格明確遇敵支援優先，其次是高優先物品回收；之後若本回合有 `GuardContext`，就執行把風而**不存在 explore 分支**。CoHero 在 guard area 時只在其中漫遊；在 Hero 房時往 guard area 移動；位於兩者以外時直接 `followHero()`。只有沒有 `GuardContext` 時才進普通 explore／roaming。戰鬥中若 CoHero 已在 Hero 房且 Hero 有支援威脅，當回合的移動範圍設為 Hero 房內；真正的 hazard／survival retreat 可把移動範圍恢復為 unrestricted。這些移動限制只使用單一暫時 `MoveScope`（`ANY`、`GUARD_DOMAIN`、`HERO_ROOM`），不再使用額外 guard flags 或 exploration gate。
-8. 單出口判定刻意看 `connected` 而不是 `edges()`。像煉金房、軍械庫等鎖門特殊房間，玩家解鎖後地圖 terrain 會變成 `DOOR`，但生成期的 `Room.Door.type` 仍可能保留 `LOCKED`；因此 `edges()` 不適合拿來判斷房間實際有幾個通道。沒有可靠 Room topology 的特殊／Boss 樓層不猜測房間結構。
+5. 在 `RegularLevel` 中，單出口房不再依賴 `Room.connected`。SPD 存檔只保存 Room 邊界，`connected` / `neigbours` 讀檔後不保證存在，因此 CoHero 直接從目前地圖的房間邊界與 `level.passable[]` 掃描實際可通行出口。Hero 位於非入口／非出口、且目前只有一個實際出口的房間時建立持久的 `GuardSession`；只要 Hero 仍在原 Hero 房邊界內，session 就跨回合保持，不因 Hero 暫時站門格或後續 Room metadata 無法重新解析而消失。
+6. 把風區以 live runtime exits 做 room-internal path distance 分割：`outsideRoom` 每個可通行格比較「到 Hero 房共用門」與「到其他目前可通行出口」的距離；只有前者嚴格較短的格子屬於 guard area，等距中線不算。若沒有其他可通行出口，則使用該 Room 內所有可達格。
+7. 非戰鬥行為的控制權只有一條直線：Hero 附近的 4/8 格明確遇敵支援優先，其次是高優先物品回收；之後若已有 `GuardSession`，就執行把風而**不存在 explore transition**。CoHero 在 guard area 時只在其中漫遊；在 Hero 房時往 guard area 移動；位於兩者以外時直接支援 Hero。只有沒有 active `GuardSession` 時才進普通 explore／roaming。戰鬥中若 CoHero 已在 Hero 房且 Hero 有支援威脅，當回合的移動範圍設為 Hero 房內；真正的 hazard／survival retreat 可把移動範圍恢復為 unrestricted。這些移動限制只使用單一暫時 `MoveScope`（`ANY`、`GUARD_DOMAIN`、`HERO_ROOM`）。
+8. Guard 的「房間身分」仍使用 `RegularLevel.rooms()` 與 Room 邊界，但「出口是否存在」只看目前 runtime terrain/passability，不再從生成期 topology 推論。這讓新生成樓層與讀檔樓層使用同一套判定來源，也避免為舊的 `Room.connected` 資料建立補丁或相容層。非 `RegularLevel` 的特殊／Boss 樓層不猜測房間結構。
 9. Hero 到達普通樓層出口時，不需要等待 CoHero、也不檢查 CoHero 是否位於出口附近；Hero 可直接觸發原生 transition。
 10. 普通換層前會先保存 CoHero 當下狀態；進入下一層後，CoHero 以該狀態在 Hero 附近的合法格重新生成，因此不需要把 CoHero 實際走到舊樓層出口。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
-移動診斷期間，CoHero 會以 `[CoHeroMove]` 前綴輸出 GLog：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果，`GUARD activate` 會附上 outsideRoom 類型、矩形邊界、連接數與 guardArea 格數。這些訊息用來追查把風範圍與 Hero 回援切換問題，屬於暫時診斷輸出。
+移動診斷期間，CoHero 會以 `[CoHeroMove]` 前綴輸出 GLog：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態的生命週期，enter 會附上 Hero 房、outsideRoom、共用門與 guard area 格數。這些訊息用來追查把風範圍與 Hero 回援切換問題，屬於暫時診斷輸出。
 
 ### 視野與火把
 
@@ -165,6 +165,8 @@ Boss 樓層鎖定期間，CoHero 會以 `GLog` 輸出簡短決策診斷，協助
 目前正式方向是：
 
 > `CoHeroAlly` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
+
+`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。
 
 不把 SPD 全面改造成 multi-Hero 架構，也不透過切換 `Dungeon.hero` 來讓原版系統誤以為 CoHero 是玩家 Hero。
 
