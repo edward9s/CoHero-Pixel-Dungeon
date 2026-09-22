@@ -1,15 +1,10 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
@@ -461,15 +456,15 @@ public class WndCompanionInventory extends Window {
                 }
 
                 if (needsAmountChoice(item)) {
-                    showTakeFromHeroAmount(item);
+                    showTakeFromPlayerAmount(item);
                 } else {
-                    transferFromHero(item, TransferAmount.ALL);
+                    transferFromPlayer(item, TransferAmount.ALL);
                 }
             }
         });
     }
 
-    private void showTakeFromHeroAmount(Item item) {
+    private void showTakeFromPlayerAmount(Item item) {
         GameScene.show(new WndOptions(
                 item.title(),
                 text("inventory.transfer_amount"),
@@ -477,14 +472,14 @@ public class WndCompanionInventory extends Window {
                 text("inventory.transfer_all")) {
             @Override
             protected void onSelect(int index) {
-                transferFromHero(
+                transferFromPlayer(
                         item,
-                        index == 0 ? TransferAmount.ONE : TransferAmount.ALL);
+                        transferAmountForOption(index));
             }
         });
     }
 
-    private void transferFromHero(Item item, TransferAmount amount) {
+    private void transferFromPlayer(Item item, TransferAmount amount) {
         Item moved = takeFromPlayer(item, amount);
         if (moved != null && !inventory.addToBackpack(moved)) {
             returnToPlayer(moved);
@@ -527,7 +522,7 @@ public class WndCompanionInventory extends Window {
                     if (index == 0) {
                         equipFromBackpack(item);
                     } else if (index == 1) {
-                        giveBackpackItemToHero(item);
+                        returnBackpackItemToPlayer(item);
                     }
                 }
             });
@@ -535,7 +530,7 @@ public class WndCompanionInventory extends Window {
         }
 
         if (needsAmountChoice(item)) {
-            showGiveToHeroAmount(item);
+            showReturnToPlayerAmount(item);
             return;
         }
 
@@ -546,13 +541,13 @@ public class WndCompanionInventory extends Window {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {
-                    giveBackpackItemToHero(item, TransferAmount.ALL);
+                    returnBackpackItemToPlayer(item, TransferAmount.ALL);
                 }
             }
         });
     }
 
-    private void showGiveToHeroAmount(Item item) {
+    private void showReturnToPlayerAmount(Item item) {
         GameScene.show(new WndOptions(
                 item.title(),
                 text("inventory.transfer_amount"),
@@ -560,9 +555,9 @@ public class WndCompanionInventory extends Window {
                 text("inventory.transfer_all")) {
             @Override
             protected void onSelect(int index) {
-                giveBackpackItemToHero(
+                returnBackpackItemToPlayer(
                         item,
-                        index == 0 ? TransferAmount.ONE : TransferAmount.ALL);
+                        transferAmountForOption(index));
             }
         });
     }
@@ -636,15 +631,15 @@ public class WndCompanionInventory extends Window {
         refreshWindow();
     }
 
-    private void giveBackpackItemToHero(Item item) {
+    private void returnBackpackItemToPlayer(Item item) {
         if (needsAmountChoice(item)) {
-            showGiveToHeroAmount(item);
+            showReturnToPlayerAmount(item);
         } else {
-            giveBackpackItemToHero(item, TransferAmount.ALL);
+            returnBackpackItemToPlayer(item, TransferAmount.ALL);
         }
     }
 
-    private void giveBackpackItemToHero(Item item, TransferAmount amount) {
+    private void returnBackpackItemToPlayer(Item item, TransferAmount amount) {
         Item removed = amount == TransferAmount.ONE
                 ? inventory.removeOneFromBackpack(item)
                 : inventory.removeFromBackpack(item);
@@ -657,6 +652,17 @@ public class WndCompanionInventory extends Window {
 
     private static boolean needsAmountChoice(Item item) {
         return item != null && item.stackable && item.quantity() > 1;
+    }
+
+    private static TransferAmount transferAmountForOption(int index) {
+        switch (index) {
+            case 0:
+                return TransferAmount.ONE;
+            case 1:
+                return TransferAmount.ALL;
+            default:
+                throw new IllegalArgumentException("Unknown transfer amount option: " + index);
+        }
     }
 
     private boolean unequipToBackpack(SlotType type) {
