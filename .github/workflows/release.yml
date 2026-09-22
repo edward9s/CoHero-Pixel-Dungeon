@@ -301,6 +301,9 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
           python cohero/scripts/patch_cohero_class_traits.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java
+          python cohero/scripts/patch_rogue_wealth.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfWealth.java \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java
           python cohero/scripts/patch_equipment_identification.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java \
