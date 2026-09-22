@@ -154,6 +154,21 @@ final class CoHeroNavigation {
         return !CoHeroHazards.isDangerous(owner, cell) && isSleepSafe(cell);
     }
 
+    private boolean hasVisibleSleepingEnemy() {
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob != owner
+                    && mob.alignment == Char.Alignment.ENEMY
+                    && mob.isAlive()
+                    && mob.state == mob.SLEEPING
+                    && mob.pos >= 0
+                    && mob.pos < owner.fieldOfView.length
+                    && owner.fieldOfView[mob.pos]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     boolean isKnown(int cell) {
         return cell >= 0
                 && cell < Dungeon.level.length()
