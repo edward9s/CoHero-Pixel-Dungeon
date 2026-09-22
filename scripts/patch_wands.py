@@ -74,7 +74,8 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 		return new Ballistica(owner.pos, target, collisionProperties(target));
 	}
 
-	public void coHeroCast(final Char owner, int target, final Callback callback) {
+	public void coHeroCast(
+			final Char owner, int target, boolean showFx, final Callback callback) {
 		if (!coHeroCanZap(owner)) {
 			throw new IllegalStateException("CoHero attempted to use an unavailable wand");
 		}
@@ -83,7 +84,7 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 		coHeroUser = owner;
 		try {
 			coHeroPrepareZap(owner, target, bolt);
-			fx(bolt, new Callback() {
+			Callback resolve = new Callback() {
 				@Override
 				public void call() {
 					try {
@@ -96,7 +97,13 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 						callback.call();
 					}
 				}
-			});
+			};
+
+			if (showFx) {
+				fx(bolt, resolve);
+			} else {
+				resolve.call();
+			}
 		} catch (RuntimeException ex) {
 			coHeroUser = null;
 			throw ex;
