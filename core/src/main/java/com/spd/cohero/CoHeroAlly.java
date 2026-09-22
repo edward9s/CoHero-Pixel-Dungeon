@@ -1478,6 +1478,12 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         boolean rangedPressure = isCurrentRangedPressure(targetMob);
+        if (rangedPressure) {
+            // Active ranged fire is combat territory, not guard-roaming territory. The ranged
+            // planner already evaluates live safety/occupancy, so guard scope must not reject the
+            // step after planning has selected a close-in or LOS-cover move.
+            guard.allowAnyMovement();
+        }
 
         if (rangedPressure && !Dungeon.level.adjacent(pos, targetMob.pos)) {
             int closeStep = chooseRangedTargetClosingStep(targetMob, threats);
@@ -1740,6 +1746,11 @@ public class CoHeroAlly extends DirectableAlly {
         path = null;
         setMovementDecision("ranged_engagement", step);
         move(step, true);
+        if (pos == oldPos) {
+            // Never consume a turn for a tactical move that execution rejected. Fall through to
+            // the rest of combat so CoHero can still shoot, attack, or choose another response.
+            return null;
+        }
         spend(1 / speed());
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
