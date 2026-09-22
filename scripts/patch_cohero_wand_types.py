@@ -73,6 +73,77 @@ lightning = replace_once(
     "Lightning Hero death handling",
 )
 
+lightning_fx_old = """	@Override
+	public void fx(Ballistica bolt, Callback callback) {
+
+		affected.clear();
+		arcs.clear();
+
+		int cell = bolt.collisionPos;
+
+		Char ch = Actor.findChar( cell );
+		if (ch != null) {
+			if (ch instanceof DwarfKing){
+				Statistics.qualifiedForBossChallengeBadge = false;
+			}
+
+			affected.add( ch );
+			arcs.add( new Lightning.Arc(zapUser().sprite.center(), ch.sprite.center()));
+			arc(ch);
+		} else {
+			arcs.add( new Lightning.Arc(zapUser().sprite.center(), DungeonTilemap.raisedTileCenterToWorld(bolt.collisionPos)));
+			CellEmitter.center( cell ).burst( SparkParticle.FACTORY, 3 );
+		}
+
+		//don't want to wait for the effect before processing damage.
+		zapUser().sprite.parent.addToFront( new Lightning( arcs, null ) );
+		Sample.INSTANCE.play( Assets.Sounds.LIGHTNING );
+		callback.call();
+	}
+"""
+lightning_fx_new = """	private void prepareCoHeroZapState(Ballistica bolt) {
+		affected.clear();
+		arcs.clear();
+
+		int cell = bolt.collisionPos;
+		Char ch = Actor.findChar(cell);
+		if (ch != null) {
+			if (ch instanceof DwarfKing) {
+				Statistics.qualifiedForBossChallengeBadge = false;
+			}
+			affected.add(ch);
+			arcs.add(new Lightning.Arc(zapUser().sprite.center(), ch.sprite.center()));
+			arc(ch);
+		} else {
+			arcs.add(new Lightning.Arc(
+					zapUser().sprite.center(),
+					DungeonTilemap.raisedTileCenterToWorld(bolt.collisionPos)));
+		}
+	}
+
+	@Override
+	protected void coHeroPrepareZap(Char owner, int target, Ballistica bolt) {
+		prepareCoHeroZapState(bolt);
+	}
+
+	@Override
+	public void fx(Ballistica bolt, Callback callback) {
+		if (!coHeroCasting()) {
+			prepareCoHeroZapState(bolt);
+		}
+
+		if (Actor.findChar(bolt.collisionPos) == null) {
+			CellEmitter.center(bolt.collisionPos).burst(SparkParticle.FACTORY, 3);
+		}
+
+		//don't want to wait for the effect before processing damage.
+		zapUser().sprite.parent.addToFront(new Lightning(arcs, null));
+		Sample.INSTANCE.play(Assets.Sounds.LIGHTNING);
+		callback.call();
+	}
+"""
+lightning = replace_once(lightning, lightning_fx_old, lightning_fx_new, "Lightning CoHero prepare/fx")
+
 # Prismatic light: map effects are generic; only caster light/beam source was static.
 if "curUser" not in prismatic:
     raise SystemExit("expected PrismaticLight curUser references")
@@ -88,10 +159,41 @@ regrowth_anchor = """	@Override
 regrowth_patch = """	@Override
 	protected void coHeroPrepareZap(Char owner, int target, Ballistica bolt) {
 		this.target = target;
+		prepareCoHeroCone(bolt);
 	}
 
 """ + regrowth_anchor
 regrowth = replace_once(regrowth, regrowth_anchor, regrowth_patch, "Regrowth prepare")
+
+regrowth_fx_old = """	public void fx(Ballistica bolt, Callback callback) {
+
+		// 4/6/8 distance
+		int maxDist = 2 + 2*chargesPerCast();
+
+		cone = new ConeAOE( bolt,
+				maxDist,
+				20 + 10*chargesPerCast(),
+				Ballistica.STOP_SOLID | Ballistica.STOP_TARGET);
+
+		//cast to cells at the tip, rather than all cells, better performance.
+"""
+regrowth_fx_new = """	private void prepareCoHeroCone(Ballistica bolt) {
+		int maxDist = 2 + 2*chargesPerCast();
+		cone = new ConeAOE(
+				bolt,
+				maxDist,
+				20 + 10*chargesPerCast(),
+				Ballistica.STOP_SOLID | Ballistica.STOP_TARGET);
+	}
+
+	public void fx(Ballistica bolt, Callback callback) {
+		if (!coHeroCasting()) {
+			prepareCoHeroCone(bolt);
+		}
+
+		//cast to cells at the tip, rather than all cells, better performance.
+"""
+regrowth = replace_once(regrowth, regrowth_fx_old, regrowth_fx_new, "Regrowth CoHero prepare/fx")
 
 # Transfusion: CoHero may support the player Hero; otherwise preserve normal Mob semantics.
 if "curUser" not in transfusion:
@@ -346,6 +448,42 @@ warding = replace_once(warding, ward_restore_old, ward_restore_new, "Warding own
 if "curUser" not in fireblast:
     raise SystemExit("expected Fireblast curUser references")
 fireblast = fireblast.replace("curUser", "zapUser()")
+
+fireblast_fx_old = """	public void fx(Ballistica bolt, Callback callback) {
+		//need to perform flame spread logic here so we can determine what cells to put flames in.
+
+		// 5/7/9 distance
+		int maxDist = 3 + 2*chargesPerCast();
+
+		cone = new ConeAOE( bolt,
+				maxDist,
+				30 + 20*chargesPerCast(),
+				Ballistica.STOP_TARGET | Ballistica.STOP_SOLID | Ballistica.IGNORE_SOFT_SOLID);
+
+		//cast to cells at the tip, rather than all cells, better performance.
+"""
+fireblast_fx_new = """	private void prepareCoHeroCone(Ballistica bolt) {
+		int maxDist = 3 + 2*chargesPerCast();
+		cone = new ConeAOE(
+				bolt,
+				maxDist,
+				30 + 20*chargesPerCast(),
+				Ballistica.STOP_TARGET | Ballistica.STOP_SOLID | Ballistica.IGNORE_SOFT_SOLID);
+	}
+
+	@Override
+	protected void coHeroPrepareZap(Char owner, int target, Ballistica bolt) {
+		prepareCoHeroCone(bolt);
+	}
+
+	public void fx(Ballistica bolt, Callback callback) {
+		if (!coHeroCasting()) {
+			prepareCoHeroCone(bolt);
+		}
+
+		//cast to cells at the tip, rather than all cells, better performance.
+"""
+fireblast = replace_once(fireblast, fireblast_fx_old, fireblast_fx_new, "Fireblast CoHero prepare/fx")
 
 # Corrosion: gas ownership is generic; only the projectile source is Hero-static.
 corrosion = replace_once(
