@@ -39,6 +39,10 @@ final class CoHeroGuardController {
         return session != null;
     }
 
+    boolean isMovementRestricted() {
+        return session != null && moveScope != MoveScope.ANY;
+    }
+
     void allowAnyMovement() {
         moveScope = MoveScope.ANY;
     }
