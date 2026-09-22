@@ -2029,6 +2029,12 @@ public class CoHeroAlly extends DirectableAlly {
                 && (!rangedPressure || Dungeon.level.adjacent(pos, targetMob.pos))) {
             logBossDecision("melee_attack:" + targetMob.id(),
                     targetDebug(targetMob) + " -> melee attack");
+
+            // Mob.doAttack() only starts the visible attack animation. Mob.onAttackComplete()
+            // resolves the actual hit through the inherited enemy field, so keep exactly this
+            // action's target there until the callback completes. resetInheritedDecisionState()
+            // clears it before the next CoHero decision turn.
+            enemy = targetMob;
             return doAttack(targetMob);
         }
 
