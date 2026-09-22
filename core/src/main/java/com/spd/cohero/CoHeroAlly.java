@@ -144,6 +144,7 @@ public class CoHeroAlly extends DirectableAlly {
     private String movementDecision = "unspecified";
     private int movementDecisionTarget = -1;
     private boolean debugLogEnabled;
+    private boolean presentationMotionPending;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -337,6 +338,7 @@ public class CoHeroAlly extends DirectableAlly {
         movingToDefendPos = false;
 
         if (sprite != null) {
+            finishPresentationMotion();
             sprite.interruptMotion();
             sprite.place(pos);
         }
@@ -631,6 +633,12 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean act() {
+        // Never stack two presentations for the same CoHero. Other actors may continue while the
+        // previous CoHero animation is playing; if our own turn comes around first, wait here.
+        if (CoHeroPresentation.awaitActor(this)) {
+            return false;
+        }
+
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
         resetInheritedDecisionState();
@@ -2041,12 +2049,7 @@ public class CoHeroAlly extends DirectableAlly {
             logBossDecision("melee_attack:" + targetMob.id(),
                     targetDebug(targetMob) + " -> melee attack");
 
-            // Mob.doAttack() only starts the visible attack animation. Mob.onAttackComplete()
-            // resolves the actual hit through the inherited enemy field, so keep exactly this
-            // action's target there until the callback completes. resetInheritedDecisionState()
-            // clears it before the next CoHero decision turn.
-            enemy = targetMob;
-            return doAttack(targetMob);
+            return performMeleeAttack(targetMob);
         }
 
         RangedChoice ranged = chooseRangedAttack(targetMob);
@@ -2414,24 +2417,59 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
                 && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
-            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
-                    sprite,
-                    targetMob.sprite,
-                    arrow,
-                    new Callback() {
-                        @Override
-                        public void call() {
-                            resolveSpiritBowAttack(targetMob, arrow);
-                            spend(delay);
-                            next();
-                        }
-                    });
-            return false;
+            CoHeroPresentation.begin(this);
+            try {
+                ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
+                        sprite,
+                        targetMob.sprite,
+                        arrow,
+                        new Callback() {
+                            @Override
+                            public void call() {
+                                CoHeroPresentation.complete(CoHeroAlly.this);
+                            }
+                        });
+            } catch (RuntimeException ex) {
+                CoHeroPresentation.complete(this);
+                throw ex;
+            }
+            resolveSpiritBowAttack(targetMob, arrow);
+            spend(delay);
+            return true;
         }
 
         resolveSpiritBowAttack(targetMob, arrow);
         spend(delay);
         return true;
+    }
+
+    private boolean performMeleeAttack(Mob targetMob) {
+        if (sprite != null
+                && targetMob.sprite != null
+                && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
+            float delay = attackDelay();
+            CoHeroPresentation.begin(this);
+            try {
+                sprite.attack(targetMob.pos, new Callback() {
+                    @Override
+                    public void call() {
+                        CoHeroPresentation.complete(CoHeroAlly.this);
+                    }
+                });
+            } catch (RuntimeException ex) {
+                CoHeroPresentation.complete(this);
+                throw ex;
+            }
+
+            attack(targetMob);
+            Invisibility.dispel(this);
+            spend(delay);
+            return true;
+        }
+
+        // Offscreen attacks keep the normal Mob immediate path.
+        enemy = targetMob;
+        return doAttack(targetMob);
     }
 
     private void resolveSpiritBowAttack(Mob targetMob, MissileWeapon arrow) {
@@ -2454,19 +2492,25 @@ public class CoHeroAlly extends DirectableAlly {
         float delay = thrown.castDelay(this, targetMob.pos);
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
                 && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
-            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
-                    sprite,
-                    targetMob.sprite,
-                    thrown,
-                    new Callback() {
-                        @Override
-                        public void call() {
-                            resolveMissileAttack(targetMob, thrown);
-                            spend(delay);
-                            next();
-                        }
-                    });
-            return false;
+            CoHeroPresentation.begin(this);
+            try {
+                ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
+                        sprite,
+                        targetMob.sprite,
+                        thrown,
+                        new Callback() {
+                            @Override
+                            public void call() {
+                                CoHeroPresentation.complete(CoHeroAlly.this);
+                            }
+                        });
+            } catch (RuntimeException ex) {
+                CoHeroPresentation.complete(this);
+                throw ex;
+            }
+            resolveMissileAttack(targetMob, thrown);
+            spend(delay);
+            return true;
         }
 
         resolveMissileAttack(targetMob, thrown);
@@ -2491,40 +2535,34 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean performWandCast(int targetCell, Wand wand) {
-        // Some stock wand fx methods are synchronous (beam/chain effects call their callback
-        // before fx() returns), while projectile/cone effects complete asynchronously. Calling
-        // next() synchronously from inside act() re-enters Actor processing, so distinguish both
-        // cases explicitly.
-        final boolean[] insideCast = {true};
-        final boolean[] completedSynchronously = {false};
-
         if (targetCell < 0) {
             throw new IllegalStateException("CoHero wand choice has no legal aim cell");
         }
 
         boolean showFx = CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetCell);
-        wand.coHeroCast(this, targetCell, showFx, new Callback() {
-            @Override
-            public void call() {
-                if (insideCast[0]) {
-                    completedSynchronously[0] = true;
-                    return;
-                }
-
-                Invisibility.dispel(CoHeroAlly.this);
-                spend(TICK);
-                next();
-            }
-        });
-
-        insideCast[0] = false;
-        if (completedSynchronously[0]) {
-            Invisibility.dispel(this);
-            spend(TICK);
-            return true;
+        if (showFx) {
+            CoHeroPresentation.begin(this);
         }
 
-        return false;
+        try {
+            wand.coHeroCast(this, targetCell, showFx, new Callback() {
+                @Override
+                public void call() {
+                    if (showFx) {
+                        CoHeroPresentation.complete(CoHeroAlly.this);
+                    }
+                }
+            });
+        } catch (RuntimeException ex) {
+            if (showFx) {
+                CoHeroPresentation.complete(this);
+            }
+            throw ex;
+        }
+
+        Invisibility.dispel(this);
+        spend(TICK);
+        return true;
     }
 
 
@@ -2651,6 +2689,45 @@ public class CoHeroAlly extends DirectableAlly {
 
     int defendingPosition() {
         return defendingPos;
+    }
+
+    @Override
+    protected boolean moveSprite(int from, int to) {
+        boolean trackPresentation = sprite != null
+                && sprite.isVisible()
+                && sprite.parent != null
+                && (CoHero.heroCanSee(from) || CoHero.heroCanSee(to));
+
+        if (trackPresentation) {
+            if (presentationMotionPending) {
+                throw new IllegalStateException("CoHero started a second movement presentation");
+            }
+            presentationMotionPending = true;
+            CoHeroPresentation.begin(this);
+        }
+
+        try {
+            return super.moveSprite(from, to);
+        } catch (RuntimeException ex) {
+            if (trackPresentation) {
+                finishPresentationMotion();
+            }
+            throw ex;
+        }
+    }
+
+    @Override
+    public void onMotionComplete() {
+        super.onMotionComplete();
+        finishPresentationMotion();
+    }
+
+    private void finishPresentationMotion() {
+        if (!presentationMotionPending) {
+            return;
+        }
+        presentationMotionPending = false;
+        CoHeroPresentation.complete(this);
     }
 
     boolean finishMovementAnimation(int oldPos) {
