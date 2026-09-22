@@ -257,6 +257,39 @@ final class CoHeroCombatRiskEstimator {
         return canThreatAttackFromTo(threat, threat.pos, defenderCell);
     }
 
+    boolean hasNonAdjacentAttackCapability(Mob threat, Char target) {
+        if (threat == null
+                || !threat.isAlive()
+                || target == null
+                || !target.isAlive()) {
+            return false;
+        }
+
+        if (canThreatUseNonAdjacentAttackFrom(threat, threat.pos, target)) {
+            return true;
+        }
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int sourceCell = threat.pos + offset;
+            if (!Dungeon.level.insideMap(sourceCell)
+                    || Dungeon.level.distance(threat.pos, sourceCell) != 1
+                    || !enemyCanEnterForRisk(threat, sourceCell)) {
+                continue;
+            }
+            if (canThreatUseNonAdjacentAttackFrom(threat, sourceCell, target)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean canThreatUseNonAdjacentAttackFrom(
+            Mob threat, int sourceCell, Char target) {
+        return Dungeon.level.distance(sourceCell, target.pos) > 1
+                && threat.coHeroCanAttackFrom(sourceCell, target);
+    }
+
     private boolean canThreatAttackFromTo(
             Mob threat, int sourceCell, int defenderCell) {
         int livePos = owner.pos;
