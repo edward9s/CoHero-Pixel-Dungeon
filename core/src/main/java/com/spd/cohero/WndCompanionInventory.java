@@ -460,23 +460,49 @@ public class WndCompanionInventory extends Window {
                     return;
                 }
 
-                Item moved = takeFromPlayer(item);
-                if (moved != null && !inventory.addToBackpack(moved)) {
-                    returnToPlayer(moved);
-                    throw new IllegalStateException("Selected CoHero item no longer fits in backpack");
+                if (needsAmountChoice(item)) {
+                    showTakeFromHeroAmount(item);
+                } else {
+                    transferFromHero(item, TransferAmount.ALL);
                 }
-
-                // Match SMM Tools' Un/Identify selector: a successful action immediately
-                // reopens the item selector. Cancelling is the explicit way back.
-                openHeroItemSelector();
             }
         });
     }
 
-    private Item takeFromPlayer(Item item) {
+    private void showTakeFromHeroAmount(Item item) {
+        GameScene.show(new WndOptions(
+                item.title(),
+                text("inventory.transfer_amount"),
+                text("inventory.transfer_one"),
+                text("inventory.transfer_all")) {
+            @Override
+            protected void onSelect(int index) {
+                transferFromHero(
+                        item,
+                        index == 0 ? TransferAmount.ONE : TransferAmount.ALL);
+            }
+        });
+    }
+
+    private void transferFromHero(Item item, TransferAmount amount) {
+        Item moved = takeFromPlayer(item, amount);
+        if (moved != null && !inventory.addToBackpack(moved)) {
+            returnToPlayer(moved);
+            throw new IllegalStateException("Selected CoHero item no longer fits in backpack");
+        }
+
+        // Match SMM Tools' Un/Identify selector: a successful action immediately
+        // reopens the item selector. Cancelling is the explicit way back.
+        openHeroItemSelector();
+    }
+
+    private Item takeFromPlayer(Item item, TransferAmount amount) {
         if (item.isEquipped(Dungeon.hero)) {
             if (!(item instanceof EquipableItem)) {
                 throw new IllegalStateException("Equipped item is not EquipableItem: " + item.getClass().getName());
+            }
+            if (amount == TransferAmount.ONE && item.quantity() > 1) {
+                throw new IllegalStateException("Stackable equipped item cannot be split during transfer");
             }
             if (!((EquipableItem) item).doUnequip(Dungeon.hero, false, false)) {
                 return null;
@@ -484,7 +510,9 @@ public class WndCompanionInventory extends Window {
             return item;
         }
 
-        return item.detachAll(Dungeon.hero.belongings.backpack);
+        return amount == TransferAmount.ONE
+                ? item.detach(Dungeon.hero.belongings.backpack)
+                : item.detachAll(Dungeon.hero.belongings.backpack);
     }
 
     private void showBackpackItemActions(Item item) {
@@ -503,35 +531,40 @@ public class WndCompanionInventory extends Window {
                     }
                 }
             });
-        } else if (item instanceof Weapon
-                || item instanceof Wand
-                || item instanceof Potion
-                || item instanceof Scroll
-                || item instanceof Ankh) {
-            GameScene.show(new WndOptions(
-                    item.title(),
-                    text("inventory.action_prompt"),
-                    text("inventory.give_to_hero")) {
-                @Override
-                protected void onSelect(int index) {
-                    if (index == 0) {
-                        giveBackpackItemToHero(item);
-                    }
-                }
-            });
-        } else {
-            GameScene.show(new WndOptions(
-                    item.title(),
-                    text("inventory.action_prompt"),
-                    text("inventory.give_to_hero")) {
-                @Override
-                protected void onSelect(int index) {
-                    if (index == 0) {
-                        giveBackpackItemToHero(item);
-                    }
-                }
-            });
+            return;
         }
+
+        if (needsAmountChoice(item)) {
+            showGiveToHeroAmount(item);
+            return;
+        }
+
+        GameScene.show(new WndOptions(
+                item.title(),
+                text("inventory.action_prompt"),
+                text("inventory.give_to_hero")) {
+            @Override
+            protected void onSelect(int index) {
+                if (index == 0) {
+                    giveBackpackItemToHero(item, TransferAmount.ALL);
+                }
+            }
+        });
+    }
+
+    private void showGiveToHeroAmount(Item item) {
+        GameScene.show(new WndOptions(
+                item.title(),
+                text("inventory.transfer_amount"),
+                text("inventory.transfer_one"),
+                text("inventory.transfer_all")) {
+            @Override
+            protected void onSelect(int index) {
+                giveBackpackItemToHero(
+                        item,
+                        index == 0 ? TransferAmount.ONE : TransferAmount.ALL);
+            }
+        });
     }
 
     private void equipFromBackpack(Item item) {
@@ -604,12 +637,26 @@ public class WndCompanionInventory extends Window {
     }
 
     private void giveBackpackItemToHero(Item item) {
-        Item removed = inventory.removeFromBackpack(item);
+        if (needsAmountChoice(item)) {
+            showGiveToHeroAmount(item);
+        } else {
+            giveBackpackItemToHero(item, TransferAmount.ALL);
+        }
+    }
+
+    private void giveBackpackItemToHero(Item item, TransferAmount amount) {
+        Item removed = amount == TransferAmount.ONE
+                ? inventory.removeOneFromBackpack(item)
+                : inventory.removeFromBackpack(item);
         if (removed == null) {
             throw new IllegalStateException("CoHero backpack item disappeared before transfer");
         }
         returnToPlayer(removed);
         refreshWindow();
+    }
+
+    private static boolean needsAmountChoice(Item item) {
+        return item != null && item.stackable && item.quantity() > 1;
     }
 
     private boolean unequipToBackpack(SlotType type) {
@@ -765,6 +812,11 @@ public class WndCompanionInventory extends Window {
             frameLeft.visible = visible;
             frameRight.visible = visible;
         }
+    }
+
+    private enum TransferAmount {
+        ONE,
+        ALL
     }
 
     private enum SlotType {
