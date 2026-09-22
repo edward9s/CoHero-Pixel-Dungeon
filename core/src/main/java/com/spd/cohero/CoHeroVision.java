@@ -1,0 +1,104 @@
+package com.spd.cohero;
+
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
+import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Light;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.effects.particles.FlameParticle;
+import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
+import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.watabou.noosa.audio.Sample;
+import com.watabou.noosa.particles.Emitter;
+
+import java.util.ArrayList;
+
+/**
+ * Owns CoHero-local perception and visibility refresh behavior.
+ */
+final class CoHeroVision {
+
+    private final CoHeroAlly owner;
+
+    CoHeroVision(CoHeroAlly owner) {
+        this.owner = owner;
+    }
+
+    void syncViewDistance() {
+        if (Dungeon.level == null) {
+            return;
+        }
+
+        int baseViewDistance = Dungeon.level.viewDistance;
+        owner.viewDistance = owner.buff(Light.class) == null
+                ? baseViewDistance
+                : Math.max(baseViewDistance, Light.DISTANCE);
+    }
+
+    void refreshOwnFieldOfView() {
+        Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
+        revealVisibleCells();
+    }
+
+    void revealVisibleCells() {
+        for (int i = 0; i < owner.fieldOfView.length; i++) {
+            if (owner.fieldOfView[i]
+                    && Dungeon.level.discoverable[i]
+                    && !Dungeon.level.visited[i]) {
+                Dungeon.level.visited[i] = true;
+            }
+        }
+
+        // CoHero vision is display-only. Do not alter Hero gameplay visibility.
+        GameScene.updateFog(owner.pos, owner.viewDistance + 1);
+        GameScene.afterObserve();
+    }
+
+    boolean tryAutoTorch() {
+        if (Dungeon.level == null
+                || Dungeon.level.viewDistance >= Light.DISTANCE
+                || owner.buff(Light.class) != null) {
+            return false;
+        }
+
+        Torch torch = owner.inventory().takeOneAutoTorch();
+        if (torch == null) {
+            return false;
+        }
+
+        Buff.affect(owner, Light.class, Light.DURATION);
+        refreshOwnFieldOfView();
+        Catalog.countUse(Torch.class);
+        Sample.INSTANCE.play(Assets.Sounds.BURNING);
+
+        if (owner.sprite() != null) {
+            owner.sprite().operate(owner.pos);
+            Emitter emitter = owner.sprite().centerEmitter();
+            if (emitter != null) {
+                emitter.start(FlameParticle.FACTORY, 0.2f, 3);
+            }
+        }
+
+        owner.spendActionTime(Torch.TIME_TO_LIGHT);
+        return true;
+    }
+
+    ArrayList<Mob> visibleAwakeEnemies() {
+        ArrayList<Mob> result = new ArrayList<>();
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob != owner
+                    && mob.alignment == Char.Alignment.ENEMY
+                    && mob.isAlive()
+                    && mob.invisible <= 0
+                    && owner.fieldOfView[mob.pos]
+                    && mob.state != mob.SLEEPING
+                    && mob.buff(Challenge.SpectatorFreeze.class) == null) {
+                result.add(mob);
+            }
+        }
+        return result;
+    }
+}
