@@ -211,7 +211,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - **Warrior**：等價 `RingOfMight +0` 與 `RingOfTenacity +0`：+1 STR、HT ×1.035，並依缺失 HP 比例取得原版 Tenacity 的漸進減傷；真正的 Ring of Might / Ring of Tenacity 可再依原版公式疊加。
 - **Mage**：等價 `RingOfEnergy +0` 的 wand charge 與 `RingOfElements +0`：法杖自然充能 ×1.175，並對原版 `RingOfElements.RESISTS` 涵蓋的元素／魔法效果套用 ×0.825 effectiveness；真正的 Ring of Energy / Ring of Elements 可再依原版公式疊加。
   - 起始 `MagesStaff(WandOfMagicMissile)` 仍是原版 Mage's Staff；CoHero AI 直接使用 Staff 內嵌的原版 wand 與同一個 charge pool，不建立複製 wand。Staff 近戰與 wand 遠程能力都可使用。
-- **Rogue**：移動速度 ×1.15，等價 `RingOfHaste +0`；真正的 Ring of Haste 可再疊加。
+- **Rogue**：移動速度 ×1.15，等價 `RingOfHaste +0`；另具有等價 `RingOfWealth +0` 的固有財富效果。Wealth 直接沿用原版 bonus 計算：有效 bonus 額外 +1，因此一般怪物掉落倍率為原版 `1.20^bonus`，bonus-drop tracker 與 rare-equipment 計算也視同多一枚 +0 Wealth；它不占 ring slot，並可與玩家 Hero 真正裝備的 Ring of Wealth 疊加。只有 Rogue CoHero 實際存活且位於當前樓層時生效；被刻意留在 Boss／支線樓層外時不生效。真正的 Ring of Haste 可再疊加。
 - **Huntress**：投擲武器傷害等級 +1、耐久 ×1.2，等價 `RingOfSharpshooting +0`；真正的 Sharpshooting 可再疊加。另保留原版 Huntress 的草地固有語意：踩高草只壓成 `FURROWED_GRASS`，踩已犁過的草不再壓平成普通草；不繼承 Hero 專屬草地 talents。
   - 起始 `SpiritBow` 仍是原版專武。CoHero 透過原版 `SpiritArrow` 射擊；箭為無限彈藥，不進普通投擲物耐久、掉落或回收流程。傷害使用 CoHero 自己的 STR、實際 Sharpshooting 戒指與 Huntress 固有 Sharpshooting +0，並排除 Hero-only talents。
 - **Duelist**：等價 `RingOfFuror +0` 與 `RingOfTenacity +0`：裝備近戰武器時攻擊速度 ×1.09051，並依缺失 HP 比例取得原版 Tenacity 的漸進減傷；真正的 Furor / Tenacity 可再依原版公式疊加。
