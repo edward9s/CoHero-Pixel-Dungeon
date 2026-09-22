@@ -221,24 +221,24 @@ public class WndCompanionInventory extends Window {
                 21);
         add(enemySpawnSlider);
 
-        CheckBox movementDebugLog = new CheckBox(text("inventory.movement_debug")) {
+        CheckBox debugLog = new CheckBox(text("inventory.debug_log")) {
             @Override
             protected void onClick() {
                 super.onClick();
-                companion.setMovementDebugLogEnabled(checked());
+                companion.setDebugLogEnabled(checked());
             }
         };
-        movementDebugLog.checked(companion.movementDebugLogEnabled());
-        movementDebugLog.setRect(
+        debugLog.checked(companion.debugLogEnabled());
+        debugLog.setRect(
                 controlX,
                 enemySpawnSlider.bottom() + 2,
                 controlWidth,
                 16);
-        add(movementDebugLog);
+        add(debugLog);
 
         RenderedTextBlock equipmentLabel =
                 PixelScene.renderTextBlock(text("inventory.equipment"), 7);
-        equipmentLabel.setPos(x, movementDebugLog.bottom() + 3);
+        equipmentLabel.setPos(x, debugLog.bottom() + 3);
         add(equipmentLabel);
 
         float equipmentY = equipmentLabel.bottom() + 2;
