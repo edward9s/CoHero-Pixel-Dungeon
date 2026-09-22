@@ -98,14 +98,21 @@ final class CoHeroCombatObjectiveController {
     }
 
     /**
-     * Continues an already-triggered lure while the enemy is temporarily out of sight.
-     * Before any enemy triggers the objective, ordinary guard behavior remains untouched.
+     * Luring is perception-driven. Once no awake enemy is visible, stop waiting at the objective
+     * immediately so CoHero can resume ordinary support / guard behavior and reacquire the enemy.
      */
-    Boolean actWithoutVisibleThreats() {
+    boolean cancelLureWhenNoVisibleThreats() {
         if (objective == null || !luring) {
-            return null;
+            return false;
         }
-        return actLure(new ArrayList<>());
+
+        if (owner.debugLogEnabled()) {
+            owner.logDebug("[CoHeroObjective] " + objective.name
+                    + " lure_cancel reason=no_visible_threat"
+                    + " pos=" + owner.pos);
+        }
+        clearLure();
+        return true;
     }
 
     /**
