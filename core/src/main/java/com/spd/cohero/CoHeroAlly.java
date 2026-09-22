@@ -139,9 +139,7 @@ public class CoHeroAlly extends DirectableAlly {
     private static final int RANGED_LURE_MAX_WAIT_TURNS = 6;
 
     private final CoHeroNavigation navigation = new CoHeroNavigation(this);
-    private int guardTarget = -1;
-    private GuardSession guardSession;
-    private MoveScope moveScope = MoveScope.ANY;
+    private final CoHeroGuardController guard = new CoHeroGuardController(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
@@ -506,18 +504,10 @@ public class CoHeroAlly extends DirectableAlly {
     public void move(int step, boolean travelling) {
         int oldPos = pos;
 
-        if (guardSession != null) {
-            if (moveScope == MoveScope.HERO_ROOM
-                    && !isRoomInteriorCell(guardSession.heroRoom, step)) {
-                logMovement("BLOCKED_HERO_ROOM", oldPos, step);
-                return;
-            }
-            if (moveScope == MoveScope.GUARD_DOMAIN
-                    && !areaContains(guardSession.area, step)
-                    && !isRoomBoundsCell(guardSession.heroRoom, step)) {
-                logMovement("BLOCKED_GUARD_DOMAIN", oldPos, step);
-                return;
-            }
+        String blockedMovement = guard.blockedMovementReason(step);
+        if (blockedMovement != null) {
+            logMovement(blockedMovement, oldPos, step);
+            return;
         }
 
         super.move(step, travelling);
@@ -681,7 +671,7 @@ public class CoHeroAlly extends DirectableAlly {
     protected boolean act() {
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
-        moveScope = MoveScope.ANY;
+        guard.beginTurn();
 
         syncSharedLevel();
         syncViewDistance();
@@ -691,7 +681,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        updateGuardSession();
+        guard.updateSession();
 
         if (paralysed > 0) {
             logBossDecision("paralysed", "paralysed");
@@ -712,20 +702,8 @@ public class CoHeroAlly extends DirectableAlly {
             return hazardAvoidance;
         }
 
-        Mob guardSupportThreat = guardSession == null ? null : heroSupportThreat();
-        if (guardSession != null) {
-            if (guardSupportThreat != null
-                    && isRoomBoundsCell(guardSession.heroRoom, pos)) {
-                moveScope = MoveScope.HERO_ROOM;
-                GLog.i("[CoHeroMove] SUPPORT_LOCK"
-                        + " threat=" + guardSupportThreat.getClass().getSimpleName()
-                        + " threatPos=" + guardSupportThreat.pos
-                        + " " + movementContext());
-            } else if (areaContains(guardSession.area, pos)
-                    || isRoomBoundsCell(guardSession.heroRoom, pos)) {
-                moveScope = MoveScope.GUARD_DOMAIN;
-            }
-        }
+        Mob guardSupportThreat = guard.isActive() ? heroSupportThreat() : null;
+        guard.prepareMovementScope(guardSupportThreat);
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         if (visibleThreats.isEmpty()) {
@@ -837,7 +815,7 @@ public class CoHeroAlly extends DirectableAlly {
             int escapeStep = chooseEscapeStep(visibleThreats);
             if (escapeStep != -1) {
                 int oldPos = pos;
-                moveScope = MoveScope.ANY;
+                guard.allowAnyMovement();
                 setMovementDecision("combat_escape", escapeStep);
                 if (getCloser(escapeStep)) {
                     spend(1 / speed());
@@ -893,7 +871,7 @@ public class CoHeroAlly extends DirectableAlly {
             int recoveryStep = lootRecoveryStep(recoveryCell);
             if (recoveryStep != -1) {
                 int oldPos = pos;
-                moveScope = MoveScope.ANY;
+                guard.allowAnyMovement();
                 setMovementDecision("loot_recovery", recoveryCell);
                 move(recoveryStep, true);
                 spend(1 / speed());
@@ -901,11 +879,12 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        if (guardSession != null) {
-            return actGuard(guardSession);
+        Boolean guardAction = guard.act();
+        if (guardAction != null) {
+            return guardAction;
         }
 
-        clearGuardDirective();
+        guard.clearDirective();
 
         return navigation.actExplore();
     }
@@ -917,16 +896,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         navigation.clearExplorationTarget();
-        guardTarget = -1;
-        if (guardSession == null) {
-            moveScope = MoveScope.ANY;
-        } else if (isRoomBoundsCell(guardSession.heroRoom, pos)) {
-            moveScope = MoveScope.HERO_ROOM;
-        } else if (areaContains(guardSession.area, pos)) {
-            moveScope = MoveScope.GUARD_DOMAIN;
-        } else {
-            moveScope = MoveScope.ANY;
-        }
+        guard.prepareHeroSupportMovement();
         setMovementDecision(
                 "hero_support threat=" + threat.getClass().getSimpleName()
                         + " threatPos=" + threat.pos,
@@ -934,7 +904,7 @@ public class CoHeroAlly extends DirectableAlly {
         return actFollowHeroDirective();
     }
 
-    private boolean actFollowHeroDirective() {
+    boolean actFollowHeroDirective() {
         if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
             return false;
         }
@@ -970,379 +940,37 @@ public class CoHeroAlly extends DirectableAlly {
         return null;
     }
 
-    private void updateGuardSession() {
-        if (!(Dungeon.level instanceof RegularLevel)
-                || Dungeon.hero == null
-                || !Dungeon.hero.isAlive()) {
-            leaveGuardSession();
-            return;
-        }
 
-        if (guardSession != null) {
-            if (isRoomBoundsCell(guardSession.heroRoom, Dungeon.hero.pos)) {
-                return;
-            }
-            leaveGuardSession();
-        }
 
-        RegularLevel level = (RegularLevel) Dungeon.level;
-        Room heroRoom = level.room(Dungeon.hero.pos);
-        if (heroRoom == null || heroRoom.isEntrance() || heroRoom.isExit()) {
-            return;
-        }
 
-        ArrayList<RoomExit> exits = runtimeRoomExits(level, heroRoom);
-        if (exits.size() != 1) {
-            return;
-        }
 
-        RoomExit heroExit = exits.get(0);
-        Room outsideRoom = findOutsideRoom(level, heroRoom, heroExit);
-        if (outsideRoom == null) {
-            return;
-        }
 
-        boolean[] area = buildGuardArea(level, outsideRoom, heroExit.cell);
-        if (area == null) {
-            return;
-        }
 
-        guardSession = new GuardSession(heroRoom, outsideRoom, heroExit.cell, area);
-        guardTarget = -1;
-        navigation.clearExplorationTarget();
 
-        int areaCells = 0;
-        for (boolean allowed : area) {
-            if (allowed) {
-                areaCells++;
-            }
-        }
-        GLog.i("[CoHeroMove] GUARD_SESSION enter"
-                + " heroRoom=" + heroRoom.getClass().getSimpleName()
-                + " outsideRoom=" + outsideRoom.getClass().getSimpleName()
-                + " door=" + heroExit.cell
-                + " areaCells=" + areaCells
-                + " pos=" + pos
-                + " hero=" + Dungeon.hero.pos);
-    }
 
-    private void leaveGuardSession() {
-        if (guardSession != null) {
-            GLog.i("[CoHeroMove] GUARD_SESSION exit"
-                    + " heroRoom=" + guardSession.heroRoom.getClass().getSimpleName()
-                    + " pos=" + pos
-                    + " hero=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
-        }
-        guardSession = null;
-        guardTarget = -1;
-        clearDefensingPos();
-        path = null;
-    }
 
-    private ArrayList<RoomExit> runtimeRoomExits(RegularLevel level, Room room) {
-        ArrayList<RoomExit> exits = new ArrayList<>();
 
-        for (int x = room.left + 1; x < room.right; x++) {
-            addRuntimeRoomExit(level, exits, x, room.top, 0, 1);
-            addRuntimeRoomExit(level, exits, x, room.bottom, 0, -1);
-        }
-        for (int y = room.top + 1; y < room.bottom; y++) {
-            addRuntimeRoomExit(level, exits, room.left, y, 1, 0);
-            addRuntimeRoomExit(level, exits, room.right, y, -1, 0);
-        }
 
-        return exits;
-    }
 
-    private void addRuntimeRoomExit(
-            RegularLevel level,
-            ArrayList<RoomExit> exits,
-            int x,
-            int y,
-            int inwardDx,
-            int inwardDy) {
-        Point boundary = new Point(x, y);
-        int cell = level.pointToCell(boundary);
-        Point inwardPoint = new Point(x + inwardDx, y + inwardDy);
-        Point outwardPoint = new Point(x - inwardDx, y - inwardDy);
 
-        if (inwardPoint.x < 0
-                || inwardPoint.y < 0
-                || outwardPoint.x < 0
-                || outwardPoint.y < 0
-                || inwardPoint.x >= level.width()
-                || outwardPoint.x >= level.width()
-                || inwardPoint.y >= level.height()
-                || outwardPoint.y >= level.height()) {
-            return;
-        }
 
-        int inwardCell = level.pointToCell(inwardPoint);
-        int outwardCell = level.pointToCell(outwardPoint);
-        if (!level.passable[cell]
-                || !level.passable[inwardCell]
-                || !level.passable[outwardCell]) {
-            return;
-        }
 
-        exits.add(new RoomExit(cell, outwardCell));
-    }
 
-    private Room findOutsideRoom(RegularLevel level, Room heroRoom, RoomExit heroExit) {
-        Room interiorMatch = null;
-        Point outsidePoint = level.cellToPoint(heroExit.outsideCell);
-        for (Room candidate : level.rooms()) {
-            if (candidate == heroRoom) {
-                continue;
-            }
-            if (candidate.inside(outsidePoint)) {
-                if (interiorMatch != null) {
-                    return null;
-                }
-                interiorMatch = candidate;
-            }
-        }
-        if (interiorMatch != null) {
-            return interiorMatch;
-        }
 
-        Room boundsMatch = null;
-        for (Room candidate : level.rooms()) {
-            if (candidate == heroRoom
-                    || !isRoomBoundsCell(candidate, heroExit.outsideCell)) {
-                continue;
-            }
-            if (boundsMatch != null) {
-                return null;
-            }
-            boundsMatch = candidate;
-        }
-        return boundsMatch;
-    }
 
-    private Boolean actGuard(GuardSession session) {
-        navigation.clearExplorationTarget();
 
-        if (areaContains(session.area, pos)) {
-            clearDefensingPos();
-            path = null;
-            moveScope = MoveScope.GUARD_DOMAIN;
 
-            if (!areaContains(session.area, guardTarget) || guardTarget == pos) {
-                guardTarget = chooseGuardRoamingTarget(session);
-            }
-            if (guardTarget == -1) {
-                GLog.i("[CoHeroMove] GUARD no roaming target " + movementContext());
-                spend(TICK);
-                return true;
-            }
 
-            setMovementDecision("guard_roam", guardTarget);
-            return moveWithinGuardArea(session, guardTarget);
-        }
 
-        if (isRoomBoundsCell(session.heroRoom, pos)) {
-            guardTarget = nearestReachableGuardCell(session.area);
-            if (guardTarget == -1) {
-                spend(TICK);
-                return true;
-            }
 
-            moveScope = MoveScope.GUARD_DOMAIN;
-            setMovementDecision("guard_return_from_hero_room", guardTarget);
-            return actTowardGuardTarget(guardTarget);
-        }
 
-        // Any third room is support-Hero territory. GUARD has no explore transition.
-        guardTarget = -1;
-        moveScope = MoveScope.ANY;
-        setMovementDecision("guard_external_support", Dungeon.hero.pos);
-        return actFollowHeroDirective();
-    }
 
-    private boolean[] buildGuardArea(
-            RegularLevel level,
-            Room outsideRoom,
-            int heroDoorCell) {
-        boolean[] roomPassable = new boolean[level.length()];
-        for (int cell = 0; cell < roomPassable.length; cell++) {
-            roomPassable[cell] = level.passable[cell] && isRoomBoundsCell(outsideRoom, cell);
-        }
-        if (heroDoorCell < 0 || heroDoorCell >= roomPassable.length) {
-            return null;
-        }
-        roomPassable[heroDoorCell] = true;
 
-        PathFinder.buildDistanceMap(heroDoorCell, roomPassable);
-        int[] heroDoorDistance = PathFinder.distance.clone();
 
-        ArrayList<int[]> competingDistances = new ArrayList<>();
-        for (RoomExit exit : runtimeRoomExits(level, outsideRoom)) {
-            if (exit.cell == heroDoorCell) {
-                continue;
-            }
 
-            boolean[] distancePassable = roomPassable.clone();
-            distancePassable[exit.cell] = true;
-            PathFinder.buildDistanceMap(exit.cell, distancePassable);
-            competingDistances.add(PathFinder.distance.clone());
-        }
 
-        boolean[] area = new boolean[level.length()];
-        boolean any = false;
-        for (int cell = 0; cell < area.length; cell++) {
-            if (!level.passable[cell]
-                    || !isRoomBoundsCell(outsideRoom, cell)
-                    || heroDoorDistance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
 
-            boolean heroSide = true;
-            for (int[] otherDistance : competingDistances) {
-                if (otherDistance[cell] <= heroDoorDistance[cell]) {
-                    heroSide = false;
-                    break;
-                }
-            }
 
-            if (heroSide) {
-                area[cell] = true;
-                any = true;
-            }
-        }
-
-        return any ? area : null;
-    }
-
-    private boolean actTowardGuardTarget(int target) {
-        defendPos(target);
-        boolean result = state.act(false, false);
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-
-        if (defendingPos == pos && target != pos) {
-            guardTarget = -1;
-        }
-        return result;
-    }
-
-    private int nearestReachableGuardCell(boolean[] area) {
-        boolean[] passable = ordinarySafePassable(false);
-        PathFinder.buildDistanceMap(pos, passable);
-
-        int best = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        for (int cell = 0; cell < passable.length; cell++) {
-            if (!areaContains(area, cell)
-                    || !isMovementSafe(cell)
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != this) {
-                continue;
-            }
-
-            int distance = PathFinder.distance[cell];
-            if (distance < bestDistance) {
-                best = cell;
-                bestDistance = distance;
-            }
-        }
-        return best;
-    }
-
-    private int chooseGuardRoamingTarget(GuardSession session) {
-        boolean[] passable = guardAreaPassable(session);
-        PathFinder.buildDistanceMap(pos, passable);
-
-        ArrayList<Integer> candidates = new ArrayList<>();
-        for (int cell = 0; cell < passable.length; cell++) {
-            if (cell == pos
-                    || !passable[cell]
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant == null || occupant == this) {
-                candidates.add(cell);
-            }
-        }
-        return candidates.isEmpty() ? -1 : Random.element(candidates);
-    }
-
-    private boolean moveWithinGuardArea(GuardSession session, int target) {
-        if (rooted) {
-            spend(TICK);
-            return true;
-        }
-
-        boolean[] passable = guardAreaPassable(session);
-        int step = Dungeon.findStep(this, target, passable, fieldOfView, true);
-        if (step == -1 || !passable[step] || !isMovementSafe(step)) {
-            GLog.i("[CoHeroMove] GUARD path_failed"
-                    + " target=" + target
-                    + " step=" + step
-                    + " " + movementContext());
-            guardTarget = -1;
-            spend(TICK);
-            return true;
-        }
-
-        int oldPos = pos;
-        move(step, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
-    }
-
-    private boolean[] guardAreaPassable(GuardSession session) {
-        boolean[] passable = ordinarySafePassable(false);
-        for (int cell = 0; cell < passable.length; cell++) {
-            passable[cell] = passable[cell] && areaContains(session.area, cell);
-        }
-        if (isRoomBoundsCell(session.heroRoom, pos)) {
-            passable[pos] = true;
-        }
-        return passable;
-    }
-
-    private boolean areaContains(boolean[] area, int cell) {
-        return area != null
-                && cell >= 0
-                && cell < area.length
-                && area[cell];
-    }
-
-    private boolean isRoomInteriorCell(Room room, int cell) {
-        return room != null
-                && cell >= 0
-                && cell < Dungeon.level.length()
-                && room.inside(Dungeon.level.cellToPoint(cell));
-    }
-
-    private boolean isRoomBoundsCell(Room room, int cell) {
-        if (room == null
-                || cell < 0
-                || cell >= Dungeon.level.length()) {
-            return false;
-        }
-
-        Point point = Dungeon.level.cellToPoint(cell);
-        return point.x >= room.left
-                && point.x <= room.right
-                && point.y >= room.top
-                && point.y <= room.bottom;
-    }
-
-    private void clearGuardDirective() {
-        guardTarget = -1;
-        clearDefensingPos();
-        path = null;
-    }
 
     void setMovementDecision(String decision, int target) {
         movementDecision = decision;
@@ -1363,47 +991,18 @@ public class CoHeroAlly extends DirectableAlly {
                 + " " + movementContext());
     }
 
-    private String movementContext() {
+    String movementContext() {
         int heroPos = Dungeon.hero == null ? -1 : Dungeon.hero.pos;
         return "pos=" + pos
                 + " hero=" + heroPos
-                + " guard=" + (guardSession != null)
-                + " inGuardArea="
-                + (guardSession != null && areaContains(guardSession.area, pos))
-                + " inHeroRoom="
-                + (guardSession != null && isRoomBoundsCell(guardSession.heroRoom, pos))
-                + " scope=" + moveScope;
+                + " " + guard.debugState();
     }
 
-    private enum MoveScope {
-        ANY,
-        GUARD_DOMAIN,
-        HERO_ROOM
-    }
 
-    private static final class RoomExit {
-        final int cell;
-        final int outsideCell;
 
-        RoomExit(int cell, int outsideCell) {
-            this.cell = cell;
-            this.outsideCell = outsideCell;
-        }
-    }
 
-    private static final class GuardSession {
-        final Room heroRoom;
-        final Room outsideRoom;
-        final int heroDoorCell;
-        final boolean[] area;
 
-        GuardSession(Room heroRoom, Room outsideRoom, int heroDoorCell, boolean[] area) {
-            this.heroRoom = heroRoom;
-            this.outsideRoom = outsideRoom;
-            this.heroDoorCell = heroDoorCell;
-            this.area = area;
-        }
-    }
+
 
     boolean[] ordinarySafePassable(boolean knownOnly) {
         return navigation.ordinarySafePassable(knownOnly);
@@ -1449,7 +1048,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         int oldPos = pos;
         clearRangedLurePlan();
-        moveScope = MoveScope.ANY;
+        guard.allowAnyMovement();
         setMovementDecision("hazard_escape", best);
         move(best, true);
         spend(1 / speed());
@@ -1460,7 +1059,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean getCloser(int target) {
-        if (moveScope == MoveScope.ANY
+        if (!guard.isMovementRestricted()
                 && !CoHeroHazards.hasActiveHazards(this)
                 && !hasVisibleSleepingEnemy()) {
             return super.getCloser(target);
@@ -1470,18 +1069,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         boolean[] safePassable = ordinarySafePassable(false);
-        if (guardSession != null && moveScope != MoveScope.ANY) {
-            for (int cell = 0; cell < safePassable.length; cell++) {
-                boolean allowed;
-                if (moveScope == MoveScope.HERO_ROOM) {
-                    allowed = isRoomInteriorCell(guardSession.heroRoom, cell);
-                } else {
-                    allowed = areaContains(guardSession.area, cell)
-                            || isRoomBoundsCell(guardSession.heroRoom, cell);
-                }
-                safePassable[cell] = safePassable[cell] && allowed;
-            }
-        }
+        guard.restrictPassable(safePassable);
 
         safePassable[pos] = true;
         int step = Dungeon.findStep(this, target, safePassable, fieldOfView, true);
@@ -2819,7 +2407,7 @@ public class CoHeroAlly extends DirectableAlly {
                 : chooseInvulnerableEscapeStep(invulnerableThreats, threats);
         if (escapeStep != -1) {
             int oldPos = pos;
-            moveScope = MoveScope.ANY;
+            guard.allowAnyMovement();
             setMovementDecision("invulnerable_escape", escapeStep);
             move(escapeStep, true);
             spend(1 / speed());
@@ -2930,7 +2518,7 @@ public class CoHeroAlly extends DirectableAlly {
             int invisibleEscapeStep = rooted ? -1 : chooseEscapeStep(threats);
             if (invisibleEscapeStep != -1) {
                 int oldPos = pos;
-                moveScope = MoveScope.ANY;
+                guard.allowAnyMovement();
                 setMovementDecision("combat_survival_invisible_escape", invisibleEscapeStep);
                 move(invisibleEscapeStep, true);
                 spend(1 / speed());
@@ -2964,7 +2552,7 @@ public class CoHeroAlly extends DirectableAlly {
             }
 
             int oldPos = pos;
-            moveScope = MoveScope.ANY;
+            guard.allowAnyMovement();
             setMovementDecision("combat_survival_escape", escapeStep);
             move(escapeStep, true);
             spend(1 / speed());
@@ -4937,5 +4525,13 @@ public class CoHeroAlly extends DirectableAlly {
     void refreshOwnFieldOfView() {
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
+    }
+
+    void clearExplorationTarget() {
+        navigation.clearExplorationTarget();
+    }
+
+    boolean actCurrentState() {
+        return state.act(false, false);
     }
 }
