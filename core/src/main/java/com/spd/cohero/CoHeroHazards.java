@@ -16,10 +16,14 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ParalyticGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.StenchGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultLaser;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultSentry;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental.FireWall;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.MagicalFireRoom.EternalFire;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
+import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.mechanics.ConeAOE;
 import com.watabou.utils.PathFinder;
 
 import java.util.HashMap;
@@ -36,6 +40,12 @@ public final class CoHeroHazards {
 
     private static final HashMap<Integer, Float> WARNED_UNTIL = new HashMap<>();
     private static Object trackedLevel;
+
+    private static boolean[] vaultMechanismDanger;
+    private static Char vaultMechanismOwner;
+    private static float vaultMechanismAt = Float.NaN;
+    private static int vaultMechanismInvisibility = -1;
+    private static boolean vaultMechanismFlameImmune;
 
     private CoHeroHazards() {
     }
@@ -57,13 +67,19 @@ public final class CoHeroHazards {
         if (owner == null || Dungeon.level == null || cell < 0 || cell >= Dungeon.level.length()) {
             return false;
         }
-        return isWarned(cell) || isKnownActiveTrap(cell) || isEnvironmentalDanger(owner, cell);
+        return isWarned(cell)
+                || isKnownActiveTrap(cell)
+                || isVaultMechanismDanger(owner, cell)
+                || isEnvironmentalDanger(owner, cell);
     }
 
     public static boolean hasActiveHazards(Char owner) {
         syncLevel();
         pruneExpired();
-        return !WARNED_UNTIL.isEmpty() || hasKnownActiveTrap() || hasEnvironmentalHazard(owner);
+        return !WARNED_UNTIL.isEmpty()
+                || hasKnownActiveTrap()
+                || hasVaultMechanismHazard(owner)
+                || hasEnvironmentalHazard(owner);
     }
 
     public static boolean[] maskDangerous(Char owner, boolean[] passable) {
@@ -86,6 +102,12 @@ public final class CoHeroHazards {
         }
 
         if (owner != null) {
+            ensureVaultMechanismDanger(owner);
+            for (int cell = 0; cell < result.length; cell++) {
+                if (result[cell] && vaultMechanismDanger[cell]) {
+                    result[cell] = false;
+                }
+            }
             for (int cell = 0; cell < result.length; cell++) {
                 if (result[cell] && isEnvironmentalDanger(owner, cell)) {
                     result[cell] = false;
@@ -116,6 +138,7 @@ public final class CoHeroHazards {
     public static void clear() {
         WARNED_UNTIL.clear();
         trackedLevel = Dungeon.level;
+        invalidateVaultMechanismCache();
     }
 
     private static boolean isWarned(int cell) {
@@ -183,6 +206,162 @@ public final class CoHeroHazards {
                 || presentVaultFlamesFor(owner, cell)
                 || presentEternalFireFor(owner, cell)
                 || presentVaultFireWallFor(owner, cell);
+    }
+
+    private static boolean hasVaultMechanismHazard(Char owner) {
+        if (owner == null || Dungeon.level == null) {
+            return false;
+        }
+        ensureVaultMechanismDanger(owner);
+        for (boolean dangerous : vaultMechanismDanger) {
+            if (dangerous) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isVaultMechanismDanger(Char owner, int cell) {
+        ensureVaultMechanismDanger(owner);
+        return vaultMechanismDanger != null
+                && cell >= 0
+                && cell < vaultMechanismDanger.length
+                && vaultMechanismDanger[cell];
+    }
+
+    private static void ensureVaultMechanismDanger(Char owner) {
+        syncLevel();
+        if (owner == null || Dungeon.level == null) {
+            vaultMechanismDanger = null;
+            return;
+        }
+
+        boolean flameImmune = owner.isImmune(VaultFlameTraps.class) || owner.isImmune(Fire.class);
+        float now = Actor.now();
+        if (vaultMechanismDanger != null
+                && vaultMechanismDanger.length == Dungeon.level.length()
+                && vaultMechanismOwner == owner
+                && Float.compare(vaultMechanismAt, now) == 0
+                && vaultMechanismInvisibility == owner.invisible
+                && vaultMechanismFlameImmune == flameImmune) {
+            return;
+        }
+
+        vaultMechanismDanger = new boolean[Dungeon.level.length()];
+        vaultMechanismOwner = owner;
+        vaultMechanismAt = now;
+        vaultMechanismInvisibility = owner.invisible;
+        vaultMechanismFlameImmune = flameImmune;
+
+        if (!flameImmune) {
+            markImminentVaultFlames();
+        }
+        markImminentVaultLasers();
+        if (owner.invisible == 0) {
+            markImminentVaultScans();
+        }
+    }
+
+    private static void markImminentVaultFlames() {
+        Blob blob = Dungeon.level.blobs.get(VaultFlameTraps.class);
+        if (!(blob instanceof VaultFlameTraps)) {
+            return;
+        }
+
+        VaultFlameTraps traps = (VaultFlameTraps) blob;
+        if (traps.afterTriggerCooldowns == null
+                || traps.curCooldowns == null
+                || traps.triggersAfterCooldown == null) {
+            return;
+        }
+
+        int limit = Math.min(vaultMechanismDanger.length,
+                Math.min(traps.afterTriggerCooldowns.length,
+                        Math.min(traps.curCooldowns.length, traps.triggersAfterCooldown.length)));
+        for (int cell = 0; cell < limit; cell++) {
+            int repeatCooldown = traps.afterTriggerCooldowns[cell];
+            if (repeatCooldown < 0 || traps.triggersAfterCooldown[cell] <= 0) {
+                continue;
+            }
+
+            int cooldown = traps.curCooldowns[cell];
+            if (cooldown <= 0) {
+                cooldown = repeatCooldown;
+            }
+            if (cooldown <= 1) {
+                vaultMechanismDanger[cell] = true;
+            }
+        }
+    }
+
+    private static void markImminentVaultLasers() {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof VaultLaser)) {
+                continue;
+            }
+            VaultLaser laser = (VaultLaser) ch;
+            if (laser.curCooldown > 1 || laser.laserDirs == null || laser.laserDirs.length == 0) {
+                continue;
+            }
+            if (laser.laserDirIdx < 0 || laser.laserDirIdx >= laser.laserDirs.length) {
+                continue;
+            }
+
+            Ballistica beam = new Ballistica(
+                    laser.pos,
+                    laser.laserDirs[laser.laserDirIdx],
+                    Ballistica.STOP_SOLID);
+            for (int cell : beam.subPath(1, beam.dist)) {
+                if (cell >= 0 && cell < vaultMechanismDanger.length) {
+                    vaultMechanismDanger[cell] = true;
+                }
+            }
+        }
+    }
+
+    private static void markImminentVaultScans() {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof VaultSentry)) {
+                continue;
+            }
+            VaultSentry sentry = (VaultSentry) ch;
+            if (sentry.curCooldown > 1 || sentry.scanDirs == null || sentry.scanDirs.length == 0) {
+                continue;
+            }
+            if (sentry.scanDirIdx < 0 || sentry.scanDirIdx >= sentry.scanDirs.length) {
+                continue;
+            }
+
+            boolean[] sentryFov = new boolean[Dungeon.level.length()];
+            Dungeon.level.updateFieldOfView(sentry, sentryFov);
+            for (int scanDir : sentry.scanDirs[sentry.scanDirIdx]) {
+                Ballistica aim = new Ballistica(sentry.pos, scanDir, Ballistica.WONT_STOP);
+                ConeAOE scan = new ConeAOE(
+                        aim,
+                        sentry.scanLength,
+                        sentry.scanWidth,
+                        Ballistica.STOP_SOLID | Ballistica.STOP_TARGET);
+
+                if (scan.cells.isEmpty() && aim.path.size() >= 2) {
+                    scan.cells.add(aim.path.get(1));
+                }
+                for (int cell : scan.cells) {
+                    if (cell >= 0
+                            && cell < vaultMechanismDanger.length
+                            && sentryFov[cell]) {
+                        vaultMechanismDanger[cell] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void invalidateVaultMechanismCache() {
+        vaultMechanismDanger = null;
+        vaultMechanismOwner = null;
+        vaultMechanismAt = Float.NaN;
+        vaultMechanismInvisibility = -1;
+        vaultMechanismFlameImmune = false;
     }
 
     private static boolean activeFor(
@@ -285,6 +464,7 @@ public final class CoHeroHazards {
         if (Dungeon.level != trackedLevel) {
             WARNED_UNTIL.clear();
             trackedLevel = Dungeon.level;
+            invalidateVaultMechanismCache();
         }
     }
 
