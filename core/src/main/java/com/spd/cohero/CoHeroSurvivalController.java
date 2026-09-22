@@ -322,7 +322,6 @@ final class CoHeroSurvivalController {
         // so do not draw a second long-distance movement animation from the pre-plant cell.
         if (owner.pos != plantCell) {
             owner.clearNavigationPath();
-            owner.clearCombatPositioningAfterRelocation();
             return true;
         }
         return owner.finishMovementAnimation(oldPos);
@@ -332,7 +331,7 @@ final class CoHeroSurvivalController {
         if (targetMob == null
                 || threats == null
                 || threats.isEmpty()
-                || owner.combatRetreating()
+                || owner.isRetreatingNow(targetMob, threats)
                 || Barkskin.currentLevel(owner) > 0
                 || owner.buff(Earthroot.Armor.class) != null) {
             return false;
