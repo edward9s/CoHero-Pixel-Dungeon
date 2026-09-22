@@ -134,6 +134,7 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroVision vision = new CoHeroVision(this);
     private final CoHeroLoot loot = new CoHeroLoot(this);
     private final CoHeroCombatRiskEstimator riskEstimator = new CoHeroCombatRiskEstimator(this);
+    private final CoHeroSurvivalController survival = new CoHeroSurvivalController(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private MissileWeapon activeMissileWeapon;
@@ -711,16 +712,16 @@ public class CoHeroAlly extends DirectableAlly {
                 return survivalAction;
             }
 
-            Boolean cleansingPlant = tryKnownCleansingPlant();
+            Boolean cleansingPlant = survival.tryKnownCleansingPlant();
             if (cleansingPlant != null) {
                 return cleansingPlant;
             }
 
-            if (tryUseCleansingPotion(assessCombatRisk(combatTarget, visibleThreats))) {
+            if (survival.tryUseCleansingPotion(assessCombatRisk(combatTarget, visibleThreats))) {
                 return true;
             }
 
-            if (tryAutoSurvivalPotion()) {
+            if (survival.tryAutoSurvivalPotion()) {
                 return true;
             }
 
@@ -743,7 +744,7 @@ public class CoHeroAlly extends DirectableAlly {
 
             // Non-emergency consumables and setup should not repeatedly steal turns from an
             // immediately available ranged attack.
-            Boolean armorPlant = tryKnownCombatArmorPlant(combatTarget, visibleThreats);
+            Boolean armorPlant = survival.tryKnownCombatArmorPlant(combatTarget, visibleThreats);
             if (armorPlant != null) {
                 return armorPlant;
             }
@@ -752,7 +753,7 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
-            if (tryUseCombatEarthenArmor(combatTarget, visibleThreats)) {
+            if (survival.tryUseCombatEarthenArmor(combatTarget, visibleThreats)) {
                 return true;
             }
 
@@ -799,16 +800,16 @@ public class CoHeroAlly extends DirectableAlly {
         combatRetreating = false;
         clearRangedLurePlan();
 
-        Boolean recoveryPlant = tryKnownRecoveryPlant();
+        Boolean recoveryPlant = survival.tryKnownRecoveryPlant();
         if (recoveryPlant != null) {
             return recoveryPlant;
         }
 
-        if (tryUseCleansingPotion(null)) {
+        if (survival.tryUseCleansingPotion(null)) {
             return true;
         }
 
-        if (tryAutoSurvivalPotion()) {
+        if (survival.tryAutoSurvivalPotion()) {
             return true;
         }
 
@@ -924,247 +925,17 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    private boolean hasSeriousCleansableNegative() {
-        int negatives = 0;
-        for (Buff active : buffs()) {
-            if (active.type != Buff.buffType.NEGATIVE
-                    || active instanceof AllyBuff
-                    || active instanceof LostInventory) {
-                continue;
-            }
-            negatives++;
-            if (active instanceof Buff.DOTbuff) {
-                return true;
-            }
-        }
 
-        return rooted
-                || negatives >= 2
-                || (negatives > 0 && HT > 0 && HP * 100 < HT * 50);
-    }
 
-    private boolean tryUseCleansingPotion(CoHeroCombatRisk risk) {
-        if (!hasSeriousCleansableNegative()) {
-            return false;
-        }
 
-        // Do not spend an emergency turn cleansing when the current volley is already lethal.
-        // Controlled/random teleport or immediate shielding remain safer in that situation.
-        if (risk != null && risk.immediateIncoming * 1.35f >= HP + shielding()) {
-            return false;
-        }
 
-        Potion potion = inventory.takeOneAutoCleansingPotion();
-        if (!(potion instanceof PotionOfCleansing)) {
-            return false;
-        }
 
-        PotionOfCleansing.cleanse(this);
-        Catalog.countUse(PotionOfCleansing.class);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
 
-    private Boolean tryKnownRecoveryPlant() {
-        // Sungrass only heals while its target remains on the activation cell.
-        if (buff(Sungrass.Health.class) != null && HP < HT) {
-            spend(TICK);
-            return true;
-        }
 
-        if (hasSeriousCleansableNegative()) {
-            int mageroyal = nearestKnownPlantCell(Mageroyal.class, 4);
-            if (mageroyal != -1) {
-                return moveTowardKnownPlant(mageroyal);
-            }
-        }
 
-        if (HT > 0
-                && HP * 100 < HT * 60
-                && buff(Healing.class) == null) {
-            int sungrass = nearestKnownPlantCell(Sungrass.class, 6);
-            if (sungrass != -1) {
-                return moveTowardKnownPlant(sungrass);
-            }
-        }
 
-        return null;
-    }
 
-    private Boolean tryKnownCleansingPlant() {
-        if (rooted || !hasSeriousCleansableNegative()) {
-            return null;
-        }
 
-        int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
-        return mageroyal == -1 ? null : moveOntoAdjacentPlant(mageroyal);
-    }
-
-    private Boolean tryKnownCombatArmorPlant(Mob targetMob, ArrayList<Mob> threats) {
-        if (rooted || targetMob == null || threats == null || threats.isEmpty()) {
-            return null;
-        }
-
-        boolean hardFight = threats.size() >= 2
-                || Char.hasProp(targetMob, Char.Property.BOSS)
-                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-        if (!hardFight
-                || buff(Earthroot.Armor.class) != null
-                || Barkskin.currentLevel(this) > 0) {
-            return null;
-        }
-
-        int earthroot = adjacentKnownPlantCell(Earthroot.class);
-        return earthroot == -1 ? null : moveOntoAdjacentPlant(earthroot);
-    }
-
-    private Boolean tryKnownRetreatPlant(CoHeroCombatRisk risk, ArrayList<Mob> threats) {
-        if (rooted || risk == null || threats == null || threats.isEmpty()) {
-            return null;
-        }
-
-        boolean severe = risk.attackersNow >= 2 || risk.ttd <= 3f;
-        if (severe) {
-            int fadeleaf = adjacentKnownPlantCell(Fadeleaf.class);
-            if (fadeleaf != -1) {
-                return moveOntoAdjacentPlant(fadeleaf);
-            }
-        }
-
-        if (hasSeriousCleansableNegative()
-                && risk.immediateIncoming * 1.35f < HP + shielding()) {
-            int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
-            if (mageroyal != -1) {
-                return moveOntoAdjacentPlant(mageroyal);
-            }
-        }
-
-        return null;
-    }
-
-    private int adjacentKnownPlantCell(Class<? extends Plant> plantType) {
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = pos + offset;
-            if (!Dungeon.level.insideMap(cell)
-                    || Dungeon.level.distance(pos, cell) != 1
-                    || !Dungeon.level.visited[cell]
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            Plant plant = Dungeon.level.plants.get(cell);
-            if (plantType.isInstance(plant)) {
-                return cell;
-            }
-        }
-        return -1;
-    }
-
-    private int nearestKnownPlantCell(Class<? extends Plant> plantType, int maxDistance) {
-        PathFinder.buildDistanceMap(pos, Dungeon.level.passable, maxDistance);
-
-        int best = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        for (Plant plant : Dungeon.level.plants.valueList()) {
-            if (!plantType.isInstance(plant)) {
-                continue;
-            }
-            int cell = plant.pos;
-            if (!Dungeon.level.visited[cell]
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || !isMovementSafe(cell)
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
-
-            if (PathFinder.distance[cell] < bestDistance) {
-                best = cell;
-                bestDistance = PathFinder.distance[cell];
-            }
-        }
-        return best;
-    }
-
-    private Boolean moveTowardKnownPlant(int plantCell) {
-        if (plantCell == -1 || rooted) {
-            return null;
-        }
-
-        int oldPos = pos;
-        if (!getCloser(plantCell)) {
-            return null;
-        }
-
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
-    }
-
-    private Boolean moveOntoAdjacentPlant(int plantCell) {
-        if (plantCell == -1
-                || rooted
-                || Dungeon.level.distance(pos, plantCell) != 1) {
-            return null;
-        }
-
-        int oldPos = pos;
-        setMovementDecision("plant_move", plantCell);
-        move(plantCell, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-
-        // Fadeleaf teleports during Level.occupyCell(). Its teleport VFX already placed the sprite,
-        // so do not draw a second long-distance movement animation from the pre-plant cell.
-        if (pos != plantCell) {
-            path = null;
-            clearMeleeTacticalPlan();
-            clearRangedLurePlan();
-            return true;
-        }
-        return moveSprite(oldPos, pos);
-    }
-
-    private boolean tryUseCombatEarthenArmor(Mob targetMob, ArrayList<Mob> threats) {
-        if (targetMob == null
-                || threats == null
-                || threats.isEmpty()
-                || combatRetreating
-                || Barkskin.currentLevel(this) > 0
-                || buff(Earthroot.Armor.class) != null) {
-            return false;
-        }
-
-        boolean hardFight = threats.size() >= 2
-                || Char.hasProp(targetMob, Char.Property.BOSS)
-                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-        if (!hardFight) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoEarthenArmorPotion();
-        if (!(potion instanceof PotionOfEarthenArmor)) {
-            return false;
-        }
-
-        Barkskin.conditionallyAppend(this, 2 + level() / 3, 50);
-        Catalog.countUse(PotionOfEarthenArmor.class);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
-
-    private boolean tryAutoSurvivalPotion() {
-        if (!support.isBelowLowHealthThreshold()) {
-            return false;
-        }
-        return consumeSurvivalPotion(false);
-    }
 
     private boolean tryUseCombatRunestone(Mob targetMob, ArrayList<Mob> threats) {
         if (targetMob == null
@@ -1746,7 +1517,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         boolean lowHealthDanger = support.isBelowLowHealthThreshold();
         if (risk.attackersNow >= 3 || immediateLethal || lowHealthDanger || criticallyShortTtd) {
-            if (tryUseInvisibilityPotion()) {
+            if (survival.tryUseInvisibilityPotion()) {
                 return true;
             }
         }
@@ -1818,23 +1589,6 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private boolean tryUseInvisibilityPotion() {
-        if (buff(Invisibility.class) != null) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoInvisibilityPotion();
-        if (!(potion instanceof PotionOfInvisibility)) {
-            return false;
-        }
-
-        Buff.prolong(this, Invisibility.class, Invisibility.DURATION);
-        Catalog.countUse(PotionOfInvisibility.class);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        Sample.INSTANCE.play(Assets.Sounds.MELD);
-        spend(TICK);
-        return true;
-    }
 
     private boolean shouldUseHasteForRetreat(
             CoHeroCombatRisk risk, ArrayList<Mob> threats, int escapeStep) {
@@ -1873,23 +1627,6 @@ public class CoHeroAlly extends DirectableAlly {
                 || risk.ttd <= 3.5f;
     }
 
-    private boolean tryUseHastePotion() {
-        if (buff(Haste.class) != null || buff(Stamina.class) != null) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoHastePotion();
-        if (!(potion instanceof PotionOfHaste)) {
-            return false;
-        }
-
-        Buff.prolong(this, Haste.class, Haste.DURATION);
-        Catalog.countUse(PotionOfHaste.class);
-        SpellSprite.show(this, SpellSprite.HASTE, 1f, 1f, 0f);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
 
     private boolean tryUseCombatStamina(Mob targetMob, ArrayList<Mob> threats) {
         if (targetMob == null
@@ -1931,54 +1668,8 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
-    private boolean tryEmergencySurvivalPotion() {
-        return consumeSurvivalPotion(true);
-    }
 
-    private boolean consumeSurvivalPotion(boolean shieldingFirst) {
-        if (shieldingFirst && tryConsumeShieldingPotion()) {
-            return true;
-        }
 
-        // Healing is the normal first choice, but not during a trapped emergency because its
-        // recovery is spread over future turns.
-        if (buff(Healing.class) == null) {
-            Potion healing = inventory.takeOneAutoHealingPotion();
-            if (healing != null) {
-                PotionOfHealing.cure(this);
-                PotionOfHealing.heal(this);
-                Sample.INSTANCE.play(Assets.Sounds.DRINK);
-                spend(TICK);
-                return true;
-            }
-        }
-
-        return shieldingFirst ? false : tryConsumeShieldingPotion();
-    }
-
-    private boolean tryConsumeShieldingPotion() {
-        Barrier barrier = buff(Barrier.class);
-        if (barrier != null && barrier.shielding() > 0) {
-            return false;
-        }
-
-        Potion shielding = inventory.takeOneAutoShieldingPotion();
-        if (shielding == null) {
-            return false;
-        }
-
-        int amount = (int) (0.6f * HT + 10);
-        Buff.affect(this, Barrier.class).setShield(amount);
-        if (sprite != null) {
-            sprite.showStatusWithIcon(
-                    CharSprite.POSITIVE,
-                    Integer.toString(amount),
-                    FloatingText.SHIELDING);
-        }
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
 
 
 
@@ -2180,10 +1871,10 @@ public class CoHeroAlly extends DirectableAlly {
         if (tryUseTeleportationScroll()) {
             return true;
         }
-        if (tryUseInvisibilityPotion()) {
+        if (survival.tryUseInvisibilityPotion()) {
             return true;
         }
-        if (tryEmergencySurvivalPotion()) {
+        if (survival.tryEmergencySurvivalPotion()) {
             return true;
         }
 
@@ -2290,11 +1981,11 @@ public class CoHeroAlly extends DirectableAlly {
             return escapeUtility;
         }
 
-        if (tryUseCleansingPotion(risk)) {
+        if (survival.tryUseCleansingPotion(risk)) {
             return true;
         }
 
-        Boolean retreatPlant = tryKnownRetreatPlant(risk, threats);
+        Boolean retreatPlant = survival.tryKnownRetreatPlant(risk, threats);
         if (retreatPlant != null) {
             return retreatPlant;
         }
@@ -2302,7 +1993,7 @@ public class CoHeroAlly extends DirectableAlly {
         int escapeStep = rooted ? -1 : chooseEscapeStep(threats);
         if (escapeStep != -1) {
             if (shouldUseHasteForRetreat(risk, threats, escapeStep)
-                    && tryUseHastePotion()) {
+                    && survival.tryUseHastePotion()) {
                 return true;
             }
 
@@ -2336,7 +2027,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         // If control resources are unavailable, fall back to immediate shielding/healing.
-        if (tryEmergencySurvivalPotion()) {
+        if (survival.tryEmergencySurvivalPotion()) {
             return true;
         }
 
@@ -3763,6 +3454,19 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     void clearRangedLureForNavigation() {
+        clearRangedLurePlan();
+    }
+
+    boolean isBelowLowHealthThreshold() {
+        return support.isBelowLowHealthThreshold();
+    }
+
+    boolean combatRetreating() {
+        return combatRetreating;
+    }
+
+    void clearCombatPositioningAfterRelocation() {
+        clearMeleeTacticalPlan();
         clearRangedLurePlan();
     }
 }
