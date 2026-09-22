@@ -229,7 +229,7 @@ final class CoHeroCombatRiskEstimator {
         return result;
     }
 
-    private float threatOpportunity(Mob threat, int defenderCell) {
+    float threatOpportunity(Mob threat, int defenderCell) {
         if (canThreatAttackCell(threat, defenderCell)) {
             return 1f;
         }
@@ -276,7 +276,7 @@ final class CoHeroCombatRiskEstimator {
         }
     }
 
-    private float blessRollMultiplier(Char target) {
+    float blessRollMultiplier(Char target) {
         return target != null
                 && (target.buff(Bless.class) != null
                     || CoHeroClassTraits.isClericBlessed(target))
