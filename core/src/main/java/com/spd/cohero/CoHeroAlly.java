@@ -2413,7 +2413,7 @@ public class CoHeroAlly extends DirectableAlly {
         arrow.throwSound();
 
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && (sprite.visible || targetMob.sprite.visible)) {
+                && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
             ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                     sprite,
                     targetMob.sprite,
@@ -2453,7 +2453,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         float delay = thrown.castDelay(this, targetMob.pos);
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && (sprite.visible || targetMob.sprite.visible)) {
+                && (CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos))) {
             ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                     sprite,
                     targetMob.sprite,
@@ -2502,7 +2502,8 @@ public class CoHeroAlly extends DirectableAlly {
             throw new IllegalStateException("CoHero wand choice has no legal aim cell");
         }
 
-        wand.coHeroCast(this, targetCell, new Callback() {
+        boolean showFx = CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetCell);
+        wand.coHeroCast(this, targetCell, showFx, new Callback() {
             @Override
             public void call() {
                 if (insideCast[0]) {
