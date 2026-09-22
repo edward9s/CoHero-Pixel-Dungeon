@@ -2693,25 +2693,30 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean moveSprite(int from, int to) {
-        boolean trackPresentation = sprite != null
+        boolean showPresentation = sprite != null
                 && sprite.isVisible()
                 && sprite.parent != null
                 && CoHeroPresentation.shouldShow(from, to);
 
-        if (trackPresentation) {
-            if (presentationMotionPending) {
-                throw new IllegalStateException("CoHero started a second movement presentation");
-            }
-            presentationMotionPending = true;
-            CoHeroPresentation.begin(this);
+        if (!showPresentation) {
+            sprite.turnTo(from, to);
+            sprite.place(to);
+            return true;
         }
 
+        if (presentationMotionPending) {
+            throw new IllegalStateException("CoHero started a second movement presentation");
+        }
+
+        presentationMotionPending = true;
+        CoHeroPresentation.begin(this);
         try {
-            return super.moveSprite(from, to);
+            // Char.moveSprite() intentionally suppresses motion outside Hero FOV. CoHero has a
+            // separate presentation rule: anything visible through Hero OR CoHero FOV is animated.
+            sprite.move(from, to);
+            return true;
         } catch (RuntimeException ex) {
-            if (trackPresentation) {
-                finishPresentationMotion();
-            }
+            finishPresentationMotion();
             throw ex;
         }
     }
