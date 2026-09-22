@@ -31,7 +31,7 @@ final class CoHeroCombatRiskEstimator {
     }
 
     CoHeroCombatRisk assess(
-            Mob targetMob, ArrayList<Mob> threats, boolean combatRetreating) {
+            Mob targetMob, ArrayList<Mob> threats) {
         int attackersNow = countCurrentAttackersAtCell(owner.pos, threats);
         float incomingDpt = estimatedIncomingDptAtCell(owner.pos, threats);
         float immediateIncoming = estimatedImmediateIncomingAtCell(owner.pos, threats);
@@ -57,16 +57,8 @@ final class CoHeroCombatRiskEstimator {
                 && incomingDpt > 0.01f
                 && ttd <= ttk * 1.5f;
 
-        boolean retreat;
-        if (combatRetreating) {
-            boolean recovered = attackersNow <= 1
-                    && owner.HP * 100 >= owner.HT * 45
-                    && (incomingDpt <= 0.01f
-                        || ttd >= Math.max(4f, ttk * 1.75f));
-            retreat = !recovered;
-        } else {
-            retreat = immediateLethal || overwhelmed || losingRace || outnumberedRace;
-        }
+        boolean retreat =
+                immediateLethal || overwhelmed || losingRace || outnumberedRace;
 
         return new CoHeroCombatRisk(
                 retreat, attackersNow, incomingDpt, immediateIncoming, ttd, ttk);
