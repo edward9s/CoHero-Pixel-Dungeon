@@ -130,7 +130,7 @@ final class CoHeroControlItems {
                 || threats == null
                 || threats.isEmpty()
                 || owner.buff(MagicImmune.class) != null
-                || combatRetreating) {
+                || owner.combatRetreating()) {
             return false;
         }
 
