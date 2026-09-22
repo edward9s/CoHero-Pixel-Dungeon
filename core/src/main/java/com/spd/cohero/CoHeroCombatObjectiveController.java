@@ -23,7 +23,9 @@ import java.util.ArrayList;
 final class CoHeroCombatObjectiveController {
 
     private final CoHeroAlly owner;
-    private EngagementObjective active;
+    private EngagementObjective objective;
+    private boolean luring;
+    private int stagingCell = -1;
     private boolean allowOutsideCombatThisTurn;
 
     CoHeroCombatObjectiveController(CoHeroAlly owner) {
@@ -32,11 +34,24 @@ final class CoHeroCombatObjectiveController {
 
     void update() {
         allowOutsideCombatThisTurn = false;
-        active = resolveSacrificialFireObjective();
+
+        EngagementObjective resolved = resolveSacrificialFireObjective();
+        if (resolved == null) {
+            clearLure();
+            objective = null;
+            return;
+        }
+
+        if (objective == null
+                || objective.anchorCell != resolved.anchorCell
+                || objective.room != resolved.room) {
+            clearLure();
+        }
+        objective = resolved;
     }
 
     boolean isActive() {
-        return active != null;
+        return objective != null && luring;
     }
 
     /**
@@ -45,13 +60,34 @@ final class CoHeroCombatObjectiveController {
      */
     Boolean actBeforeOffense(
             ArrayList<Mob> attackableThreats, ArrayList<Mob> visibleThreats) {
-        if (active == null) {
+        if (objective == null) {
             return null;
         }
 
         for (Mob threat : attackableThreats) {
-            if (active.engagementZone[threat.pos]) {
+            if (objective.engagementZone[threat.pos]) {
+                if (luring && owner.debugLogEnabled()) {
+                    owner.logDebug("[CoHeroObjective] " + objective.name
+                            + " engage target=" + threat.getClass().getSimpleName()
+                            + " targetPos=" + threat.pos);
+                }
+                clearLure();
                 return null;
+            }
+        }
+
+        if (attackableThreats.isEmpty()) {
+            return null;
+        }
+
+        if (!luring) {
+            luring = true;
+            stagingCell = -1;
+            if (owner.debugLogEnabled()) {
+                Mob trigger = attackableThreats.get(0);
+                owner.logDebug("[CoHeroObjective] " + objective.name
+                        + " lure_start target=" + trigger.getClass().getSimpleName()
+                        + " targetPos=" + trigger.pos);
             }
         }
 
@@ -63,7 +99,7 @@ final class CoHeroCombatObjectiveController {
      * This prevents ordinary guard behavior from placing CoHero at the doorway first.
      */
     Boolean actWithoutVisibleThreats() {
-        if (active == null) {
+        if (objective == null || !luring) {
             return null;
         }
         return actLure(new ArrayList<>());
@@ -75,13 +111,13 @@ final class CoHeroCombatObjectiveController {
      * fail open for this turn so the AI cannot deadlock and die at the boundary.
      */
     ArrayList<Mob> offensiveThreats(ArrayList<Mob> attackableThreats) {
-        if (active == null || allowOutsideCombatThisTurn) {
+        if (objective == null || !luring || allowOutsideCombatThisTurn) {
             return attackableThreats;
         }
 
         ArrayList<Mob> result = new ArrayList<>();
         for (Mob threat : attackableThreats) {
-            if (active.engagementZone[threat.pos]) {
+            if (objective.engagementZone[threat.pos]) {
                 result.add(threat);
             }
         }
@@ -89,9 +125,11 @@ final class CoHeroCombatObjectiveController {
     }
 
     String debugState() {
-        return active == null
-                ? "objective=none"
-                : "objective=" + active.name;
+        if (objective == null) {
+            return "objective=none";
+        }
+        return "objective=" + objective.name
+                + " state=" + (luring ? "luring" : "idle");
     }
 
     private EngagementObjective resolveSacrificialFireObjective() {
@@ -154,12 +192,15 @@ final class CoHeroCombatObjectiveController {
         owner.clearCombatPositioningAfterRelocation();
         owner.allowAnyGuardMovement();
 
-        int target = chooseStagingCell(visibleThreats);
-        if (target == -1) {
+        if (!isUsableStagingCell(stagingCell)) {
+            stagingCell = chooseStagingCell(visibleThreats);
+        }
+
+        if (stagingCell == -1) {
             return failOpenOrHold(visibleThreats, "no_staging_cell");
         }
 
-        if (target == owner.pos) {
+        if (stagingCell == owner.pos) {
             return failOpenOrHold(visibleThreats, "staged");
         }
 
@@ -169,7 +210,15 @@ final class CoHeroCombatObjectiveController {
 
         boolean[] passable = owner.ordinarySafePassable(false);
         passable[owner.pos] = true;
-        int step = Dungeon.findStep(owner, target, passable, owner.fieldOfView, true);
+        int step = Dungeon.findStep(owner, stagingCell, passable, owner.fieldOfView, true);
+        if (step == -1 || !passable[step] || !owner.isMovementSafe(step)) {
+            stagingCell = chooseStagingCell(visibleThreats);
+            if (stagingCell == -1 || stagingCell == owner.pos) {
+                return failOpenOrHold(visibleThreats, "no_lure_path");
+            }
+            step = Dungeon.findStep(owner, stagingCell, passable, owner.fieldOfView, true);
+        }
+
         if (step == -1 || !passable[step] || !owner.isMovementSafe(step)) {
             return failOpenOrHold(visibleThreats, "no_lure_path");
         }
@@ -181,7 +230,7 @@ final class CoHeroCombatObjectiveController {
 
         int oldPos = owner.pos;
         owner.clearNavigationPath();
-        owner.setMovementDecision("combat_objective_" + active.name, target);
+        owner.setMovementDecision("combat_objective_" + objective.name, stagingCell);
         owner.move(step, true);
         if (owner.pos == oldPos) {
             return failOpenOrHold(visibleThreats, "lure_move_blocked");
@@ -204,8 +253,8 @@ final class CoHeroCombatObjectiveController {
         int bestAnchorDistance = Integer.MAX_VALUE;
         int bestPathDistance = Integer.MAX_VALUE;
 
-        for (int cell = 0; cell < active.engagementZone.length; cell++) {
-            if (!active.engagementZone[cell]
+        for (int cell = 0; cell < objective.engagementZone.length; cell++) {
+            if (!objective.engagementZone[cell]
                     || !Dungeon.level.passable[cell]
                     || !owner.isMovementSafe(cell)
                     || PathFinder.distance[cell] == Integer.MAX_VALUE) {
@@ -226,7 +275,7 @@ final class CoHeroCombatObjectiveController {
             int threatDistance = visibleThreats.isEmpty()
                     ? 0
                     : owner.nearestThreatDistance(cell, visibleThreats);
-            int anchorDistance = Dungeon.level.distance(cell, active.anchorCell);
+            int anchorDistance = Dungeon.level.distance(cell, objective.anchorCell);
             int pathDistance = PathFinder.distance[cell];
 
             boolean better = best == -1
@@ -258,21 +307,41 @@ final class CoHeroCombatObjectiveController {
         return best;
     }
 
+    private boolean isUsableStagingCell(int cell) {
+        if (objective == null
+                || cell < 0
+                || cell >= objective.engagementZone.length
+                || !objective.engagementZone[cell]
+                || !Dungeon.level.passable[cell]
+                || !owner.isMovementSafe(cell)) {
+            return false;
+        }
+
+        Char occupant = Actor.findChar(cell);
+        return occupant == null || occupant == owner;
+    }
+
+    private void clearLure() {
+        luring = false;
+        stagingCell = -1;
+        allowOutsideCombatThisTurn = false;
+    }
+
     private Boolean failOpenOrHold(ArrayList<Mob> visibleThreats, String reason) {
         if (!visibleThreats.isEmpty()
                 && owner.countCurrentAttackersAtCell(owner.pos, visibleThreats) > 0) {
             allowOutsideCombatThisTurn = true;
             if (owner.debugLogEnabled()) {
-                owner.logDebug("[CoHeroObjective] " + active.name
+                owner.logDebug("[CoHeroObjective] " + objective.name
                         + " fail-open reason=" + reason
                         + " pos=" + owner.pos);
             }
             return null;
         }
 
-        owner.setMovementDecision("combat_objective_hold_" + active.name, owner.pos);
+        owner.setMovementDecision("combat_objective_hold_" + objective.name, owner.pos);
         if (owner.debugLogEnabled()) {
-            owner.logDebug("[CoHeroObjective] " + active.name
+            owner.logDebug("[CoHeroObjective] " + objective.name
                     + " hold reason=" + reason
                     + " pos=" + owner.pos);
         }
