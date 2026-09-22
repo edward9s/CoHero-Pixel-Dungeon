@@ -1380,14 +1380,14 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    private int countCurrentAttackersAtCell(
+    int countCurrentAttackersAtCell(
             int defenderCell, ArrayList<Mob> threats) {
         return riskEstimator.countCurrentAttackersAtCell(defenderCell, threats);
     }
 
 
 
-    private float estimatedIncomingDptAtCell(
+    float estimatedIncomingDptAtCell(
             int defenderCell, ArrayList<Mob> threats) {
         return riskEstimator.estimatedIncomingDptAtCell(defenderCell, threats);
     }
