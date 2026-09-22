@@ -129,7 +129,7 @@ final class CoHeroGuardController {
             return;
         }
 
-        boolean[] area = buildGuardArea(level, outsideRoom, heroExit.cell);
+        boolean[] area = buildGuardArea(level, heroRoom, outsideRoom, heroExit.cell);
         if (area == null) {
             return;
         }
@@ -326,6 +326,7 @@ final class CoHeroGuardController {
 
     private boolean[] buildGuardArea(
             RegularLevel level,
+            Room heroRoom,
             Room outsideRoom,
             int heroDoorCell) {
         boolean[] roomPassable = new boolean[level.length()];
@@ -357,6 +358,7 @@ final class CoHeroGuardController {
         for (int cell = 0; cell < area.length; cell++) {
             if (!level.passable[cell]
                     || !isRoomBoundsCell(outsideRoom, cell)
+                    || isRoomBoundsCell(heroRoom, cell)
                     || heroDoorDistance[cell] == Integer.MAX_VALUE) {
                 continue;
             }
