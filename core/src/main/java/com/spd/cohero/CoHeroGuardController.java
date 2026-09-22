@@ -129,7 +129,7 @@ final class CoHeroGuardController {
             return;
         }
 
-        boolean[] area = buildGuardArea(level, heroRoom, outsideRoom, heroExit.cell);
+        boolean[] area = buildGuardArea(level, heroRoom, outsideRoom, heroExit);
         if (area == null) {
             return;
         }
@@ -170,7 +170,8 @@ final class CoHeroGuardController {
                 guardTarget = chooseGuardRoamingTarget();
             }
             if (guardTarget == -1) {
-                GLog.i("[CoHeroMove] GUARD no roaming target " + owner.movementContext());
+                owner.setMovementDecision("guard_hold", owner.pos);
+                GLog.i("[CoHeroMove] GUARD hold " + owner.movementContext());
                 owner.spendActionTime(Actor.TICK);
                 return true;
             }
@@ -328,53 +329,64 @@ final class CoHeroGuardController {
             RegularLevel level,
             Room heroRoom,
             Room outsideRoom,
-            int heroDoorCell) {
+            RoomExit heroExit) {
         boolean[] roomPassable = new boolean[level.length()];
         for (int cell = 0; cell < roomPassable.length; cell++) {
-            roomPassable[cell] = level.passable[cell] && isRoomBoundsCell(outsideRoom, cell);
+            roomPassable[cell] = level.passable[cell]
+                    && isRoomBoundsCell(outsideRoom, cell)
+                    && !isRoomBoundsCell(heroRoom, cell);
         }
-        if (heroDoorCell < 0 || heroDoorCell >= roomPassable.length) {
+
+        int startCell = heroExit.outsideCell;
+        if (!areaContains(roomPassable, startCell)) {
             return null;
         }
-        roomPassable[heroDoorCell] = true;
 
-        PathFinder.buildDistanceMap(heroDoorCell, roomPassable);
-        int[] heroDoorDistance = PathFinder.distance.clone();
-
-        ArrayList<int[]> competingDistances = new ArrayList<>();
+        boolean[] otherExit = new boolean[level.length()];
         for (RoomExit exit : runtimeRoomExits(level, outsideRoom)) {
-            if (exit.cell == heroDoorCell) {
-                continue;
+            if (exit.cell != heroExit.cell
+                    && exit.cell >= 0
+                    && exit.cell < otherExit.length) {
+                otherExit[exit.cell] = true;
             }
-
-            boolean[] distancePassable = roomPassable.clone();
-            distancePassable[exit.cell] = true;
-            PathFinder.buildDistanceMap(exit.cell, distancePassable);
-            competingDistances.add(PathFinder.distance.clone());
         }
 
         boolean[] area = new boolean[level.length()];
+        int previous = heroExit.cell;
+        int current = startCell;
         boolean any = false;
-        for (int cell = 0; cell < area.length; cell++) {
-            if (!level.passable[cell]
-                    || !isRoomBoundsCell(outsideRoom, cell)
-                    || isRoomBoundsCell(heroRoom, cell)
-                    || heroDoorDistance[cell] == Integer.MAX_VALUE) {
-                continue;
-            }
 
-            boolean heroSide = true;
-            for (int[] otherDistance : competingDistances) {
-                if (otherDistance[cell] <= heroDoorDistance[cell]) {
-                    heroSide = false;
+        // Follow the live cardinal floor topology from the Hero-room exit.
+        // A straight/cornering one-cell corridor has exactly one forward continuation.
+        // The first branch, open room, dead end, or another room exit ends the guard domain.
+        while (areaContains(roomPassable, current) && !otherExit[current]) {
+            area[current] = true;
+            any = true;
+
+            int next = -1;
+            int forwardChoices = 0;
+            for (int offset : PathFinder.NEIGHBOURS4) {
+                int candidate = current + offset;
+                if (!level.insideMap(candidate)
+                        || candidate == previous
+                        || !areaContains(roomPassable, candidate)
+                        || area[candidate]) {
+                    continue;
+                }
+
+                forwardChoices++;
+                next = candidate;
+                if (forwardChoices > 1) {
                     break;
                 }
             }
 
-            if (heroSide) {
-                area[cell] = true;
-                any = true;
+            if (forwardChoices != 1) {
+                break;
             }
+
+            previous = current;
+            current = next;
         }
 
         return any ? area : null;
