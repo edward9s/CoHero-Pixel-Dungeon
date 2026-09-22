@@ -16,6 +16,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ParalyticGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.StenchGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Tengu;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultLaser;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultSentry;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental;
@@ -187,6 +188,8 @@ public final class CoHeroHazards {
                 || activeFor(owner, Freezing.class, Freezing.class)
                 || activeFor(owner, Inferno.class, Fire.class)
                 || activeFor(owner, Blizzard.class, Freezing.class)
+                || activeFor(owner, Tengu.FireAbility.FireBlob.class, Fire.class)
+                || hasTenguBombHazard()
                 || activeVaultFlamesFor(owner)
                 || activeEternalFireFor(owner)
                 || activeVaultFireWallFor(owner);
@@ -203,9 +206,76 @@ public final class CoHeroHazards {
                 || presentFor(owner, cell, Freezing.class, Freezing.class)
                 || presentFor(owner, cell, Inferno.class, Fire.class)
                 || presentFor(owner, cell, Blizzard.class, Freezing.class)
+                || presentFor(owner, cell, Tengu.FireAbility.FireBlob.class, Fire.class)
+                || isTenguBombDanger(cell)
                 || presentVaultFlamesFor(owner, cell)
                 || presentEternalFireFor(owner, cell)
                 || presentVaultFireWallFor(owner, cell);
+    }
+
+    private static boolean hasTenguBombHazard() {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Tengu)) {
+                continue;
+            }
+            for (Tengu.BombAbility bomb : ch.buffs(Tengu.BombAbility.class)) {
+                if (bomb.bombPos >= 0 && bomb.bombPos < Dungeon.level.length()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isTenguBombDanger(int cell) {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Tengu)) {
+                continue;
+            }
+            for (Tengu.BombAbility bomb : ch.buffs(Tengu.BombAbility.class)) {
+                if (tenguBombReaches(bomb.bombPos, cell)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean tenguBombReaches(int bombPos, int cell) {
+        if (bombPos < 0
+                || bombPos >= Dungeon.level.length()
+                || cell < 0
+                || cell >= Dungeon.level.length()) {
+            return false;
+        }
+        if (cell == bombPos) {
+            return true;
+        }
+
+        for (int firstOffset : PathFinder.NEIGHBOURS8) {
+            int first = bombPos + firstOffset;
+            if (!validBombStep(bombPos, first)) {
+                continue;
+            }
+            if (first == cell) {
+                return true;
+            }
+
+            for (int secondOffset : PathFinder.NEIGHBOURS8) {
+                int second = first + secondOffset;
+                if (validBombStep(first, second) && second == cell) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean validBombStep(int from, int to) {
+        return to >= 0
+                && to < Dungeon.level.length()
+                && Dungeon.level.distance(from, to) == 1
+                && !Dungeon.level.solid[to];
     }
 
     private static boolean hasVaultMechanismHazard(Char owner) {

@@ -198,7 +198,8 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - warning 到期後該格立即恢復正常尋路；換樓層時警示紀錄清空。
 - CoHero 同時把原版持續性環境危險納入同一套移動遮罩：火焰、毒氣、酸蝕氣體、麻痺／混亂／惡臭氣體、電流、冰凍／暴風雪、Inferno、Vault flame traps、特殊房間的 `MagicalFireRoom.EternalFire`，以及 `VaultBossElemental.FireWall`。`EternalFire` 會在每次 evolve 時點燃火牆本格與四方向相鄰角色，因此 CoHero 會把火牆旁一格也視為危險；Boss FireWall 則另外讀取目前兩列燃燒區與下一列推進方向作為安全緩衝。若 CoHero 對實際效果免疫，該危險不納入遮罩。
 - SPD 4.0 小惡魔寶庫的機關另外直接讀取原版 actor / blob 狀態，不依賴畫面 warning：`VaultFlameTraps` 會把下一次 evolve 即將點火的格子預先視為危險；`VaultLaser` 依 `curCooldown`、`laserDirIdx` 與原版 `Ballistica` 算出下一發光束；`VaultSentry` 依 `curCooldown`、`scanDirIdx` 與原版 `ConeAOE` 算出下一次掃描區。這涵蓋寶物房中刻意設為 `giveWarning = false` 的雷射／掃描器；隱形中的 CoHero 不避 `VaultSentry` 掃描，因原版掃描不會傷害 invisible ally。
-- 若目前正站在這些環境危險中，會像預告格一樣優先尋找相鄰安全格；一般尋路也不主動踏入已存在的危險 blob。
+- 若目前正站在這些環境危險中，會在一般戰鬥、喝藥、探索之前優先撤離；若危險區大於一格（例如天狗定時炸彈半徑），不要求一步就完全離開，而是每回合依當前地圖重新尋找最近安全格並沿最短路徑撤出，不保存額外逃生狀態。一般尋路也不主動踏入已存在的危險區。
+- 天狗第二階段的定時炸彈直接掃描目前 `Tengu.BombAbility`：以原版爆炸規則的 2 格可達範圍視為危險，炸彈 buff 消失後危險區立即消失。`Tengu.FireAbility.FireBlob` 則依原版火焰免疫規則納入環境危險，因此 CoHero 會避開火牆目前已覆蓋、即將引燃的格子。
 - `DelayedRockFall` 在存檔載入重建特效時，會按 buff 剩餘 `cooldown()` 重新登記危險格，因此地動法師／DM-300 已預告但尚未落下的岩石不會因讀檔而被 CoHero 忘記。
 - 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石、Ripper Demon 跳躍等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯；Vault Laser / Vault Sentry 則由上述寶庫機關判定處理，避免 `giveWarning = false` 時漏判。Eye 的蓄力光線不是走這個 API，目前不在此泛用層內。
 - 若 CoHero 被定身、麻痺，或所有相鄰合法格本身都危險／不可通行，AI 不會假裝能躲開，會繼續執行其他可行生存或戰鬥行為。
