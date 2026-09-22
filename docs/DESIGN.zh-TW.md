@@ -167,7 +167,7 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 
 > `CoHeroAlly` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
 
-`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤、`CoHeroCombatRiskEstimator` 專責純戰鬥風險估算、`CoHeroSurvivalController` 專責治療／淨化／生存資源、`CoHeroControlItems` 專責符石與恐懼／傳送等控制資源決策。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。
+`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤、`CoHeroCombatRiskEstimator` 專責純戰鬥風險估算、`CoHeroSurvivalController` 專責治療／淨化／生存資源、`CoHeroControlItems` 專責符石與恐懼／傳送等控制資源決策。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。戰鬥與戰術走位不保存跨回合 plan：遠程接敵不記 enemy id／cover cell／wait counter，特殊近戰走位不記 tactical target／cell，retreat 也不保存 hysteresis flag；每回合都從目前 FOV、敵人位置、地形與風險重新推導。CoHero 每回合開始與讀檔完成後都清除繼承自 `Mob/DirectableAlly` 的 `HUNTING/enemy/target/path` 等 decision state，只有需要呼叫原版 `followHero()` 的當回合才暫時使用原版 state machine。保留的跨回合 AI 連續性只限於有明確語意者：`GuardSession`（Hero 尚未離開原房）、低血量 rally 的 35%/60% hysteresis，以及經每回合安全性驗證的 exploration target。
 
 不把 SPD 全面改造成 multi-Hero 架構，也不透過切換 `Dungeon.hero` 來讓原版系統誤以為 CoHero 是玩家 Hero。
 
@@ -278,7 +278,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 面對 `Swarm` 或同時多個純近戰威脅時，CoHero 優先尋找只有 2–3 個可通行鄰格的狹口；兩向單格通道最佳。Swarm 仍可照原版分裂，但分裂體會被地形排在後方，避免開闊地上多隻同時貼身輸出。
 - 若有遠程敵人已能從距離外攻擊 CoHero，不會為了守狹口原地等待；地形戰術讓位給實際生存／逃跑決策。
 - 對目前能從非相鄰距離攻擊 CoHero 的遠程型敵人，若 CoHero 有近戰武器，會啟用 anti-ranged engagement，而且理想距離明確定義為「與敵人相鄰」，不以武器 `canAttack()` 射程代替。長鞭、長矛等延伸近戰即使在 2–3 格已可攻擊，也不會讓 CoHero 停在遠距與 Shaman / Warlock / DM100 / Scorpio 等敵人交換傷害；AI 會優先規劃通往敵人相鄰安全格的路徑，兼顧路徑長度、暴露步數與其他敵人壓力。若暫時無法直接貼身，才沿用 LOS cover／誘敵策略，而不是因延伸近戰已可命中就原地攻擊。這不硬編特定敵人類別，而是依敵人當下真正的遠距攻擊能力判斷。
-- 到達掩體後，CoHero 暫時不使用自己的遠程武器破壞誘敵策略，而是等待敵人靠近；敵人重新進入視野且一個安全移動步即可建立近戰時，立即貼身。目標完全離開 CoHero 視野時不讀取其牆後新座標，只在既定 cover 最多等待 6 回合；逾時即放棄該 plan，避免永久卡住。低血撤退、立即致命風險與 hazard avoidance 都可中止此 tactic。
+- anti-ranged cover 不保存跨回合 plan。每回合若目標目前仍可見且正在施加非相鄰遠程壓力，就重新比較直接貼身、一步近身與目前可用 LOS cover；選到 cover 時只執行當回合的一步移動。下一回合若目標已離開視野，就不再記住舊 enemy id、舊 cover cell，也不原地等待固定回合數；普通 perception／support／guard 重新接手。
 - Boss 不使用這套 ranged lure／LOS cover 誘敵流程。Boss 常有 scripted movement、teleport 或階段機制，若要求它先追進掩體可能讓戰鬥停滯；對 Boss 改回正常的投擲武器、Spirit Bow、法杖、近戰接敵與生存決策。
 
 1. **沒有任何可用攻擊能力時**
@@ -392,7 +392,7 @@ CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明�
 - 治療期間不會連續喝下一瓶治療藥；若仍低於 35%，可以把已鑑定 `PotionOfShielding` 當作次順位生存資源。
 - 已有有效 `Barrier` 時不會再喝第二瓶護盾藥，避免覆蓋仍有價值的護盾。
 - `Pharmacophobia` 只讓玩家 Hero 對治療藥過敏；SPD 原版明確規定其他角色仍正常受治療，因此 CoHero 仍可正常使用治療藥。
-- 已鑑定 `PotionOfInvisibility` 可作為緊急逃生資源，但不會因單純低於 35% HP 就立即飲用；只有戰鬥風險模型已判定 retreat、免費 escape utility 與安全走位都失敗，而且存在 3+ 當前攻擊者、立即致命風險、低血危險或 TTD ≤ 2 回合等條件時才使用。飲用後取得原版 `Invisibility.DURATION`，並在 `combatRetreating` 期間優先純移動脫離，避免下一回合主動攻擊立刻打破隱形。
+- 已鑑定 `PotionOfInvisibility` 可作為緊急逃生資源，但不會因單純低於 35% HP 就立即飲用；只有當回合戰鬥風險模型判定 retreat、免費 escape utility 與安全走位都失敗，而且存在 3+ 當前攻擊者、立即致命風險、低血危險或 TTD ≤ 2 回合等條件時才使用。飲用後取得原版 `Invisibility.DURATION`；之後每回合重新計算風險，若當下仍屬 retreat 且隱形仍在，就優先純移動脫離，否則不靠任何保存的 `combatRetreating` flag 延續撤退。
 - 已鑑定 `PotionOfHaste` 定位為逃跑資源。只有 CoHero 已進入 retreat、確實存在安全逃生步，而且移動一步後仍有敵人可直接攻擊、仍有能跟上的追兵，或 TTD 已縮短到約 3.5 回合內時才考慮。若當前一輪傷害已接近致命，反而不花一回合喝 Haste，直接走位／控制優先。Haste 沿用原版 `Haste.DURATION = 20` 與 3× movement speed。
 - 已鑑定 `PotionOfStamina` 定位為戰鬥機動資源。只有非 retreat 狀態下遇到 2+ 可見威脅、遠程壓制／anti-ranged 接敵，或 Boss / Miniboss 戰時才會自動使用；單一普通敵人且預估很快能結束的戰鬥不浪費。Stamina 沿用原版 `Stamina.DURATION = 100` 與 1.5× movement speed。
 - CoHero 不會主動把 Haste 與 Stamina 疊加：已有其中一種 buff 時，不自動消耗另一瓶。原版 `Char.speed()` 會將兩者相乘，因此這項限制避免 AI 為了 4.5× 移速浪費兩瓶藥。
