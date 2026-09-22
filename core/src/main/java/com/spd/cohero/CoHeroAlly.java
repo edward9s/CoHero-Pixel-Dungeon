@@ -1448,9 +1448,8 @@ public class CoHeroAlly extends DirectableAlly {
 
 
     /**
-     * Ranged enemies are often weakest once CoHero reaches melee. If melee can be established in
-     * one safe step, close immediately. Otherwise, prefer a nearby known LOS break and wait there
-     * briefly for the ranged enemy to advance instead of walking straight through its fire.
+     * Ranged enemies are often weakest once CoHero reaches melee. Recompute each turn whether to
+     * close directly or take a nearby LOS break; no target, cover cell, or wait state is retained.
      */
     private Boolean tryRangedEngagement(Mob targetMob, ArrayList<Mob> threats) {
         if (weapon() == null || targetMob == null || threats == null || threats.isEmpty()) {
@@ -1867,7 +1866,7 @@ public class CoHeroAlly extends DirectableAlly {
         return best;
     }
 
-    private int meleeFrontage(int cell) {    private int meleeFrontage(int cell) {
+    private int meleeFrontage(int cell) {
         int result = 0;
         for (int offset : PathFinder.NEIGHBOURS8) {
             int adjacent = cell + offset;
