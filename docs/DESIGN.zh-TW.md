@@ -71,7 +71,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先沿用 SPD 現有 mob / ally 的避險與 pathfinding 行為；陷阱也不值得另外建立複雜推理系統。
 
-移動診斷預設關閉。CoHero 背包提供 `Movement debug log` checkbox；啟用後才以 `[CoHeroMove]` 前綴輸出 GLog：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態的生命週期，enter 會附上 Hero 房、outsideRoom、共用門與 guard area 格數。此 flag 會隨 CoHero 存檔保存；關閉時不建立 movement debug 字串，也不呼叫 GLog，避免高頻診斷影響遊戲流暢度。
+CoHero 診斷預設關閉。CoHero 背包提供單一 `CoHero debug log` checkbox；啟用後才輸出所有 CoHero AI 診斷。移動診斷以 `[CoHeroMove]` 為前綴：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態生命週期。此 flag 會隨 CoHero 存檔保存；關閉時不建立高頻 movement debug 字串，也不呼叫相關 GLog。
 
 ### 視野與火把
 
@@ -107,7 +107,7 @@ SPD 在正式 Boss 戰開始時會由 `Level.seal()` 對 Hero 掛上 `LockedFloo
 
 ### Boss 決策診斷
 
-Boss 樓層鎖定期間，CoHero 會以 `GLog` 輸出簡短決策診斷，協助實測 AI 是否卡在錯誤狀態。只有決策 key 改變時才輸出，避免每回合洗版。
+Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug log` checkbox 控制。只有啟用 debug 且決策 key 改變時才輸出，避免每回合洗版；關閉時完全不輸出 Boss AI 診斷。
 
 目前可看到的資訊包括：
 
