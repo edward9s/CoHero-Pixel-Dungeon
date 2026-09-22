@@ -83,30 +83,21 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 		final Ballistica bolt = coHeroBallistica(owner, target);
 		coHeroUser = owner;
 		try {
+			// Gameplay is resolved immediately on the actor thread. FX is presentation-only and
+			// may continue after later actors have started processing.
 			coHeroPrepareZap(owner, target, bolt);
-			Callback resolve = new Callback() {
-				@Override
-				public void call() {
-					try {
-						onZap(bolt);
-						coHeroFinishZap(owner);
-					} finally {
-						coHeroUser = null;
-					}
-					if (callback != null) {
-						callback.call();
-					}
-				}
-			};
+			onZap(bolt);
+			coHeroFinishZap(owner);
 
 			if (showFx) {
-				fx(bolt, resolve);
-			} else {
-				resolve.call();
+				fx(bolt, callback);
+			} else if (callback != null) {
+				callback.call();
 			}
-		} catch (RuntimeException ex) {
+		} finally {
+			// Supported FX methods consume zapUser() synchronously while constructing their
+			// visual. Their later callback does not need caster context.
 			coHeroUser = null;
-			throw ex;
 		}
 	}
 
