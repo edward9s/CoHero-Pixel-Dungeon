@@ -205,7 +205,6 @@ final class CoHeroCombatObjectiveController {
 
     private Boolean actLure(ArrayList<Mob> visibleThreats) {
         owner.clearExplorationTarget();
-        owner.clearCombatPositioningAfterRelocation();
         owner.allowAnyGuardMovement();
 
         int target = chooseStagingCell(visibleThreats);
