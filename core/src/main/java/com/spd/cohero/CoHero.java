@@ -233,6 +233,9 @@ public final class CoHero {
             return;
         }
 
+        // Presentation is scene-local. Never carry pending visual work across floor/scene loads.
+        CoHeroPresentation.reset();
+
         HeroClass heroClass = companionClass();
         if (heroClass == null) {
             throw new IllegalStateException("CoHero run has no selected companion class");
