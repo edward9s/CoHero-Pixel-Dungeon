@@ -30,6 +30,11 @@ final class CoHeroSupportController {
         return lowHealthRally;
     }
 
+    boolean isBelowLowHealthThreshold() {
+        return owner.HT > 0
+                && owner.HP * 100 < owner.HT * LOW_HEALTH_ENTER_PERCENT;
+    }
+
     void restoreLowHealthRally(boolean active) {
         lowHealthRally = active;
     }
