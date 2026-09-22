@@ -439,6 +439,21 @@ public final class CompanionInventory {
         return item;
     }
 
+    public Item removeOneFromBackpack(Item item) {
+        if (item == null || !backpack.contains(item)) {
+            return null;
+        }
+        if (item.quantity() <= 1) {
+            return removeFromBackpack(item);
+        }
+
+        Item split = item.split(1);
+        if (split == null) {
+            throw new IllegalStateException("CoHero backpack stack could not split one item");
+        }
+        return split;
+    }
+
     MissileWeapon takeOneMissile(MissileWeapon source) {
         if (source == null || !backpack.contains(source)) {
             throw new IllegalArgumentException("Missile weapon must be in the CoHero backpack");
