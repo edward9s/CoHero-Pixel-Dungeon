@@ -26,6 +26,7 @@ final class CoHeroCombatObjectiveController {
     private EngagementObjective objective;
     private boolean luring;
     private int stagingCell = -1;
+    private boolean engageZoneOnlyThisTurn;
     private boolean allowOutsideCombatThisTurn;
 
     CoHeroCombatObjectiveController(CoHeroAlly owner) {
@@ -33,6 +34,7 @@ final class CoHeroCombatObjectiveController {
     }
 
     void update() {
+        engageZoneOnlyThisTurn = false;
         allowOutsideCombatThisTurn = false;
 
         EngagementObjective resolved = resolveSacrificialFireObjective();
@@ -72,6 +74,7 @@ final class CoHeroCombatObjectiveController {
                             + " targetPos=" + threat.pos);
                 }
                 clearLure();
+                engageZoneOnlyThisTurn = true;
                 return null;
             }
         }
@@ -111,7 +114,10 @@ final class CoHeroCombatObjectiveController {
      * fail open for this turn so the AI cannot deadlock and die at the boundary.
      */
     ArrayList<Mob> offensiveThreats(ArrayList<Mob> attackableThreats) {
-        if (objective == null || !luring || allowOutsideCombatThisTurn) {
+        if (objective == null || allowOutsideCombatThisTurn) {
+            return attackableThreats;
+        }
+        if (!luring && !engageZoneOnlyThisTurn) {
             return attackableThreats;
         }
 
@@ -128,8 +134,10 @@ final class CoHeroCombatObjectiveController {
         if (objective == null) {
             return "objective=none";
         }
-        return "objective=" + objective.name
-                + " state=" + (luring ? "luring" : "idle");
+        String state = luring
+                ? "luring"
+                : (engageZoneOnlyThisTurn ? "engage" : "idle");
+        return "objective=" + objective.name + " state=" + state;
     }
 
     private EngagementObjective resolveSacrificialFireObjective() {
