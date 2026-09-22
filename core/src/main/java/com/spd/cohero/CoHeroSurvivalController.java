@@ -163,14 +163,14 @@ final class CoHeroSurvivalController {
         PotionOfCleansing.cleanse(owner);
         Catalog.countUse(PotionOfCleansing.class);
         Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        owner.spendActionTime(TICK);
+        owner.spendActionTime(Actor.TICK);
         return true;
     }
 
     Boolean tryKnownRecoveryPlant() {
         // Sungrass only heals while its target remains on the activation cell.
         if (owner.buff(Sungrass.Health.class) != null && owner.HP < owner.HT) {
-            owner.spendActionTime(TICK);
+            owner.spendActionTime(Actor.TICK);
             return true;
         }
 
@@ -353,7 +353,7 @@ final class CoHeroSurvivalController {
         Barkskin.conditionallyAppend(owner, 2 + owner.level() / 3, 50);
         Catalog.countUse(PotionOfEarthenArmor.class);
         Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        owner.spendActionTime(TICK);
+        owner.spendActionTime(Actor.TICK);
         return true;
     }
 
@@ -378,7 +378,7 @@ final class CoHeroSurvivalController {
         Catalog.countUse(PotionOfInvisibility.class);
         Sample.INSTANCE.play(Assets.Sounds.DRINK);
         Sample.INSTANCE.play(Assets.Sounds.MELD);
-        owner.spendActionTime(TICK);
+        owner.spendActionTime(Actor.TICK);
         return true;
     }
 
@@ -396,7 +396,7 @@ final class CoHeroSurvivalController {
         Catalog.countUse(PotionOfHaste.class);
         SpellSprite.show(owner, SpellSprite.HASTE, 1f, 1f, 0f);
         Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        owner.spendActionTime(TICK);
+        owner.spendActionTime(Actor.TICK);
         return true;
     }
 
@@ -417,7 +417,7 @@ final class CoHeroSurvivalController {
                 PotionOfHealing.cure(owner);
                 PotionOfHealing.heal(owner);
                 Sample.INSTANCE.play(Assets.Sounds.DRINK);
-                owner.spendActionTime(TICK);
+                owner.spendActionTime(Actor.TICK);
                 return true;
             }
         }
@@ -445,7 +445,7 @@ final class CoHeroSurvivalController {
                     FloatingText.SHIELDING);
         }
         Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        owner.spendActionTime(TICK);
+        owner.spendActionTime(Actor.TICK);
         return true;
     }
 }
