@@ -135,6 +135,7 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroNavigation navigation = new CoHeroNavigation(this);
     private final CoHeroGuardController guard = new CoHeroGuardController(this);
     private final CoHeroSupportController support = new CoHeroSupportController(this);
+    private final CoHeroVision vision = new CoHeroVision(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
@@ -334,10 +335,9 @@ public class CoHeroAlly extends DirectableAlly {
         updateHT(false);
         Buff.affect(this, CompanionRegeneration.class);
         Buff.affect(this, CompanionEnemySurge.class);
-        syncViewDistance();
+    void syncViewDistance() {
+        vision.syncViewDistance();
     }
-
-    void relocateImmediately(int cell) {
         if (Dungeon.level == null
                 || cell < 0
                 || cell >= Dungeon.level.length()
@@ -372,10 +372,9 @@ public class CoHeroAlly extends DirectableAlly {
         }
         Dungeon.level.occupyCell(this);
         Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
+    private void revealVisibleCells() {
+        vision.revealVisibleCells();
     }
-
-    void syncViewDistance() {
         if (Dungeon.level == null) {
             return;
         }
@@ -4273,49 +4272,11 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean tryAutoTorch() {
-        if (Dungeon.level == null
-                || Dungeon.level.viewDistance >= Light.DISTANCE
-                || buff(Light.class) != null) {
-            return false;
-        }
-
-        Torch torch = inventory.takeOneAutoTorch();
-        if (torch == null) {
-            return false;
-        }
-
-        Buff.affect(this, Light.class, Light.DURATION);
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        Catalog.countUse(Torch.class);
-        Sample.INSTANCE.play(Assets.Sounds.BURNING);
-
-        if (sprite != null) {
-            sprite.operate(pos);
-            Emitter emitter = sprite.centerEmitter();
-            if (emitter != null) {
-                emitter.start(FlameParticle.FACTORY, 0.2f, 3);
-            }
-        }
-
-        spend(Torch.TIME_TO_LIGHT);
-        return true;
+        return vision.tryAutoTorch();
     }
 
     private ArrayList<Mob> visibleAwakeEnemies() {
-        ArrayList<Mob> result = new ArrayList<>();
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob != this
-                    && mob.alignment == Alignment.ENEMY
-                    && mob.isAlive()
-                    && mob.invisible <= 0
-                    && fieldOfView[mob.pos]
-                    && mob.state != mob.SLEEPING
-                    && mob.buff(Challenge.SpectatorFreeze.class) == null) {
-                result.add(mob);
-            }
-        }
-        return result;
+        return vision.visibleAwakeEnemies();
     }
 
     private int chooseEscapeStep(ArrayList<Mob> threats) {
@@ -4399,8 +4360,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     void refreshOwnFieldOfView() {
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
+        vision.refreshOwnFieldOfView();
     }
 
     void clearExplorationTarget() {
