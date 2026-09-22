@@ -14,149 +14,95 @@ import com.watabou.utils.Point;
 import java.util.ArrayList;
 
 /**
- * Owns temporary combat goals that change where CoHero wants a fight to happen.
+ * Owns current-turn combat goals that change where CoHero wants a fight to happen.
  *
- * This controller does not replace ordinary combat. It can delay offense until a target reaches
- * an engagement zone and position CoHero to lure the target there. Hazard and survival handling
- * remain above this layer.
+ * Objective behavior is derived from the live level and currently visible threats every turn.
+ * No lure target, lure state, or remembered enemy is persisted across turns.
  */
 final class CoHeroCombatObjectiveController {
 
     private final CoHeroAlly owner;
     private EngagementObjective objective;
-    private boolean luring;
-    private int stagingCell = -1;
-    private boolean engageZoneOnlyThisTurn;
-    private boolean allowOutsideCombatThisTurn;
 
     CoHeroCombatObjectiveController(CoHeroAlly owner) {
         this.owner = owner;
     }
 
     void update() {
-        engageZoneOnlyThisTurn = false;
-        allowOutsideCombatThisTurn = false;
-
-        EngagementObjective resolved = resolveSacrificialFireObjective();
-        if (resolved == null) {
-            clearLure();
-            objective = null;
-            return;
-        }
-
-        if (objective == null
-                || objective.anchorCell != resolved.anchorCell
-                || objective.room != resolved.room) {
-            clearLure();
-        }
-        objective = resolved;
-    }
-
-    boolean isLuring() {
-        return objective != null && luring;
+        objective = resolveSacrificialFireObjective();
     }
 
     /**
-     * Called after survival actions but before ordinary offensive positioning/attacks.
-     * Returns an action result when CoHero should keep luring instead of attacking.
+     * Runs after survival actions but before ordinary offense.
+     *
+     * Ranged pressure bypasses the objective completely and restores unrestricted combat movement.
+     * A melee threat already inside the engagement zone also uses ordinary combat. Only visible
+     * melee threats that are still outside the zone are lured inward.
      */
     Boolean actBeforeOffense(
             ArrayList<Mob> attackableThreats, ArrayList<Mob> visibleThreats) {
-        if (objective == null) {
+        if (objective == null || attackableThreats == null || attackableThreats.isEmpty()) {
             return null;
         }
 
         Mob rangedThreat = firstCurrentRangedThreat(attackableThreats);
         if (rangedThreat != null) {
-            if (luring && owner.debugLogEnabled()) {
+            // Guard scope may already have been prepared earlier in the turn. A ranged enemy that
+            // can attack into the room must hand control to unrestricted ordinary combat instead
+            // of leaving CoHero unable to close or reposition.
+            owner.allowAnyGuardMovement();
+            if (owner.debugLogEnabled()) {
                 owner.logDebug("[CoHeroObjective] " + objective.name
-                        + " lure_cancel reason=ranged_threat"
+                        + " bypass reason=ranged_threat"
                         + " target=" + rangedThreat.getClass().getSimpleName()
                         + " targetPos=" + rangedThreat.pos);
             }
-            clearLure();
             return null;
         }
 
-        for (Mob threat : attackableThreats) {
-            if (objective.engagementZone[threat.pos]) {
-                if (luring && owner.debugLogEnabled()) {
-                    owner.logDebug("[CoHeroObjective] " + objective.name
-                            + " engage target=" + threat.getClass().getSimpleName()
-                            + " targetPos=" + threat.pos);
-                }
-                clearLure();
-                engageZoneOnlyThisTurn = true;
-                return null;
-            }
-        }
-
-        if (attackableThreats.isEmpty()) {
+        if (hasThreatInEngagementZone(attackableThreats)) {
             return null;
-        }
-
-        if (!luring) {
-            luring = true;
-            stagingCell = -1;
-            if (owner.debugLogEnabled()) {
-                Mob trigger = attackableThreats.get(0);
-                owner.logDebug("[CoHeroObjective] " + objective.name
-                        + " lure_start target=" + trigger.getClass().getSimpleName()
-                        + " targetPos=" + trigger.pos);
-            }
         }
 
         return actLure(visibleThreats);
     }
 
     /**
-     * Luring is perception-driven. Once no awake enemy is visible, stop waiting at the objective
-     * immediately so CoHero can resume ordinary support / guard behavior and reacquire the enemy.
-     */
-    boolean cancelLureWhenNoVisibleThreats() {
-        if (objective == null || !luring) {
-            return false;
-        }
-
-        if (owner.debugLogEnabled()) {
-            owner.logDebug("[CoHeroObjective] " + objective.name
-                    + " lure_cancel reason=no_visible_threat"
-                    + " pos=" + owner.pos);
-        }
-        clearLure();
-        return true;
-    }
-
-    /**
-     * While luring or engaging, ordinary offense only considers enemies already inside its
-     * engagement zone. If lure positioning is impossible while CoHero is under immediate attack,
-     * fail open for this turn so the AI cannot deadlock and die at the boundary.
+     * Filters ordinary offense from the same current-turn facts used by actBeforeOffense().
+     * There is no remembered "engage" or "fail-open" state.
      */
     ArrayList<Mob> offensiveThreats(ArrayList<Mob> attackableThreats) {
-        if (objective == null || allowOutsideCombatThisTurn) {
-            return attackableThreats;
-        }
-        if (!luring && !engageZoneOnlyThisTurn) {
+        if (objective == null
+                || attackableThreats == null
+                || attackableThreats.isEmpty()
+                || firstCurrentRangedThreat(attackableThreats) != null) {
             return attackableThreats;
         }
 
-        ArrayList<Mob> result = new ArrayList<>();
+        ArrayList<Mob> inZone = new ArrayList<>();
         for (Mob threat : attackableThreats) {
-            if (objective.engagementZone[threat.pos]) {
-                result.add(threat);
+            if (isInEngagementZone(threat)) {
+                inZone.add(threat);
             }
         }
-        return result;
+        if (!inZone.isEmpty()) {
+            return inZone;
+        }
+
+        // actLure() only falls through without spending a turn when movement cannot be arranged
+        // and CoHero is already under direct attack. In that case, ordinary combat is safer than
+        // preserving the sacrifice objective.
+        if (owner.countCurrentAttackersAtCell(owner.pos, attackableThreats) > 0) {
+            return attackableThreats;
+        }
+
+        return inZone;
     }
 
     String debugState() {
-        if (objective == null) {
-            return "objective=none";
-        }
-        String state = luring
-                ? "luring"
-                : (engageZoneOnlyThisTurn ? "engage" : "idle");
-        return "objective=" + objective.name + " state=" + state;
+        return objective == null
+                ? "objective=none"
+                : "objective=" + objective.name;
     }
 
     private Mob firstCurrentRangedThreat(ArrayList<Mob> threats) {
@@ -183,6 +129,23 @@ final class CoHeroCombatObjectiveController {
         }
 
         return null;
+    }
+
+    private boolean hasThreatInEngagementZone(ArrayList<Mob> threats) {
+        for (Mob threat : threats) {
+            if (isInEngagementZone(threat)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isInEngagementZone(Mob threat) {
+        return threat != null
+                && threat.isAlive()
+                && threat.pos >= 0
+                && threat.pos < objective.engagementZone.length
+                && objective.engagementZone[threat.pos];
     }
 
     private EngagementObjective resolveSacrificialFireObjective() {
@@ -237,7 +200,7 @@ final class CoHeroCombatObjectiveController {
         }
 
         return new EngagementObjective(
-                "sacrificial_fire", objectiveRoom, anchorCell, engagementZone);
+                "sacrificial_fire", anchorCell, engagementZone);
     }
 
     private Boolean actLure(ArrayList<Mob> visibleThreats) {
@@ -245,15 +208,12 @@ final class CoHeroCombatObjectiveController {
         owner.clearCombatPositioningAfterRelocation();
         owner.allowAnyGuardMovement();
 
-        if (!isUsableStagingCell(stagingCell)) {
-            stagingCell = chooseStagingCell(visibleThreats);
-        }
-
-        if (stagingCell == -1) {
+        int target = chooseStagingCell(visibleThreats);
+        if (target == -1) {
             return failOpenOrHold(visibleThreats, "no_staging_cell");
         }
 
-        if (stagingCell == owner.pos) {
+        if (target == owner.pos) {
             return failOpenOrHold(visibleThreats, "staged");
         }
 
@@ -263,15 +223,7 @@ final class CoHeroCombatObjectiveController {
 
         boolean[] passable = owner.ordinarySafePassable(false);
         passable[owner.pos] = true;
-        int step = Dungeon.findStep(owner, stagingCell, passable, owner.fieldOfView, true);
-        if (step == -1 || !passable[step] || !owner.isMovementSafe(step)) {
-            stagingCell = chooseStagingCell(visibleThreats);
-            if (stagingCell == -1 || stagingCell == owner.pos) {
-                return failOpenOrHold(visibleThreats, "no_lure_path");
-            }
-            step = Dungeon.findStep(owner, stagingCell, passable, owner.fieldOfView, true);
-        }
-
+        int step = Dungeon.findStep(owner, target, passable, owner.fieldOfView, true);
         if (step == -1 || !passable[step] || !owner.isMovementSafe(step)) {
             return failOpenOrHold(visibleThreats, "no_lure_path");
         }
@@ -283,7 +235,7 @@ final class CoHeroCombatObjectiveController {
 
         int oldPos = owner.pos;
         owner.clearNavigationPath();
-        owner.setMovementDecision("combat_objective_" + objective.name, stagingCell);
+        owner.setMovementDecision("combat_objective_" + objective.name, target);
         owner.move(step, true);
         if (owner.pos == oldPos) {
             return failOpenOrHold(visibleThreats, "lure_move_blocked");
@@ -360,30 +312,9 @@ final class CoHeroCombatObjectiveController {
         return best;
     }
 
-    private boolean isUsableStagingCell(int cell) {
-        if (objective == null
-                || cell < 0
-                || cell >= objective.engagementZone.length
-                || !objective.engagementZone[cell]
-                || !Dungeon.level.passable[cell]
-                || !owner.isMovementSafe(cell)) {
-            return false;
-        }
-
-        Char occupant = Actor.findChar(cell);
-        return occupant == null || occupant == owner;
-    }
-
-    private void clearLure() {
-        luring = false;
-        stagingCell = -1;
-        allowOutsideCombatThisTurn = false;
-    }
-
     private Boolean failOpenOrHold(ArrayList<Mob> visibleThreats, String reason) {
         if (!visibleThreats.isEmpty()
                 && owner.countCurrentAttackersAtCell(owner.pos, visibleThreats) > 0) {
-            allowOutsideCombatThisTurn = true;
             if (owner.debugLogEnabled()) {
                 owner.logDebug("[CoHeroObjective] " + objective.name
                         + " fail-open reason=" + reason
@@ -415,14 +346,11 @@ final class CoHeroCombatObjectiveController {
 
     private static final class EngagementObjective {
         final String name;
-        final Room room;
         final int anchorCell;
         final boolean[] engagementZone;
 
-        EngagementObjective(
-                String name, Room room, int anchorCell, boolean[] engagementZone) {
+        EngagementObjective(String name, int anchorCell, boolean[] engagementZone) {
             this.name = name;
-            this.room = room;
             this.anchorCell = anchorCell;
             this.engagementZone = engagementZone;
         }
