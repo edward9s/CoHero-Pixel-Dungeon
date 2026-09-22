@@ -116,7 +116,6 @@ final class CoHeroNavigation {
         }
 
         int oldPos = owner.pos;
-        owner.clearRangedLureForNavigation();
         owner.allowAnyGuardMovement();
         owner.setMovementDecision("hazard_escape", best);
         owner.move(best, true);
