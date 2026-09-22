@@ -335,9 +335,10 @@ public class CoHeroAlly extends DirectableAlly {
         updateHT(false);
         Buff.affect(this, CompanionRegeneration.class);
         Buff.affect(this, CompanionEnemySurge.class);
-    void syncViewDistance() {
-        vision.syncViewDistance();
+        syncViewDistance();
     }
+
+    void relocateImmediately(int cell) {
         if (Dungeon.level == null
                 || cell < 0
                 || cell >= Dungeon.level.length()
@@ -372,16 +373,11 @@ public class CoHeroAlly extends DirectableAlly {
         }
         Dungeon.level.occupyCell(this);
         Dungeon.level.updateFieldOfView(this, fieldOfView);
-    private void revealVisibleCells() {
-        vision.revealVisibleCells();
+        revealVisibleCells();
     }
-        if (Dungeon.level == null) {
-            return;
-        }
-        int baseViewDistance = Dungeon.level.viewDistance;
-        viewDistance = buff(Light.class) == null
-                ? baseViewDistance
-                : Math.max(baseViewDistance, Light.DISTANCE);
+
+    void syncViewDistance() {
+        vision.syncViewDistance();
     }
 
     private void syncSharedLevel() {
@@ -4178,18 +4174,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private void revealVisibleCells() {
-        for (int i = 0; i < fieldOfView.length; i++) {
-            if (fieldOfView[i]
-                    && Dungeon.level.discoverable[i]
-                    && !Dungeon.level.visited[i]) {
-                Dungeon.level.visited[i] = true;
-            }
-        }
-
-        // CoHero vision is display-only. Refresh its local fog and visible sprites without
-        // changing Dungeon.level.heroFOV or any Hero gameplay visibility rules.
-        GameScene.updateFog(pos, viewDistance + 1);
-        GameScene.afterObserve();
+        vision.revealVisibleCells();
     }
 
     private boolean tryAutoTorch() {
