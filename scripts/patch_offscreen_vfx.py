@@ -7,8 +7,8 @@ if len(sys.argv) != 2:
 
 effects_dir = Path(sys.argv[1])
 
-# Pushing is an Actor purely to synchronize its presentation. When Hero cannot see either
-# endpoint, run the gameplay callback immediately and leave only an optional cosmetic Effect.
+# Pushing is an Actor purely to synchronize its presentation. Unless the pushed character is the
+# player Hero, run the gameplay callback immediately and leave only an optional cosmetic Effect.
 pushing_path = effects_dir / "Pushing.java"
 pushing = pushing_path.read_text(encoding="utf-8")
 
@@ -56,8 +56,8 @@ pushing_new = """	@Override
 	protected boolean act() {
 		Actor.remove( Pushing.this );
 
-		boolean heroVisible = Dungeon.level.heroFOV[from] || Dungeon.level.heroFOV[to];
-		if (!heroVisible) {
+		boolean blocksHero = ch == Dungeon.hero;
+		if (!blocksHero) {
 			// Remote push/pull gameplay must not suspend Actor.process(). Run the gameplay
 			// callback now; if CoHero FOV exposes the movement, keep only a cosmetic Effect.
 			Callback gameplayCallback = callback;
@@ -136,8 +136,8 @@ pushing = pushing.replace(pushing_finish_old, pushing_finish_new, 1)
 pushing_path.write_text(pushing, encoding="utf-8")
 print(f"patched {pushing_path}")
 
-# Swap also uses an Actor only to wait for two cosmetic tweeners. Resolve positions immediately
-# when both endpoints are outside Hero FOV, while allowing the already-created tweeners to finish
+# Swap also uses an Actor only to wait for two cosmetic tweeners. Unless the player Hero is one
+# endpoint, resolve positions immediately while allowing the already-created tweeners to finish
 # visually without swapping gameplay state a second time.
 swap_path = effects_dir / "Swap.java"
 swap = swap_path.read_text(encoding="utf-8")
@@ -164,8 +164,8 @@ swap_act_old = """	@Override
 """
 swap_act_new = """	@Override
 	protected boolean act() {
-		boolean heroVisible = Dungeon.level.heroFOV[ch1.pos] || Dungeon.level.heroFOV[ch2.pos];
-		if (!heroVisible) {
+		boolean blocksHero = ch1 == Dungeon.hero || ch2 == Dungeon.hero;
+		if (!blocksHero) {
 			Actor.remove(this);
 			resolveGameplay();
 			return true;
