@@ -41,6 +41,10 @@ patch = anchor + """	/**
 		}
 	}
 
+	public boolean coHeroPresentationPending() {
+		return com.spd.cohero.CoHeroPresentation.isPending(this);
+	}
+
 	/**
 	 * CoHero-only surprise semantics. This deliberately does not feed Mob.surprisedBy(), because
 	 * the stock path also records Hero sneak-attack statistics and Hero-specific surprise effects.
@@ -196,7 +200,7 @@ attack_anchor = """	protected boolean doAttack( Char enemy ) {
 
 attack_patch = """	protected boolean doAttack( Char enemy ) {
 
-		boolean presentationBusy = com.spd.cohero.CoHeroPresentation.isPending(this);
+		boolean presentationBusy = coHeroPresentationPending();
 		boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(pos)
 				|| com.spd.cohero.CoHero.heroCanSee(enemy.pos);
 
