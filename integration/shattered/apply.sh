@@ -28,10 +28,13 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java"
     python "$patches/patch_cohero_ring_traits.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfArcana.java"
-    python "$patches/patch_equipment_identification.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java" \
+    python "$patches/patch_weapon_identification.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java"
+    python "$patches/patch_armor_identification.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java"
+    python "$patches/patch_ring_identification.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java"
+    python "$patches/patch_hero_identification.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java"
     python "$patches/patch_hero_select.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/HeroSelectScene.java"
