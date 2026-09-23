@@ -13,33 +13,33 @@ import java.lang.reflect.Field;
  */
 public final class CompanionEnemySurge extends Buff {
 
-    static final int MIN_MULTIPLIER_TENTHS = 10;
-    static final int DEFAULT_MULTIPLIER_TENTHS = 15;
-    static final int MAX_MULTIPLIER_TENTHS = 30;
+    static final int MIN_MULTIPLIER_QUARTERS = 4;
+    static final int DEFAULT_MULTIPLIER_QUARTERS = 6;
+    static final int MAX_MULTIPLIER_QUARTERS = 16;
 
-    private static final String MULTIPLIER_TENTHS = "multiplier_tenths";
+    private static final String MULTIPLIER_QUARTERS = "multiplier_quarters";
 
     private static Field respawnerField;
 
-    private int multiplierTenths = DEFAULT_MULTIPLIER_TENTHS;
+    private int multiplierQuarters = DEFAULT_MULTIPLIER_QUARTERS;
 
     private transient Level trackedLevel;
     private transient int baseMobLimit = -1;
     private transient float extraSpawnCountdown = Float.NaN;
 
-    int multiplierTenths() {
-        return multiplierTenths;
+    int multiplierQuarters() {
+        return multiplierQuarters;
     }
 
     float multiplier() {
-        return multiplierTenths / 10f;
+        return multiplierQuarters / 4f;
     }
 
-    void setMultiplierTenths(int value) {
-        if (value < MIN_MULTIPLIER_TENTHS || value > MAX_MULTIPLIER_TENTHS) {
-            throw new IllegalArgumentException("enemy spawn multiplier must be between 1.0x and 3.0x");
+    void setMultiplierQuarters(int value) {
+        if (value < MIN_MULTIPLIER_QUARTERS || value > MAX_MULTIPLIER_QUARTERS) {
+            throw new IllegalArgumentException("enemy spawn multiplier must be between 1.0x and 4.0x");
         }
-        multiplierTenths = value;
+        multiplierQuarters = value;
         extraSpawnCountdown = Float.NaN;
     }
 
@@ -63,7 +63,7 @@ public final class CompanionEnemySurge extends Buff {
     }
 
     private void processExtraSpawns() {
-        if (multiplierTenths == MIN_MULTIPLIER_TENTHS) {
+        if (multiplierQuarters == MIN_MULTIPLIER_QUARTERS) {
             extraSpawnCountdown = Float.NaN;
             return;
         }
@@ -145,15 +145,15 @@ public final class CompanionEnemySurge extends Buff {
     @Override
     public void storeInBundle(Bundle bundle) {
         super.storeInBundle(bundle);
-        bundle.put(MULTIPLIER_TENTHS, multiplierTenths);
+        bundle.put(MULTIPLIER_QUARTERS, multiplierQuarters);
     }
 
     @Override
     public void restoreFromBundle(Bundle bundle) {
         super.restoreFromBundle(bundle);
-        multiplierTenths = bundle.getInt(MULTIPLIER_TENTHS);
-        if (multiplierTenths < MIN_MULTIPLIER_TENTHS
-                || multiplierTenths > MAX_MULTIPLIER_TENTHS) {
+        multiplierQuarters = bundle.getInt(MULTIPLIER_QUARTERS);
+        if (multiplierQuarters < MIN_MULTIPLIER_QUARTERS
+                || multiplierQuarters > MAX_MULTIPLIER_QUARTERS) {
             throw new IllegalStateException("Invalid CoHero enemy spawn multiplier in save");
         }
 

@@ -269,19 +269,19 @@ public class CoHeroAlly extends DirectableAlly {
         resetInheritedDecisionState();
     }
 
-    int enemySpawnMultiplierTenths() {
+    int enemySpawnMultiplierQuarters() {
         CompanionEnemySurge surge = buff(CompanionEnemySurge.class);
         return surge == null
-                ? CompanionEnemySurge.DEFAULT_MULTIPLIER_TENTHS
-                : surge.multiplierTenths();
+                ? CompanionEnemySurge.DEFAULT_MULTIPLIER_QUARTERS
+                : surge.multiplierQuarters();
     }
 
-    void setEnemySpawnMultiplierTenths(int value) {
+    void setEnemySpawnMultiplierQuarters(int value) {
         CompanionEnemySurge surge = Buff.affect(this, CompanionEnemySurge.class);
         if (surge == null) {
             throw new IllegalStateException("CoHero enemy surge buff could not be attached");
         }
-        surge.setMultiplierTenths(value);
+        surge.setMultiplierQuarters(value);
     }
 
     void enterLevel(int cell) {

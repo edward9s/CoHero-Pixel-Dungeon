@@ -194,19 +194,19 @@ public class WndCompanionInventory extends Window {
         OptionSlider enemySpawnSlider = new OptionSlider(
                 "",
                 "1.0x",
-                "3.0x",
-                CompanionEnemySurge.MIN_MULTIPLIER_TENTHS,
-                CompanionEnemySurge.MAX_MULTIPLIER_TENTHS) {
+                "4.0x",
+                CompanionEnemySurge.MIN_MULTIPLIER_QUARTERS,
+                CompanionEnemySurge.MAX_MULTIPLIER_QUARTERS) {
             @Override
             protected void onChange() {
-                companion.setEnemySpawnMultiplierTenths(getSelectedValue());
+                companion.setEnemySpawnMultiplierQuarters(getSelectedValue());
                 enemySpawnValue.text(enemySpawnValueText());
                 enemySpawnValue.setPos(
                         controlX + controlWidth - enemySpawnValue.width(),
                         enemySpawnLabelY);
             }
         };
-        enemySpawnSlider.setSelectedValue(companion.enemySpawnMultiplierTenths());
+        enemySpawnSlider.setSelectedValue(companion.enemySpawnMultiplierQuarters());
         enemySpawnSlider.setRect(
                 controlX,
                 enemySpawnLabel.bottom() + 1,
@@ -334,8 +334,8 @@ public class WndCompanionInventory extends Window {
     private String enemySpawnValueText() {
         return String.format(
                 Locale.ENGLISH,
-                "%.1fx",
-                companion.enemySpawnMultiplierTenths() / 10f);
+                "%.2fx",
+                companion.enemySpawnMultiplierQuarters() / 4f);
     }
 
     private void addEquipmentButton(int column, float startX, float y, SlotType type) {
