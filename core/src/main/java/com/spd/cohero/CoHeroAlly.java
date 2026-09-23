@@ -137,6 +137,7 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroCombatRiskEstimator riskEstimator = new CoHeroCombatRiskEstimator(this);
     private final CoHeroSurvivalController survival = new CoHeroSurvivalController(this);
     private final CoHeroControlItems controlItems = new CoHeroControlItems(this);
+    private final CoHeroRevivalController revival = new CoHeroRevivalController(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     private MissileWeapon activeMissileWeapon;
@@ -157,6 +158,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     boolean lowHealthRally() {
         return support.isLowHealthRally();
+    }
+
+    void clearLowHealthRally() {
+        support.clearLowHealthRally();
     }
 
     public MeleeWeapon weapon() {
@@ -1045,80 +1050,19 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public void die(Object cause) {
-        Ankh ankh = inventory.takeAnkhForRevive();
-        if (ankh != null && reviveWithAnkh(ankh, cause)) {
+        if (revival.tryRevive(cause)) {
             return;
         }
 
         super.die(cause);
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
-            GLog.n(companionDeathMessage(cause));
+            GLog.n(revival.deathMessage(cause));
             CoHero.markCompanionDeathGameOver();
             Hero.reallyDie(cause);
         }
     }
 
-    private boolean reviveWithAnkh(Ankh ankh, Object cause) {
-        boolean fellIntoChasm = cause == Chasm.class;
-        int destination = -1;
-
-        // Ordinary Ankhs already relocate CoHero. A blessed Ankh normally revives in place, but
-        // reviving in place on a pit would immediately leave CoHero in an invalid lethal cell.
-        if (!ankh.isBlessed() || fellIntoChasm) {
-            destination = chooseAnkhReviveCell(true);
-            if (destination == -1) {
-                destination = chooseAnkhReviveCell(false);
-            }
-            if (fellIntoChasm && destination == -1) {
-                return false;
-            }
-        }
-
-        HP = HT;
-        support.clearLowHealthRally();
-
-        Statistics.ankhsUsed++;
-        Catalog.countUse(Ankh.class);
-        SpellSprite.show(this, SpellSprite.ANKH);
-        GameScene.flash(0x80FFFF40);
-
-        if (ankh.isBlessed()) {
-            Buff.prolong(this, Invulnerability.class, 15f);
-        }
-
-        if (destination != -1) {
-            resetNavigationAfterAnkhTeleport();
-            ScrollOfTeleportation.appear(this, destination);
-            Dungeon.level.occupyCell(this);
-            Dungeon.level.updateFieldOfView(this, fieldOfView);
-            revealVisibleCells();
-        } else {
-            // Blessed Ankh deaths that did not involve a chasm keep the stock revive-in-place
-            // behavior. An ordinary Ankh only reaches this fallback on a pathological full level.
-            Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
-        }
-
-        return true;
-    }
-
-    private int chooseAnkhReviveCell(boolean strictSafety) {
-        ArrayList<Integer> destinations = new ArrayList<>();
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (!Dungeon.level.passable[cell]
-                    || Dungeon.level.pit[cell]
-                    || Dungeon.level.secret[cell]
-                    || Actor.findChar(cell) != null) {
-                continue;
-            }
-            if (strictSafety && !isMovementSafe(cell)) {
-                continue;
-            }
-            destinations.add(cell);
-        }
-        return destinations.isEmpty() ? -1 : Random.element(destinations);
-    }
-
-    private void resetNavigationAfterAnkhTeleport() {
+    void resetNavigationAfterAnkhTeleport() {
         navigation.clearExplorationTarget();
         target = -1;
         enemy = null;
@@ -1141,13 +1085,6 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
-    }
-
-    private String companionDeathMessage(Object cause) {
-        if (cause instanceof Char && cause != this) {
-            return CoHeroMessages.get("companion.killed_by", ((Char) cause).name());
-        }
-        return CoHeroMessages.get("companion.died");
     }
 
     private Mob nearestThreat(ArrayList<Mob> threats) {
@@ -2566,7 +2503,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
-    private void revealVisibleCells() {
+    void revealVisibleCells() {
         vision.revealVisibleCells();
     }
 
