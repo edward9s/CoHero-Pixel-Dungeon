@@ -78,7 +78,7 @@ final class CoHeroCombatController {
         }
         owner.clearCombatTarget();
 
-        logBossDecision("invulnerable_range_retreat",
+        owner.logBossDecision("invulnerable_range_retreat",
                 "invulnerable enemy can attack current cell -> leave attack range");
 
         int escapeStep = owner.rooted
