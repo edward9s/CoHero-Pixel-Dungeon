@@ -51,15 +51,6 @@ public final class CoHeroPresentation {
         return pendingActors.contains(actor);
     }
 
-    /**
-     * Completes a cosmetic callback if this actor currently owns one.
-     *
-     * @return true when the callback was cosmetic-only and gameplay must not run again.
-     */
-    public static synchronized boolean completeIfPending(Char actor) {
-        return pendingActors.remove(actor);
-    }
-
     public static synchronized void complete(Char actor) {
         if (!pendingActors.remove(actor)) {
             throw new IllegalStateException("Completed an untracked CoHero presentation");
