@@ -864,7 +864,7 @@ final class CoHeroCombatController {
         }
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (CoHeroAlly.supportedMissileWeapon(missile)
+            if (CoHeroMissileAdapter.supported(missile)
                     && !missile.cursed
                     && new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
                 missiles.add(missile);
@@ -924,7 +924,7 @@ final class CoHeroCombatController {
         MissileWeapon bestMissile = null;
         float bestMissileDamage = Float.NEGATIVE_INFINITY;
         for (MissileWeapon missile : missiles) {
-            float damage = owner.expectedMissileDamage(missile);
+            float damage = CoHeroMissileAdapter.expectedDamage(owner, missile);
             if (bestMissile == null || damage > bestMissileDamage) {
                 bestMissile = missile;
                 bestMissileDamage = damage;
@@ -933,7 +933,7 @@ final class CoHeroCombatController {
 
         float spiritBowDamage = spiritBow == null || spiritArrow == null
                 ? Float.NEGATIVE_INFINITY
-                : owner.expectedSpiritBowDamage(spiritBow);
+                : CoHeroMissileAdapter.expectedSpiritBowDamage(owner, spiritBow);
         boolean spiritBowBestPhysical = spiritBowDamage > bestMissileDamage;
         float bestPhysicalDamage = spiritBowBestPhysical ? spiritBowDamage : bestMissileDamage;
 
@@ -1093,7 +1093,7 @@ final class CoHeroCombatController {
             return true;
         }
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (CoHeroAlly.supportedMissileWeapon(missile) && !missile.cursed) {
+            if (CoHeroMissileAdapter.supported(missile) && !missile.cursed) {
                 return true;
             }
         }

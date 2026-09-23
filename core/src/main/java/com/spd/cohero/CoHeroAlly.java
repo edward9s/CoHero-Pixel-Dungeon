@@ -23,25 +23,11 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
-import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Bolas;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.FishingSpear;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Javelin;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Kunai;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingClub;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingHammer;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingKnife;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSpear;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSpike;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingStone;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -1157,47 +1143,6 @@ public class CoHeroAlly extends DirectableAlly {
      * Returns null when CoHero has no currently usable attack capability and should flee.
      * Otherwise returns the synchronous/asynchronous result expected by Actor.act().
      */
-    static boolean supportedMissileWeapon(MissileWeapon missile) {
-        // Only stock projectile types that use the standard rangedHit/rangedMiss path are enabled.
-        // Exact classes are intentional: unknown fork projectile semantics fail closed.
-        Class<?> type = missile.getClass();
-        return type == ThrowingStone.class
-                || type == ThrowingKnife.class
-                || type == ThrowingSpike.class
-                || type == FishingSpear.class
-                || type == ThrowingClub.class
-                || type == ThrowingSpear.class
-                || type == Kunai.class
-                || type == Bolas.class
-                || type == Javelin.class
-                || type == Tomahawk.class
-                || type == Trident.class
-                || type == ThrowingHammer.class;
-    }
-
-    float expectedMissileDamage(MissileWeapon missile) {
-        int level = missile.buffedLvl()
-                + RingOfSharpshooting.levelDamageBonus(this)
-                + CoHeroClassTraits.missileLevelBonus(this);
-        float average = (missile.min(level) + missile.max(level)) / 2f;
-        average = missile.augment.damageFactor(average);
-        int excessStrength = STR() - missile.STRReq();
-        if (excessStrength > 0) {
-            average += excessStrength / 2f;
-        }
-        return average;
-    }
-
-    float expectedSpiritBowDamage(SpiritBow bow) {
-        float average = (bow.coHeroMin(this) + bow.coHeroMax(this)) / 2f;
-        average = bow.augment.damageFactor(average);
-        int excessStrength = STR() - bow.STRReq();
-        if (excessStrength > 0) {
-            average += excessStrength / 2f;
-        }
-        return average;
-    }
-
     void revealVisibleCells() {
         vision.revealVisibleCells();
     }

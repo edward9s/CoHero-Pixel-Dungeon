@@ -753,7 +753,7 @@ public final class CompanionInventory {
         }
 
         if (item instanceof MissileWeapon) {
-            return CoHeroAlly.supportedMissileWeapon((MissileWeapon) item);
+            return CoHeroMissileAdapter.supported((MissileWeapon) item);
         }
 
         if (item instanceof Wand) {
