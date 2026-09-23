@@ -2556,7 +2556,7 @@ public class CoHeroAlly extends DirectableAlly {
      * best-effort and never replaces another in-flight cosmetic.
      */
     private long beginCombatPresentation(int... cells) {
-        if (!CoHeroPresentation.shouldShow(cells)) {
+        if (sprite == null || sprite.parent == null || !CoHeroPresentation.shouldShow(cells)) {
             return CoHeroPresentation.NONE;
         }
 
