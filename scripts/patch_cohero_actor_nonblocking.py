@@ -15,9 +15,12 @@ old = """				if (acting instanceof Char && ((Char) acting).sprite != null) {
 
 new = """				if (acting instanceof Char
 						&& ((Char) acting).sprite != null
-						&& !(acting instanceof com.spd.cohero.CoHeroAlly)) {
-					// Stock actors keep gameplay coupled to movement presentation.
-					// CoHero presentation is cosmetic and must never suspend Actor.process().
+						&& !(acting instanceof com.spd.cohero.CoHeroAlly)
+						&& (!(acting instanceof com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob)
+								|| !((com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob) acting)
+										.coHeroMovementPresentationNonBlocking())) {
+					// Hero-related stock movement stays synchronized. CoHero and mobs currently
+					// engaged with CoHero must never suspend Actor.process() for presentation.
 """
 
 if text.count(old) != 1:
