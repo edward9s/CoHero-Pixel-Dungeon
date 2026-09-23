@@ -4,13 +4,11 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
-import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
@@ -947,11 +945,6 @@ public class CoHeroAlly extends DirectableAlly {
         state = WANDERING;
     }
 
-    /**
-     * Survival decisions run before any melee positioning or attack. The model is deliberately
-     * conservative: current HP/shield are real effective health, only one usable potion is given
-     * partial reserve value, and an Ankh is never treated as expendable combat HP.
-     */
     boolean isCombatInvulnerable(Mob threat) {
         if (threat == null || !threat.isAlive()) {
             return false;
@@ -1026,10 +1019,6 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    /**
-     * Ranged enemies are often weakest once CoHero reaches melee. Recompute each turn whether to
-     * close directly or take a nearby LOS break; no target, cover cell, or wait state is retained.
-     */
     boolean isCurrentRangedPressure(Mob targetMob) {
         return targetMob != null
                 && targetMob.isAlive()
@@ -1037,17 +1026,6 @@ public class CoHeroAlly extends DirectableAlly {
                 && targetMob.coHeroCanAttackFrom(targetMob.pos, this);
     }
 
-    /**
-     * Against a ranged enemy, "close" means physically adjacent. Extended melee reach is useful
-     * against ordinary targets, but must not redefine the desired distance for shutting down a
-     * ranged attack.
-     */
-    /**
-     * Repositions melee CoHero before committing to an attack    /**
-     * Repositions melee CoHero before committing to an attack when terrain can materially improve
-     * the exchange. Great Crab needs an unseen strike, while Swarms and multiple melee attackers
-     * are much safer when pulled into a narrow approach instead of fought in open space.
-     */
     boolean hasRangedPressure(ArrayList<Mob> threats) {
         for (Mob threat : threats) {
             if (Dungeon.level.distance(threat.pos, pos) > 1
