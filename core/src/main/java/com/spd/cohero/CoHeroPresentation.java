@@ -23,7 +23,6 @@ public final class CoHeroPresentation {
 
     public static synchronized void reset() {
         pendingByActor.clear();
-        nextToken = 1L;
     }
 
     public static boolean shouldShow(int... cells) {
