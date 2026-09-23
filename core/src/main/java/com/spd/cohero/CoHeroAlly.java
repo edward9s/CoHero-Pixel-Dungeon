@@ -633,12 +633,6 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean act() {
-        // Never stack two presentations for the same CoHero. Other actors may continue while the
-        // previous CoHero animation is playing; if our own turn comes around first, wait here.
-        if (CoHeroPresentation.awaitActor(this)) {
-            return false;
-        }
-
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
         resetInheritedDecisionState();
@@ -2416,8 +2410,8 @@ public class CoHeroAlly extends DirectableAlly {
         arrow.throwSound();
 
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
-            CoHeroPresentation.begin(this);
+                && CoHeroPresentation.shouldShow(pos, targetMob.pos)
+                && CoHeroPresentation.tryBegin(this)) {
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                         sprite,
@@ -2446,9 +2440,9 @@ public class CoHeroAlly extends DirectableAlly {
     private boolean performMeleeAttack(Mob targetMob) {
         if (sprite != null
                 && targetMob.sprite != null
-                && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
+                && CoHeroPresentation.shouldShow(pos, targetMob.pos)
+                && CoHeroPresentation.tryBegin(this)) {
             float delay = attackDelay();
-            CoHeroPresentation.begin(this);
             try {
                 sprite.attack(targetMob.pos, new Callback() {
                     @Override
@@ -2491,8 +2485,8 @@ public class CoHeroAlly extends DirectableAlly {
 
         float delay = thrown.castDelay(this, targetMob.pos);
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
-            CoHeroPresentation.begin(this);
+                && CoHeroPresentation.shouldShow(pos, targetMob.pos)
+                && CoHeroPresentation.tryBegin(this)) {
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                         sprite,
@@ -2539,10 +2533,8 @@ public class CoHeroAlly extends DirectableAlly {
             throw new IllegalStateException("CoHero wand choice has no legal aim cell");
         }
 
-        boolean showFx = CoHeroPresentation.shouldShow(pos, targetCell);
-        if (showFx) {
-            CoHeroPresentation.begin(this);
-        }
+        boolean showFx = CoHeroPresentation.shouldShow(pos, targetCell)
+                && CoHeroPresentation.tryBegin(this);
 
         try {
             wand.coHeroCast(this, targetCell, showFx, new Callback() {
@@ -2696,7 +2688,8 @@ public class CoHeroAlly extends DirectableAlly {
         boolean showPresentation = sprite != null
                 && sprite.isVisible()
                 && sprite.parent != null
-                && CoHeroPresentation.shouldShow(from, to);
+                && CoHeroPresentation.shouldShow(from, to)
+                && CoHeroPresentation.tryBegin(this);
 
         if (!showPresentation) {
             sprite.turnTo(from, to);
@@ -2704,13 +2697,7 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        if (presentationMotionPending) {
-            throw new IllegalStateException("CoHero started a second movement presentation");
-        }
-
         presentationMotionPending = true;
-        // Movement is background presentation. It must never delay Hero input.
-        CoHeroPresentation.begin(this);
         try {
             // Char.moveSprite() intentionally suppresses motion outside Hero FOV. CoHero has a
             // separate presentation rule: anything visible through Hero OR CoHero FOV is animated.
@@ -2734,6 +2721,11 @@ public class CoHeroAlly extends DirectableAlly {
         }
         presentationMotionPending = false;
         CoHeroPresentation.complete(this);
+
+        // Gameplay may have advanced while this cosmetic motion was still playing.
+        if (sprite != null && pos >= 0) {
+            sprite.place(pos);
+        }
     }
 
     boolean finishMovementAnimation(int oldPos) {
