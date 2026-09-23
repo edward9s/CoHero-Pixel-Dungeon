@@ -22,8 +22,6 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java"
     python "$patches/patch_cohero_visual_fov.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java"
-    python "$patches/patch_hero_transition.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java"
     python "$patches/patch_cohero_class_traits.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java"
     python "$patches/patch_cohero_ring_traits.py" \
@@ -34,7 +32,7 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java"
     python "$patches/patch_ring_identification.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java"
-    python "$patches/patch_hero_identification.py" \
+    python "$patches/patch_hero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java"
     python "$patches/patch_hero_select.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/HeroSelectScene.java"
