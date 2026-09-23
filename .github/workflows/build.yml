@@ -114,6 +114,8 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java
           python cohero/scripts/patch_offscreen_enemy_actions.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs
+          python cohero/scripts/patch_offscreen_vfx.py \
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/effects/Pushing.java
           python cohero/scripts/patch_missileweapon.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java
           python cohero/scripts/patch_special_weapons.py \
