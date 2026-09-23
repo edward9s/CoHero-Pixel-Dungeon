@@ -214,8 +214,9 @@ final class CoHeroLoot {
         Badges.validateGoldCollected();
 
         GameScene.pickUp(gold, owner.pos);
-        if (owner.sprite() != null) {
-            owner.sprite().showStatusWithIcon(
+        CharSprite sprite = owner.attachedSprite();
+        if (sprite != null) {
+            sprite.showStatusWithIcon(
                     CharSprite.NEUTRAL,
                     Integer.toString(amount),
                     FloatingText.GOLD);

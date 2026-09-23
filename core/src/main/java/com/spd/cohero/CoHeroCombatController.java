@@ -13,6 +13,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
 import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
@@ -1153,9 +1154,10 @@ final class CoHeroCombatController {
         arrow.throwSound();
 
         boolean heroVisible = CoHero.heroCanSee(owner.pos) || CoHero.heroCanSee(targetMob.pos);
-        if (heroVisible && owner.sprite() != null && owner.sprite().parent != null && targetMob.sprite != null) {
-            ((MissileSprite) owner.sprite().parent.recycle(MissileSprite.class)).reset(
-                    owner.sprite(),
+        CharSprite sprite = owner.attachedSprite();
+        if (heroVisible && sprite != null && sprite.parent != null && targetMob.sprite != null) {
+            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
+                    sprite,
                     targetMob.sprite,
                     arrow,
                     new Callback() {
@@ -1178,9 +1180,10 @@ final class CoHeroCombatController {
     private boolean performMeleeAttack(Mob targetMob) {
         float delay = owner.attackDelay();
         boolean heroVisible = CoHero.heroCanSee(owner.pos) || CoHero.heroCanSee(targetMob.pos);
+        CharSprite sprite = owner.attachedSprite();
 
-        if (heroVisible && owner.sprite() != null && targetMob.sprite != null) {
-            owner.sprite().attack(targetMob.pos, new Callback() {
+        if (heroVisible && sprite != null && targetMob.sprite != null) {
+            sprite.attack(targetMob.pos, new Callback() {
                 @Override
                 public void call() {
                     owner.attackTarget(targetMob);
@@ -1218,9 +1221,10 @@ final class CoHeroCombatController {
 
         float delay = thrown.castDelay(owner, targetMob.pos);
         boolean heroVisible = CoHero.heroCanSee(owner.pos) || CoHero.heroCanSee(targetMob.pos);
-        if (heroVisible && owner.sprite() != null && owner.sprite().parent != null && targetMob.sprite != null) {
-            ((MissileSprite) owner.sprite().parent.recycle(MissileSprite.class)).reset(
-                    owner.sprite(),
+        CharSprite sprite = owner.attachedSprite();
+        if (heroVisible && sprite != null && sprite.parent != null && targetMob.sprite != null) {
+            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
+                    sprite,
                     targetMob.sprite,
                     thrown,
                     new Callback() {
@@ -1262,7 +1266,8 @@ final class CoHeroCombatController {
         }
 
         boolean heroVisible = CoHero.heroCanSee(owner.pos) || CoHero.heroCanSee(targetCell);
-        if (heroVisible && owner.sprite() != null && owner.sprite().parent != null) {
+        CharSprite sprite = owner.attachedSprite();
+        if (heroVisible && sprite != null && sprite.parent != null) {
             wand.coHeroCast(owner, targetCell, true, new Callback() {
                 @Override
                 public void call() {

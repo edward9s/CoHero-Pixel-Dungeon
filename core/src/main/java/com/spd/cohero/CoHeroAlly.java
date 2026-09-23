@@ -128,6 +128,14 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
+    /**
+     * Returns the live sprite linked to this actor in the current scene.
+     * Mob.sprite() is a factory that creates an unlinked sprite and must not be used for actions.
+     */
+    CharSprite attachedSprite() {
+        return sprite;
+    }
+
     @Override
     public CharSprite sprite() {
         CoHeroAllySprite preview = new CoHeroAllySprite();

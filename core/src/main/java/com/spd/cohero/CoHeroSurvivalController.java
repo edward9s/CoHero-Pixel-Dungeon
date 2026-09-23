@@ -396,8 +396,9 @@ final class CoHeroSurvivalController {
 
         int amount = (int) (0.6f * owner.HT + 10);
         Buff.affect(owner, Barrier.class).setShield(amount);
-        if (owner.sprite() != null) {
-            owner.sprite().showStatusWithIcon(
+        CharSprite sprite = owner.attachedSprite();
+        if (sprite != null) {
+            sprite.showStatusWithIcon(
                     CharSprite.POSITIVE,
                     Integer.toString(amount),
                     FloatingText.SHIELDING);

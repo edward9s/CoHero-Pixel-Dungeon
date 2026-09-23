@@ -11,6 +11,7 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.particles.FlameParticle;
 import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.particles.Emitter;
 
@@ -74,9 +75,10 @@ final class CoHeroVision {
         Catalog.countUse(Torch.class);
         Sample.INSTANCE.play(Assets.Sounds.BURNING);
 
-        if (owner.sprite() != null) {
-            owner.sprite().operate(owner.pos);
-            Emitter emitter = owner.sprite().centerEmitter();
+        CharSprite sprite = owner.attachedSprite();
+        if (sprite != null) {
+            sprite.operate(owner.pos);
+            Emitter emitter = sprite.centerEmitter();
             if (emitter != null) {
                 emitter.start(FlameParticle.FACTORY, 0.2f, 3);
             }
