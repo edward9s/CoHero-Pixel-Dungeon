@@ -233,8 +233,8 @@ public final class CoHero {
             return;
         }
 
-        // Presentation is scene-local. Never carry pending visual work across floor/scene loads.
-        CoHeroPresentation.reset();
+        // Remote observation is scene-local. Never carry proxy state across floor/scene loads.
+        CoHeroRemoteView.reset();
 
         HeroClass heroClass = companionClass();
         if (heroClass == null) {
