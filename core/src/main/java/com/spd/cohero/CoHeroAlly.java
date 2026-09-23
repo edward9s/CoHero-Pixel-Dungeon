@@ -337,7 +337,6 @@ public class CoHeroAlly extends DirectableAlly {
         movingToDefendPos = false;
 
         if (sprite != null) {
-            finishPresentationMotion();
             sprite.interruptMotion();
             sprite.place(pos);
         }
