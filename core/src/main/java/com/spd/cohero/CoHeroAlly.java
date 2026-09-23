@@ -145,6 +145,7 @@ public class CoHeroAlly extends DirectableAlly {
     private int movementDecisionTarget = -1;
     private boolean debugLogEnabled;
     private boolean presentationMotionPending;
+    private long presentationMotionToken = CoHeroPresentation.NONE;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -2409,9 +2410,10 @@ public class CoHeroAlly extends DirectableAlly {
         float delay = arrow.castDelay(this, targetMob.pos);
         arrow.throwSound();
 
-        if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && CoHeroPresentation.shouldShow(pos, targetMob.pos)
-                && CoHeroPresentation.tryBegin(this)) {
+        long presentationToken = beginCombatPresentation(pos, targetMob.pos);
+        if (presentationToken != CoHeroPresentation.NONE
+                && sprite != null && sprite.parent != null && targetMob.sprite != null) {
+            final long token = presentationToken;
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                         sprite,
@@ -2420,16 +2422,13 @@ public class CoHeroAlly extends DirectableAlly {
                         new Callback() {
                             @Override
                             public void call() {
-                                CoHeroPresentation.complete(CoHeroAlly.this);
+                                CoHeroPresentation.complete(CoHeroAlly.this, token);
                             }
                         });
             } catch (RuntimeException ex) {
-                CoHeroPresentation.complete(this);
+                CoHeroPresentation.complete(this, token);
                 throw ex;
             }
-            resolveSpiritBowAttack(targetMob, arrow);
-            spend(delay);
-            return true;
         }
 
         resolveSpiritBowAttack(targetMob, arrow);
@@ -2439,26 +2438,24 @@ public class CoHeroAlly extends DirectableAlly {
 
     private boolean performMeleeAttack(Mob targetMob) {
         float delay = attackDelay();
-        boolean showPresentation = sprite != null
-                && targetMob.sprite != null
-                && CoHeroPresentation.shouldShow(pos, targetMob.pos);
+        long presentationToken = beginCombatPresentation(pos, targetMob.pos);
 
-        if (showPresentation && CoHeroPresentation.tryBegin(this)) {
+        if (presentationToken != CoHeroPresentation.NONE
+                && sprite != null && targetMob.sprite != null) {
+            final long token = presentationToken;
             try {
                 sprite.attack(targetMob.pos, new Callback() {
                     @Override
                     public void call() {
-                        CoHeroPresentation.complete(CoHeroAlly.this);
+                        CoHeroPresentation.complete(CoHeroAlly.this, token);
                     }
                 });
             } catch (RuntimeException ex) {
-                CoHeroPresentation.complete(this);
+                CoHeroPresentation.complete(this, token);
                 throw ex;
             }
         }
 
-        // Gameplay never waits for the swing animation. If another CoHero presentation is already
-        // in flight, this attack simply has no new visual.
         attack(targetMob);
         Invisibility.dispel(this);
         spend(delay);
@@ -2483,9 +2480,10 @@ public class CoHeroAlly extends DirectableAlly {
         loot.markThrown(thrown.setID, 1);
 
         float delay = thrown.castDelay(this, targetMob.pos);
-        if (sprite != null && sprite.parent != null && targetMob.sprite != null
-                && CoHeroPresentation.shouldShow(pos, targetMob.pos)
-                && CoHeroPresentation.tryBegin(this)) {
+        long presentationToken = beginCombatPresentation(pos, targetMob.pos);
+        if (presentationToken != CoHeroPresentation.NONE
+                && sprite != null && sprite.parent != null && targetMob.sprite != null) {
+            final long token = presentationToken;
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                         sprite,
@@ -2494,16 +2492,13 @@ public class CoHeroAlly extends DirectableAlly {
                         new Callback() {
                             @Override
                             public void call() {
-                                CoHeroPresentation.complete(CoHeroAlly.this);
+                                CoHeroPresentation.complete(CoHeroAlly.this, token);
                             }
                         });
             } catch (RuntimeException ex) {
-                CoHeroPresentation.complete(this);
+                CoHeroPresentation.complete(this, token);
                 throw ex;
             }
-            resolveMissileAttack(targetMob, thrown);
-            spend(delay);
-            return true;
         }
 
         resolveMissileAttack(targetMob, thrown);
@@ -2532,21 +2527,21 @@ public class CoHeroAlly extends DirectableAlly {
             throw new IllegalStateException("CoHero wand choice has no legal aim cell");
         }
 
-        boolean showFx = CoHeroPresentation.shouldShow(pos, targetCell)
-                && CoHeroPresentation.tryBegin(this);
+        final long presentationToken = beginCombatPresentation(pos, targetCell);
+        boolean showFx = presentationToken != CoHeroPresentation.NONE;
 
         try {
             wand.coHeroCast(this, targetCell, showFx, new Callback() {
                 @Override
                 public void call() {
                     if (showFx) {
-                        CoHeroPresentation.complete(CoHeroAlly.this);
+                        CoHeroPresentation.complete(CoHeroAlly.this, presentationToken);
                     }
                 }
             });
         } catch (RuntimeException ex) {
             if (showFx) {
-                CoHeroPresentation.complete(this);
+                CoHeroPresentation.complete(this, presentationToken);
             }
             throw ex;
         }
@@ -2556,13 +2551,36 @@ public class CoHeroAlly extends DirectableAlly {
         return true;
     }
 
+    /**
+     * Hero-visible combat presentation has priority over older cosmetic work. Remote combat stays
+     * best-effort and never replaces another in-flight cosmetic.
+     */
+    private long beginCombatPresentation(int... cells) {
+        if (!CoHeroPresentation.shouldShow(cells)) {
+            return CoHeroPresentation.NONE;
+        }
 
+        boolean heroVisible = false;
+        for (int cell : cells) {
+            if (CoHero.heroCanSee(cell)) {
+                heroVisible = true;
+                break;
+            }
+        }
 
+        if (!heroVisible) {
+            return CoHeroPresentation.tryBegin(this);
+        }
 
+        if (presentationMotionPending && sprite != null) {
+            presentationMotionPending = false;
+            presentationMotionToken = CoHeroPresentation.NONE;
+            sprite.interruptMotion();
+            sprite.place(pos);
+        }
 
-
-
-
+        return CoHeroPresentation.replace(this);
+    }
 
     private static final class RangedChoice {
         final MissileWeapon missile;
@@ -2684,17 +2702,16 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean moveSprite(int from, int to) {
-        boolean showPresentation = sprite != null
+        long presentationToken = CoHeroPresentation.NONE;
+        if (sprite != null
                 && sprite.isVisible()
                 && sprite.parent != null
-                && CoHeroPresentation.shouldShow(from, to)
-                && CoHeroPresentation.tryBegin(this);
+                && CoHeroPresentation.shouldShow(from, to)) {
+            presentationToken = CoHeroPresentation.tryBegin(this);
+        }
 
-        if (!showPresentation) {
+        if (presentationToken == CoHeroPresentation.NONE) {
             sprite.turnTo(from, to);
-            // If an older cosmetic motion is still running, let that tween finish and resync to
-            // the latest gameplay position in onMotionComplete(). Placing now would be overwritten
-            // by the still-running tweener on the next render frame.
             if (!presentationMotionPending) {
                 sprite.place(to);
             }
@@ -2702,9 +2719,8 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         presentationMotionPending = true;
+        presentationMotionToken = presentationToken;
         try {
-            // Char.moveSprite() intentionally suppresses motion outside Hero FOV. CoHero has a
-            // separate presentation rule: anything visible through Hero OR CoHero FOV is animated.
             sprite.move(from, to);
             return true;
         } catch (RuntimeException ex) {
@@ -2723,10 +2739,12 @@ public class CoHeroAlly extends DirectableAlly {
         if (!presentationMotionPending) {
             return;
         }
-        presentationMotionPending = false;
-        CoHeroPresentation.complete(this);
 
-        // Gameplay may have advanced while this cosmetic motion was still playing.
+        long token = presentationMotionToken;
+        presentationMotionPending = false;
+        presentationMotionToken = CoHeroPresentation.NONE;
+        CoHeroPresentation.complete(this, token);
+
         if (sprite != null && pos >= 0) {
             sprite.place(pos);
         }
