@@ -1,53 +1,25 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
-import com.shatteredpixel.shatteredpixeldungeon.Badges;
-import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AllyBuff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barkskin;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Bless;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Dread;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Light;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.LostInventory;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicalSleep;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Sleep;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Sheep;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
-import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
-import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
-import com.shatteredpixel.shatteredpixeldungeon.items.Item;
-import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
-import com.shatteredpixel.shatteredpixeldungeon.items.bombs.Bomb;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
@@ -55,21 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ScrollOfDread;
-import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
-import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfAggression;
-import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlast;
-import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlink;
-import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfDeepSleep;
-import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
-import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
@@ -86,33 +44,13 @@ import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSp
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingStone;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
-import com.shatteredpixel.shatteredpixeldungeon.levels.RegularLevel;
-import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
-import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.Room;
-import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
-import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
-import com.shatteredpixel.shatteredpixeldungeon.plants.Earthroot;
-import com.shatteredpixel.shatteredpixeldungeon.plants.Fadeleaf;
-import com.shatteredpixel.shatteredpixeldungeon.plants.Mageroyal;
-import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
-import com.shatteredpixel.shatteredpixeldungeon.plants.Sungrass;
-import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
-import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
-import com.shatteredpixel.shatteredpixeldungeon.effects.particles.FlameParticle;
-import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
-import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
-import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
 import com.watabou.noosa.audio.Sample;
-import com.watabou.noosa.particles.Emitter;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
-import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
-import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
-import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
@@ -132,14 +70,16 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroSupportController support = new CoHeroSupportController(this);
     private final CoHeroCombatObjectiveController combatObjective =
             new CoHeroCombatObjectiveController(this);
+    private final CoHeroCombatController combat = new CoHeroCombatController(this);
     private final CoHeroVision vision = new CoHeroVision(this);
     private final CoHeroLoot loot = new CoHeroLoot(this);
     private final CoHeroCombatRiskEstimator riskEstimator = new CoHeroCombatRiskEstimator(this);
     private final CoHeroSurvivalController survival = new CoHeroSurvivalController(this);
     private final CoHeroControlItems controlItems = new CoHeroControlItems(this);
+    private final CoHeroRevivalController revival = new CoHeroRevivalController(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
-    private MissileWeapon activeMissileWeapon;
+    MissileWeapon activeMissileWeapon;
     private String lastBossDecisionLog;
     private String movementDecision = "unspecified";
     private int movementDecisionTarget = -1;
@@ -155,8 +95,16 @@ public class CoHeroAlly extends DirectableAlly {
         return inventory;
     }
 
+    CoHeroLoot loot() {
+        return loot;
+    }
+
     boolean lowHealthRally() {
         return support.isLowHealthRally();
+    }
+
+    void clearLowHealthRally() {
+        support.clearLowHealthRally();
     }
 
     public MeleeWeapon weapon() {
@@ -579,7 +527,7 @@ public class CoHeroAlly extends DirectableAlly {
         return super.defenseProc(enemy, damage);
     }
 
-    private void logBossDecision(String key, String detail) {
+    void logBossDecision(String key, String detail) {
         if (!debugLogEnabled || Dungeon.level == null || !Dungeon.level.locked) {
             lastBossDecisionLog = null;
             return;
@@ -591,7 +539,7 @@ public class CoHeroAlly extends DirectableAlly {
         GLog.i("CoHero: " + detail);
     }
 
-    private String targetDebug(Mob targetMob) {
+    String targetDebug(Mob targetMob) {
         if (targetMob == null) {
             return "no target";
         }
@@ -745,7 +693,7 @@ public class CoHeroAlly extends DirectableAlly {
             // Direct ranged offense is a normal combat action, not a last-resort fallback.
             // If the preferred threat cannot be shot, this may select another visible threat that
             // has a legal missile / Spirit Bow / wand line.
-            Boolean directRanged = tryDirectRangedAttack(combatTarget, attackableThreats);
+            Boolean directRanged = combat.tryDirectRangedAttack(combatTarget, attackableThreats);
             if (directRanged != null) {
                 return directRanged;
             }
@@ -776,12 +724,12 @@ public class CoHeroAlly extends DirectableAlly {
                 return meleePositioning;
             }
 
-            Boolean combatResult = tryCombat(combatTarget);
+            Boolean combatResult = combat.tryCombat(combatTarget);
             if (combatResult != null) {
                 return combatResult;
             }
 
-            Boolean escapeUtility = tryEscapeUtility(visibleThreats);
+            Boolean escapeUtility = combat.tryEscapeUtility(visibleThreats);
             if (escapeUtility != null) {
                 return escapeUtility;
             }
@@ -822,7 +770,7 @@ public class CoHeroAlly extends DirectableAlly {
             return support.actLowHealthRally();
         }
 
-        Boolean supportAction = trySupportAction();
+        Boolean supportAction = combat.trySupportAction();
         if (supportAction != null) {
             return supportAction;
         }
@@ -1045,80 +993,19 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public void die(Object cause) {
-        Ankh ankh = inventory.takeAnkhForRevive();
-        if (ankh != null && reviveWithAnkh(ankh, cause)) {
+        if (revival.tryRevive(cause)) {
             return;
         }
 
         super.die(cause);
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
-            GLog.n(companionDeathMessage(cause));
+            GLog.n(revival.deathMessage(cause));
             CoHero.markCompanionDeathGameOver();
             Hero.reallyDie(cause);
         }
     }
 
-    private boolean reviveWithAnkh(Ankh ankh, Object cause) {
-        boolean fellIntoChasm = cause == Chasm.class;
-        int destination = -1;
-
-        // Ordinary Ankhs already relocate CoHero. A blessed Ankh normally revives in place, but
-        // reviving in place on a pit would immediately leave CoHero in an invalid lethal cell.
-        if (!ankh.isBlessed() || fellIntoChasm) {
-            destination = chooseAnkhReviveCell(true);
-            if (destination == -1) {
-                destination = chooseAnkhReviveCell(false);
-            }
-            if (fellIntoChasm && destination == -1) {
-                return false;
-            }
-        }
-
-        HP = HT;
-        support.clearLowHealthRally();
-
-        Statistics.ankhsUsed++;
-        Catalog.countUse(Ankh.class);
-        SpellSprite.show(this, SpellSprite.ANKH);
-        GameScene.flash(0x80FFFF40);
-
-        if (ankh.isBlessed()) {
-            Buff.prolong(this, Invulnerability.class, 15f);
-        }
-
-        if (destination != -1) {
-            resetNavigationAfterAnkhTeleport();
-            ScrollOfTeleportation.appear(this, destination);
-            Dungeon.level.occupyCell(this);
-            Dungeon.level.updateFieldOfView(this, fieldOfView);
-            revealVisibleCells();
-        } else {
-            // Blessed Ankh deaths that did not involve a chasm keep the stock revive-in-place
-            // behavior. An ordinary Ankh only reaches this fallback on a pathological full level.
-            Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
-        }
-
-        return true;
-    }
-
-    private int chooseAnkhReviveCell(boolean strictSafety) {
-        ArrayList<Integer> destinations = new ArrayList<>();
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (!Dungeon.level.passable[cell]
-                    || Dungeon.level.pit[cell]
-                    || Dungeon.level.secret[cell]
-                    || Actor.findChar(cell) != null) {
-                continue;
-            }
-            if (strictSafety && !isMovementSafe(cell)) {
-                continue;
-            }
-            destinations.add(cell);
-        }
-        return destinations.isEmpty() ? -1 : Random.element(destinations);
-    }
-
-    private void resetNavigationAfterAnkhTeleport() {
+    void resetNavigationAfterAnkhTeleport() {
         navigation.clearExplorationTarget();
         target = -1;
         enemy = null;
@@ -1143,13 +1030,6 @@ public class CoHeroAlly extends DirectableAlly {
         state = WANDERING;
     }
 
-    private String companionDeathMessage(Object cause) {
-        if (cause instanceof Char && cause != this) {
-            return CoHeroMessages.get("companion.killed_by", ((Char) cause).name());
-        }
-        return CoHeroMessages.get("companion.died");
-    }
-
     private Mob nearestThreat(ArrayList<Mob> threats) {
         Mob result = null;
         int bestDistance = Integer.MAX_VALUE;
@@ -1168,7 +1048,7 @@ public class CoHeroAlly extends DirectableAlly {
      * conservative: current HP/shield are real effective health, only one usable potion is given
      * partial reserve value, and an Ankh is never treated as expendable combat HP.
      */
-    private boolean isCombatInvulnerable(Mob threat) {
+    boolean isCombatInvulnerable(Mob threat) {
         if (threat == null || !threat.isAlive()) {
             return false;
         }
@@ -1343,7 +1223,7 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        Boolean escapeUtility = tryEscapeUtility(threats);
+        Boolean escapeUtility = combat.tryEscapeUtility(threats);
         if (escapeUtility != null) {
             return escapeUtility;
         }
@@ -1446,7 +1326,7 @@ public class CoHeroAlly extends DirectableAlly {
         return riskEstimator.estimatedHitChance(threat, defenderCell);
     }
 
-    private float blessRollMultiplier(Char target) {
+    float blessRollMultiplier(Char target) {
         return riskEstimator.blessRollMultiplier(target);
     }
 
@@ -1927,7 +1807,7 @@ public class CoHeroAlly extends DirectableAlly {
                 && riskEstimator.hasNonAdjacentAttackCapability(threat, Dungeon.hero);
     }
 
-    private boolean anyThreatCanAttackNow(ArrayList<Mob> threats) {
+    boolean anyThreatCanAttackNow(ArrayList<Mob> threats) {
         for (Mob threat : threats) {
             if (threat.coHeroCanAttackFrom(threat.pos, this)) {
                 return true;
@@ -1936,392 +1816,10 @@ public class CoHeroAlly extends DirectableAlly {
         return false;
     }
 
-    private Boolean tryDirectRangedAttack(
-            Mob preferredTarget, ArrayList<Mob> visibleThreats) {
-        if (preferredTarget == null || visibleThreats == null || visibleThreats.isEmpty()) {
-            return null;
-        }
-
-        // Ordinary melee reach still wins when already established. Against active ranged
-        // pressure, only physical adjacency counts as established melee; extended reach must not
-        // suppress a legal ranged fallback if closing/cover was impossible this turn.
-        boolean preferredMeleeEstablished = canAttack(preferredTarget)
-                && (!isCurrentRangedPressure(preferredTarget)
-                    || Dungeon.level.adjacent(pos, preferredTarget.pos));
-        if (preferredMeleeEstablished) {
-            return null;
-        }
-
-        RangedChoice preferred = chooseRangedAttack(preferredTarget);
-        if (preferred != null) {
-            return performRangedChoice(preferredTarget, preferred);
-        }
-
-        Mob alternateTarget = null;
-        RangedChoice alternateChoice = null;
-        int alternateDistance = Integer.MAX_VALUE;
-
-        for (Mob threat : visibleThreats) {
-            if (threat == preferredTarget
-                    || threat == null
-                    || !threat.isAlive()
-                    || threat.invisible > 0) {
-                continue;
-            }
-
-            boolean meleeEstablished = canAttack(threat)
-                    && (!isCurrentRangedPressure(threat)
-                        || Dungeon.level.adjacent(pos, threat.pos));
-            if (meleeEstablished) {
-                continue;
-            }
-
-            RangedChoice choice = chooseRangedAttack(threat);
-            if (choice == null) {
-                continue;
-            }
-
-            int distance = Dungeon.level.distance(pos, threat.pos);
-            if (alternateTarget == null
-                    || distance < alternateDistance
-                    || (distance == alternateDistance && threat.id() < alternateTarget.id())) {
-                alternateTarget = threat;
-                alternateChoice = choice;
-                alternateDistance = distance;
-            }
-        }
-
-        return alternateTarget == null
-                ? null
-                : performRangedChoice(alternateTarget, alternateChoice);
-    }
-
-    private Boolean performRangedChoice(Mob targetMob, RangedChoice ranged) {
-        if (targetMob == null || ranged == null) {
-            return null;
-        }
-
-        if (ranged.missile != null) {
-            logBossDecision("missile_attack:" + targetMob.id(),
-                    targetDebug(targetMob) + " -> throw "
-                            + ranged.missile.getClass().getSimpleName());
-            return performMissileAttack(targetMob, ranged.missile);
-        }
-        if (ranged.spiritBow != null) {
-            logBossDecision("spirit_bow:" + targetMob.id(),
-                    targetDebug(targetMob) + " -> Spirit Bow");
-            return performSpiritBowAttack(targetMob, ranged.spiritBow);
-        }
-        if (ranged.wand != null) {
-            logBossDecision(
-                    "wand_attack:" + targetMob.id() + ":"
-                            + ranged.wand.getClass().getSimpleName(),
-                    targetDebug(targetMob) + " -> "
-                            + ranged.wand.getClass().getSimpleName());
-            return performWandCast(ranged.wandTargetCell, ranged.wand);
-        }
-
-        throw new IllegalStateException("Empty CoHero ranged choice");
-    }
-
     /**
      * Returns null when CoHero has no currently usable attack capability and should flee.
      * Otherwise returns the synchronous/asynchronous result expected by Actor.act().
      */
-    private Boolean tryCombat(Mob targetMob) {
-        if (targetMob == null || isCombatInvulnerable(targetMob)) {
-            return null;
-        }
-
-        // Melee is preferred once the intended engagement distance is actually established.
-        // Against a ranged enemy, extended weapon reach is not enough: adjacency is required.
-        boolean rangedPressure = isCurrentRangedPressure(targetMob);
-        if (canAttack(targetMob)
-                && (!rangedPressure || Dungeon.level.adjacent(pos, targetMob.pos))) {
-            logBossDecision("melee_attack:" + targetMob.id(),
-                    targetDebug(targetMob) + " -> melee attack");
-
-            return performMeleeAttack(targetMob);
-        }
-
-        RangedChoice ranged = chooseRangedAttack(targetMob);
-        if (ranged != null) {
-            return performRangedChoice(targetMob, ranged);
-        }
-
-        Boolean wardRecall = tryWardRecall(targetMob);
-        if (wardRecall != null) {
-            return wardRecall;
-        }
-
-        // If we have a usable combat tool but cannot use it from this cell, close distance.
-        if (hasUsableCombatCapability(targetMob)) {
-            int oldPos = pos;
-            setMovementDecision("combat_close_distance", targetMob.pos);
-            if (getCloser(targetMob.pos)) {
-                logBossDecision("close_distance:" + targetMob.id(),
-                        targetDebug(targetMob) + " -> close distance");
-                spend(1 / speed());
-                return moveSprite(oldPos, pos);
-            }
-            spend(TICK);
-            return true;
-        }
-
-        return null;
-    }
-
-    private RangedChoice chooseRangedAttack(Mob targetMob) {
-        if (targetMob == null || isCombatInvulnerable(targetMob)) {
-            return null;
-        }
-        ArrayList<MissileWeapon> missiles = new ArrayList<>();
-        for (MissileWeapon missile : inventory.missileWeapons()) {
-            if (supportedMissileWeapon(missile)
-                    && !missile.cursed
-                    && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
-                missiles.add(missile);
-            }
-        }
-
-        SpiritBow spiritBow = inventory.spiritBow();
-        MissileWeapon spiritArrow = null;
-        if (spiritBow != null
-                && !spiritBow.cursed
-                && new Ballistica(pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
-            spiritArrow = spiritBow.knockArrow();
-        }
-
-        Wand guaranteedControl = null;
-        ArrayList<Wand> damageWands = new ArrayList<>();
-        for (Wand wand : inventory.wands()) {
-            if (!CoHeroWandAdapter.supported(wand)) {
-                continue;
-            }
-            if (CoHeroWandAdapter.guaranteedControl(wand, this, targetMob)) {
-                if (guaranteedControl == null || wand.buffedLvl() > guaranteedControl.buffedLvl()) {
-                    guaranteedControl = wand;
-                }
-            } else if (CoHeroWandAdapter.canAffectEnemy(wand, this, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                damageWands.add(wand);
-            }
-        }
-
-        // A guaranteed corruption/doom conversion is treated as higher-value control than damage.
-        if (guaranteedControl != null) {
-            return RangedChoice.wand(guaranteedControl, targetMob.pos);
-        }
-
-        if ((!missiles.isEmpty() || spiritArrow != null) && !damageWands.isEmpty()) {
-            float bestPhysicalAccuracy = 0f;
-            float clericAccuracyMultiplier = blessRollMultiplier(this);
-            for (MissileWeapon missile : missiles) {
-                bestPhysicalAccuracy = Math.max(
-                        bestPhysicalAccuracy,
-                        attackSkillWith(missile, targetMob) * clericAccuracyMultiplier);
-            }
-            if (spiritArrow != null) {
-                bestPhysicalAccuracy = Math.max(
-                        bestPhysicalAccuracy,
-                        attackSkillWith(spiritArrow, targetMob) * clericAccuracyMultiplier);
-            }
-            float targetEvasion = targetMob.defenseSkill(this) * blessRollMultiplier(targetMob);
-            if (targetEvasion > bestPhysicalAccuracy) {
-                Wand best = bestDamageWand(damageWands, targetMob);
-                return RangedChoice.wand(
-                        best, CoHeroWandAdapter.aimCell(best, this, targetMob));
-            }
-        }
-
-        MissileWeapon bestMissile = null;
-        float bestMissileDamage = Float.NEGATIVE_INFINITY;
-        for (MissileWeapon missile : missiles) {
-            float damage = expectedMissileDamage(missile);
-            if (bestMissile == null || damage > bestMissileDamage) {
-                bestMissile = missile;
-                bestMissileDamage = damage;
-            }
-        }
-
-        float spiritBowDamage = spiritBow == null || spiritArrow == null
-                ? Float.NEGATIVE_INFINITY
-                : expectedSpiritBowDamage(spiritBow);
-        boolean spiritBowBestPhysical = spiritBowDamage > bestMissileDamage;
-        float bestPhysicalDamage = spiritBowBestPhysical ? spiritBowDamage : bestMissileDamage;
-
-        Wand bestWand = bestDamageWand(damageWands, targetMob);
-        float bestWandDamage = bestWand == null
-                ? Float.NEGATIVE_INFINITY
-                : CoHeroWandAdapter.expectedDamage(bestWand, this, targetMob);
-
-        // Stable tie-break: preserve wand charges when physical expected damage is equal.
-        if (bestPhysicalDamage > Float.NEGATIVE_INFINITY
-                && (bestWand == null || bestPhysicalDamage >= bestWandDamage)) {
-            return spiritBowBestPhysical
-                    ? RangedChoice.spiritBow(spiritBow)
-                    : RangedChoice.missile(bestMissile);
-        }
-        if (bestWand != null) {
-            return RangedChoice.wand(
-                    bestWand, CoHeroWandAdapter.aimCell(bestWand, this, targetMob));
-        }
-
-        // Control-only wands are fallbacks when no direct ranged damage is currently available.
-        Wand fallbackControl = null;
-        for (Wand wand : inventory.wands()) {
-            if (CoHeroWandAdapter.fallbackControl(wand, this, targetMob)
-                    && (fallbackControl == null || wand.buffedLvl() > fallbackControl.buffedLvl())) {
-                fallbackControl = wand;
-            }
-        }
-        return fallbackControl == null
-                ? null
-                : RangedChoice.wand(fallbackControl, targetMob.pos);
-    }
-
-    private Boolean tryWardRecall(Mob targetMob) {
-        if (targetMob == null || rooted) {
-            return null;
-        }
-
-        ArrayList<Mob> threats = visibleAwakeEnemies();
-        if (anyThreatCanAttackNow(threats)) {
-            return null;
-        }
-
-        CoHeroWardingPlanner.RecallPlan best = null;
-        for (Wand candidate : inventory.wands()) {
-            if (!(candidate instanceof WandOfWarding)) {
-                continue;
-            }
-
-            CoHeroWardingPlanner.RecallPlan plan =
-                    CoHeroWardingPlanner.chooseRecall(
-                            (WandOfWarding) candidate, this, targetMob);
-            if (plan != null && (best == null || plan.gain > best.gain)) {
-                best = plan;
-            }
-        }
-
-        if (best == null || best.ward == null || !best.ward.isAlive()) {
-            return null;
-        }
-
-        Ward ward = best.ward;
-        if (Dungeon.level.adjacent(pos, ward.pos)) {
-            if (ward.coHeroDismiss(this)) {
-                path = null;
-                spend(TICK);
-                return true;
-            }
-            return null;
-        }
-
-        int approach = chooseWardRecallApproachCell(ward);
-        if (approach == -1) {
-            return null;
-        }
-
-        PathFinder.Path recallPath =
-                Dungeon.findPath(this, approach, Dungeon.level.passable, fieldOfView, true);
-        if (recallPath == null || recallPath.isEmpty()) {
-            return null;
-        }
-
-        int step = recallPath.getFirst();
-        if (!isMovementSafe(step)) {
-            return null;
-        }
-
-        Char blocker = Actor.findChar(step);
-        if (blocker != null && blocker != this) {
-            return null;
-        }
-
-        int oldPos = pos;
-        setMovementDecision("ward_recall_approach", approach);
-        move(step, true);
-        spend(1 / speed());
-        Dungeon.level.updateFieldOfView(this, fieldOfView);
-        revealVisibleCells();
-        return moveSprite(oldPos, pos);
-    }
-
-    private int chooseWardRecallApproachCell(Ward ward) {
-        int bestCell = -1;
-        int bestDistance = Integer.MAX_VALUE;
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = ward.pos + offset;
-            if (!Dungeon.level.insideMap(cell)
-                    || Dungeon.level.distance(ward.pos, cell) != 1
-                    || !Dungeon.level.passable[cell]
-                    || !isMovementSafe(cell)) {
-                continue;
-            }
-
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != this) {
-                continue;
-            }
-
-            if (cell == pos) {
-                return cell;
-            }
-
-            PathFinder.Path recallPath =
-                    Dungeon.findPath(this, cell, Dungeon.level.passable, fieldOfView, true);
-            if (recallPath == null) {
-                continue;
-            }
-
-            int distance = recallPath.size();
-            if (bestCell == -1
-                    || distance < bestDistance
-                    || (distance == bestDistance && cell < bestCell)) {
-                bestCell = cell;
-                bestDistance = distance;
-            }
-        }
-
-        return bestCell;
-    }
-
-    private Wand bestDamageWand(ArrayList<Wand> wands, Mob targetMob) {
-        Wand best = null;
-        float bestDamage = Float.NEGATIVE_INFINITY;
-        for (Wand wand : wands) {
-            float damage = CoHeroWandAdapter.expectedDamage(wand, this, targetMob);
-            if (best == null || damage > bestDamage) {
-                best = wand;
-                bestDamage = damage;
-            }
-        }
-        return best;
-    }
-
-    private boolean hasUsableCombatCapability(Mob targetMob) {
-        if (weapon() != null) {
-            return true;
-        }
-        for (MissileWeapon missile : inventory.missileWeapons()) {
-            if (supportedMissileWeapon(missile) && !missile.cursed) {
-                return true;
-            }
-        }
-        SpiritBow spiritBow = inventory.spiritBow();
-        if (spiritBow != null && !spiritBow.cursed) {
-            return true;
-        }
-        for (Wand wand : inventory.wands()) {
-            if (CoHeroWandAdapter.hasOffensivePotential(wand, this, targetMob)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     static boolean supportedMissileWeapon(MissileWeapon missile) {
         // Only stock projectile types that use the standard rangedHit/rangedMiss path are enabled.
         // Exact classes are intentional: unknown fork projectile semantics fail closed.
@@ -2363,210 +1861,7 @@ public class CoHeroAlly extends DirectableAlly {
         return average;
     }
 
-    private Boolean tryEscapeUtility(ArrayList<Mob> visibleThreats) {
-        // Blast Wave is a survival tool when a safe blast reduces next-turn attackers,
-        // even when another wand would deal more raw damage.
-        for (Wand wand : inventory.wands()) {
-            int blastAim = CoHeroWandAdapter.blastWaveEscapeAim(wand, this, visibleThreats);
-            if (blastAim != -1) {
-                return performWandCast(blastAim, wand);
-            }
-        }
-
-        for (Mob threat : visibleThreats) {
-            for (Wand wand : inventory.wands()) {
-                if (CoHeroWandAdapter.regrowthUsefulForEscape(wand, this, threat, visibleThreats)) {
-                    return performWandCast(threat.pos, wand);
-                }
-            }
-        }
-        return null;
-    }
-
-    private Boolean trySupportAction() {
-        if (Dungeon.hero == null
-                || Dungeon.hero.pos < 0
-                || Dungeon.hero.pos >= fieldOfView.length) {
-            return null;
-        }
-
-        boolean heroVisible = fieldOfView[Dungeon.hero.pos];
-        Wand best = null;
-        for (Wand wand : inventory.wands()) {
-            if (CoHeroWandAdapter.transfusionShouldSupportHero(
-                    wand, this, Dungeon.hero, heroVisible)
-                    && (best == null || wand.buffedLvl() > best.buffedLvl())) {
-                best = wand;
-            }
-        }
-        return best == null ? null : performWandCast(Dungeon.hero.pos, best);
-    }
-
-    private boolean performSpiritBowAttack(Mob targetMob, SpiritBow bow) {
-        MissileWeapon arrow = bow.knockArrow();
-        float delay = arrow.castDelay(this, targetMob.pos);
-        arrow.throwSound();
-
-        boolean heroVisible = CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos);
-        if (heroVisible && sprite != null && sprite.parent != null && targetMob.sprite != null) {
-            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
-                    sprite,
-                    targetMob.sprite,
-                    arrow,
-                    new Callback() {
-                        @Override
-                        public void call() {
-                            resolveSpiritBowAttack(targetMob, arrow);
-                            spend(delay);
-                            CoHeroAlly.this.next();
-                        }
-                    });
-            return false;
-        }
-
-        CoHeroRemoteView.attack(this, targetMob.pos);
-        resolveSpiritBowAttack(targetMob, arrow);
-        spend(delay);
-        return true;
-    }
-
-    private boolean performMeleeAttack(Mob targetMob) {
-        float delay = attackDelay();
-        boolean heroVisible = CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos);
-
-        if (heroVisible && sprite != null && targetMob.sprite != null) {
-            sprite.attack(targetMob.pos, new Callback() {
-                @Override
-                public void call() {
-                    attack(targetMob);
-                    Invisibility.dispel(CoHeroAlly.this);
-                    spend(delay);
-                    CoHeroAlly.this.next();
-                }
-            });
-            return false;
-        }
-
-        CoHeroRemoteView.attack(this, targetMob.pos);
-        attack(targetMob);
-        Invisibility.dispel(this);
-        spend(delay);
-        return true;
-    }
-
-    private void resolveSpiritBowAttack(Mob targetMob, MissileWeapon arrow) {
-        activeMissileWeapon = arrow;
-        try {
-            attack(targetMob);
-        } finally {
-            activeMissileWeapon = null;
-        }
-        Invisibility.dispel(this);
-    }
-
-    private boolean performMissileAttack(Mob targetMob, MissileWeapon source) {
-        MissileWeapon thrown = inventory.takeOneMissile(source);
-        if (thrown == null) {
-            throw new IllegalStateException("CoHero missile source disappeared before attack");
-        }
-        loot.markThrown(thrown.setID, 1);
-
-        float delay = thrown.castDelay(this, targetMob.pos);
-        boolean heroVisible = CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetMob.pos);
-        if (heroVisible && sprite != null && sprite.parent != null && targetMob.sprite != null) {
-            ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
-                    sprite,
-                    targetMob.sprite,
-                    thrown,
-                    new Callback() {
-                        @Override
-                        public void call() {
-                            resolveMissileAttack(targetMob, thrown);
-                            spend(delay);
-                            CoHeroAlly.this.next();
-                        }
-                    });
-            return false;
-        }
-
-        CoHeroRemoteView.attack(this, targetMob.pos);
-        resolveMissileAttack(targetMob, thrown);
-        spend(delay);
-        return true;
-    }
-
-    private void resolveMissileAttack(Mob targetMob, MissileWeapon thrown) {
-        boolean hit;
-        activeMissileWeapon = thrown;
-        try {
-            hit = attack(targetMob);
-        } finally {
-            activeMissileWeapon = null;
-        }
-
-        boolean survived = thrown.coHeroResolveThrow(this, targetMob, hit);
-        if (!survived) {
-            loot.markRecovered(thrown.setID, 1);
-        }
-        Invisibility.dispel(this);
-    }
-
-    private boolean performWandCast(int targetCell, Wand wand) {
-        if (targetCell < 0) {
-            throw new IllegalStateException("CoHero wand choice has no legal aim cell");
-        }
-
-        boolean heroVisible = CoHero.heroCanSee(pos) || CoHero.heroCanSee(targetCell);
-        if (heroVisible && sprite != null && sprite.parent != null) {
-            wand.coHeroCast(this, targetCell, true, new Callback() {
-                @Override
-                public void call() {
-                    CoHeroAlly.this.next();
-                }
-            });
-            Invisibility.dispel(this);
-            spend(TICK);
-            return false;
-        }
-
-        CoHeroRemoteView.zap(this, targetCell);
-        wand.coHeroCast(this, targetCell, false, null);
-        Invisibility.dispel(this);
-        spend(TICK);
-        return true;
-    }
-
-    private static final class RangedChoice {
-        final MissileWeapon missile;
-        final Wand wand;
-        final SpiritBow spiritBow;
-        final int wandTargetCell;
-
-        private RangedChoice(
-                MissileWeapon missile, Wand wand, SpiritBow spiritBow, int wandTargetCell) {
-            this.missile = missile;
-            this.wand = wand;
-            this.spiritBow = spiritBow;
-            this.wandTargetCell = wandTargetCell;
-        }
-
-        static RangedChoice missile(MissileWeapon missile) {
-            return new RangedChoice(missile, null, null, -1);
-        }
-
-        static RangedChoice wand(Wand wand, int targetCell) {
-            if (wand == null || targetCell < 0) {
-                return null;
-            }
-            return new RangedChoice(null, wand, null, targetCell);
-        }
-
-        static RangedChoice spiritBow(SpiritBow spiritBow) {
-            return new RangedChoice(null, null, spiritBow, -1);
-        }
-    }
-
-    private void revealVisibleCells() {
+    void revealVisibleCells() {
         vision.revealVisibleCells();
     }
 
@@ -2574,7 +1869,7 @@ public class CoHeroAlly extends DirectableAlly {
         return vision.tryAutoTorch();
     }
 
-    private ArrayList<Mob> visibleAwakeEnemies() {
+    ArrayList<Mob> visibleAwakeEnemies() {
         return vision.visibleAwakeEnemies();
     }
 
@@ -2644,6 +1939,18 @@ public class CoHeroAlly extends DirectableAlly {
 
     void spendActionTime(float time) {
         spend(time);
+    }
+
+    boolean animateMoveFrom(int oldPos) {
+        return moveSprite(oldPos, pos);
+    }
+
+    boolean attackTarget(Char target) {
+        return attack(target);
+    }
+
+    void finishAsyncAction() {
+        next();
     }
 
     void clearNavigationPath() {
