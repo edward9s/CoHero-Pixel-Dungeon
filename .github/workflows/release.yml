@@ -291,78 +291,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python cohero/scripts/patch_app_package.py spd/build.gradle
-          python cohero/scripts/patch_gamescene.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java
-          python cohero/scripts/patch_cohero_visual_fov.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java
-          python cohero/scripts/patch_hero_transition.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
-          python cohero/scripts/patch_cohero_class_traits.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java
-          python cohero/scripts/patch_cohero_ring_traits.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfArcana.java
-          python cohero/scripts/patch_equipment_identification.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
-          python cohero/scripts/patch_hero_select.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/HeroSelectScene.java
-          python cohero/scripts/patch_dungeon_save.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/Dungeon.java
-          python cohero/scripts/patch_games_in_progress.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/GamesInProgress.java
-          python cohero/scripts/patch_start_scene.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/StartScene.java
-          python cohero/scripts/patch_version_ui.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java
-          python cohero/scripts/patch_level_mobs.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java
-          python cohero/scripts/patch_mob_cohero.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GreatCrab.java
-          python cohero/scripts/patch_prison_boss_cohero.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/PrisonBossLevel.java
-          python cohero/scripts/patch_locked_floor_cohero.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/buffs/LockedFloor.java
-          python cohero/scripts/patch_chasm_cohero.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/Chasm.java
-          python cohero/scripts/patch_highgrass.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/HighGrass.java
-          python cohero/scripts/patch_dread_cohero.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/buffs/Dread.java
-          python cohero/scripts/patch_delayed_rockfall.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/DelayedRockFall.java
-          python cohero/scripts/patch_vault_firewall.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java
-          python cohero/scripts/patch_missileweapon.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java
-          python cohero/scripts/patch_special_weapons.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/SpiritBow.java
-          python cohero/scripts/patch_wands.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfMagicMissile.java
-          python cohero/scripts/patch_blastwave_cohero.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfBlastWave.java
-          python cohero/scripts/patch_living_earth.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfLivingEarth.java
-          python cohero/scripts/patch_elemental_blast_living_earth.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/abilities/mage/ElementalBlast.java
-          python cohero/scripts/patch_cohero_wand_types.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFrost.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfDisintegration.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfLightning.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfPrismaticLight.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfRegrowth.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfTransfusion.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorruption.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorrosion.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFireblast.java \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfWarding.java
+          bash cohero/integration/shattered/apply.sh base spd cohero
 
       - name: Patch and merge SMM
         if: matrix.variant == 'smm'
@@ -385,8 +314,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python cohero/scripts/patch_wndgame.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
+          bash cohero/integration/shattered/apply.sh wndgame spd cohero
           python cohero/scripts/patch_smm_longpress.py \
             spd/core/src/main/java/com/spd/mod/mechanics/ModAssassinate.java
 
@@ -395,16 +323,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python cohero/scripts/patch_wndgame.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndGame.java
+          bash cohero/integration/shattered/apply.sh wndgame spd cohero
 
       - name: Patch CoHero messages
         shell: bash
         run: |
           set -euo pipefail
-          python cohero/scripts/patch_messages.py \
-            spd/core/src/main/assets/messages/misc \
-            cohero/messages
+          bash cohero/integration/shattered/apply.sh messages spd cohero
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
