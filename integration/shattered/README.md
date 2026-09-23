@@ -65,17 +65,25 @@ These are important for the finished port but should not block early gameplay br
 - `GameScene.java` — locator, inventory tag, remote view, hazard overlays, and examination visibility.
 - message resources — CoHero strings.
 
-## High-churn patch implementations
+## Patch-target invariant
 
-When a fork diverges, inspect these first:
+The Shattered profile now keeps Java patch ownership one-to-one:
 
-1. `patch_cohero_wand_types.py` — many concrete wand implementations.
-2. `patch_gamescene.py` — lifecycle plus several UI/presentation seams.
-3. `patch_mob_cohero.py` — core mob behavior and one Great Crab specialization.
-4. `patch_equipment_identification.py` — coordinated changes across equipment and Hero EXP.
-5. `patch_special_weapons.py` — Mage staff and Spirit Bow semantics.
+- 44 Java patch calls target 44 unique upstream Java files.
+- each Java patch script edits exactly one upstream Java file;
+- each upstream Java file is owned by exactly one patch script.
 
-These multi-target scripts are the next candidates for decoupling so one fork-specific mismatch does not block unrelated seams.
+Keep this invariant when adding or changing Shattered hooks. It localizes fork drift: a changed Lightning implementation should fail the Lightning patch, not every wand patch.
+
+The highest-churn individual targets are still:
+
+1. `GameScene.java` / `patch_gamescene.py` — lifecycle plus several UI/presentation seams.
+2. `Mob.java` / `patch_mob_cohero.py` — core mob attack, surprise, sleep and transport semantics.
+3. individual wand classes — concrete caster/effect behavior, now isolated into one script per wand.
+4. `Hero.java` / `patch_hero.py` — transition interception plus shared identification EXP.
+5. `Wand.java` / `patch_wand_base.py` — common non-Hero wand-caster context.
+
+The number of upstream files has not been artificially reduced; instead, failures are now localized to the actual host file that diverged.
 
 ## Porting rules
 
