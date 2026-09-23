@@ -41,20 +41,6 @@ patch = anchor + """	/**
 		}
 	}
 
-	public boolean coHeroShouldBlockPresentation(Char target) {
-		boolean blocksHero = target == Dungeon.hero
-				&& (com.spd.cohero.CoHero.heroCanSee(pos)
-				|| com.spd.cohero.CoHero.heroCanSee(target.pos));
-		if (blocksHero) {
-			com.spd.cohero.CoHeroPresentation.cancel(this);
-		}
-		return blocksHero;
-	}
-
-	public boolean coHeroMovementPresentationNonBlocking() {
-		return enemy instanceof com.spd.cohero.CoHeroAlly;
-	}
-
 	/**
 	 * CoHero-only surprise semantics. This deliberately does not feed Mob.surprisedBy(), because
 	 * the stock path also records Hero sneak-attack statistics and Hero-specific surprise effects.
@@ -209,44 +195,20 @@ attack_anchor = """	protected boolean doAttack( Char enemy ) {
 """
 
 attack_patch = """	protected boolean doAttack( Char enemy ) {
-
-		boolean blocksHero = coHeroShouldBlockPresentation(enemy);
-		boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(pos)
-				|| com.spd.cohero.CoHero.heroCanSee(enemy.pos);
-
-		if (sprite != null && blocksHero) {
+		
+		if (sprite != null && (sprite.visible || enemy.sprite.visible)) {
 			sprite.attack( enemy.pos );
 			return false;
+			
+		} else {
+			com.spd.cohero.CoHeroRemoteView.attack(this, enemy.pos);
+			attack( enemy );
+			Invisibility.dispel(this);
+			spend( attackDelay() );
+			return true;
 		}
-
-		long presentationToken = com.spd.cohero.CoHeroPresentation.NONE;
-		if (sprite != null
-				&& com.spd.cohero.CoHeroPresentation.shouldShow(pos, enemy.pos)) {
-			if (heroVisible) {
-				sprite.interruptMotion();
-				sprite.place(pos);
-				presentationToken = com.spd.cohero.CoHeroPresentation.replace(this);
-			} else {
-				presentationToken = com.spd.cohero.CoHeroPresentation.tryBegin(this);
-			}
-		}
-
-		if (presentationToken != com.spd.cohero.CoHeroPresentation.NONE) {
-			final long token = presentationToken;
-			sprite.attack(enemy.pos, new com.watabou.utils.Callback() {
-				@Override
-				public void call() {
-					com.spd.cohero.CoHeroPresentation.complete(Mob.this, token);
-				}
-			});
-		}
-
-		attack( enemy );
-		Invisibility.dispel(this);
-		spend( attackDelay() );
-		return true;
 	}
-
+	
 	@Override
 	public void onAttackComplete() {
 		attack( enemy );
@@ -256,8 +218,8 @@ attack_patch = """	protected boolean doAttack( Char enemy ) {
 	}
 """
 
-if "CoHeroPresentation.tryBegin(this)" in text:
-    raise SystemExit("CoHero nonblocking Mob attack patch is already present")
+if "CoHeroRemoteView.attack(this, enemy.pos)" in text:
+    raise SystemExit("CoHero remote Mob attack hook is already present")
 if text.count(attack_anchor) != 1:
     raise SystemExit(
         f"expected exactly one Mob attack presentation block, found {text.count(attack_anchor)}"
