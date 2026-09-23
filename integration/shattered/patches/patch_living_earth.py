@@ -8,18 +8,18 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
-def replace_once(old, new, label):
+def replace_exact(old, new, label, expected=1):
     global text
     count = text.count(old)
-    if count != 1:
-        raise SystemExit(f"expected exactly one {label} anchor, found {count}")
-    text = text.replace(old, new, 1)
+    if count != expected:
+        raise SystemExit(f"expected exactly {expected} {label} anchor(s), found {count}")
+    text = text.replace(old, new, expected)
 
 if "private int ownerId = -1;" in text:
     raise SystemExit("CoHero Living Earth hooks are already present")
 
 # Make all casts use Wand.zapUser(), which is Hero for normal play and CoHero for companion casts.
-replace_once(
+replace_exact(
 """	@Override
 	public void onZap(Ballistica bolt) {
 		Char ch = Actor.findChar(bolt.collisionPos);
@@ -53,18 +53,38 @@ replace_once(
 "onZap owner lookup")
 
 # All owner-sensitive setInfo/distance/effects inside onZap now refer to the actual caster.
-text = text.replace("guardian.setInfo(curUser, buffedLvl(), armorToAdd);",
-                    "guardian.setInfo(user, progressionHero().lvl, buffedLvl(), armorToAdd);")
-text = text.replace("guardian.setInfo(curUser, buffedLvl(), buff.armor);",
-                    "guardian.setInfo(user, progressionHero().lvl, buffedLvl(), buff.armor);")
-text = text.replace("Buff.affect(curUser, RockArmor.class)",
-                    "Buff.affect(user, RockArmor.class)")
-text = text.replace("Dungeon.level.trueDistance(c, curUser.pos)",
-                    "Dungeon.level.trueDistance(c, user.pos)")
-text = text.replace("Dungeon.level.trueDistance(closest, curUser.pos)",
-                    "Dungeon.level.trueDistance(closest, user.pos)")
-text = text.replace("curUser.sprite.centerEmitter()",
-                    "user.sprite.centerEmitter()")
+replace_exact(
+    "guardian.setInfo(curUser, buffedLvl(), armorToAdd);",
+    "guardian.setInfo(user, progressionHero().lvl, buffedLvl(), armorToAdd);",
+    "guardian setInfo with armor",
+    expected=2,
+)
+replace_exact(
+    "guardian.setInfo(curUser, buffedLvl(), buff.armor);",
+    "guardian.setInfo(user, progressionHero().lvl, buffedLvl(), buff.armor);",
+    "guardian setInfo with rock armor",
+)
+replace_exact(
+    "Buff.affect(curUser, RockArmor.class)",
+    "Buff.affect(user, RockArmor.class)",
+    "rock armor target",
+)
+replace_exact(
+    "Dungeon.level.trueDistance(c, curUser.pos)",
+    "Dungeon.level.trueDistance(c, user.pos)",
+    "candidate distance",
+)
+replace_exact(
+    "Dungeon.level.trueDistance(closest, curUser.pos)",
+    "Dungeon.level.trueDistance(closest, user.pos)",
+    "closest distance",
+)
+replace_exact(
+    "curUser.sprite.centerEmitter()",
+    "user.sprite.centerEmitter()",
+    "caster particle source",
+    expected=2,
+)
 
 # Do not let one owner's Living Earth wand damage the other owner's guardian.
 foreign_guardian_anchor = """		//shooting at the guardian
@@ -80,7 +100,7 @@ foreign_guardian_patch = """		// A Hero and CoHero may each own a guardian. The 
 		//shooting at the guardian
 		if (guardian != null && guardian == ch){
 """
-replace_once(foreign_guardian_anchor, foreign_guardian_patch, "foreign guardian guard")
+replace_exact(foreign_guardian_anchor, foreign_guardian_patch, "foreign guardian guard")
 
 # Guard against upstream drift: no curUser references should remain in onZap.
 on_zap_start = text.index("\tpublic void onZap(Ballistica bolt)")
@@ -110,10 +130,10 @@ helper = """	private EarthGuardian guardianFor(Char owner) {
 	}
 
 """
-replace_once(insert_before, helper + insert_before, "guardian lookup insertion")
+replace_exact(insert_before, helper + insert_before, "guardian lookup insertion")
 
 # FX must originate from the actual caster.
-replace_once(
+replace_exact(
 """	@Override
 	public void fx(Ballistica bolt, Callback callback) {
 		MagicMissile.boltFromChar(curUser.sprite.parent,
@@ -138,7 +158,7 @@ replace_once(
 "Living Earth fx")
 
 # Staff proc uses the actual attacker as owner. CoHero shares Dungeon.hero progression level.
-replace_once(
+replace_exact(
 """	@Override
 	public void onHit(MagesStaff staff, Char attacker, Char defender, int damage) {
 		EarthGuardian guardian = null;
@@ -181,7 +201,7 @@ replace_once(
 "Living Earth staff proc")
 
 # EarthGuardian records and persists its owner. Legacy saves without ownerId belong to Dungeon.hero.
-replace_once(
+replace_exact(
 """		private int wandLevel = -1;
 
 		public void setInfo(Hero hero, int wandLevel, int healthToAdd){
@@ -239,7 +259,7 @@ replace_once(
 "EarthGuardian owner state")
 
 # Save ownerId.
-replace_once(
+replace_exact(
 """		private static final String DEFENSE = "defense";
 		private static final String WAND_LEVEL = "wand_level";
 
@@ -280,7 +300,7 @@ replace_once(
 "EarthGuardian persistence")
 
 # Return remaining guardian HP to the correct owner. PowerOfMany remains Hero-only.
-replace_once(
+replace_exact(
 """			@Override
 			public boolean act(boolean enemyInFOV, boolean justAlerted) {
 				if (!enemyInFOV){
