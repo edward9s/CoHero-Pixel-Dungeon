@@ -29,8 +29,9 @@ expected_counts = {
 
 old_visibility = "sprite.visible || enemy.sprite.visible"
 hero_visibility = (
-    "com.spd.cohero.CoHero.heroCanSee(pos) "
-    "|| com.spd.cohero.CoHero.heroCanSee(enemy.pos)"
+    "!com.spd.cohero.CoHeroPresentation.isPending(this) "
+    "&& (com.spd.cohero.CoHero.heroCanSee(pos) "
+    "|| com.spd.cohero.CoHero.heroCanSee(enemy.pos))"
 )
 
 for relative, expected in expected_counts.items():
@@ -45,8 +46,8 @@ for relative, expected in expected_counts.items():
     print(f"patched {path}")
 
 # Necromancer's skeleton-support zap checks only sprite.visible and therefore becomes blocking
-# when the sprite is visible through CoHero FOV. Split gameplay from callback completion so the
-# remote zap can remain cosmetic without suspending Actor.process().
+# when the sprite is visible through CoHero FOV. Split gameplay from callback completion; remote
+# support resolves immediately instead of borrowing the stock blocking zap callback.
 necromancer_path = mobs_dir / "Necromancer.java"
 necromancer = necromancer_path.read_text(encoding="utf-8")
 
@@ -114,9 +115,6 @@ necro_complete_new = """	private void resolveSkeletonSupportZap() {
 	}
 
 	public void onZapComplete(){
-		if (com.spd.cohero.CoHeroPresentation.completeIfPending(this)) {
-			return;
-		}
 		resolveSkeletonSupportZap();
 		next();
 	}
@@ -141,18 +139,14 @@ necro_attack_old = """					//zap skeleton
 
 necro_attack_new = """					//zap skeleton
 					if (mySkeleton.HP < mySkeleton.HT || mySkeleton.buff(Adrenaline.class) == null) {
-						boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(pos)
-								|| com.spd.cohero.CoHero.heroCanSee(mySkeleton.pos);
+						boolean heroVisible = !com.spd.cohero.CoHeroPresentation.isPending(this)
+								&& (com.spd.cohero.CoHero.heroCanSee(pos)
+								|| com.spd.cohero.CoHero.heroCanSee(mySkeleton.pos));
 						if (sprite != null && heroVisible){
 							sprite.zap(mySkeleton.pos);
 							return false;
 						}
 
-						if (sprite != null
-								&& com.spd.cohero.CoHeroPresentation.shouldShow(pos, mySkeleton.pos)
-								&& com.spd.cohero.CoHeroPresentation.tryBegin(this)) {
-							sprite.zap(mySkeleton.pos);
-						}
 						resolveSkeletonSupportZap();
 					}
 """
@@ -244,9 +238,10 @@ ripper_leap_old = """				//do leap
 ripper_leap_new = """				//do leap
 				final int leapStart = pos;
 				final int leapLanding = leapPos;
-				boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(leapStart)
+				boolean heroVisible = !com.spd.cohero.CoHeroPresentation.isPending(RipperDemon.this)
+						&& (com.spd.cohero.CoHero.heroCanSee(leapStart)
 						|| com.spd.cohero.CoHero.heroCanSee(leapLanding)
-						|| com.spd.cohero.CoHero.heroCanSee(endPos);
+						|| com.spd.cohero.CoHero.heroCanSee(endPos));
 
 				if (heroVisible) {
 					sprite.visible = true;
