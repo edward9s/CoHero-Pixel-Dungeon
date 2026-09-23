@@ -1,14 +1,10 @@
 package com.spd.cohero;
 
-import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
@@ -17,21 +13,15 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
-import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
-import com.watabou.noosa.audio.Sample;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Random;
@@ -498,11 +488,7 @@ public class CoHeroAlly extends DirectableAlly {
             equippedArmor.coHeroUseForIdentification();
         }
 
-        WandOfLivingEarth.RockArmor rockArmor =
-                buff(WandOfLivingEarth.RockArmor.class);
-        if (rockArmor != null) {
-            damage = rockArmor.absorb(damage);
-        }
+        damage = CoHeroWandAdapter.absorbLivingEarthArmor(this, damage);
 
         return super.defenseProc(enemy, damage);
     }
@@ -693,7 +679,7 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
-            if (tryUseCombatStamina(combatTarget, visibleThreats)) {
+            if (survival.tryUseCombatStamina(combatTarget, visibleThreats)) {
                 return true;
             }
 
@@ -922,55 +908,6 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    private boolean tryUseCombatStamina(Mob targetMob, ArrayList<Mob> threats) {
-        if (targetMob == null
-                || threats == null
-                || threats.isEmpty()
-                || isRetreatingNow(targetMob, threats)
-                || buff(Stamina.class) != null
-                || buff(Haste.class) != null
-                || buff(Invisibility.class) != null) {
-            return false;
-        }
-
-        boolean rangedPressure = hasRangedPressure(threats);
-        boolean multipleThreats = threats.size() >= 2;
-        boolean bossFight = Char.hasProp(targetMob, Char.Property.BOSS)
-                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-
-        float outgoing = estimateOutgoingDpt(targetMob);
-        boolean shortTrivialFight = threats.size() == 1
-                && !rangedPressure
-                && !bossFight
-                && outgoing > 0.01f
-                && targetMob.HP <= outgoing;
-
-        if (shortTrivialFight || (!multipleThreats && !rangedPressure && !bossFight)) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoStaminaPotion();
-        if (!(potion instanceof PotionOfStamina)) {
-            return false;
-        }
-
-        Buff.prolong(this, Stamina.class, Stamina.DURATION);
-        Catalog.countUse(PotionOfStamina.class);
-        SpellSprite.show(this, SpellSprite.HASTE, 0.5f, 1f, 0.5f);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
-
-
-
-
-
-
-
-
-
-
     @Override
     public void die(Object cause) {
         if (revival.tryRevive(cause)) {
@@ -1077,7 +1014,7 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    private float estimateOutgoingDpt(Mob targetMob) {
+    float estimateOutgoingDpt(Mob targetMob) {
         return riskEstimator.estimateOutgoingDpt(targetMob);
     }
 
