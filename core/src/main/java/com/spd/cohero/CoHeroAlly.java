@@ -2693,7 +2693,12 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (!showPresentation) {
             sprite.turnTo(from, to);
-            sprite.place(to);
+            // If an older cosmetic motion is still running, let that tween finish and resync to
+            // the latest gameplay position in onMotionComplete(). Placing now would be overwritten
+            // by the still-running tweener on the next render frame.
+            if (!presentationMotionPending) {
+                sprite.place(to);
+            }
             return true;
         }
 
