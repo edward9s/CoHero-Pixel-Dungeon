@@ -14,8 +14,15 @@ def replace_once(text, old, new, label):
     return text.replace(old, new, 1)
 
 # Prismatic light: map effects are generic; only caster light/beam source was static.
-if "curUser" not in prismatic:
-    raise SystemExit("expected PrismaticLight curUser references")
+expected_user_lines = (
+    "Buff.prolong( curUser, Light.class, 2f + buffedLvl());",
+    "Buff.prolong( curUser, Light.class, 10f+buffedLvl()*5);",
+    "curUser.sprite.parent.add(",
+    "new Beam.LightRay(curUser.sprite.center(), DungeonTilemap.raisedTileCenterToWorld(beam.collisionPos)));",
+)
+actual_user_lines = tuple(line.strip() for line in prismatic.splitlines() if "curUser" in line)
+if sorted(actual_user_lines) != sorted(expected_user_lines):
+    raise SystemExit("unexpected PrismaticLight curUser references")
 prismatic = prismatic.replace("curUser", "zapUser()")
 
 
