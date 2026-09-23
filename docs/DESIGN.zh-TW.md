@@ -482,7 +482,7 @@ Wand 不同。SPD 的 Wand 使用流程歷史上以玩家 Hero 為中心：
 - 部分 `onZap()` 會讀取 `Dungeon.hero`、Hero Talent、Hero buff 或 Hero belongings。
 - 不同 Wand 的效果語意差異很大；有些是直接傷害，有些是 AOE、位移、地形、召喚、治療、控制或持續效果，不能只用「平均傷害最高」安全概括。
 
-因此採用 fail-closed capability adapter：Wand 保留原版本身的效果，但 CoHero cast 一律先完成必要 targeting／AOE 準備、`onZap()` 與 charge 結算；只要 caster 或 target 位於 Hero + CoHero 聯集視野，就建立 presentation-only FX，完全不可見時才省略。任何 CoHero Wand FX 都不阻止 Hero ready；FX callback 只用來結束 `CoHeroPresentation` pending，不再推進 gameplay 或 Actor 時間。CoHero adapter 只負責判斷 targeting、安全性與「直接傷害／控制／逃生／支援」語意。未知 Wand 類型不猜測、不自動使用。
+因此採用 fail-closed capability adapter：Wand 保留原版本身的效果，但 CoHero cast 一律先完成必要 targeting／AOE 準備、`onZap()` 與 charge 結算。若 cast 發生在 Hero FOV 內，使用真實 CoHero sprite 與原版 FX callback，同步方式與玩家正在觀看的原版 action 一致；若 Hero 看不到，則不建立真實 Wand FX，gameplay 直接完成，並由 `CoHeroRemoteView` 排入不影響 Actor scheduling 的遠端 zap presentation。Remote proxy 第一版只保證能看懂「誰在向哪裡施法」，不複製每一種 Wand 的完整 projectile／AOE 特效。CoHero adapter 只負責判斷 targeting、安全性與「直接傷害／控制／逃生／支援」語意。未知 Wand 類型不猜測、不自動使用。
 
 ## 8. Talent 與職業能力
 
