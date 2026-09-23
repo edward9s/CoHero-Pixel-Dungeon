@@ -95,13 +95,11 @@ jobs:
 
           python mod/scripts/patch_depth.py 26
 
-      - name: Patch CoHero-SMM interaction
+      - name: Patch CoHero WndGame after SMM injection
         shell: bash
         run: |
           set -euo pipefail
           bash cohero/integration/shattered/apply.sh wndgame spd_src cohero
-          python cohero/integration/smm/patches/patch_smm_longpress.py \
-            spd_src/core/src/main/java/com/spd/mod/mechanics/ModAssassinate.java
 
       - name: Patch CoHero messages
         shell: bash
