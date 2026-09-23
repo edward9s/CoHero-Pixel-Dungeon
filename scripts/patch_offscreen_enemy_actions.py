@@ -28,11 +28,7 @@ expected_counts = {
 }
 
 old_visibility = "sprite.visible || enemy.sprite.visible"
-hero_visibility = (
-    "!coHeroPresentationPending() "
-    "&& (com.spd.cohero.CoHero.heroCanSee(pos) "
-    "|| com.spd.cohero.CoHero.heroCanSee(enemy.pos))"
-)
+blocking_gate = "coHeroShouldBlockPresentation(enemy)"
 
 for relative, expected in expected_counts.items():
     path = mobs_dir / relative
@@ -42,7 +38,15 @@ for relative, expected in expected_counts.items():
         raise SystemExit(
             f"expected {expected} offscreen-action visibility anchor(s) in {path}, found {actual}"
         )
-    path.write_text(text.replace(old_visibility, hero_visibility), encoding="utf-8")
+
+    if relative == "Elemental.java":
+        # First occurrence selects the blocking ranged attack branch. The second only decides
+        # whether to draw lightning arcs after gameplay is already resolved, so leave it visual.
+        text = text.replace(old_visibility, blocking_gate, 1)
+    else:
+        text = text.replace(old_visibility, blocking_gate)
+
+    path.write_text(text, encoding="utf-8")
     print(f"patched {path}")
 
 # Necromancer's skeleton-support zap checks only sprite.visible and therefore becomes blocking
@@ -139,14 +143,6 @@ necro_attack_old = """					//zap skeleton
 
 necro_attack_new = """					//zap skeleton
 					if (mySkeleton.HP < mySkeleton.HT || mySkeleton.buff(Adrenaline.class) == null) {
-						boolean heroVisible = !coHeroPresentationPending()
-								&& (com.spd.cohero.CoHero.heroCanSee(pos)
-								|| com.spd.cohero.CoHero.heroCanSee(mySkeleton.pos));
-						if (sprite != null && heroVisible){
-							sprite.zap(mySkeleton.pos);
-							return false;
-						}
-
 						resolveSkeletonSupportZap();
 					}
 """
@@ -238,12 +234,10 @@ ripper_leap_old = """				//do leap
 ripper_leap_new = """				//do leap
 				final int leapStart = pos;
 				final int leapLanding = leapPos;
-				boolean heroVisible = !com.spd.cohero.CoHeroPresentation.isPending(RipperDemon.this)
-						&& (com.spd.cohero.CoHero.heroCanSee(leapStart)
-						|| com.spd.cohero.CoHero.heroCanSee(leapLanding)
-						|| com.spd.cohero.CoHero.heroCanSee(endPos));
+				boolean blocksHero = leapVictim == Dungeon.hero;
 
-				if (heroVisible) {
+				if (blocksHero) {
+					com.spd.cohero.CoHeroPresentation.cancel(RipperDemon.this);
 					sprite.visible = true;
 					sprite.jump(leapStart, leapLanding, new Callback() {
 						@Override
@@ -256,23 +250,32 @@ ripper_leap_new = """				//do leap
 					return false;
 				}
 
-				boolean showRemote = com.spd.cohero.CoHeroPresentation.shouldShow(
-						leapStart, leapLanding, endPos)
-						&& com.spd.cohero.CoHeroPresentation.tryBegin(RipperDemon.this);
-				if (showRemote) {
+				boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(leapStart)
+						|| com.spd.cohero.CoHero.heroCanSee(leapLanding)
+						|| com.spd.cohero.CoHero.heroCanSee(endPos);
+				long presentationToken = com.spd.cohero.CoHeroPresentation.NONE;
+				if (com.spd.cohero.CoHeroPresentation.shouldShow(
+						leapStart, leapLanding, endPos)) {
+					presentationToken = heroVisible
+							? com.spd.cohero.CoHeroPresentation.replace(RipperDemon.this)
+							: com.spd.cohero.CoHeroPresentation.tryBegin(RipperDemon.this);
+				}
+
+				if (presentationToken != com.spd.cohero.CoHeroPresentation.NONE) {
+					final long token = presentationToken;
 					sprite.visible = true;
 					sprite.jump(leapStart, leapLanding, new Callback() {
 						@Override
 						public void call() {
 							sprite.idle();
-							com.spd.cohero.CoHeroPresentation.complete(RipperDemon.this);
+							com.spd.cohero.CoHeroPresentation.complete(RipperDemon.this, token);
 							sprite.place(pos);
 						}
 					});
 				}
 
 				resolveLeapGameplay(leapVictim, leapLanding, endPos);
-				if (!showRemote) {
+				if (presentationToken == com.spd.cohero.CoHeroPresentation.NONE) {
 					sprite.place(endPos);
 				}
 				return true;
