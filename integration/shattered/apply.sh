@@ -41,13 +41,15 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/GamesInProgress.java"
     python "$patches/patch_start_scene.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/StartScene.java"
-    python "$patches/patch_version_ui.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java" \
+    python "$patches/patch_title_scene.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java"
+    python "$patches/patch_menu_pane.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java"
     python "$patches/patch_level_mobs.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java"
     python "$patches/patch_mob_cohero.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java"
+    python "$patches/patch_great_crab_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GreatCrab.java"
     python "$patches/patch_prison_boss_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/PrisonBossLevel.java"
@@ -65,8 +67,9 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java"
     python "$patches/patch_missileweapon.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java"
-    python "$patches/patch_special_weapons.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java" \
+    python "$patches/patch_mages_staff.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java"
+    python "$patches/patch_spirit_bow.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/SpiritBow.java"
     python "$patches/patch_wands.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java" \
