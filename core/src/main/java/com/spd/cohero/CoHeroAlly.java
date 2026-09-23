@@ -133,6 +133,9 @@ public class CoHeroAlly extends DirectableAlly {
      * Mob.sprite() is a factory that creates an unlinked sprite and must not be used for actions.
      */
     CharSprite attachedSprite() {
+        if (sprite != null && sprite.ch != this) {
+            throw new IllegalStateException("CoHero live sprite is not linked to its actor");
+        }
         return sprite;
     }
 

@@ -52,6 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           python cohero/scripts/verify_source_layout.py cohero
+          python cohero/scripts/verify_cohero_semantics.py cohero
 
       - name: Overlay CoHero source
         shell: bash
