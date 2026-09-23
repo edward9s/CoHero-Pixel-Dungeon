@@ -266,6 +266,7 @@ ripper_leap_new = """				//do leap
 						public void call() {
 							sprite.idle();
 							com.spd.cohero.CoHeroPresentation.complete(RipperDemon.this);
+							sprite.place(pos);
 						}
 					});
 				}
