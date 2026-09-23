@@ -80,10 +80,7 @@ jobs:
           python cohero/scripts/patch_app_package.py spd_src/build.gradle
           python cohero/scripts/patch_gamescene.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java
-          python cohero/scripts/patch_cohero_actor_nonblocking.py \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Actor.java
           python cohero/scripts/patch_cohero_visual_fov.py \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java
           python cohero/scripts/patch_hero_transition.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
@@ -126,10 +123,6 @@ jobs:
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/DelayedRockFall.java
           python cohero/scripts/patch_vault_firewall.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java
-          python cohero/scripts/patch_offscreen_enemy_actions.py \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs
-          python cohero/scripts/patch_offscreen_vfx.py \
-            spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/effects
           python cohero/scripts/patch_missileweapon.py \
             spd_src/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java
           python cohero/scripts/patch_special_weapons.py \
