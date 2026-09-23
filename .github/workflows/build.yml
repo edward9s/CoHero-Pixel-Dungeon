@@ -115,7 +115,7 @@ jobs:
           python cohero/scripts/patch_offscreen_enemy_actions.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs
           python cohero/scripts/patch_offscreen_vfx.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/effects/Pushing.java
+            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/effects
           python cohero/scripts/patch_missileweapon.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java
           python cohero/scripts/patch_special_weapons.py \
