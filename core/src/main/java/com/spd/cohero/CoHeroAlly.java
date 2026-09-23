@@ -2438,11 +2438,12 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     private boolean performMeleeAttack(Mob targetMob) {
-        if (sprite != null
+        float delay = attackDelay();
+        boolean showPresentation = sprite != null
                 && targetMob.sprite != null
-                && CoHeroPresentation.shouldShow(pos, targetMob.pos)
-                && CoHeroPresentation.tryBegin(this)) {
-            float delay = attackDelay();
+                && CoHeroPresentation.shouldShow(pos, targetMob.pos);
+
+        if (showPresentation && CoHeroPresentation.tryBegin(this)) {
             try {
                 sprite.attack(targetMob.pos, new Callback() {
                     @Override
@@ -2454,16 +2455,14 @@ public class CoHeroAlly extends DirectableAlly {
                 CoHeroPresentation.complete(this);
                 throw ex;
             }
-
-            attack(targetMob);
-            Invisibility.dispel(this);
-            spend(delay);
-            return true;
         }
 
-        // Offscreen attacks keep the normal Mob immediate path.
-        enemy = targetMob;
-        return doAttack(targetMob);
+        // Gameplay never waits for the swing animation. If another CoHero presentation is already
+        // in flight, this attack simply has no new visual.
+        attack(targetMob);
+        Invisibility.dispel(this);
+        spend(delay);
+        return true;
     }
 
     private void resolveSpiritBowAttack(Mob targetMob, MissileWeapon arrow) {
