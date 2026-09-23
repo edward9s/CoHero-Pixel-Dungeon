@@ -19,7 +19,7 @@ old = """\t\t\tif (resting) {
 new = """\t\t\tif (resting) {
 \t\t\t\tspendConstant( TIME_TO_REST );
 \t\t\t\tnext();
-\t\t\t} else if (com.spd.cohero.CoHeroPresentation.awaitAll(this)) {
+\t\t\t} else if (com.spd.cohero.CoHeroPresentation.awaitForeground(this)) {
 \t\t\t\t// CoHero gameplay is already resolved. Delay only the return of player input until
 \t\t\t\t// the slowest visible CoHero presentation in this batch has completed.
 \t\t\t} else {
