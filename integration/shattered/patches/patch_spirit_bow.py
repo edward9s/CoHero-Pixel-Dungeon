@@ -2,33 +2,11 @@
 from pathlib import Path
 import sys
 
-if len(sys.argv) != 3:
-    raise SystemExit("usage: patch_special_weapons.py <MagesStaff.java> <SpiritBow.java>")
+if len(sys.argv) != 2:
+    raise SystemExit("usage: patch_spirit_bow.py <SpiritBow.java>")
 
-staff_path = Path(sys.argv[1])
-bow_path = Path(sys.argv[2])
-
-staff = staff_path.read_text(encoding="utf-8")
-bow = bow_path.read_text(encoding="utf-8")
-
-staff_anchor = """	public void applyWandChargeBuff(Char owner){
-		if (wand != null){
-			wand.charge(owner, STAFF_SCALE_FACTOR);
-		}
-	}
-"""
-staff_patch = staff_anchor + """
-	public Wand coHeroWand() {
-		if (wand != null) {
-			// Match the stock AC_ZAP curse semantics without routing through execute(Hero,...).
-			wand.cursed = cursed || hasCurseEnchant();
-		}
-		return wand;
-	}
-"""
-if staff.count(staff_anchor) != 1:
-    raise SystemExit(f"expected exactly one Mage's Staff charge anchor, found {staff.count(staff_anchor)}")
-staff = staff.replace(staff_anchor, staff_patch, 1)
+path = Path(sys.argv[1])
+bow = path.read_text(encoding="utf-8")
 
 bow_damage_old = """	@Override
 	public int damageRoll(Char owner) {
@@ -100,7 +78,6 @@ if bow.count(speed_old) != 1:
     raise SystemExit(f"expected exactly one Spirit Bow NaturesPower speed anchor, found {bow.count(speed_old)}")
 bow = bow.replace(speed_old, speed_new, 1)
 
-staff_path.write_text(staff, encoding="utf-8")
-bow_path.write_text(bow, encoding="utf-8")
-print(f"patched {staff_path}")
-print(f"patched {bow_path}")
+
+path.write_text(bow, encoding="utf-8")
+print(f"patched {path}")

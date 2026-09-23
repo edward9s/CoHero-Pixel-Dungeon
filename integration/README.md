@@ -30,3 +30,5 @@ Profiles should preserve patch order explicitly and fail as soon as an expected 
 
 
 Top-level `scripts/` is reserved for fork-independent repository tooling such as version extraction and source-layout validation. Do not put host-specific patch implementations there.
+
+For Java integration hooks, prefer one patch script per upstream Java file. Do not group unrelated host files into one atomic patch command; keep failures localized to the file that drifted.

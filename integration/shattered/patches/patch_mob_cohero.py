@@ -2,13 +2,11 @@
 from pathlib import Path
 import sys
 
-if len(sys.argv) != 3:
-    raise SystemExit("usage: patch_mob_cohero.py <Mob.java> <GreatCrab.java>")
+if len(sys.argv) != 2:
+    raise SystemExit("usage: patch_mob_cohero.py <Mob.java>")
 
 path = Path(sys.argv[1])
-great_crab_path = Path(sys.argv[2])
 text = path.read_text(encoding="utf-8")
-great_crab = great_crab_path.read_text(encoding="utf-8")
 
 anchor = """	protected boolean canAttack( Char enemy ) {
 		if (Dungeon.level.adjacent( pos, enemy.pos )){
@@ -252,28 +250,5 @@ if text.count(hold_anchor) != 1:
     raise SystemExit(f"expected exactly one Mob.holdAllies anchor, found {text.count(hold_anchor)}")
 text = text.replace(hold_anchor, hold_patch, 1)
 
-great_crab_anchor = """		if (enemySeen
-				&& state != SLEEPING
-				&& paralysed == 0
-				&& enemy == this.enemy
-				&& enemy.invisible == 0){
-"""
-great_crab_patch = """		if (enemySeen
-				&& state != SLEEPING
-				&& paralysed == 0
-				&& enemy == this.enemy
-				&& enemy.invisible == 0
-				&& !coHeroSurprisedBy(enemy)){
-"""
-if "&& !coHeroSurprisedBy(enemy))" in great_crab:
-    raise SystemExit("CoHero GreatCrab surprise seam is already present")
-if great_crab.count(great_crab_anchor) != 1:
-    raise SystemExit(
-        f"expected exactly one GreatCrab defense anchor, found {great_crab.count(great_crab_anchor)}"
-    )
-great_crab = great_crab.replace(great_crab_anchor, great_crab_patch, 1)
-
 path.write_text(text, encoding="utf-8")
-great_crab_path.write_text(great_crab, encoding="utf-8")
 print(f"patched {path}")
-print(f"patched {great_crab_path}")

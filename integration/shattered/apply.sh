@@ -22,16 +22,17 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java"
     python "$patches/patch_cohero_visual_fov.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java"
-    python "$patches/patch_hero_transition.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java"
     python "$patches/patch_cohero_class_traits.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java"
     python "$patches/patch_cohero_ring_traits.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfArcana.java"
-    python "$patches/patch_equipment_identification.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java" \
+    python "$patches/patch_weapon_identification.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/Weapon.java"
+    python "$patches/patch_armor_identification.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java"
+    python "$patches/patch_ring_identification.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java"
+    python "$patches/patch_hero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java"
     python "$patches/patch_hero_select.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/HeroSelectScene.java"
@@ -41,13 +42,15 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/GamesInProgress.java"
     python "$patches/patch_start_scene.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/StartScene.java"
-    python "$patches/patch_version_ui.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java" \
+    python "$patches/patch_title_scene.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java"
+    python "$patches/patch_menu_pane.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java"
     python "$patches/patch_level_mobs.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java"
     python "$patches/patch_mob_cohero.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java"
+    python "$patches/patch_great_crab_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GreatCrab.java"
     python "$patches/patch_prison_boss_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/PrisonBossLevel.java"
@@ -65,12 +68,15 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java"
     python "$patches/patch_missileweapon.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java"
-    python "$patches/patch_special_weapons.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java" \
+    python "$patches/patch_mages_staff.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java"
+    python "$patches/patch_spirit_bow.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/SpiritBow.java"
-    python "$patches/patch_wands.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java" \
+    python "$patches/patch_wand_base.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java"
+    python "$patches/patch_damage_wand.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java"
+    python "$patches/patch_magic_missile_wand.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfMagicMissile.java"
     python "$patches/patch_blastwave_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfBlastWave.java"
@@ -78,16 +84,25 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfLivingEarth.java"
     python "$patches/patch_elemental_blast_living_earth.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/abilities/mage/ElementalBlast.java"
-    python "$patches/patch_cohero_wand_types.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFrost.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfDisintegration.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfLightning.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfPrismaticLight.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfRegrowth.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfTransfusion.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorruption.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorrosion.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFireblast.java" \
+    python "$patches/patch_wand_frost.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFrost.java"
+    python "$patches/patch_wand_disintegration.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfDisintegration.java"
+    python "$patches/patch_wand_lightning.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfLightning.java"
+    python "$patches/patch_wand_prismatic_light.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfPrismaticLight.java"
+    python "$patches/patch_wand_regrowth.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfRegrowth.java"
+    python "$patches/patch_wand_transfusion.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfTransfusion.java"
+    python "$patches/patch_wand_corruption.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorruption.java"
+    python "$patches/patch_wand_corrosion.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfCorrosion.java"
+    python "$patches/patch_wand_fireblast.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfFireblast.java"
+    python "$patches/patch_wand_warding.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfWarding.java"
     ;;
 

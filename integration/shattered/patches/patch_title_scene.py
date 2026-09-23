@@ -2,20 +2,15 @@
 from pathlib import Path
 import sys
 
-if len(sys.argv) != 3:
-    raise SystemExit("usage: patch_version_ui.py <TitleScene.java> <MenuPane.java>")
+if len(sys.argv) != 2:
+    raise SystemExit("usage: patch_title_scene.py <TitleScene.java>")
 
-title_path = Path(sys.argv[1])
-menu_path = Path(sys.argv[2])
-
-title = title_path.read_text(encoding="utf-8")
-menu = menu_path.read_text(encoding="utf-8")
+path = Path(sys.argv[1])
+title = path.read_text(encoding="utf-8")
 
 title_version_old = 'version = new BitmapText( "v" + Game.version, pixelFont);'
 title_version_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), pixelFont);'
 
-menu_old = 'version = new BitmapText( "v" + Game.version , PixelScene.pixelFont);'
-menu_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), PixelScene.pixelFont);'
 
 title_field_old = """\tprivate Image title;
 """
@@ -79,14 +74,6 @@ for label, old, new in anchors:
         raise SystemExit(f"expected exactly one {label} anchor, found {count}")
     title = title.replace(old, new, 1)
 
-if menu_new in menu:
-    raise SystemExit("CoHero MenuPane version UI hook is already present")
-if menu.count(menu_old) != 1:
-    raise SystemExit(f"expected exactly one MenuPane version anchor, found {menu.count(menu_old)}")
-menu = menu.replace(menu_old, menu_new, 1)
 
-title_path.write_text(title, encoding="utf-8")
-menu_path.write_text(menu, encoding="utf-8")
-
-print(f"patched {title_path}")
-print(f"patched {menu_path}")
+path.write_text(title, encoding="utf-8")
+print(f"patched {path}")

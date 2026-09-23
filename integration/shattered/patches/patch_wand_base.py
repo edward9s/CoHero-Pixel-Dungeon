@@ -2,16 +2,11 @@
 from pathlib import Path
 import sys
 
-if len(sys.argv) != 4:
-    raise SystemExit("usage: patch_wands.py <Wand.java> <DamageWand.java> <WandOfMagicMissile.java>")
+if len(sys.argv) != 2:
+    raise SystemExit("usage: patch_wand_base.py <Wand.java>")
 
-wand_path = Path(sys.argv[1])
-damage_path = Path(sys.argv[2])
-magic_path = Path(sys.argv[3])
-
-wand = wand_path.read_text(encoding="utf-8")
-damage = damage_path.read_text(encoding="utf-8")
-magic = magic_path.read_text(encoding="utf-8")
+path = Path(sys.argv[1])
+wand = path.read_text(encoding="utf-8")
 
 def replace_once(text, old, new, label):
     if text.count(old) != 1:
@@ -153,69 +148,6 @@ fx_new = """	public void fx(Ballistica bolt, Callback callback) {
 """
 wand = replace_once(wand, fx_old, fx_new, "Wand fx")
 
-damage_old = """	public int damageRoll(int lvl){
-		int dmg = Hero.heroDamageIntRange(min(lvl), max(lvl));
-		WandEmpower emp = Dungeon.hero.buff(WandEmpower.class);
-		if (emp != null){
-			dmg += emp.dmgBoost;
-			emp.left--;
-			if (emp.left <= 0) {
-				emp.detach();
-			}
-			Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.75f, 1.2f);
-		}
-		return dmg;
-	}
-"""
-damage_new = """	public int damageRoll(int lvl){
-		boolean heroCast = zapUser() == Dungeon.hero;
-		int dmg = heroCast
-				? Hero.heroDamageIntRange(min(lvl), max(lvl))
-				: Random.NormalIntRange(min(lvl), max(lvl));
-		if (heroCast) {
-			WandEmpower emp = Dungeon.hero.buff(WandEmpower.class);
-			if (emp != null){
-				dmg += emp.dmgBoost;
-				emp.left--;
-				if (emp.left <= 0) {
-					emp.detach();
-				}
-				Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.75f, 1.2f);
-			}
-		}
-		return dmg;
-	}
-"""
-damage = replace_once(damage, damage_old, damage_new, "DamageWand damageRoll")
-damage = replace_once(
-    damage,
-    "import com.watabou.noosa.audio.Sample;\n",
-    "import com.watabou.noosa.audio.Sample;\nimport com.watabou.utils.Random;\n",
-    "DamageWand Sample import",
-)
 
-magic_old = """			//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
-			for (Wand.Charger wandCharger : curUser.buffs(Wand.Charger.class)){
-				if (wandCharger.wand().buffedLvl() < buffedLvl() || curUser.buff(MagicCharge.class) != null){
-					Buff.prolong(curUser, MagicCharge.class, MagicCharge.DURATION).setup(this);
-					break;
-				}
-			}
-"""
-magic_new = """			//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
-			Char user = zapUser();
-			for (Wand.Charger wandCharger : user.buffs(Wand.Charger.class)){
-				if (wandCharger.wand().buffedLvl() < buffedLvl() || user.buff(MagicCharge.class) != null){
-					Buff.prolong(user, MagicCharge.class, MagicCharge.DURATION).setup(this);
-					break;
-				}
-			}
-"""
-magic = replace_once(magic, magic_old, magic_new, "MagicMissile user")
-
-wand_path.write_text(wand, encoding="utf-8")
-damage_path.write_text(damage, encoding="utf-8")
-magic_path.write_text(magic, encoding="utf-8")
-print(f"patched {wand_path}")
-print(f"patched {damage_path}")
-print(f"patched {magic_path}")
+path.write_text(wand, encoding="utf-8")
+print(f"patched {path}")
