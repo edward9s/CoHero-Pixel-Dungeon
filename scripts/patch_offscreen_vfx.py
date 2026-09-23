@@ -12,6 +12,21 @@ effects_dir = Path(sys.argv[1])
 pushing_path = effects_dir / "Pushing.java"
 pushing = pushing_path.read_text(encoding="utf-8")
 
+pushing_field_anchor = """	private Callback callback;
+
+	{
+"""
+pushing_field_patch = """	private Callback callback;
+	private boolean cosmeticOnly;
+
+	{
+"""
+if pushing.count(pushing_field_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one Pushing field anchor, found {pushing.count(pushing_field_anchor)}"
+    )
+pushing = pushing.replace(pushing_field_anchor, pushing_field_patch, 1)
+
 pushing_old = """	@Override
 	protected boolean act() {
 		Actor.remove( Pushing.this );
@@ -47,6 +62,7 @@ pushing_new = """	@Override
 			// callback now; if CoHero FOV exposes the movement, keep only a cosmetic Effect.
 			Callback gameplayCallback = callback;
 			callback = null;
+			cosmeticOnly = true;
 
 			if (sprite != null && sprite.parent != null) {
 				if (com.spd.cohero.CoHeroPresentation.shouldShow(from, to)) {
@@ -88,7 +104,36 @@ if pushing.count(pushing_old) != 1:
     raise SystemExit(
         f"expected exactly one Pushing.act anchor, found {pushing.count(pushing_old)}"
     )
-pushing_path.write_text(pushing.replace(pushing_old, pushing_new, 1), encoding="utf-8")
+pushing = pushing.replace(pushing_old, pushing_new, 1)
+
+pushing_finish_old = """				sprite.point(end);
+				
+				killAndErase();
+				Actor.remove(Pushing.this);
+				if (callback != null) callback.call();
+				GameScene.sortMobSprites();
+
+				next();
+"""
+pushing_finish_new = """				sprite.point(end);
+
+				killAndErase();
+				Actor.remove(Pushing.this);
+				if (callback != null) callback.call();
+				if (cosmeticOnly && ch != null && ch.pos >= 0) {
+					sprite.place(ch.pos);
+				}
+				GameScene.sortMobSprites();
+
+				next();
+"""
+if pushing.count(pushing_finish_old) != 1:
+    raise SystemExit(
+        f"expected exactly one Pushing Effect completion anchor, found {pushing.count(pushing_finish_old)}"
+    )
+pushing = pushing.replace(pushing_finish_old, pushing_finish_new, 1)
+
+pushing_path.write_text(pushing, encoding="utf-8")
 print(f"patched {pushing_path}")
 
 # Swap also uses an Actor only to wait for two cosmetic tweeners. Resolve positions immediately
@@ -154,7 +199,12 @@ swap_finish_old = """		if (eff1 == null && eff2 == null) {
 """
 swap_finish_new = """		if (eff1 == null && eff2 == null) {
 			Actor.remove( this );
+			boolean wasAlreadyResolved = gameplayResolved;
 			resolveGameplay();
+			if (wasAlreadyResolved) {
+				ch1.sprite.place(ch1.pos);
+				ch2.sprite.place(ch2.pos);
+			}
 			next();
 		}
 	}
