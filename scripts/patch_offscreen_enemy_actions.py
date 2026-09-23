@@ -29,7 +29,7 @@ expected_counts = {
 
 old_visibility = "sprite.visible || enemy.sprite.visible"
 hero_visibility = (
-    "!com.spd.cohero.CoHeroPresentation.isPending(this) "
+    "!coHeroPresentationPending() "
     "&& (com.spd.cohero.CoHero.heroCanSee(pos) "
     "|| com.spd.cohero.CoHero.heroCanSee(enemy.pos))"
 )
@@ -139,7 +139,7 @@ necro_attack_old = """					//zap skeleton
 
 necro_attack_new = """					//zap skeleton
 					if (mySkeleton.HP < mySkeleton.HT || mySkeleton.buff(Adrenaline.class) == null) {
-						boolean heroVisible = !com.spd.cohero.CoHeroPresentation.isPending(this)
+						boolean heroVisible = !coHeroPresentationPending()
 								&& (com.spd.cohero.CoHero.heroCanSee(pos)
 								|| com.spd.cohero.CoHero.heroCanSee(mySkeleton.pos));
 						if (sprite != null && heroVisible){
