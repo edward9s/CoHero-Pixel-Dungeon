@@ -100,7 +100,7 @@ jobs:
         run: |
           set -euo pipefail
           bash cohero/integration/shattered/apply.sh wndgame spd_src cohero
-          python cohero/scripts/patch_smm_longpress.py \
+          python cohero/integration/smm/patches/patch_smm_longpress.py \
             spd_src/core/src/main/java/com/spd/mod/mechanics/ModAssassinate.java
 
       - name: Patch CoHero messages
