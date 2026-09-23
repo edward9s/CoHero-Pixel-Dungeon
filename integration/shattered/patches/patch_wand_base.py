@@ -54,8 +54,21 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 		return owner != null
 				&& owner.isAlive()
 				&& owner.buff(MagicImmune.class) == null
-				&& !cursed
+				&& (!cursed || !cursedKnown)
 				&& curCharges >= chargesPerCast();
+	}
+
+	public void coHeroRandomZap(Char owner, Ballistica bolt) {
+		if (owner == null || bolt == null || coHeroUser != null) {
+			throw new IllegalStateException("Invalid CoHero random wand effect");
+		}
+		coHeroUser = owner;
+		try {
+			coHeroPrepareZap(owner, bolt.collisionPos, bolt);
+			onZap(bolt);
+		} finally {
+			coHeroUser = null;
+		}
 	}
 
 	public int coHeroChargesPerCast() {
@@ -74,6 +87,25 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 		if (!coHeroCanZap(owner)) {
 			throw new IllegalStateException("CoHero attempted to use an unavailable wand");
 		}
+		if (cursed) {
+			if (!showFx) {
+				throw new IllegalStateException("CoHero cursed wand effect requires its FX callback");
+			}
+			// Stock SPD reveals a curse after the first shot and resolves a cursed effect.
+			cursedKnown = true;
+			GLog.n(Messages.get(Wand.class, "curse_discover", name()));
+			CursedWand.cursedZap(this, owner,
+					new Ballistica(owner.pos, target, Ballistica.MAGIC_BOLT),
+					new Callback() {
+						@Override
+						public void call() {
+							coHeroFinishZap(owner);
+							if (callback != null) callback.call();
+						}
+					});
+			return;
+		}
+		cursedKnown = true;
 
 		final Ballistica bolt = coHeroBallistica(owner, target);
 		coHeroUser = owner;
@@ -97,7 +129,7 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 	}
 
 	private void coHeroFinishZap(Char owner) {
-		curCharges -= chargesPerCast();
+		curCharges -= cursed ? 1 : chargesPerCast();
 
 		WandOfMagicMissile.MagicCharge magicCharge = owner.buff(WandOfMagicMissile.MagicCharge.class);
 		if (magicCharge != null

@@ -1262,7 +1262,16 @@ final class CoHeroCombatController {
         }
 
         boolean heroVisible = CoHero.heroCanSee(owner.pos) || CoHero.heroCanSee(targetCell);
-        if (heroVisible && owner.sprite() != null && owner.sprite().parent != null) {
+        // A first cursed shot uses stock cursed-wand FX, which resolves gameplay in its callback.
+        // Wait for that callback even when the CoHero is outside the Hero's field of view.
+        boolean probingCurse = wand.cursed && !wand.cursedKnown;
+        if (probingCurse && !heroVisible) {
+            CoHeroRemoteView.zap(owner, targetCell);
+        }
+        if (heroVisible || probingCurse) {
+            if (owner.sprite() == null || owner.sprite().parent == null) {
+                throw new IllegalStateException("CoHero wand effect requires an attached sprite");
+            }
             wand.coHeroCast(owner, targetCell, true, new Callback() {
                 @Override
                 public void call() {

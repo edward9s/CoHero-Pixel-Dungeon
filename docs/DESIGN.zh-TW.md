@@ -303,7 +303,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 4. **有法杖時**
    - 在合法目標與距離下，可以使用已明確支援的攻擊型法杖。
-   - 法杖不要求鑑定，也不要求 `cursedKnown`；只要實際未詛咒、有足夠 charge，且屬於 CoHero adapter 已明確支援的類型，就是合法候選。原版法杖即使未鑑定也照常持有並回復 charge，因此未知鑑定狀態不會阻止 CoHero 使用。
+   - 法杖不要求鑑定：詛咒狀態未知時，即使實際有詛咒也可試射一次。試射依原版觸發詛咒效果、揭露詛咒狀態，之後不再使用已知有詛咒的法杖；未詛咒的法杖可持續使用。候選仍須有足夠 charge，且屬於 CoHero adapter 已明確支援的類型。原版法杖即使未鑑定也照常持有並回復 charge。
    - 目前明確支援 `WandOfMagicMissile`、`WandOfBlastWave`、`WandOfFrost`、`WandOfDisintegration`、`WandOfLightning`、`WandOfLivingEarth`、`WandOfPrismaticLight`、`WandOfRegrowth`、`WandOfTransfusion`、`WandOfCorruption`、`WandOfCorrosion`、`WandOfFireblast`、`WandOfWarding`。
    - 靈壤法杖保留原版「命中敵人累積 RockArmor → 達門檻生成 EarthGuardian → 後續命中補充 Guardian → Guardian 離戰後把剩餘 HP 還原為 RockArmor」循環。Guardian 新增 owner ID；Hero 與 CoHero 可在同一樓層各自擁有一隻，不會互相吃掉 ownership。舊存檔中沒有 owner ID 的 Guardian 視為玩家 Hero 所有。
    - CoHero 的 `RockArmor` 會像 Hero 一樣在 `defenseProc()` 中吸收傷害。Guardian 的防禦仍以共用隊伍 level 為基礎；CoHero cast 不繼承 Hero 的 Wand Talent / PowerOfMany / Stasis 額外效果。Hero 的 Stasis / PowerOfMany / ElementalBlast 原版互動仍只作用於 Hero-owned Guardian；`EarthGuardian.setInfo(Hero, int, int)` 的原版 public API 也保留，供既有 Hero ability 與下游 fork 相容。
