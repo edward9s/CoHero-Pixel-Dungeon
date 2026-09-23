@@ -33,7 +33,7 @@ final class CoHeroCombatController {
 
         // Ordinary melee reach still wins when already established. Against active ranged
         // pressure, only physical adjacency counts as established melee; extended reach must not
-        // suppress a legal ranged fallback if closing/cover was impossible owner turn.
+        // suppress a legal ranged fallback if closing/cover was impossible this turn.
         boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
                 && (!owner.isCurrentRangedPressure(preferredTarget)
                     || Dungeon.level.adjacent(owner.pos, preferredTarget.pos));
@@ -139,7 +139,7 @@ final class CoHeroCombatController {
             return wardRecall;
         }
 
-        // If we have a usable combat tool but cannot use it from owner cell, close distance.
+        // If we have a usable combat tool but cannot use it from this cell, close distance.
         if (hasUsableCombatCapability(targetMob)) {
             int oldPos = owner.pos;
             owner.setMovementDecision("combat_close_distance", targetMob.pos);
@@ -296,7 +296,7 @@ final class CoHeroCombatController {
         Ward ward = best.ward;
         if (Dungeon.level.adjacent(owner.pos, ward.pos)) {
             if (ward.coHeroDismiss(owner)) {
-                path = null;
+                owner.clearNavigationPath();
                 owner.spendActionTime(Actor.TICK);
                 return true;
             }
@@ -462,7 +462,7 @@ final class CoHeroCombatController {
                         public void call() {
                             resolveSpiritBowAttack(targetMob, arrow);
                             owner.spendActionTime(delay);
-                            owner.next();
+                            owner.finishAsyncAction();
                         }
                     });
             return false;
@@ -485,7 +485,7 @@ final class CoHeroCombatController {
                     owner.attackTarget(targetMob);
                     Invisibility.dispel(owner);
                     owner.spendActionTime(delay);
-                    owner.next();
+                    owner.finishAsyncAction();
                 }
             });
             return false;
@@ -527,7 +527,7 @@ final class CoHeroCombatController {
                         public void call() {
                             resolveMissileAttack(targetMob, thrown);
                             owner.spendActionTime(delay);
-                            owner.next();
+                            owner.finishAsyncAction();
                         }
                     });
             return false;
@@ -565,7 +565,7 @@ final class CoHeroCombatController {
             wand.coHeroCast(owner, targetCell, true, new Callback() {
                 @Override
                 public void call() {
-                    owner.next();
+                    owner.finishAsyncAction();
                 }
             });
             Invisibility.dispel(owner);
@@ -588,10 +588,10 @@ final class CoHeroCombatController {
 
         private RangedChoice(
                 MissileWeapon missile, Wand wand, SpiritBow spiritBow, int wandTargetCell) {
-            owner.missile = missile;
-            owner.wand = wand;
-            owner.spiritBow = spiritBow;
-            owner.wandTargetCell = wandTargetCell;
+            this.missile = missile;
+            this.wand = wand;
+            this.spiritBow = spiritBow;
+            this.wandTargetCell = wandTargetCell;
         }
 
         static RangedChoice missile(MissileWeapon missile) {
