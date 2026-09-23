@@ -255,7 +255,7 @@ public final class CoHero {
 
         CoHeroAlly existing = findCompanion();
         if (existing != null) {
-            CompanionLongPress.ensureInstalled();
+            refreshCompanionVision(existing);
             restoringSavedGame = false;
             return;
         }
@@ -299,7 +299,16 @@ public final class CoHero {
         if (!restoredInPlace) {
             Dungeon.level.occupyCell(companion);
         }
-        CompanionLongPress.ensureInstalled();
+        refreshCompanionVision(companion);
+    }
+
+    private static void refreshCompanionVision(CoHeroAlly companion) {
+        companion.syncViewDistance();
+        if (companion.fieldOfView == null
+                || companion.fieldOfView.length != Dungeon.level.length()) {
+            companion.fieldOfView = new boolean[Dungeon.level.length()];
+        }
+        companion.refreshOwnFieldOfView();
     }
 
     public static int requestTransition(Hero hero, LevelTransition transition) {

@@ -865,7 +865,6 @@ final class CoHeroCombatController {
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
             if (CoHeroMissileAdapter.supported(missile)
-                    && !missile.cursed
                     && new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
                 missiles.add(missile);
             }
@@ -1093,7 +1092,7 @@ final class CoHeroCombatController {
             return true;
         }
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (CoHeroMissileAdapter.supported(missile) && !missile.cursed) {
+            if (CoHeroMissileAdapter.supported(missile)) {
                 return true;
             }
         }

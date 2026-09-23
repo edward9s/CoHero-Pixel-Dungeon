@@ -229,7 +229,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - locator 以 `ME` / `CO` 明確標示目前代表的是玩家 Hero 或 CoHero，並永久顯示該角色的即時 HP bar；血條下方最多顯示 6 個小型 buff icons。
 - CoHero 處於低血量 rally 狀態且 locator 正代表 CoHero 時顯示固定警示符號，不使用持續閃爍。
 - locator 的活動邊界排除 Status/Menu/Boss/Toolbar/Inventory 與 tag 控制區，不覆蓋主要操作按鈕。
-- CoHero 背包使用 GameScene 標準 Tag stack 提供常駐入口：CoHero 存在且存活時顯示背包圖示加 CoHero 頭像徽章，與 Attack／Loot／Action／Resume indicators 由 `layoutTags()` 統一排列，不占用 Toolbar 空間也不與其他 Tag 重疊；點擊直接開啟 CoHero 背包。locator 目前代表哪一名角色，長按就開啟該角色的背包：CoHero 開啟 CoHero 背包，Hero 開啟原生 Hero 背包。locator 的左右邊界可直接貼齊可用畫面；不再永久排除整條 Tag 欄。locator 每次定位後會讀取目前實際排好的 Tag stack 矩形，只有真正與 Attack／Loot／Action／CoHero Bag／Resume 的可見 Tag 範圍重疊時，才向畫面內側避讓 1px。
+- CoHero 背包使用 GameScene 標準 Tag stack 提供常駐入口：CoHero 存在且存活時顯示背包圖示加 CoHero 頭像徽章，與 Attack／Loot／Action／Resume indicators 由 `layoutTags()` 統一排列，不占用 Toolbar 空間也不與其他 Tag 重疊；點擊直接開啟 CoHero 背包。locator 代表 Hero 時長按仍可開啟原生 Hero 背包，代表 CoHero 時長按不開啟背包。locator 的左右邊界可直接貼齊可用畫面；不再永久排除整條 Tag 欄。locator 每次定位後會讀取目前實際排好的 Tag stack 矩形，只有真正與 Attack／Loot／Action／CoHero Bag／Resume 的可見 Tag 範圍重疊時，才向畫面內側避讓 1px。
 - CoHero 本人在畫面內時，頭上血條即使滿血也始終顯示。
 
 ## 5. 玩家對同伴的控制
@@ -294,7 +294,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 3. **有投擲武器時**
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
-   - 投擲武器不要求鑑定，也不要求 `cursedKnown`；只要屬於明確支援類型且實際 `cursed == false`，就可以被 AI 投擲。Spirit Bow 也只要求實際未詛咒。未鑑定本身不會降低使用優先級。
+   - 投擲武器不要求鑑定，也不限制詛咒狀態；只要屬於明確支援類型，就可以被 AI 投擲。Spirit Bow 仍只在實際未詛咒時使用。未鑑定本身不會降低使用優先級。
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
    - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 也會把已知地圖上的金錢，以及背包可容納且屬於目前明確支援類型的地面投擲武器與法杖視為高優先 loot，在一般探索前主動前往拾取。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般投擲武器／法杖。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。目前未支援使用的特殊投擲武器或法杖不主動撿拾。

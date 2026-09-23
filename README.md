@@ -22,7 +22,7 @@ The core game is playable, but AI behaviour and balance are still being tuned. B
 - Boss and branch floors let you choose whether the CoHero comes with you.
 - The CoHero backpack includes an enemy spawn multiplier from **1.0x to 3.0x**, defaulting to **1.5x**, for difficulty tuning.
 
-Use the CoHero backpack tag to open its inventory. Long-pressing the CoHero locator remains a shortcut.
+Use the CoHero backpack tag to open its inventory.
 
 ## Downloads
 

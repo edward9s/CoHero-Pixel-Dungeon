@@ -226,10 +226,7 @@ public class CoHeroLocator extends Button {
 
     @Override
     protected boolean onLongClick() {
-        CoHeroAlly companion = CoHero.findCompanion();
-        if (locatorTarget == companion && companion != null && companion.isAlive()) {
-            GameScene.show(new WndCompanionInventory(companion));
-        } else if (locatorTarget == Dungeon.hero
+        if (locatorTarget == Dungeon.hero
                 && Dungeon.hero != null
                 && Dungeon.hero.isAlive()) {
             GameScene.show(new WndBag(Dungeon.hero.belongings.backpack));

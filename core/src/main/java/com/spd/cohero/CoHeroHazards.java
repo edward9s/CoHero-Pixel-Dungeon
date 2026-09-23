@@ -16,6 +16,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ParalyticGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.StenchGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Web;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Tengu;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultLaser;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultSentry;
@@ -179,6 +180,7 @@ public final class CoHeroHazards {
         }
 
         return activeFor(owner, Fire.class, Fire.class)
+                || activeFor(owner, Web.class, Web.class)
                 || activeFor(owner, ToxicGas.class, ToxicGas.class)
                 || activeFor(owner, CorrosiveGas.class, CorrosiveGas.class)
                 || activeFor(owner, ParalyticGas.class, ParalyticGas.class)
@@ -197,6 +199,7 @@ public final class CoHeroHazards {
 
     private static boolean isEnvironmentalDanger(Char owner, int cell) {
         return presentFor(owner, cell, Fire.class, Fire.class)
+                || presentFor(owner, cell, Web.class, Web.class)
                 || presentFor(owner, cell, ToxicGas.class, ToxicGas.class)
                 || presentFor(owner, cell, CorrosiveGas.class, CorrosiveGas.class)
                 || presentFor(owner, cell, ParalyticGas.class, ParalyticGas.class)
