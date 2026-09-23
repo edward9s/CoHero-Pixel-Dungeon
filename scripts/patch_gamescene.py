@@ -16,6 +16,7 @@ inventory_tag_state_marker = "\tprivate boolean tagCoHeroInventory = false;"
 examine_actor_marker = "com.spd.cohero.CoHero.companionCanSee(cell)"
 hazard_marker = "\t\tcom.spd.cohero.CoHeroHazards.warn(pos, delay);"
 cleric_range_grid_marker = "\t\tcom.spd.cohero.CoHeroClericRangeGrid.install(levelVisuals);"
+remote_view_marker = "\t\tcom.spd.cohero.CoHeroRemoteView.update(mobs);"
 
 if (ready_marker in text
         or locator_marker in text
@@ -24,7 +25,8 @@ if (ready_marker in text
         or inventory_tag_state_marker in text
         or examine_actor_marker in text
         or hazard_marker in text
-        or cleric_range_grid_marker in text):
+        or cleric_range_grid_marker in text
+        or remote_view_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
 ready_anchor = (
@@ -92,6 +94,17 @@ if text.count(level_visuals_anchor) != 1:
 text = text.replace(
     level_visuals_anchor,
     level_visuals_anchor + "\t\tcom.spd.cohero.CoHeroClericRangeGrid.install(levelVisuals);\n",
+    1,
+)
+
+update_anchor = "\t\tsuper.update();\n"
+if text.count(update_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene update anchor, found {text.count(update_anchor)}"
+    )
+text = text.replace(
+    update_anchor,
+    update_anchor + remote_view_marker + "\n",
     1,
 )
 
