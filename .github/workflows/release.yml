@@ -309,14 +309,12 @@ jobs:
 
           python mod/scripts/patch_depth.py 26 spd
 
-      - name: Patch CoHero-SMM interaction
+      - name: Patch CoHero WndGame after SMM injection
         if: matrix.variant == 'smm'
         shell: bash
         run: |
           set -euo pipefail
           bash cohero/integration/shattered/apply.sh wndgame spd cohero
-          python cohero/integration/smm/patches/patch_smm_longpress.py \
-            spd/core/src/main/java/com/spd/mod/mechanics/ModAssassinate.java
 
       - name: Patch CoHero WndGame
         if: matrix.variant == 'cohero'
