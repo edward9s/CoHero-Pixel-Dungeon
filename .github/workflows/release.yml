@@ -299,8 +299,6 @@ jobs:
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java
           python cohero/scripts/patch_hero_transition.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
-          python cohero/scripts/patch_presentation_batch.py \
-            spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java
           python cohero/scripts/patch_cohero_class_traits.py \
             spd/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java
           python cohero/scripts/patch_cohero_ring_traits.py \
