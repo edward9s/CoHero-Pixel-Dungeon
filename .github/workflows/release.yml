@@ -294,7 +294,6 @@ jobs:
           bash cohero/integration/shattered/apply.sh base spd cohero
 
       - name: Patch and merge SMM
-      - name: Patch and merge SMM
         if: matrix.variant == 'smm'
         shell: bash
         run: |
@@ -332,7 +331,6 @@ jobs:
           set -euo pipefail
           bash cohero/integration/shattered/apply.sh messages spd cohero
 
-      - name: Set up Java 17
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:

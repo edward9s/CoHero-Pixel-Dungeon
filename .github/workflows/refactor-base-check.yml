@@ -75,7 +75,6 @@ jobs:
           bash cohero/integration/shattered/apply.sh messages spd cohero
 
       - name: Set up Java 17
-      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
