@@ -18,6 +18,9 @@ public final class CompanionEnemySurge extends Buff {
     static final int MAX_MULTIPLIER_QUARTERS = 16;
 
     private static final String MULTIPLIER_QUARTERS = "multiplier_quarters";
+    private static final String LEGACY_MULTIPLIER_TENTHS = "multiplier_tenths";
+    private static final int LEGACY_MIN_MULTIPLIER_TENTHS = 10;
+    private static final int LEGACY_MAX_MULTIPLIER_TENTHS = 30;
 
     private static Field respawnerField;
 
@@ -151,7 +154,16 @@ public final class CompanionEnemySurge extends Buff {
     @Override
     public void restoreFromBundle(Bundle bundle) {
         super.restoreFromBundle(bundle);
-        multiplierQuarters = bundle.getInt(MULTIPLIER_QUARTERS);
+
+        if (bundle.contains(MULTIPLIER_QUARTERS)) {
+            multiplierQuarters = bundle.getInt(MULTIPLIER_QUARTERS);
+        } else if (bundle.contains(LEGACY_MULTIPLIER_TENTHS)) {
+            multiplierQuarters = migrateLegacyMultiplierTenths(
+                    bundle.getInt(LEGACY_MULTIPLIER_TENTHS));
+        } else {
+            throw new IllegalStateException("Missing CoHero enemy spawn multiplier in save");
+        }
+
         if (multiplierQuarters < MIN_MULTIPLIER_QUARTERS
                 || multiplierQuarters > MAX_MULTIPLIER_QUARTERS) {
             throw new IllegalStateException("Invalid CoHero enemy spawn multiplier in save");
@@ -160,5 +172,18 @@ public final class CompanionEnemySurge extends Buff {
         trackedLevel = null;
         baseMobLimit = -1;
         extraSpawnCountdown = Float.NaN;
+    }
+
+    private static int migrateLegacyMultiplierTenths(int legacyTenths) {
+        if (legacyTenths < LEGACY_MIN_MULTIPLIER_TENTHS
+                || legacyTenths > LEGACY_MAX_MULTIPLIER_TENTHS) {
+            throw new IllegalStateException(
+                    "Invalid legacy CoHero enemy spawn multiplier in save");
+        }
+
+        // TODO: Remove this one-way migration after pre-quarter-step CoHero saves no longer need
+        // support. New saves never write multiplier_tenths.
+        // Convert old 0.1x units to the nearest new 0.25x step without floating-point math.
+        return (legacyTenths * 2 + 2) / 5;
     }
 }
