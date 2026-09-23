@@ -431,25 +431,6 @@ public final class CoHero {
         return renderFieldOfView;
     }
 
-    public static boolean isVisibleToPlayer(int cell) {
-        if (Dungeon.level == null
-                || Dungeon.level.heroFOV == null
-                || cell < 0
-                || cell >= Dungeon.level.heroFOV.length) {
-            return false;
-        }
-        if (Dungeon.level.heroFOV[cell]) {
-            return true;
-        }
-
-        CoHeroAlly companion = findCompanion();
-        return companion != null
-                && companion.isAlive()
-                && companion.fieldOfView != null
-                && cell < companion.fieldOfView.length
-                && companion.fieldOfView[cell];
-    }
-
     public static void relocateCompanionNextToHero() {
         if (Dungeon.level == null || Dungeon.hero == null) {
             return;
