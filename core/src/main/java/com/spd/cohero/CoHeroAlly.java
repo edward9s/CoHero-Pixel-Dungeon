@@ -1,51 +1,25 @@
 package com.spd.cohero;
 
-import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invulnerability;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.DirectableAlly;
-import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.ClassArmor;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
-import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
-import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfSharpshooting;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Bolas;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.FishingSpear;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Javelin;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Kunai;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingClub;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingHammer;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingKnife;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSpear;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingSpike;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.ThrowingStone;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Tomahawk;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.Trident;
-import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
-import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
-import com.watabou.noosa.audio.Sample;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Random;
@@ -512,11 +486,7 @@ public class CoHeroAlly extends DirectableAlly {
             equippedArmor.coHeroUseForIdentification();
         }
 
-        WandOfLivingEarth.RockArmor rockArmor =
-                buff(WandOfLivingEarth.RockArmor.class);
-        if (rockArmor != null) {
-            damage = rockArmor.absorb(damage);
-        }
+        damage = CoHeroWandAdapter.absorbLivingEarthArmor(this, damage);
 
         return super.defenseProc(enemy, damage);
     }
@@ -707,7 +677,7 @@ public class CoHeroAlly extends DirectableAlly {
                 return true;
             }
 
-            if (tryUseCombatStamina(combatTarget, visibleThreats)) {
+            if (survival.tryUseCombatStamina(combatTarget, visibleThreats)) {
                 return true;
             }
 
@@ -936,55 +906,6 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    private boolean tryUseCombatStamina(Mob targetMob, ArrayList<Mob> threats) {
-        if (targetMob == null
-                || threats == null
-                || threats.isEmpty()
-                || isRetreatingNow(targetMob, threats)
-                || buff(Stamina.class) != null
-                || buff(Haste.class) != null
-                || buff(Invisibility.class) != null) {
-            return false;
-        }
-
-        boolean rangedPressure = hasRangedPressure(threats);
-        boolean multipleThreats = threats.size() >= 2;
-        boolean bossFight = Char.hasProp(targetMob, Char.Property.BOSS)
-                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-
-        float outgoing = estimateOutgoingDpt(targetMob);
-        boolean shortTrivialFight = threats.size() == 1
-                && !rangedPressure
-                && !bossFight
-                && outgoing > 0.01f
-                && targetMob.HP <= outgoing;
-
-        if (shortTrivialFight || (!multipleThreats && !rangedPressure && !bossFight)) {
-            return false;
-        }
-
-        Potion potion = inventory.takeOneAutoStaminaPotion();
-        if (!(potion instanceof PotionOfStamina)) {
-            return false;
-        }
-
-        Buff.prolong(this, Stamina.class, Stamina.DURATION);
-        Catalog.countUse(PotionOfStamina.class);
-        SpellSprite.show(this, SpellSprite.HASTE, 0.5f, 1f, 0.5f);
-        Sample.INSTANCE.play(Assets.Sounds.DRINK);
-        spend(TICK);
-        return true;
-    }
-
-
-
-
-
-
-
-
-
-
     @Override
     public void die(Object cause) {
         if (revival.tryRevive(cause)) {
@@ -1024,11 +945,6 @@ public class CoHeroAlly extends DirectableAlly {
         state = WANDERING;
     }
 
-    /**
-     * Survival decisions run before any melee positioning or attack. The model is deliberately
-     * conservative: current HP/shield are real effective health, only one usable potion is given
-     * partial reserve value, and an Ankh is never treated as expendable combat HP.
-     */
     boolean isCombatInvulnerable(Mob threat) {
         if (threat == null || !threat.isAlive()) {
             return false;
@@ -1091,7 +1007,7 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    private float estimateOutgoingDpt(Mob targetMob) {
+    float estimateOutgoingDpt(Mob targetMob) {
         return riskEstimator.estimateOutgoingDpt(targetMob);
     }
 
@@ -1103,10 +1019,6 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-    /**
-     * Ranged enemies are often weakest once CoHero reaches melee. Recompute each turn whether to
-     * close directly or take a nearby LOS break; no target, cover cell, or wait state is retained.
-     */
     boolean isCurrentRangedPressure(Mob targetMob) {
         return targetMob != null
                 && targetMob.isAlive()
@@ -1114,17 +1026,6 @@ public class CoHeroAlly extends DirectableAlly {
                 && targetMob.coHeroCanAttackFrom(targetMob.pos, this);
     }
 
-    /**
-     * Against a ranged enemy, "close" means physically adjacent. Extended melee reach is useful
-     * against ordinary targets, but must not redefine the desired distance for shutting down a
-     * ranged attack.
-     */
-    /**
-     * Repositions melee CoHero before committing to an attack    /**
-     * Repositions melee CoHero before committing to an attack when terrain can materially improve
-     * the exchange. Great Crab needs an unseen strike, while Swarms and multiple melee attackers
-     * are much safer when pulled into a narrow approach instead of fought in open space.
-     */
     boolean hasRangedPressure(ArrayList<Mob> threats) {
         for (Mob threat : threats) {
             if (Dungeon.level.distance(threat.pos, pos) > 1
@@ -1157,47 +1058,6 @@ public class CoHeroAlly extends DirectableAlly {
      * Returns null when CoHero has no currently usable attack capability and should flee.
      * Otherwise returns the synchronous/asynchronous result expected by Actor.act().
      */
-    static boolean supportedMissileWeapon(MissileWeapon missile) {
-        // Only stock projectile types that use the standard rangedHit/rangedMiss path are enabled.
-        // Exact classes are intentional: unknown fork projectile semantics fail closed.
-        Class<?> type = missile.getClass();
-        return type == ThrowingStone.class
-                || type == ThrowingKnife.class
-                || type == ThrowingSpike.class
-                || type == FishingSpear.class
-                || type == ThrowingClub.class
-                || type == ThrowingSpear.class
-                || type == Kunai.class
-                || type == Bolas.class
-                || type == Javelin.class
-                || type == Tomahawk.class
-                || type == Trident.class
-                || type == ThrowingHammer.class;
-    }
-
-    float expectedMissileDamage(MissileWeapon missile) {
-        int level = missile.buffedLvl()
-                + RingOfSharpshooting.levelDamageBonus(this)
-                + CoHeroClassTraits.missileLevelBonus(this);
-        float average = (missile.min(level) + missile.max(level)) / 2f;
-        average = missile.augment.damageFactor(average);
-        int excessStrength = STR() - missile.STRReq();
-        if (excessStrength > 0) {
-            average += excessStrength / 2f;
-        }
-        return average;
-    }
-
-    float expectedSpiritBowDamage(SpiritBow bow) {
-        float average = (bow.coHeroMin(this) + bow.coHeroMax(this)) / 2f;
-        average = bow.augment.damageFactor(average);
-        int excessStrength = STR() - bow.STRReq();
-        if (excessStrength > 0) {
-            average += excessStrength / 2f;
-        }
-        return average;
-    }
-
     void revealVisibleCells() {
         vision.revealVisibleCells();
     }

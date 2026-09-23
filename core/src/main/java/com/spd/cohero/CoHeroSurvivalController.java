@@ -21,6 +21,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Earthroot;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Fadeleaf;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Mageroyal;
@@ -60,6 +61,46 @@ final class CoHeroSurvivalController {
         return owner.rooted
                 || negatives >= 2
                 || (negatives > 0 && owner.HT > 0 && owner.HP * 100 < owner.HT * 50);
+    }
+
+    boolean tryUseCombatStamina(Mob targetMob, ArrayList<Mob> threats) {
+        if (targetMob == null
+                || threats == null
+                || threats.isEmpty()
+                || owner.isRetreatingNow(targetMob, threats)
+                || owner.buff(Stamina.class) != null
+                || owner.buff(Haste.class) != null
+                || owner.buff(Invisibility.class) != null) {
+            return false;
+        }
+
+        boolean rangedPressure = owner.hasRangedPressure(threats);
+        boolean multipleThreats = threats.size() >= 2;
+        boolean bossFight = Char.hasProp(targetMob, Char.Property.BOSS)
+                || Char.hasProp(targetMob, Char.Property.MINIBOSS);
+
+        float outgoing = owner.estimateOutgoingDpt(targetMob);
+        boolean shortTrivialFight = threats.size() == 1
+                && !rangedPressure
+                && !bossFight
+                && outgoing > 0.01f
+                && targetMob.HP <= outgoing;
+
+        if (shortTrivialFight || (!multipleThreats && !rangedPressure && !bossFight)) {
+            return false;
+        }
+
+        Potion potion = owner.inventory().takeOneAutoStaminaPotion();
+        if (!(potion instanceof PotionOfStamina)) {
+            return false;
+        }
+
+        Buff.prolong(owner, Stamina.class, Stamina.DURATION);
+        Catalog.countUse(PotionOfStamina.class);
+        SpellSprite.show(owner, SpellSprite.HASTE, 0.5f, 1f, 0.5f);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        owner.spendActionTime(Actor.TICK);
+        return true;
     }
 
     boolean tryUseCleansingPotion(CoHeroCombatRisk risk) {

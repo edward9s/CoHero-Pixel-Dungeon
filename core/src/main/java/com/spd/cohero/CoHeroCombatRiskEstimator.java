@@ -143,7 +143,7 @@ final class CoHeroCombatRiskEstimator {
         float targetDr = sampledDrRoll(targetMob, owner.id());
 
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (!CoHeroAlly.supportedMissileWeapon(missile)
+            if (!CoHeroMissileAdapter.supported(missile)
                     || missile.cursed
                     || new Ballistica(
                             owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
@@ -153,7 +153,7 @@ final class CoHeroCombatRiskEstimator {
             float hitChance = estimatedPhysicalHitChance(
                     owner.attackSkillWith(missile, targetMob), targetMob, owner);
             best = Math.max(best,
-                    Math.max(0.5f, owner.expectedMissileDamage(missile) - targetDr)
+                    Math.max(0.5f, CoHeroMissileAdapter.expectedDamage(owner, missile) - targetDr)
                             * hitChance);
         }
 
@@ -167,7 +167,7 @@ final class CoHeroCombatRiskEstimator {
             float hitChance = estimatedPhysicalHitChance(
                     owner.attackSkillWith(arrow, targetMob), targetMob, owner);
             best = Math.max(best,
-                    Math.max(0.5f, owner.expectedSpiritBowDamage(bow) - targetDr)
+                    Math.max(0.5f, CoHeroMissileAdapter.expectedSpiritBowDamage(owner, bow) - targetDr)
                             * hitChance);
         }
 

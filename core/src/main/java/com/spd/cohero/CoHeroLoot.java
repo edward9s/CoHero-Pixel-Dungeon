@@ -136,7 +136,7 @@ final class CoHeroLoot {
             Integer outstanding = thrownOutstanding.get(missile.setID);
             if (outstanding != null
                     && outstanding > 0
-                    && CoHeroAlly.supportedMissileWeapon(missile)
+                    && CoHeroMissileAdapter.supported(missile)
                     && owner.inventory().canAddToBackpack(missile)) {
                 selected = missile;
                 selectedOwnedMissile = true;
@@ -166,7 +166,7 @@ final class CoHeroLoot {
             for (Item item : new ArrayList<>(heap.items)) {
                 if (item instanceof MissileWeapon) {
                     MissileWeapon missile = (MissileWeapon) item;
-                    if (CoHeroAlly.supportedMissileWeapon(missile)
+                    if (CoHeroMissileAdapter.supported(missile)
                             && owner.inventory().canAddToBackpack(missile)) {
                         selected = missile;
                         break;
@@ -254,14 +254,14 @@ final class CoHeroLoot {
                     Integer outstanding = thrownOutstanding.get(missile.setID);
                     if (outstanding != null
                             && outstanding > 0
-                            && CoHeroAlly.supportedMissileWeapon(missile)
+                            && CoHeroMissileAdapter.supported(missile)
                             && owner.inventory().canAddToBackpack(missile)) {
                         ownedCandidate = true;
                         break;
                     }
 
                     if (owner.isKnown(cell)
-                            && CoHeroAlly.supportedMissileWeapon(missile)
+                            && CoHeroMissileAdapter.supported(missile)
                             && owner.inventory().canAddToBackpack(missile)) {
                         lootCandidate = true;
                     }

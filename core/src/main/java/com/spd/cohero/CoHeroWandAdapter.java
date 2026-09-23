@@ -46,6 +46,12 @@ final class CoHeroWandAdapter {
 
     private CoHeroWandAdapter() {}
 
+    static int absorbLivingEarthArmor(CoHeroAlly owner, int damage) {
+        WandOfLivingEarth.RockArmor rockArmor =
+                owner.buff(WandOfLivingEarth.RockArmor.class);
+        return rockArmor == null ? damage : rockArmor.absorb(damage);
+    }
+
     static boolean supported(Wand wand) {
         if (wand == null) {
             return false;
