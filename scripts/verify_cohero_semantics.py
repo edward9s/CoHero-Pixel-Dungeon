@@ -22,16 +22,13 @@ def main() -> int:
     offenders = []
     for path in sorted(package_root.glob("*.java")):
         source = path.read_text(encoding="utf-8")
-        if OWNER_DECLARATION not in source:
-            continue
-
         for match in UNLINKED_SPRITE_FACTORY.finditer(source):
             line = source.count("\n", 0, match.start()) + 1
             offenders.append((path.relative_to(root), line))
 
     if offenders:
         print(
-            "CoHero controller code must use owner.attachedSprite(); "
+            "CoHero-owned code must use attachedSprite() for the live CoHero sprite; "
             "owner.sprite() creates a new unlinked sprite:",
             file=sys.stderr,
         )
