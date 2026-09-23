@@ -14,8 +14,15 @@ def replace_once(text, old, new, label):
     return text.replace(old, new, 1)
 
 # Fireblast: cone logic is generic; its visual source must use the actual caster.
-if "curUser" not in fireblast:
-    raise SystemExit("expected Fireblast curUser references")
+expected_user_lines = (
+    "((MagicMissile)curUser.sprite.parent.recycle( MagicMissile.class )).reset(",
+    "curUser.sprite,",
+    "MagicMissile.boltFromChar( curUser.sprite.parent,",
+    "curUser.sprite,",
+)
+actual_user_lines = tuple(line.strip() for line in fireblast.splitlines() if "curUser" in line)
+if sorted(actual_user_lines) != sorted(expected_user_lines):
+    raise SystemExit("unexpected Fireblast curUser references")
 fireblast = fireblast.replace("curUser", "zapUser()")
 
 fireblast_fx_old = """	@Override

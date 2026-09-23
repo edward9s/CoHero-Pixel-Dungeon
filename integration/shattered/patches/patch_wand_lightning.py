@@ -14,8 +14,18 @@ def replace_once(text, old, new, label):
     return text.replace(old, new, 1)
 
 # Lightning: its fx prepares combat state, so all caster references must follow the adapter context.
-if "curUser" not in lightning:
-    raise SystemExit("expected Lightning curUser references")
+expected_user_lines = (
+    "if (ch != curUser && ch.alignment == curUser.alignment && ch.pos != bolt.collisionPos){",
+    "if (ch == curUser && ch.isAlive()) {",
+    "if (!curUser.isAlive()) {",
+    "if (curUser.buff(LightningCharge.class) != null){",
+    "arcs.add( new Lightning.Arc(curUser.sprite.center(), ch.sprite.center()));",
+    "arcs.add( new Lightning.Arc(curUser.sprite.center(), DungeonTilemap.raisedTileCenterToWorld(bolt.collisionPos)));",
+    "curUser.sprite.parent.addToFront( new Lightning( arcs, null ) );",
+)
+actual_user_lines = tuple(line.strip() for line in lightning.splitlines() if "curUser" in line)
+if sorted(actual_user_lines) != sorted(expected_user_lines):
+    raise SystemExit("unexpected Lightning curUser references")
 lightning = lightning.replace("curUser", "zapUser()")
 lightning = replace_once(
     lightning,

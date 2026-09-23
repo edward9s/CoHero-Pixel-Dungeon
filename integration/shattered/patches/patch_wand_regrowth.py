@@ -14,8 +14,15 @@ def replace_once(text, old, new, label):
     return text.replace(old, new, 1)
 
 # Regrowth: preserve cone generation and plant logic, but prepare the target without Hero.tryToZap.
-if "curUser" not in regrowth:
-    raise SystemExit("expected Regrowth curUser references")
+expected_user_lines = (
+    "((MagicMissile)curUser.sprite.parent.recycle( MagicMissile.class )).reset(",
+    "curUser.sprite,",
+    "MagicMissile.boltFromChar( curUser.sprite.parent,",
+    "curUser.sprite,",
+)
+actual_user_lines = tuple(line.strip() for line in regrowth.splitlines() if "curUser" in line)
+if sorted(actual_user_lines) != sorted(expected_user_lines):
+    raise SystemExit("unexpected Regrowth curUser references")
 regrowth = regrowth.replace("curUser", "zapUser()")
 regrowth_anchor = """	@Override
 	public void onZap(Ballistica bolt) {
