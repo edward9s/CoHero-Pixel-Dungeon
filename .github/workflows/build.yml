@@ -1,146 +1,26 @@
 name: Build CoHero
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [.github/workflows/build.yml]
 
 permissions:
-  contents: read
+  actions: write
 
 jobs:
-  build:
+  remove-maintenance-run:
+    if: github.repository == 'edward9s/CoHero-Pixel-Dungeon'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout CoHero source
-        uses: actions/checkout@v4
-        with:
-          path: cohero
-
-      - name: Resolve latest Shattered Pixel Dungeon release
-        id: upstream
+      - name: Remove completed maintenance run
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name // empty')
-          if [ -z "$TAG" ]; then
-            echo "::error::Unable to resolve the latest SPD release tag."
-            exit 1
-          fi
-
-          COHERO_VER=$(python cohero/scripts/extract_version.py \
-            cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
-          if [ -z "$COHERO_VER" ]; then
-            echo "::error::Unable to resolve the CoHero version."
-            exit 1
-          fi
-
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
-          echo "Using CoHero $COHERO_VER with SPD $TAG"
-
-      - name: Checkout Shattered Pixel Dungeon
-        uses: actions/checkout@v4
-        with:
-          repository: 00-Evan/shattered-pixel-dungeon
-          ref: ${{ steps.upstream.outputs.tag }}
-          path: spd
-
-      - name: Verify CoHero source isolation
-        shell: bash
-        run: |
-          set -euo pipefail
-          python cohero/scripts/verify_source_layout.py cohero
-
-      - name: Overlay CoHero source
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -a cohero/core/. spd/core/
-
-      - name: Patch CoHero integration seams
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash cohero/integration/shattered/apply.sh base spd cohero
-          bash cohero/integration/shattered/apply.sh wndgame spd cohero
-
-      - name: Patch CoHero messages
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash cohero/integration/shattered/apply.sh messages spd cohero
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build release APK and JAR
-        working-directory: spd
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x ./gradlew
-          ./gradlew :android:assembleRelease :desktop:release
-
-      - name: Determine artifact names
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APK=$(find spd/android/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -1)
-          JAR=$(find spd/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
-
-          test -n "$APK" -a -f "$APK"
-          test -n "$JAR" -a -f "$JAR"
-
-          BASE_NAME="CoHero-v${{ steps.upstream.outputs.cohero_ver }}-SPD-${{ steps.upstream.outputs.tag }}"
-
-          echo "SOURCE_JAR=$JAR" >> "$GITHUB_ENV"
-          echo "BASE_NAME=$BASE_NAME" >> "$GITHUB_ENV"
-          echo "OUTPUT_APK=${BASE_NAME}.apk" >> "$GITHUB_ENV"
-          echo "OUTPUT_JAR=${BASE_NAME}.jar" >> "$GITHUB_ENV"
-
-      - name: Install Android build tools for signer
-        shell: bash
-        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
-
-      - name: Sign Android APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign
-        with:
-          releaseDirectory: spd/android/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Prepare artifacts
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p out
-          cp "${{ steps.sign.outputs.signedReleaseFile }}" "out/$OUTPUT_APK"
-          cp "$SOURCE_JAR" "out/$OUTPUT_JAR"
-
-      - name: Upload signed APK
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 7
-          name: ${{ env.BASE_NAME }}-APK
-          path: out/${{ env.OUTPUT_APK }}
-          if-no-files-found: error
-
-      - name: Upload JAR
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 7
-          name: ${{ env.BASE_NAME }}-JAR
-          path: out/${{ env.OUTPUT_JAR }}
-          if-no-files-found: error
+          [[ "$GITHUB_REF_NAME" == main ]]
+          IFS=$'\t' read -r workflow path branch status < <(gh api "repos/$GITHUB_REPOSITORY/actions/runs/35870047270" --jq '[.workflow_id, .path, .head_branch, .status] | @tsv')
+          [[ "$workflow" == 360314697 && "$path" == .github/workflows/build.yml && "$branch" == maintenance/remove-obsolete-workflows-20260923 && "$status" == completed ]]
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/runs/35870047270"
+          echo "deleted 35870047270"
