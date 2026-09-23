@@ -1,0 +1,130 @@
+name: Integration Layout SMM Check
+
+on:
+  push:
+    branches:
+      - refactor/integration-layout
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout CoHero source
+        uses: actions/checkout@v4
+        with:
+          path: cohero
+
+      - name: Checkout Shattered Master Mode
+        uses: actions/checkout@v4
+        with:
+          repository: edward9s/Shattered-Master-Mode
+          path: mod
+
+      - name: Resolve versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SPD_TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name // empty')
+          if [ -z "$SPD_TAG" ]; then
+            echo "::error::Unable to resolve the latest SPD release tag."
+            exit 1
+          fi
+
+          SMM_VER=$(python mod/scripts/extract_version.py mod/core/src/main/java/com/spd/mod/ModGame.java)
+          if [ -z "$SMM_VER" ]; then
+            echo "::error::Unable to resolve the SMM version."
+            exit 1
+          fi
+
+          COHERO_VER=$(python cohero/scripts/extract_version.py \
+            cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
+          if [ -z "$COHERO_VER" ]; then
+            echo "::error::Unable to resolve the CoHero version."
+            exit 1
+          fi
+
+          echo "spd_tag=$SPD_TAG" >> "$GITHUB_OUTPUT"
+          echo "smm_ver=$SMM_VER" >> "$GITHUB_OUTPUT"
+          echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
+          echo "Using CoHero $COHERO_VER with SPD $SPD_TAG and SMM m$SMM_VER"
+
+      - name: Checkout Shattered Pixel Dungeon
+        uses: actions/checkout@v4
+        with:
+          repository: 00-Evan/shattered-pixel-dungeon
+          ref: ${{ steps.versions.outputs.spd_tag }}
+          path: spd_src
+
+      - name: Verify CoHero source isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python cohero/scripts/verify_source_layout.py cohero
+
+      - name: Overlay CoHero source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a cohero/core/. spd_src/core/
+
+      - name: Patch CoHero integration seams
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash cohero/integration/shattered/apply.sh base spd_src cohero
+
+      - name: Patch and merge SMM
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python mod/scripts/rebase_source.py spd_src mod
+          python mod/scripts/patch_android.py spd_src
+          python mod/scripts/inject_mod.py spd_src
+
+          cp -a mod/core spd_src/ 2>/dev/null || true
+          cp -a mod/android spd_src/ 2>/dev/null || true
+          cp -a mod/desktop spd_src/ 2>/dev/null || true
+          cp -a mod/assets spd_src/ 2>/dev/null || true
+
+          python mod/scripts/patch_depth.py 26
+
+      - name: Patch CoHero-SMM interaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash cohero/integration/shattered/apply.sh wndgame spd_src cohero
+          python cohero/integration/smm/patches/patch_smm_longpress.py \
+            spd_src/core/src/main/java/com/spd/mod/mechanics/ModAssassinate.java
+
+      - name: Patch CoHero messages
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash cohero/integration/shattered/apply.sh messages spd_src cohero
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release APK and JAR
+        working-directory: spd_src
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :android:assembleRelease :desktop:release
+
