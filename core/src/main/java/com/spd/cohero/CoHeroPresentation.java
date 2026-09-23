@@ -2,27 +2,28 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 
-import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.Set;
 
 /**
- * Tracks CoHero-feature presentation separately from gameplay timing.
+ * Tracks best-effort presentation created by the CoHero feature.
  *
- * Presentation is strictly best-effort and must never suspend the SPD actor thread. This tracker
- * is shared by the companion and remote enemies whose actions are visible only through CoHero FOV.
- * At most one cosmetic presentation per actor may be in flight; gameplay always wins.
+ * Gameplay never waits on this tracker. Each actor owns at most one current presentation token.
+ * A newer high-priority presentation may replace an older cosmetic token; callbacks carrying an
+ * obsolete token are ignored when they eventually arrive.
  */
 public final class CoHeroPresentation {
 
-    private static final Set<Char> pendingActors =
-            Collections.newSetFromMap(new IdentityHashMap<Char, Boolean>());
+    public static final long NONE = 0L;
+
+    private static final IdentityHashMap<Char, Long> pendingByActor = new IdentityHashMap<>();
+    private static long nextToken = 1L;
 
     private CoHeroPresentation() {
     }
 
     public static synchronized void reset() {
-        pendingActors.clear();
+        pendingByActor.clear();
+        nextToken = 1L;
     }
 
     public static boolean shouldShow(int... cells) {
@@ -38,26 +39,66 @@ public final class CoHeroPresentation {
     }
 
     /**
-     * Attempts to reserve this actor's presentation slot without ever blocking gameplay.
+     * Starts a presentation only when this actor has no cosmetic already in flight.
      */
-    public static synchronized boolean tryBegin(Char actor) {
-        if (actor == null) {
-            throw new IllegalArgumentException("Presentation actor is required");
+    public static synchronized long tryBegin(Char actor) {
+        requireActor(actor);
+        if (pendingByActor.containsKey(actor)) {
+            return NONE;
         }
-        return pendingActors.add(actor);
+        return replaceInternal(actor);
+    }
+
+    /**
+     * Gives a newer presentation priority over any older cosmetic for this actor.
+     * Stale callbacks remain safe because completion is token-scoped.
+     */
+    public static synchronized long replace(Char actor) {
+        requireActor(actor);
+        return replaceInternal(actor);
+    }
+
+    public static synchronized void cancel(Char actor) {
+        if (actor != null) {
+            pendingByActor.remove(actor);
+        }
     }
 
     public static synchronized boolean isPending(Char actor) {
-        return pendingActors.contains(actor);
+        return actor != null && pendingByActor.containsKey(actor);
     }
 
-    public static synchronized void complete(Char actor) {
-        if (!pendingActors.remove(actor)) {
-            throw new IllegalStateException("Completed an untracked CoHero presentation");
+    /**
+     * Completes only the matching generation. Obsolete callbacks are intentionally ignored.
+     */
+    public static synchronized boolean complete(Char actor, long token) {
+        if (actor == null || token == NONE) {
+            return false;
         }
+        Long current = pendingByActor.get(actor);
+        if (current == null || current.longValue() != token) {
+            return false;
+        }
+        pendingByActor.remove(actor);
+        return true;
     }
 
     public static synchronized int pendingCount() {
-        return pendingActors.size();
+        return pendingByActor.size();
+    }
+
+    private static long replaceInternal(Char actor) {
+        long token = nextToken++;
+        if (token == NONE) {
+            token = nextToken++;
+        }
+        pendingByActor.put(actor, token);
+        return token;
+    }
+
+    private static void requireActor(Char actor) {
+        if (actor == null) {
+            throw new IllegalArgumentException("Presentation actor is required");
+        }
     }
 }
