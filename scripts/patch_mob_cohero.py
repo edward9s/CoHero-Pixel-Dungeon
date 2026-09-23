@@ -196,20 +196,28 @@ attack_anchor = """	protected boolean doAttack( Char enemy ) {
 
 attack_patch = """	protected boolean doAttack( Char enemy ) {
 
+		boolean presentationBusy = com.spd.cohero.CoHeroPresentation.isPending(this);
 		boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(pos)
 				|| com.spd.cohero.CoHero.heroCanSee(enemy.pos);
 
-		if (sprite != null && heroVisible) {
+		if (sprite != null && heroVisible && !presentationBusy) {
 			sprite.attack( enemy.pos );
 			return false;
 		}
 
 		// Hero-invisible combat must never suspend Actor.process(). If CoHero FOV makes
-		// this fight visible, start a cosmetic swing but resolve gameplay immediately.
+		// this fight visible, start a cosmetic swing with an explicit presentation-only
+		// callback; gameplay is resolved immediately below.
 		if (sprite != null
+				&& !presentationBusy
 				&& com.spd.cohero.CoHeroPresentation.shouldShow(pos, enemy.pos)
 				&& com.spd.cohero.CoHeroPresentation.tryBegin(this)) {
-			sprite.attack(enemy.pos);
+			sprite.attack(enemy.pos, new com.watabou.utils.Callback() {
+				@Override
+				public void call() {
+					com.spd.cohero.CoHeroPresentation.complete(Mob.this);
+				}
+			});
 		}
 
 		attack( enemy );
@@ -220,9 +228,6 @@ attack_patch = """	protected boolean doAttack( Char enemy ) {
 
 	@Override
 	public void onAttackComplete() {
-		if (com.spd.cohero.CoHeroPresentation.completeIfPending(this)) {
-			return;
-		}
 		attack( enemy );
 		Invisibility.dispel(this);
 		spend( attackDelay() );
@@ -230,7 +235,7 @@ attack_patch = """	protected boolean doAttack( Char enemy ) {
 	}
 """
 
-if "CoHeroPresentation.completeIfPending(this)" in text:
+if "CoHeroPresentation.tryBegin(this)" in text:
     raise SystemExit("CoHero nonblocking Mob attack patch is already present")
 if text.count(attack_anchor) != 1:
     raise SystemExit(
