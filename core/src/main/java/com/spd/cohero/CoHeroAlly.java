@@ -2417,8 +2417,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
                 && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
-            CoHeroPresentation.begin(
-                    this, CoHeroPresentation.isForeground(pos, targetMob.pos));
+            CoHeroPresentation.begin(this);
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                         sprite,
@@ -2449,8 +2448,7 @@ public class CoHeroAlly extends DirectableAlly {
                 && targetMob.sprite != null
                 && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
             float delay = attackDelay();
-            CoHeroPresentation.begin(
-                    this, CoHeroPresentation.isForeground(pos, targetMob.pos));
+            CoHeroPresentation.begin(this);
             try {
                 sprite.attack(targetMob.pos, new Callback() {
                     @Override
@@ -2494,8 +2492,7 @@ public class CoHeroAlly extends DirectableAlly {
         float delay = thrown.castDelay(this, targetMob.pos);
         if (sprite != null && sprite.parent != null && targetMob.sprite != null
                 && CoHeroPresentation.shouldShow(pos, targetMob.pos)) {
-            CoHeroPresentation.begin(
-                    this, CoHeroPresentation.isForeground(pos, targetMob.pos));
+            CoHeroPresentation.begin(this);
             try {
                 ((MissileSprite) sprite.parent.recycle(MissileSprite.class)).reset(
                         sprite,
@@ -2544,8 +2541,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         boolean showFx = CoHeroPresentation.shouldShow(pos, targetCell);
         if (showFx) {
-            CoHeroPresentation.begin(
-                    this, CoHeroPresentation.isForeground(pos, targetCell));
+            CoHeroPresentation.begin(this);
         }
 
         try {
@@ -2714,7 +2710,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         presentationMotionPending = true;
         // Movement is background presentation. It must never delay Hero input.
-        CoHeroPresentation.begin(this, false);
+        CoHeroPresentation.begin(this);
         try {
             // Char.moveSprite() intentionally suppresses motion outside Hero FOV. CoHero has a
             // separate presentation rule: anything visible through Hero OR CoHero FOV is animated.
