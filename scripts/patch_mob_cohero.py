@@ -170,6 +170,74 @@ if text.count(sleep_selection_anchor) != 1:
     )
 text = text.replace(sleep_selection_anchor, sleep_selection_patch, 1)
 
+
+attack_anchor = """	protected boolean doAttack( Char enemy ) {
+		
+		if (sprite != null && (sprite.visible || enemy.sprite.visible)) {
+			sprite.attack( enemy.pos );
+			return false;
+			
+		} else {
+			attack( enemy );
+			Invisibility.dispel(this);
+			spend( attackDelay() );
+			return true;
+		}
+	}
+	
+	@Override
+	public void onAttackComplete() {
+		attack( enemy );
+		Invisibility.dispel(this);
+		spend( attackDelay() );
+		super.onAttackComplete();
+	}
+"""
+
+attack_patch = """	protected boolean doAttack( Char enemy ) {
+
+		boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(pos)
+				|| com.spd.cohero.CoHero.heroCanSee(enemy.pos);
+
+		if (sprite != null && heroVisible) {
+			sprite.attack( enemy.pos );
+			return false;
+		}
+
+		// Hero-invisible combat must never suspend Actor.process(). If CoHero FOV makes
+		// this fight visible, start a cosmetic swing but resolve gameplay immediately.
+		if (sprite != null
+				&& com.spd.cohero.CoHeroPresentation.shouldShow(pos, enemy.pos)
+				&& com.spd.cohero.CoHeroPresentation.tryBegin(this)) {
+			sprite.attack(enemy.pos);
+		}
+
+		attack( enemy );
+		Invisibility.dispel(this);
+		spend( attackDelay() );
+		return true;
+	}
+
+	@Override
+	public void onAttackComplete() {
+		if (com.spd.cohero.CoHeroPresentation.completeIfPending(this)) {
+			return;
+		}
+		attack( enemy );
+		Invisibility.dispel(this);
+		spend( attackDelay() );
+		super.onAttackComplete();
+	}
+"""
+
+if "CoHeroPresentation.completeIfPending(this)" in text:
+    raise SystemExit("CoHero nonblocking Mob attack patch is already present")
+if text.count(attack_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one Mob attack presentation block, found {text.count(attack_anchor)}"
+    )
+text = text.replace(attack_anchor, attack_patch, 1)
+
 defense_anchor = """		if ( !surprisedBy(enemy)
 				&& paralysed == 0
 """
