@@ -9,6 +9,7 @@ import com.watabou.utils.Callback;
 
 import java.util.ArrayDeque;
 import java.util.IdentityHashMap;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -115,14 +116,14 @@ public final class CoHeroRemoteView {
         }
 
         boolean changed = false;
-        for (Map.Entry<Mob, Entry> mapped : entries.entrySet().toArray(
-                new Map.Entry[0])) {
+        ArrayList<Mob> stale = new ArrayList<>();
+        for (Map.Entry<Mob, Entry> mapped : entries.entrySet()) {
             Mob mob = mapped.getKey();
             Entry entry = mapped.getValue();
 
             if (!seen.containsKey(mob) || !remoteVisible(mob)) {
                 entry.sprite.killAndErase();
-                entries.remove(mob);
+                stale.add(mob);
                 changed = true;
                 continue;
             }
@@ -147,6 +148,10 @@ public final class CoHeroRemoteView {
             } else {
                 entry.sprite.place(mob.pos);
             }
+        }
+
+        for (Mob mob : stale) {
+            entries.remove(mob);
         }
 
         if (changed) {
