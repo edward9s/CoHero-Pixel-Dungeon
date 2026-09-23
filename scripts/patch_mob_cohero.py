@@ -41,8 +41,18 @@ patch = anchor + """	/**
 		}
 	}
 
-	public boolean coHeroPresentationPending() {
-		return com.spd.cohero.CoHeroPresentation.isPending(this);
+	public boolean coHeroShouldBlockPresentation(Char target) {
+		boolean blocksHero = target == Dungeon.hero
+				&& (com.spd.cohero.CoHero.heroCanSee(pos)
+				|| com.spd.cohero.CoHero.heroCanSee(target.pos));
+		if (blocksHero) {
+			com.spd.cohero.CoHeroPresentation.cancel(this);
+		}
+		return blocksHero;
+	}
+
+	public boolean coHeroMovementPresentationNonBlocking() {
+		return enemy instanceof com.spd.cohero.CoHeroAlly;
 	}
 
 	/**
@@ -200,26 +210,29 @@ attack_anchor = """	protected boolean doAttack( Char enemy ) {
 
 attack_patch = """	protected boolean doAttack( Char enemy ) {
 
-		boolean presentationBusy = coHeroPresentationPending();
+		boolean blocksHero = coHeroShouldBlockPresentation(enemy);
 		boolean heroVisible = com.spd.cohero.CoHero.heroCanSee(pos)
 				|| com.spd.cohero.CoHero.heroCanSee(enemy.pos);
 
-		if (sprite != null && heroVisible && !presentationBusy) {
+		if (sprite != null && blocksHero) {
 			sprite.attack( enemy.pos );
 			return false;
 		}
 
-		// Hero-invisible combat must never suspend Actor.process(). If CoHero FOV makes
-		// this fight visible, start a cosmetic swing with an explicit presentation-only
-		// callback; gameplay is resolved immediately below.
+		long presentationToken = com.spd.cohero.CoHeroPresentation.NONE;
 		if (sprite != null
-				&& !presentationBusy
-				&& com.spd.cohero.CoHeroPresentation.shouldShow(pos, enemy.pos)
-				&& com.spd.cohero.CoHeroPresentation.tryBegin(this)) {
+				&& com.spd.cohero.CoHeroPresentation.shouldShow(pos, enemy.pos)) {
+			presentationToken = heroVisible
+					? com.spd.cohero.CoHeroPresentation.replace(this)
+					: com.spd.cohero.CoHeroPresentation.tryBegin(this);
+		}
+
+		if (presentationToken != com.spd.cohero.CoHeroPresentation.NONE) {
+			final long token = presentationToken;
 			sprite.attack(enemy.pos, new com.watabou.utils.Callback() {
 				@Override
 				public void call() {
-					com.spd.cohero.CoHeroPresentation.complete(Mob.this);
+					com.spd.cohero.CoHeroPresentation.complete(Mob.this, token);
 				}
 			});
 		}
