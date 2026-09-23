@@ -74,9 +74,11 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/melee/MagesStaff.java"
     python "$patches/patch_spirit_bow.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/SpiritBow.java"
-    python "$patches/patch_wands.py" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java" \
+    python "$patches/patch_wand_base.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/Wand.java"
+    python "$patches/patch_damage_wand.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/DamageWand.java"
+    python "$patches/patch_magic_missile_wand.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfMagicMissile.java"
     python "$patches/patch_blastwave_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/wands/WandOfBlastWave.java"
