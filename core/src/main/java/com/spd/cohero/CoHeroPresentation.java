@@ -7,11 +7,11 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
- * Tracks visible CoHero presentation separately from gameplay timing.
+ * Tracks CoHero-feature presentation separately from gameplay timing.
  *
- * Presentation is strictly best-effort and must never suspend the SPD actor thread. At most one
- * CoHero presentation may be in flight; if gameplay reaches the same CoHero again first, that
- * action still resolves normally and simply skips starting another visual.
+ * Presentation is strictly best-effort and must never suspend the SPD actor thread. This tracker
+ * is shared by the companion and remote enemies whose actions are visible only through CoHero FOV.
+ * At most one cosmetic presentation per actor may be in flight; gameplay always wins.
  */
 public final class CoHeroPresentation {
 
@@ -49,6 +49,15 @@ public final class CoHeroPresentation {
 
     public static synchronized boolean isPending(Char actor) {
         return pendingActors.contains(actor);
+    }
+
+    /**
+     * Completes a cosmetic callback if this actor currently owns one.
+     *
+     * @return true when the callback was cosmetic-only and gameplay must not run again.
+     */
+    public static synchronized boolean completeIfPending(Char actor) {
+        return pendingActors.remove(actor);
     }
 
     public static synchronized void complete(Char actor) {
