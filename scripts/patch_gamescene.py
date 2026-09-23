@@ -97,14 +97,30 @@ text = text.replace(
     1,
 )
 
-update_anchor = "\t\tsuper.update();\n"
+update_anchor = (
+    "\t@Override\n"
+    "\tpublic synchronized void update() {\n"
+    "\t\tlastOffset = null;\n"
+)
 if text.count(update_anchor) != 1:
     raise SystemExit(
-        f"expected exactly one GameScene update anchor, found {text.count(update_anchor)}"
+        f"expected exactly one GameScene.update() anchor, found {text.count(update_anchor)}"
+    )
+
+update_body_anchor = (
+    "\t\tif (Dungeon.hero == null || scene == null) {\n"
+    "\t\t\treturn;\n"
+    "\t\t}\n"
+    "\n"
+    "\t\tsuper.update();\n"
+)
+if text.count(update_body_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene.update() body anchor, found {text.count(update_body_anchor)}"
     )
 text = text.replace(
-    update_anchor,
-    update_anchor + remote_view_marker + "\n",
+    update_body_anchor,
+    update_body_anchor + remote_view_marker + "\n",
     1,
 )
 
