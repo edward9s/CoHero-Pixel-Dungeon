@@ -83,8 +83,8 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 		final Ballistica bolt = coHeroBallistica(owner, target);
 		coHeroUser = owner;
 		try {
-			// Gameplay is resolved immediately on the actor thread. FX is presentation-only and
-			// may continue after later actors have started processing.
+			// Gameplay is resolved before FX construction. The caller decides whether the actor
+			// waits for the FX callback; remote CoHero casts skip real FX and use CoHeroRemoteView.
 			coHeroPrepareZap(owner, target, bolt);
 			onZap(bolt);
 			coHeroFinishZap(owner);
