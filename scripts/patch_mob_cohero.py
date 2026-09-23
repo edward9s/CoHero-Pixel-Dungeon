@@ -222,9 +222,13 @@ attack_patch = """	protected boolean doAttack( Char enemy ) {
 		long presentationToken = com.spd.cohero.CoHeroPresentation.NONE;
 		if (sprite != null
 				&& com.spd.cohero.CoHeroPresentation.shouldShow(pos, enemy.pos)) {
-			presentationToken = heroVisible
-					? com.spd.cohero.CoHeroPresentation.replace(this)
-					: com.spd.cohero.CoHeroPresentation.tryBegin(this);
+			if (heroVisible) {
+				sprite.interruptMotion();
+				sprite.place(pos);
+				presentationToken = com.spd.cohero.CoHeroPresentation.replace(this);
+			} else {
+				presentationToken = com.spd.cohero.CoHeroPresentation.tryBegin(this);
+			}
 		}
 
 		if (presentationToken != com.spd.cohero.CoHeroPresentation.NONE) {
