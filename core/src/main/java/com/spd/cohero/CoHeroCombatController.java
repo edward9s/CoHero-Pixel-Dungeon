@@ -615,7 +615,8 @@ final class CoHeroCombatController {
     }
 
     private int chooseMeleeTacticalCell(Mob targetMob, boolean greatCrab) {
-        PathFinder.buildDistanceMap(owner.pos, Dungeon.level.passable);
+        PathFinder.buildDistanceMap(
+                owner.pos, Dungeon.level.passable, MELEE_TACTICAL_SEARCH_RADIUS);
 
         int best = -1;
         int bestScore = Integer.MAX_VALUE;
@@ -1185,9 +1186,12 @@ final class CoHeroCombatController {
         CharSprite sprite = owner.attachedSprite();
 
         if (heroVisible && sprite != null && targetMob.sprite != null) {
+            long animationStarted = System.nanoTime();
             sprite.attack(targetMob.pos, new Callback() {
                 @Override
                 public void call() {
+                    owner.timings().record(owner, CoHeroTimings.Action.ATTACK_ANIMATION,
+                            animationStarted);
                     owner.attackTarget(targetMob);
                     Invisibility.dispel(owner);
                     owner.spendActionTime(delay);

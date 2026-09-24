@@ -74,6 +74,8 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 CoHero 診斷預設關閉。CoHero 背包提供單一 `CoHero debug log` checkbox；啟用後才輸出所有 CoHero AI 診斷。移動診斷以 `[CoHeroMove]` 為前綴：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態生命週期。此 flag 會隨 CoHero 存檔保存；關閉時不建立高頻 movement debug 字串，也不呼叫相關 GLog。
 
+效能診斷共用 `CoHero debug log` 開關；關閉時不記錄耗時，存檔時刪除同一存檔資料夾內的舊 `cohero-timings.txt`，重新啟用則從空白報告開始。啟用時 CoHero 在記憶體中保留最近 64 筆完整行動、攻擊、撿拾、Hero 每次位移與慢幀等事件，並統計各類行動的次數、平均與最長耗時。`act` 測量單次同步決策的總耗時；`prepare`、`combat`、`melee_positioning`、`support`、`recovery`、`guard`、`explore`、`vision` 分段計時，超過 10 毫秒才保留詳細紀錄；各段與 `act` 可能重疊，不能將耗時相加。`frame_interval` 統計 GameScene 連續更新的時間間隔，超過 50 毫秒才保留獨立事件；`remote_view` 統計畫面執行緒更新視野外夥伴畫面的時間。Android 23 以上每次 Hero 換格時，`hero_step` 記錄兩次換格之間的最長畫面更新間隔、程序的 GC 次數、累計 GC 耗時、阻塞型 GC 次數與耗時，以及配置量增量；GC 計數是整個程序的近似值，不能單靠一次增量證明該幀被 GC 阻塞。存檔時以 `save_snapshot` 補記最後一次換格後尚未結束的區間；此段包含遊戲介面操作與開始存檔，不能當成行走耗時。桌面版與 Android 21/22 不提供 Android GC 計數。近戰選位只考慮 5 步內的格子，因此距離搜尋也限制在 5 步。啟用時遊戲存檔才將報告寫入該存檔資料夾的 `cohero-timings.txt`；CoHero + SMM 的 Export Save 會先存檔，再將此檔連同其他存檔檔案匯出。報告跨樓層保留，重新載入後重新累積；`attack_animation` 包含正常動畫播放時間，不能直接當成 CPU 耗時。
+
 ### 視野與火把
 
 - CoHero 背包支援原版 `Torch`；在 `Dungeon.level.viewDistance < Light.DISTANCE` 的低視距樓層且目前沒有 `Light` buff 時，CoHero 會自動消耗一支火把，使用原版 `Light.DURATION` 與 `Light.DISTANCE` 規則，並花費原版 `Torch.TIME_TO_LIGHT` 的行動時間。

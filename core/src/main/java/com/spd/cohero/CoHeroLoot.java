@@ -100,7 +100,9 @@ final class CoHeroLoot {
             return true;
         }
 
+        long searchStarted = System.nanoTime();
         int recoveryCell = nearestPreferredLootCell();
+        owner.timings().record(owner, CoHeroTimings.Action.LOOT_SEARCH, searchStarted);
         if (recoveryCell == -1 || recoveryCell == owner.pos) {
             return null;
         }
@@ -186,15 +188,18 @@ final class CoHeroLoot {
             return false;
         }
 
+        long pickupStarted = System.nanoTime();
         heap.remove(selected);
 
         if (selected instanceof Gold) {
             collectGold((Gold) selected);
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_GOLD, pickupStarted);
             return true;
         }
 
         if (!owner.inventory().addToBackpack(selected)) {
             Dungeon.level.drop(selected, owner.pos).sprite.drop();
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_FAILED, pickupStarted);
             return false;
         }
 
@@ -202,6 +207,7 @@ final class CoHeroLoot {
             MissileWeapon missile = (MissileWeapon) selected;
             markRecovered(missile.setID, missile.quantity());
         }
+        owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
         return true;
     }
 

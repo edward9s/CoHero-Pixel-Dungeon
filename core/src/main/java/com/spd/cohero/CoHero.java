@@ -1,5 +1,6 @@
 package com.spd.cohero;
 
+import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
@@ -50,12 +51,33 @@ public final class CoHero {
     private static boolean[] renderFieldOfView;
     private static Level companionLookupLevel;
     private static CoHeroAlly companionLookup;
+    private static CoHeroTimings timings = new CoHeroTimings();
 
     private CoHero() {
     }
 
     public static String version() {
         return CoHeroVersion.version();
+    }
+
+    static CoHeroTimings timings() {
+        return timings;
+    }
+
+    public static void onGameFrameStarted() {
+        if (timings.isEnabled() && Dungeon.hero != null) {
+            timings.frameStarted(Dungeon.hero.pos);
+        }
+    }
+
+    public static long onRemoteViewStarted() {
+        return timings.isEnabled() ? System.nanoTime() : 0L;
+    }
+
+    public static void onRemoteViewUpdated(long started) {
+        if (started != 0L) {
+            timings.remoteViewUpdated(started);
+        }
     }
 
     public static void onHeroSelectSceneCreated() {
@@ -73,6 +95,7 @@ public final class CoHero {
         restoringSavedGame = false;
         excludedDepth = -1;
         excludedBranch = -1;
+        timings = new CoHeroTimings();
     }
 
     public static boolean onHeroSelectionConfirmed(HeroClass selectedClass) {
@@ -150,6 +173,12 @@ public final class CoHero {
 
         captureCompanionState();
 
+        try {
+            timings.saveReport();
+        } catch (GdxRuntimeException error) {
+            GLog.w("CoHero timing report could not be saved: " + error.getMessage());
+        }
+
         if (companionState != null) {
             bundle.put(SAVE_COMPANION_STATE, companionState);
         }
@@ -192,6 +221,7 @@ public final class CoHero {
         openingCompanionSelection = false;
         companionDeathEndedRun = false;
         restoringSavedGame = true;
+        timings = new CoHeroTimings();
     }
 
     public static void populateGameInfo(GamesInProgress.Info info) {
@@ -236,6 +266,8 @@ public final class CoHero {
             return;
         }
 
+        timings.sceneStarted();
+
         // Remote observation is scene-local. Never carry proxy state across floor/scene loads.
         CoHeroRemoteView.reset();
 
@@ -258,6 +290,7 @@ public final class CoHero {
 
         CoHeroAlly existing = findCompanion();
         if (existing != null) {
+            timings.setEnabled(existing.debugLogEnabled());
             refreshCompanionVision(existing);
             restoringSavedGame = false;
             return;
@@ -286,6 +319,8 @@ public final class CoHero {
             CompanionStartingEquipment.initialize(companion, heroClass);
             spawn = findSpawnCell();
         }
+
+        timings.setEnabled(companion.debugLogEnabled());
 
         restoringSavedGame = false;
 

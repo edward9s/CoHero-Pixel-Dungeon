@@ -45,6 +45,7 @@ final class CoHeroVision {
     }
 
     void revealVisibleCells() {
+        long started = System.nanoTime();
         boolean newlyVisited = false;
         for (int i = 0; i < owner.fieldOfView.length; i++) {
             if (owner.fieldOfView[i]
@@ -61,6 +62,7 @@ final class CoHeroVision {
             GameScene.updateFog(owner.pos, owner.viewDistance + 1);
             GameScene.afterObserve();
         }
+        owner.timings().record(owner, CoHeroTimings.Action.VISION, started);
     }
 
     boolean tryAutoTorch() {

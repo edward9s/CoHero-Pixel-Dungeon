@@ -67,6 +67,10 @@ public class CoHeroAlly extends DirectableAlly {
         return loot;
     }
 
+    CoHeroTimings timings() {
+        return CoHero.timings();
+    }
+
     boolean lowHealthRally() {
         return support.isLowHealthRally();
     }
@@ -554,6 +558,16 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean act() {
+        long started = System.nanoTime();
+        try {
+            return decideAction();
+        } finally {
+            timings().record(this, CoHeroTimings.Action.ACT, started, movementDecision);
+        }
+    }
+
+    private boolean decideAction() {
+        long prepareStarted = System.nanoTime();
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
         resetInheritedDecisionState();
@@ -594,150 +608,162 @@ public class CoHeroAlly extends DirectableAlly {
         guard.prepareMovementScope(guardSupportThreat);
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
+        timings().record(this, CoHeroTimings.Action.PREPARE, prepareStarted);
         if (visibleThreats.isEmpty() && debugLogEnabled) {
             String detail = threatScanDebug();
             logBossDecision("no_visible_threat:" + detail, detail);
         }
 
         if (!visibleThreats.isEmpty()) {
-            ArrayList<Mob> attackableThreats = combat.collectAttackableThreats(visibleThreats);
+            long combatStarted = System.nanoTime();
+            try {
+                ArrayList<Mob> attackableThreats = combat.collectAttackableThreats(visibleThreats);
 
-            // Invulnerability does not end the fight. It only has tactical priority while an
-            // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
-            // ordinary combat against any damageable enemies resumes immediately.
-            Boolean invulnerableRetreat = combat.tryAvoidInvulnerableThreats(visibleThreats);
-            if (invulnerableRetreat != null) {
-                return invulnerableRetreat;
-            }
+                // Invulnerability does not end the fight. It only has tactical priority while an
+                // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
+                // ordinary combat against any damageable enemies resumes immediately.
+                Boolean invulnerableRetreat = combat.tryAvoidInvulnerableThreats(visibleThreats);
+                if (invulnerableRetreat != null) {
+                    return invulnerableRetreat;
+                }
 
-            if (attackableThreats.isEmpty()) {
-                logBossDecision("invulnerable_out_of_range",
-                        "no damageable visible enemy; invulnerable threats cannot attack -> hold");
+                if (attackableThreats.isEmpty()) {
+                    logBossDecision("invulnerable_out_of_range",
+                            "no damageable visible enemy; invulnerable threats cannot attack -> hold");
+                    spend(TICK);
+                    return true;
+                }
+
+                Mob combatTarget = combat.nearestThreat(attackableThreats);
+                CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, visibleThreats);
+
+                Boolean survivalAction = combat.tryCombatSurvival(combatRisk, visibleThreats);
+                if (survivalAction != null) {
+                    if (debugLogEnabled) {
+                        logBossDecision("combat_survival:" + combatTarget.id(),
+                                targetDebug(combatTarget)
+                                        + " -> survival/retreat"
+                                        + " attackers=" + combatRisk.attackersNow
+                                        + " ttd=" + String.format("%.1f", combatRisk.ttd)
+                                        + " ttk=" + String.format("%.1f", combatRisk.ttk));
+                    }
+                    return survivalAction;
+                }
+
+                Boolean cleansingPlant = survival.tryKnownCleansingPlant();
+                if (cleansingPlant != null) {
+                    return cleansingPlant;
+                }
+
+                if (survival.tryUseCleansingPotion(combatRisk)) {
+                    return true;
+                }
+
+                if (survival.tryAutoSurvivalPotion()) {
+                    return true;
+                }
+
+                Boolean objectiveAction =
+                        combatObjective.actBeforeOffense(attackableThreats, visibleThreats);
+                if (objectiveAction != null) {
+                    return objectiveAction;
+                }
+
+                attackableThreats = combatObjective.offensiveThreats(attackableThreats);
+                if (attackableThreats.isEmpty()) {
+                    throw new IllegalStateException(
+                            "Active CoHero combat objective produced no offensive target");
+                }
+                Mob offensiveTarget = combat.nearestThreat(attackableThreats);
+                if (offensiveTarget != combatTarget) {
+                    combatTarget = offensiveTarget;
+                    combatRisk = assessCombatRisk(combatTarget, visibleThreats);
+                } else {
+                    combatTarget = offensiveTarget;
+                }
+
+                // Tactical exception: when an enemy is actively attacking from range and CoHero has
+                // a melee weapon, closing to adjacency remains more important than trading shots.
+                Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, visibleThreats);
+                if (rangedEngagement != null) {
+                    logBossDecision("ranged_positioning:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> ranged positioning");
+                    return rangedEngagement;
+                }
+
+                // Direct ranged offense is a normal combat action, not a last-resort fallback.
+                // If the preferred threat cannot be shot, this may select another visible threat that
+                // has a legal missile / Spirit Bow / wand line.
+                Boolean directRanged = combat.tryDirectRangedAttack(combatTarget, attackableThreats);
+                if (directRanged != null) {
+                    return directRanged;
+                }
+
+                // Non-emergency consumables and setup should not repeatedly steal turns from an
+                // immediately available ranged attack.
+                Boolean armorPlant = survival.tryKnownCombatArmorPlant(combatTarget, visibleThreats);
+                if (armorPlant != null) {
+                    return armorPlant;
+                }
+
+                if (controlItems.tryUseCombatRunestone(
+                        combatTarget, attackableThreats, combatRisk)) {
+                    return true;
+                }
+
+                if (survival.tryUseCombatEarthenArmor(
+                        combatTarget, visibleThreats, combatRisk)) {
+                    return true;
+                }
+
+                if (survival.tryUseCombatStamina(
+                        combatTarget, visibleThreats, combatRisk)) {
+                    return true;
+                }
+
+                long meleeStarted = System.nanoTime();
+                Boolean meleePositioning;
+                try {
+                    meleePositioning = combat.tryMeleePositioning(combatTarget, visibleThreats);
+                } finally {
+                    timings().record(this, CoHeroTimings.Action.MELEE_POSITIONING, meleeStarted);
+                }
+                if (meleePositioning != null) {
+                    logBossDecision("melee_positioning:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> melee positioning");
+                    return meleePositioning;
+                }
+
+                Boolean combatResult = combat.tryCombat(combatTarget);
+                if (combatResult != null) {
+                    return combatResult;
+                }
+
+                Boolean escapeUtility = combat.tryEscapeUtility(visibleThreats);
+                if (escapeUtility != null) {
+                    return escapeUtility;
+                }
+
+                int escapeStep = combat.chooseEscapeStep(visibleThreats);
+                if (escapeStep != -1) {
+                    int oldPos = pos;
+                    guard.allowAnyMovement();
+                    setMovementDecision("combat_escape", escapeStep);
+                    if (getCloser(escapeStep)) {
+                        spend(1 / speed());
+                        Dungeon.level.updateFieldOfView(this, fieldOfView);
+                        revealVisibleCells();
+                        return moveSprite(oldPos, pos);
+                    }
+                }
+
+                logBossDecision("combat_idle:" + combatTarget.id(),
+                        targetDebug(combatTarget) + " -> no legal combat action");
                 spend(TICK);
                 return true;
+            } finally {
+                timings().record(this, CoHeroTimings.Action.COMBAT, combatStarted);
             }
-
-            Mob combatTarget = combat.nearestThreat(attackableThreats);
-            CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, visibleThreats);
-
-            Boolean survivalAction = combat.tryCombatSurvival(combatRisk, visibleThreats);
-            if (survivalAction != null) {
-                if (debugLogEnabled) {
-                    logBossDecision("combat_survival:" + combatTarget.id(),
-                            targetDebug(combatTarget)
-                                    + " -> survival/retreat"
-                                    + " attackers=" + combatRisk.attackersNow
-                                    + " ttd=" + String.format("%.1f", combatRisk.ttd)
-                                    + " ttk=" + String.format("%.1f", combatRisk.ttk));
-                }
-                return survivalAction;
-            }
-
-            Boolean cleansingPlant = survival.tryKnownCleansingPlant();
-            if (cleansingPlant != null) {
-                return cleansingPlant;
-            }
-
-            if (survival.tryUseCleansingPotion(combatRisk)) {
-                return true;
-            }
-
-            if (survival.tryAutoSurvivalPotion()) {
-                return true;
-            }
-
-            Boolean objectiveAction =
-                    combatObjective.actBeforeOffense(attackableThreats, visibleThreats);
-            if (objectiveAction != null) {
-                return objectiveAction;
-            }
-
-            attackableThreats = combatObjective.offensiveThreats(attackableThreats);
-            if (attackableThreats.isEmpty()) {
-                throw new IllegalStateException(
-                        "Active CoHero combat objective produced no offensive target");
-            }
-            Mob offensiveTarget = combat.nearestThreat(attackableThreats);
-            if (offensiveTarget != combatTarget) {
-                combatTarget = offensiveTarget;
-                combatRisk = assessCombatRisk(combatTarget, visibleThreats);
-            } else {
-                combatTarget = offensiveTarget;
-            }
-
-            // Tactical exception: when an enemy is actively attacking from range and CoHero has
-            // a melee weapon, closing to adjacency remains more important than trading shots.
-            Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, visibleThreats);
-            if (rangedEngagement != null) {
-                logBossDecision("ranged_positioning:" + combatTarget.id(),
-                        targetDebug(combatTarget) + " -> ranged positioning");
-                return rangedEngagement;
-            }
-
-            // Direct ranged offense is a normal combat action, not a last-resort fallback.
-            // If the preferred threat cannot be shot, this may select another visible threat that
-            // has a legal missile / Spirit Bow / wand line.
-            Boolean directRanged = combat.tryDirectRangedAttack(combatTarget, attackableThreats);
-            if (directRanged != null) {
-                return directRanged;
-            }
-
-            // Non-emergency consumables and setup should not repeatedly steal turns from an
-            // immediately available ranged attack.
-            Boolean armorPlant = survival.tryKnownCombatArmorPlant(combatTarget, visibleThreats);
-            if (armorPlant != null) {
-                return armorPlant;
-            }
-
-            if (controlItems.tryUseCombatRunestone(
-                    combatTarget, attackableThreats, combatRisk)) {
-                return true;
-            }
-
-            if (survival.tryUseCombatEarthenArmor(
-                    combatTarget, visibleThreats, combatRisk)) {
-                return true;
-            }
-
-            if (survival.tryUseCombatStamina(
-                    combatTarget, visibleThreats, combatRisk)) {
-                return true;
-            }
-
-            Boolean meleePositioning = combat.tryMeleePositioning(combatTarget, visibleThreats);
-            if (meleePositioning != null) {
-                logBossDecision("melee_positioning:" + combatTarget.id(),
-                        targetDebug(combatTarget) + " -> melee positioning");
-                return meleePositioning;
-            }
-
-            Boolean combatResult = combat.tryCombat(combatTarget);
-            if (combatResult != null) {
-                return combatResult;
-            }
-
-            Boolean escapeUtility = combat.tryEscapeUtility(visibleThreats);
-            if (escapeUtility != null) {
-                return escapeUtility;
-            }
-
-            int escapeStep = combat.chooseEscapeStep(visibleThreats);
-            if (escapeStep != -1) {
-                int oldPos = pos;
-                guard.allowAnyMovement();
-                setMovementDecision("combat_escape", escapeStep);
-                if (getCloser(escapeStep)) {
-                    spend(1 / speed());
-                    Dungeon.level.updateFieldOfView(this, fieldOfView);
-                    revealVisibleCells();
-                    return moveSprite(oldPos, pos);
-                }
-            }
-
-            logBossDecision("combat_idle:" + combatTarget.id(),
-                    targetDebug(combatTarget) + " -> no legal combat action");
-            spend(TICK);
-            return true;
         }
 
         Boolean recoveryPlant = survival.tryKnownRecoveryPlant();
@@ -757,29 +783,49 @@ public class CoHeroAlly extends DirectableAlly {
             return support.actLowHealthRally();
         }
 
-        Boolean supportAction = combat.trySupportAction();
-        if (supportAction != null) {
-            return supportAction;
+        long supportStarted = System.nanoTime();
+        try {
+            Boolean supportAction = combat.trySupportAction();
+            if (supportAction != null) {
+                return supportAction;
+            }
+
+            Boolean heroSupport = support.tryFollowHeroForNearbyEnemy();
+            if (heroSupport != null) {
+                return heroSupport;
+            }
+        } finally {
+            timings().record(this, CoHeroTimings.Action.SUPPORT, supportStarted);
         }
 
-        Boolean heroSupport = support.tryFollowHeroForNearbyEnemy();
-        if (heroSupport != null) {
-            return heroSupport;
+        long recoveryStarted = System.nanoTime();
+        try {
+            Boolean lootAction = loot.actRecovery();
+            if (lootAction != null) {
+                return lootAction;
+            }
+        } finally {
+            timings().record(this, CoHeroTimings.Action.RECOVERY, recoveryStarted);
         }
 
-        Boolean lootAction = loot.actRecovery();
-        if (lootAction != null) {
-            return lootAction;
-        }
-
-        Boolean guardAction = guard.act();
-        if (guardAction != null) {
-            return guardAction;
+        long guardStarted = System.nanoTime();
+        try {
+            Boolean guardAction = guard.act();
+            if (guardAction != null) {
+                return guardAction;
+            }
+        } finally {
+            timings().record(this, CoHeroTimings.Action.GUARD, guardStarted);
         }
 
         guard.clearDirective();
 
-        return navigation.actExplore();
+        long exploreStarted = System.nanoTime();
+        try {
+            return navigation.actExplore();
+        } finally {
+            timings().record(this, CoHeroTimings.Action.EXPLORE, exploreStarted);
+        }
     }
 
 
@@ -824,6 +870,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     void setDebugLogEnabled(boolean enabled) {
         debugLogEnabled = enabled;
+        timings().setEnabled(enabled);
         if (!enabled) {
             lastBossDecisionLog = null;
         }
@@ -836,11 +883,11 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     void setMovementDecision(String decision, int target) {
+        movementDecision = decision;
+        movementDecisionTarget = target;
         if (!debugLogEnabled) {
             return;
         }
-        movementDecision = decision;
-        movementDecisionTarget = target;
         GLog.i("[CoHeroMove] DECIDE"
                 + " decision=" + decision
                 + " target=" + target
@@ -1121,7 +1168,12 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     boolean attackTarget(Char target) {
-        return attack(target);
+        long started = System.nanoTime();
+        boolean hit = attack(target);
+        timings().record(this, target.isAlive()
+                ? CoHeroTimings.Action.ATTACK
+                : CoHeroTimings.Action.ATTACK_KILL, started);
+        return hit;
     }
 
     void finishAsyncAction() {
