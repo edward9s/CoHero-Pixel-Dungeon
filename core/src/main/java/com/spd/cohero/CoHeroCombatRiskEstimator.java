@@ -32,9 +32,36 @@ final class CoHeroCombatRiskEstimator {
 
     CoHeroCombatRisk assess(
             Mob targetMob, ArrayList<Mob> threats) {
-        int attackersNow = countCurrentAttackersAtCell(owner.pos, threats);
-        float incomingDpt = estimatedIncomingDptAtCell(owner.pos, threats);
-        float immediateIncoming = estimatedImmediateIncomingAtCell(owner.pos, threats);
+        if (targetMob == null || threats == null || threats.isEmpty()) {
+            throw new IllegalArgumentException("Combat risk requires a target and visible threats");
+        }
+
+        int attackersNow = 0;
+        float incomingDpt = Math.max(0, owner.incomingDOT()) * 0.20f;
+        float immediateIncoming = 0f;
+
+        for (Mob threat : threats) {
+            boolean attacksNow = canThreatAttackCell(threat, owner.pos);
+            if (attacksNow) {
+                attackersNow++;
+            }
+
+            float opportunity = threatOpportunity(threat, owner.pos, attacksNow);
+            if (opportunity <= 0f) {
+                continue;
+            }
+
+            float expectedHitDamage = estimatedThreatDamage(threat, owner.pos)
+                    * estimatedHitChance(threat, owner.pos);
+            incomingDpt += expectedHitDamage
+                    * opportunity
+                    / Math.max(0.25f, threat.attackDelay());
+
+            if (attacksNow) {
+                immediateIncoming += expectedHitDamage;
+            }
+        }
+
         float effectiveHp = owner.HP + owner.shielding();
         float reserve = estimatedNearTermSurvivalReserve(attackersNow);
         float outgoingDpt = estimateOutgoingDpt(targetMob);
@@ -61,7 +88,13 @@ final class CoHeroCombatRiskEstimator {
                 immediateLethal || overwhelmed || losingRace || outnumberedRace;
 
         return new CoHeroCombatRisk(
-                retreat, attackersNow, incomingDpt, immediateIncoming, ttd, ttk);
+                retreat,
+                attackersNow,
+                incomingDpt,
+                immediateIncoming,
+                outgoingDpt,
+                ttd,
+                ttk);
     }
 
     int countCurrentAttackersAtCell(int defenderCell, ArrayList<Mob> threats) {
@@ -208,20 +241,14 @@ final class CoHeroCombatRiskEstimator {
         return reserve;
     }
 
-    private float estimatedImmediateIncomingAtCell(
-            int defenderCell, ArrayList<Mob> threats) {
-        float result = 0f;
-        for (Mob threat : threats) {
-            if (canThreatAttackCell(threat, defenderCell)) {
-                result += estimatedThreatDamage(threat, defenderCell)
-                        * estimatedHitChance(threat, defenderCell);
-            }
-        }
-        return result;
+    float threatOpportunity(Mob threat, int defenderCell) {
+        return threatOpportunity(
+                threat, defenderCell, canThreatAttackCell(threat, defenderCell));
     }
 
-    float threatOpportunity(Mob threat, int defenderCell) {
-        if (canThreatAttackCell(threat, defenderCell)) {
+    private float threatOpportunity(
+            Mob threat, int defenderCell, boolean attacksNow) {
+        if (attacksNow) {
             return 1f;
         }
         if (threat.rooted || threat.paralysed > 0) {

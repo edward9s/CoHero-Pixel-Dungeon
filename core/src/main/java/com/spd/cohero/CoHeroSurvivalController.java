@@ -63,11 +63,15 @@ final class CoHeroSurvivalController {
                 || (negatives > 0 && owner.HT > 0 && owner.HP * 100 < owner.HT * 50);
     }
 
-    boolean tryUseCombatStamina(Mob targetMob, ArrayList<Mob> threats) {
+    boolean tryUseCombatStamina(
+            Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
+        if (risk == null) {
+            throw new IllegalArgumentException("Combat stamina requires current combat risk");
+        }
         if (targetMob == null
                 || threats == null
                 || threats.isEmpty()
-                || owner.isRetreatingNow(targetMob, threats)
+                || risk.retreat
                 || owner.buff(Stamina.class) != null
                 || owner.buff(Haste.class) != null
                 || owner.buff(Invisibility.class) != null) {
@@ -79,7 +83,7 @@ final class CoHeroSurvivalController {
         boolean bossFight = Char.hasProp(targetMob, Char.Property.BOSS)
                 || Char.hasProp(targetMob, Char.Property.MINIBOSS);
 
-        float outgoing = owner.estimateOutgoingDpt(targetMob);
+        float outgoing = risk.outgoingDpt;
         boolean shortTrivialFight = threats.size() == 1
                 && !rangedPressure
                 && !bossFight
@@ -286,11 +290,15 @@ final class CoHeroSurvivalController {
         return owner.finishMovementAnimation(oldPos);
     }
 
-    boolean tryUseCombatEarthenArmor(Mob targetMob, ArrayList<Mob> threats) {
+    boolean tryUseCombatEarthenArmor(
+            Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
+        if (risk == null) {
+            throw new IllegalArgumentException("Combat earthen armor requires current combat risk");
+        }
         if (targetMob == null
                 || threats == null
                 || threats.isEmpty()
-                || owner.isRetreatingNow(targetMob, threats)
+                || risk.retreat
                 || Barkskin.currentLevel(owner) > 0
                 || owner.buff(Earthroot.Armor.class) != null) {
             return false;

@@ -47,12 +47,16 @@ final class CoHeroControlItems {
         this.owner = owner;
     }
 
-    boolean tryUseCombatRunestone(Mob targetMob, ArrayList<Mob> threats) {
+    boolean tryUseCombatRunestone(
+            Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
+        if (risk == null) {
+            throw new IllegalArgumentException("Combat runestone use requires current combat risk");
+        }
         if (targetMob == null
                 || threats == null
                 || threats.isEmpty()
                 || owner.buff(MagicImmune.class) != null
-                || owner.isRetreatingNow(targetMob, threats)) {
+                || risk.retreat) {
             return false;
         }
 

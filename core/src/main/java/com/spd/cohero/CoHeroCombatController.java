@@ -181,8 +181,10 @@ final class CoHeroCombatController {
         return bestCell;
     }
 
-    Boolean tryCombatSurvival(Mob targetMob, ArrayList<Mob> threats) {
-        CoHeroCombatRisk risk = owner.assessCombatRisk(targetMob, threats);
+    Boolean tryCombatSurvival(CoHeroCombatRisk risk, ArrayList<Mob> threats) {
+        if (risk == null || threats == null || threats.isEmpty()) {
+            throw new IllegalArgumentException("Combat survival requires risk and visible threats");
+        }
         if (!risk.retreat) {
             return null;
         }

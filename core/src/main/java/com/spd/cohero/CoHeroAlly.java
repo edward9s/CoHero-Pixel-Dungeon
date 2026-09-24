@@ -594,8 +594,9 @@ public class CoHeroAlly extends DirectableAlly {
         guard.prepareMovementScope(guardSupportThreat);
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
-        if (visibleThreats.isEmpty()) {
-            logBossDecision("no_visible_threat:" + threatScanDebug(), threatScanDebug());
+        if (visibleThreats.isEmpty() && debugLogEnabled) {
+            String detail = threatScanDebug();
+            logBossDecision("no_visible_threat:" + detail, detail);
         }
 
         if (!visibleThreats.isEmpty()) {
@@ -617,16 +618,18 @@ public class CoHeroAlly extends DirectableAlly {
             }
 
             Mob combatTarget = combat.nearestThreat(attackableThreats);
+            CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, visibleThreats);
 
-            Boolean survivalAction = combat.tryCombatSurvival(combatTarget, visibleThreats);
+            Boolean survivalAction = combat.tryCombatSurvival(combatRisk, visibleThreats);
             if (survivalAction != null) {
-                CoHeroCombatRisk debugRisk = assessCombatRisk(combatTarget, visibleThreats);
-                logBossDecision("combat_survival:" + combatTarget.id(),
-                        targetDebug(combatTarget)
-                                + " -> survival/retreat"
-                                + " attackers=" + debugRisk.attackersNow
-                                + " ttd=" + String.format("%.1f", debugRisk.ttd)
-                                + " ttk=" + String.format("%.1f", debugRisk.ttk));
+                if (debugLogEnabled) {
+                    logBossDecision("combat_survival:" + combatTarget.id(),
+                            targetDebug(combatTarget)
+                                    + " -> survival/retreat"
+                                    + " attackers=" + combatRisk.attackersNow
+                                    + " ttd=" + String.format("%.1f", combatRisk.ttd)
+                                    + " ttk=" + String.format("%.1f", combatRisk.ttk));
+                }
                 return survivalAction;
             }
 
@@ -635,7 +638,7 @@ public class CoHeroAlly extends DirectableAlly {
                 return cleansingPlant;
             }
 
-            if (survival.tryUseCleansingPotion(assessCombatRisk(combatTarget, visibleThreats))) {
+            if (survival.tryUseCleansingPotion(combatRisk)) {
                 return true;
             }
 
@@ -654,7 +657,13 @@ public class CoHeroAlly extends DirectableAlly {
                 throw new IllegalStateException(
                         "Active CoHero combat objective produced no offensive target");
             }
-            combatTarget = combat.nearestThreat(attackableThreats);
+            Mob offensiveTarget = combat.nearestThreat(attackableThreats);
+            if (offensiveTarget != combatTarget) {
+                combatTarget = offensiveTarget;
+                combatRisk = assessCombatRisk(combatTarget, visibleThreats);
+            } else {
+                combatTarget = offensiveTarget;
+            }
 
             // Tactical exception: when an enemy is actively attacking from range and CoHero has
             // a melee weapon, closing to adjacency remains more important than trading shots.
@@ -680,15 +689,18 @@ public class CoHeroAlly extends DirectableAlly {
                 return armorPlant;
             }
 
-            if (controlItems.tryUseCombatRunestone(combatTarget, attackableThreats)) {
+            if (controlItems.tryUseCombatRunestone(
+                    combatTarget, attackableThreats, combatRisk)) {
                 return true;
             }
 
-            if (survival.tryUseCombatEarthenArmor(combatTarget, visibleThreats)) {
+            if (survival.tryUseCombatEarthenArmor(
+                    combatTarget, visibleThreats, combatRisk)) {
                 return true;
             }
 
-            if (survival.tryUseCombatStamina(combatTarget, visibleThreats)) {
+            if (survival.tryUseCombatStamina(
+                    combatTarget, visibleThreats, combatRisk)) {
                 return true;
             }
 
@@ -973,15 +985,6 @@ public class CoHeroAlly extends DirectableAlly {
         return riskEstimator.assess(targetMob, threats);
     }
 
-    boolean isRetreatingNow(Mob targetMob, ArrayList<Mob> threats) {
-        return targetMob != null
-                && threats != null
-                && !threats.isEmpty()
-                && assessCombatRisk(targetMob, threats).retreat;
-    }
-
-
-
     int countCurrentAttackersAtCell(
             int defenderCell, ArrayList<Mob> threats) {
         return riskEstimator.countCurrentAttackersAtCell(defenderCell, threats);
@@ -1015,18 +1018,6 @@ public class CoHeroAlly extends DirectableAlly {
     float blessRollMultiplier(Char target) {
         return riskEstimator.blessRollMultiplier(target);
     }
-
-
-
-    float estimateOutgoingDpt(Mob targetMob) {
-        return riskEstimator.estimateOutgoingDpt(targetMob);
-    }
-
-
-
-
-
-
 
 
 
