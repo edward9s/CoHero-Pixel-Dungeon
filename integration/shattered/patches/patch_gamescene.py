@@ -17,6 +17,8 @@ examine_actor_marker = "com.spd.cohero.CoHero.companionCanSee(cell)"
 hazard_marker = "\t\tcom.spd.cohero.CoHeroHazards.warn(pos, delay);"
 cleric_range_grid_marker = "\t\tcom.spd.cohero.CoHeroClericRangeGrid.install(levelVisuals);"
 remote_view_marker = "\t\tcom.spd.cohero.CoHeroRemoteView.update(mobs);"
+frame_marker = "\t\tcom.spd.cohero.CoHero.onGameFrameStarted();"
+remote_timing_marker = "\t\tcom.spd.cohero.CoHero.onRemoteViewUpdated(coHeroRemoteStarted);"
 
 if (ready_marker in text
         or locator_marker in text
@@ -26,7 +28,9 @@ if (ready_marker in text
         or examine_actor_marker in text
         or hazard_marker in text
         or cleric_range_grid_marker in text
-        or remote_view_marker in text):
+        or remote_view_marker in text
+        or frame_marker in text
+        or remote_timing_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
 ready_anchor = (
@@ -120,7 +124,13 @@ if text.count(update_body_anchor) != 1:
     )
 text = text.replace(
     update_body_anchor,
-    update_body_anchor + remote_view_marker + "\n",
+    update_body_anchor.replace(
+        "\n\t\tsuper.update();\n",
+        "\n" + frame_marker + "\n\t\tsuper.update();\n",
+    )
+    + "\t\tlong coHeroRemoteStarted = System.nanoTime();\n"
+    + remote_view_marker + "\n"
+    + remote_timing_marker + "\n",
     1,
 )
 

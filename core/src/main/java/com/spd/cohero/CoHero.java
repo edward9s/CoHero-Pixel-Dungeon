@@ -64,6 +64,16 @@ public final class CoHero {
         return timings;
     }
 
+    public static void onGameFrameStarted() {
+        if (Dungeon.hero != null) {
+            timings.frameStarted(Dungeon.hero.pos);
+        }
+    }
+
+    public static void onRemoteViewUpdated(long started) {
+        timings.remoteViewUpdated(started);
+    }
+
     public static void onHeroSelectSceneCreated() {
         if (openingCompanionSelection) {
             openingCompanionSelection = false;
@@ -249,6 +259,8 @@ public final class CoHero {
         if (Dungeon.hero == null || Dungeon.level == null) {
             return;
         }
+
+        timings.sceneStarted();
 
         // Remote observation is scene-local. Never carry proxy state across floor/scene loads.
         CoHeroRemoteView.reset();
