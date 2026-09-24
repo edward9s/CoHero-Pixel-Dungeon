@@ -1,5 +1,6 @@
 package com.spd.cohero;
 
+import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
@@ -50,12 +51,17 @@ public final class CoHero {
     private static boolean[] renderFieldOfView;
     private static Level companionLookupLevel;
     private static CoHeroAlly companionLookup;
+    private static CoHeroTimings timings = new CoHeroTimings();
 
     private CoHero() {
     }
 
     public static String version() {
         return CoHeroVersion.version();
+    }
+
+    static CoHeroTimings timings() {
+        return timings;
     }
 
     public static void onHeroSelectSceneCreated() {
@@ -73,6 +79,7 @@ public final class CoHero {
         restoringSavedGame = false;
         excludedDepth = -1;
         excludedBranch = -1;
+        timings = new CoHeroTimings();
     }
 
     public static boolean onHeroSelectionConfirmed(HeroClass selectedClass) {
@@ -150,6 +157,12 @@ public final class CoHero {
 
         captureCompanionState();
 
+        try {
+            timings.saveReport();
+        } catch (GdxRuntimeException error) {
+            GLog.w("CoHero timing report could not be saved: " + error.getMessage());
+        }
+
         if (companionState != null) {
             bundle.put(SAVE_COMPANION_STATE, companionState);
         }
@@ -192,6 +205,7 @@ public final class CoHero {
         openingCompanionSelection = false;
         companionDeathEndedRun = false;
         restoringSavedGame = true;
+        timings = new CoHeroTimings();
     }
 
     public static void populateGameInfo(GamesInProgress.Info info) {

@@ -1185,13 +1185,12 @@ final class CoHeroCombatController {
         CharSprite sprite = owner.attachedSprite();
 
         if (heroVisible && sprite != null && targetMob.sprite != null) {
-            long animationStarted = owner.debugLogEnabled() ? System.nanoTime() : 0L;
+            long animationStarted = System.nanoTime();
             sprite.attack(targetMob.pos, new Callback() {
                 @Override
                 public void call() {
-                    if (owner.debugLogEnabled()) {
-                        owner.logActionTime("attack_animation", animationStarted);
-                    }
+                    owner.timings().record(owner, CoHeroTimings.Action.ATTACK_ANIMATION,
+                            animationStarted);
                     owner.attackTarget(targetMob);
                     Invisibility.dispel(owner);
                     owner.spendActionTime(delay);

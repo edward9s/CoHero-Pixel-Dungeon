@@ -67,6 +67,10 @@ public class CoHeroAlly extends DirectableAlly {
         return loot;
     }
 
+    CoHeroTimings timings() {
+        return CoHero.timings();
+    }
+
     boolean lowHealthRally() {
         return support.isLowHealthRally();
     }
@@ -835,21 +839,6 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
-    void logActionTime(String action, long started) {
-        if (!debugLogEnabled) {
-            return;
-        }
-        long tenthsOfMillisecond = (System.nanoTime() - started) / 100_000L;
-        GLog.i("[CoHeroTime] " + action + " "
-                + (tenthsOfMillisecond / 10) + "." + (tenthsOfMillisecond % 10) + "ms");
-    }
-
-    void logSlowActionTime(String action, long started) {
-        if (debugLogEnabled && System.nanoTime() - started >= 10_000_000L) {
-            logActionTime(action, started);
-        }
-    }
-
     void setMovementDecision(String decision, int target) {
         if (!debugLogEnabled) {
             return;
@@ -1136,11 +1125,11 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     boolean attackTarget(Char target) {
-        long started = debugLogEnabled ? System.nanoTime() : 0L;
+        long started = System.nanoTime();
         boolean hit = attack(target);
-        if (debugLogEnabled) {
-            logActionTime(target.isAlive() ? "attack" : "attack_kill", started);
-        }
+        timings().record(this, target.isAlive()
+                ? CoHeroTimings.Action.ATTACK
+                : CoHeroTimings.Action.ATTACK_KILL, started);
         return hit;
     }
 

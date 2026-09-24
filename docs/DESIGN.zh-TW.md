@@ -74,7 +74,7 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 CoHero 診斷預設關閉。CoHero 背包提供單一 `CoHero debug log` checkbox；啟用後才輸出所有 CoHero AI 診斷。移動診斷以 `[CoHeroMove]` 為前綴：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態生命週期。此 flag 會隨 CoHero 存檔保存；關閉時不建立高頻 movement debug 字串，也不呼叫相關 GLog。
 
-效能診斷使用同一個 checkbox。`[CoHeroTime]` 以毫秒顯示攻擊動畫等待（`attack_animation`）、攻擊結算（`attack`／`attack_kill`）、撿拾（`pickup_gold`／`pickup_item`）的耗時；搜尋可撿物品超過 10 毫秒時才輸出 `loot_search`。動畫時間包含正常播放時間，不能直接當成 CPU 耗時。關閉除錯日誌後不進行這些量測。
+效能診斷獨立於除錯日誌。CoHero 在記憶體中保留最近 64 筆攻擊、撿拾及超過 10 毫秒的搜尋事件，並統計各類行動的次數、平均與最長耗時。遊戲存檔時才將報告寫入該存檔資料夾的 `cohero-timings.txt`；CoHero + SMM 的 Export Save 會先存檔，再將此檔連同其他存檔檔案匯出。可直接查看檔案，不必在遊戲內盯著 GLog。報告跨樓層保留，重新載入後重新累積；`attack_animation` 包含正常動畫播放時間，不能直接當成 CPU 耗時。
 
 ### 視野與火把
 
