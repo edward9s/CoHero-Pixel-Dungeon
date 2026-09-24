@@ -234,9 +234,15 @@ final class CoHeroLoot {
         int bestLootCell = -1;
         int bestLootDistance = Integer.MAX_VALUE;
 
-        boolean[] safePassable = owner.ordinarySafePassable(false);
+        int[] heapCells = Dungeon.level.heaps.keyArray();
+        if (heapCells.length == 0) {
+            return -1;
+        }
 
-        for (int cell : Dungeon.level.heaps.keyArray()) {
+        ArrayList<Integer> ownedCells = new ArrayList<>();
+        ArrayList<Integer> lootCells = new ArrayList<>();
+
+        for (int cell : heapCells) {
             Heap heap = Dungeon.level.heaps.get(cell);
             if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
                 continue;
@@ -288,37 +294,40 @@ final class CoHeroLoot {
                 continue;
             }
 
-            int distance = lootRecoveryPathDistance(cell, safePassable);
-            if (distance == Integer.MAX_VALUE) {
-                continue;
-            }
-
             if (ownedCandidate) {
-                if (distance < bestOwnedDistance
-                        || (distance == bestOwnedDistance
-                        && (bestOwnedCell == -1 || cell < bestOwnedCell))) {
-                    bestOwnedDistance = distance;
-                    bestOwnedCell = cell;
-                }
-            } else if (distance < bestLootDistance
-                    || (distance == bestLootDistance
-                    && (bestLootCell == -1 || cell < bestLootCell))) {
+                ownedCells.add(cell);
+            } else {
+                lootCells.add(cell);
+            }
+        }
+
+        if (ownedCells.isEmpty() && lootCells.isEmpty()) {
+            return -1;
+        }
+
+        boolean[] safePassable = owner.ordinarySafePassable(false);
+        boolean[] passable = Dungeon.findPassable(owner, safePassable, owner.fieldOfView, true);
+        passable[owner.pos] = true;
+        PathFinder.buildDistanceMap(owner.pos, passable);
+
+        for (int cell : ownedCells) {
+            int distance = PathFinder.distance[cell];
+            if (distance != Integer.MAX_VALUE && (distance < bestOwnedDistance
+                    || (distance == bestOwnedDistance && (bestOwnedCell == -1 || cell < bestOwnedCell)))) {
+                bestOwnedDistance = distance;
+                bestOwnedCell = cell;
+            }
+        }
+        for (int cell : lootCells) {
+            int distance = PathFinder.distance[cell];
+            if (distance != Integer.MAX_VALUE && (distance < bestLootDistance
+                    || (distance == bestLootDistance && (bestLootCell == -1 || cell < bestLootCell)))) {
                 bestLootDistance = distance;
                 bestLootCell = cell;
             }
         }
 
         return bestOwnedCell != -1 ? bestOwnedCell : bestLootCell;
-    }
-
-    private int lootRecoveryPathDistance(int cell, boolean[] safePassable) {
-        if (cell == owner.pos) {
-            return 0;
-        }
-
-        PathFinder.Path recoveryPath =
-                Dungeon.findPath(owner, cell, safePassable, owner.fieldOfView, true);
-        return recoveryPath == null ? Integer.MAX_VALUE : recoveryPath.size();
     }
 
     private int lootRecoveryStep(int cell) {

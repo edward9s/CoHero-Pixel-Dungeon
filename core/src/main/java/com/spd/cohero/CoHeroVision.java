@@ -45,17 +45,22 @@ final class CoHeroVision {
     }
 
     void revealVisibleCells() {
+        boolean newlyVisited = false;
         for (int i = 0; i < owner.fieldOfView.length; i++) {
             if (owner.fieldOfView[i]
                     && Dungeon.level.discoverable[i]
                     && !Dungeon.level.visited[i]) {
                 Dungeon.level.visited[i] = true;
+                newlyVisited = true;
             }
         }
 
         // CoHero vision is display-only. Do not alter Hero gameplay visibility.
-        GameScene.updateFog(owner.pos, owner.viewDistance + 1);
-        GameScene.afterObserve();
+        // An unchanged visited map needs neither a new fog texture nor a sprite visibility pass.
+        if (newlyVisited) {
+            GameScene.updateFog(owner.pos, owner.viewDistance + 1);
+            GameScene.afterObserve();
+        }
     }
 
     boolean tryAutoTorch() {

@@ -97,9 +97,11 @@ public final class CoHeroHazards {
             }
         }
 
-        for (int cell = 0; cell < result.length; cell++) {
-            if (result[cell] && isKnownActiveTrap(cell)) {
-                result[cell] = false;
+        if (Dungeon.level != null && Dungeon.level.traps != null) {
+            for (int cell : Dungeon.level.traps.keyArray()) {
+                if (cell >= 0 && cell < result.length && result[cell] && isKnownActiveTrap(cell)) {
+                    result[cell] = false;
+                }
             }
         }
 
@@ -110,9 +112,13 @@ public final class CoHeroHazards {
                     result[cell] = false;
                 }
             }
-            for (int cell = 0; cell < result.length; cell++) {
-                if (result[cell] && isEnvironmentalDanger(owner, cell)) {
-                    result[cell] = false;
+            // Checking each cell also scans active actors for bombs and fire walls.
+            // Most turns have no environmental hazards at all.
+            if (hasEnvironmentalHazard(owner)) {
+                for (int cell = 0; cell < result.length; cell++) {
+                    if (result[cell] && isEnvironmentalDanger(owner, cell)) {
+                        result[cell] = false;
+                    }
                 }
             }
         }
