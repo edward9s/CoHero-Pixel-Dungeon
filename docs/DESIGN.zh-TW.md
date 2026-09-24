@@ -74,6 +74,8 @@ AI 不需要模擬真人玩家的完整戰術推理。毒氣等危險可優先�
 
 CoHero 診斷預設關閉。CoHero 背包提供單一 `CoHero debug log` checkbox；啟用後才輸出所有 CoHero AI 診斷。移動診斷以 `[CoHeroMove]` 為前綴：`DECIDE` 表示高階移動理由與 target，`MOVE` / `NO_MOVE` / `BLOCKED` 表示實際要求的 step 與結果；`GUARD_SESSION enter` / `exit` 明確標示持久把風狀態生命週期。此 flag 會隨 CoHero 存檔保存；關閉時不建立高頻 movement debug 字串，也不呼叫相關 GLog。
 
+效能診斷使用同一個 checkbox。`[CoHeroTime]` 以毫秒顯示攻擊動畫等待（`attack_animation`）、攻擊結算（`attack`／`attack_kill`）、撿拾（`pickup_gold`／`pickup_item`）的耗時；搜尋可撿物品超過 10 毫秒時才輸出 `loot_search`。動畫時間包含正常播放時間，不能直接當成 CPU 耗時。關閉除錯日誌後不進行這些量測。
+
 ### 視野與火把
 
 - CoHero 背包支援原版 `Torch`；在 `Dungeon.level.viewDistance < Light.DISTANCE` 的低視距樓層且目前沒有 `Light` buff 時，CoHero 會自動消耗一支火把，使用原版 `Light.DURATION` 與 `Light.DISTANCE` 規則，並花費原版 `Torch.TIME_TO_LIGHT` 的行動時間。

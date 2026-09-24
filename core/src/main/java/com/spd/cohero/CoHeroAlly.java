@@ -835,6 +835,21 @@ public class CoHeroAlly extends DirectableAlly {
         }
     }
 
+    void logActionTime(String action, long started) {
+        if (!debugLogEnabled) {
+            return;
+        }
+        long tenthsOfMillisecond = (System.nanoTime() - started) / 100_000L;
+        GLog.i("[CoHeroTime] " + action + " "
+                + (tenthsOfMillisecond / 10) + "." + (tenthsOfMillisecond % 10) + "ms");
+    }
+
+    void logSlowActionTime(String action, long started) {
+        if (debugLogEnabled && System.nanoTime() - started >= 10_000_000L) {
+            logActionTime(action, started);
+        }
+    }
+
     void setMovementDecision(String decision, int target) {
         if (!debugLogEnabled) {
             return;
@@ -1121,7 +1136,12 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     boolean attackTarget(Char target) {
-        return attack(target);
+        long started = debugLogEnabled ? System.nanoTime() : 0L;
+        boolean hit = attack(target);
+        if (debugLogEnabled) {
+            logActionTime(target.isAlive() ? "attack" : "attack_kill", started);
+        }
+        return hit;
     }
 
     void finishAsyncAction() {
