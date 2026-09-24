@@ -9,7 +9,7 @@ import com.watabou.utils.Callback;
 
 import java.util.ArrayDeque;
 import java.util.IdentityHashMap;
-import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -45,6 +45,7 @@ public final class CoHeroRemoteView {
         final ArrayDeque<Event> events = new ArrayDeque<>();
         int visualCell;
         boolean actionBusy;
+        long seenGeneration;
 
         Entry(Mob actor, CharSprite sprite) {
             this.actor = actor;
@@ -55,6 +56,9 @@ public final class CoHeroRemoteView {
 
     private static final IdentityHashMap<Mob, Entry> entries = new IdentityHashMap<>();
     private static final ConcurrentLinkedQueue<Event> queuedEvents = new ConcurrentLinkedQueue<>();
+    private static Mob[] mobSnapshot = new Mob[0];
+    private static int mobSnapshotCount;
+    private static long updateGeneration;
 
     private CoHeroRemoteView() {
     }
@@ -62,6 +66,9 @@ public final class CoHeroRemoteView {
     public static synchronized void reset() {
         entries.clear();
         queuedEvents.clear();
+        mobSnapshot = new Mob[0];
+        mobSnapshotCount = 0;
+        updateGeneration = 0;
     }
 
     public static void attack(Mob actor, int cell) {
@@ -87,26 +94,49 @@ public final class CoHeroRemoteView {
             return;
         }
 
-        IdentityHashMap<Mob, Boolean> seen = new IdentityHashMap<>();
-        Mob[] snapshot = Dungeon.level.mobs.toArray(new Mob[0]);
+        CoHeroAlly companion = CoHero.findCompanion();
+        if (companion == null
+                || !companion.isAlive()
+                || companion.fieldOfView == null
+                || companion.fieldOfView.length != Dungeon.level.length()) {
+            clearEntries();
+            queuedEvents.clear();
+            return;
+        }
 
-        for (Mob mob : snapshot) {
-            if (!remoteVisible(mob)) {
+        long generation = ++updateGeneration;
+        Mob[] snapshot = Dungeon.level.mobs.toArray(mobSnapshot);
+        if (snapshot != mobSnapshot) {
+            mobSnapshot = snapshot;
+        }
+
+        int snapshotCount = 0;
+        while (snapshotCount < snapshot.length && snapshot[snapshotCount] != null) {
+            snapshotCount++;
+        }
+        for (int i = snapshotCount; i < mobSnapshotCount && i < snapshot.length; i++) {
+            snapshot[i] = null;
+        }
+        mobSnapshotCount = snapshotCount;
+
+        for (int i = 0; i < snapshotCount; i++) {
+            Mob mob = snapshot[i];
+            if (!remoteVisible(mob, companion)) {
                 continue;
             }
 
-            seen.put(mob, Boolean.TRUE);
             Entry entry = entries.get(mob);
             if (entry == null) {
                 entry = createEntry(mob, mobLayer);
                 entries.put(mob, entry);
             }
+            entry.seenGeneration = generation;
             entry.sprite.visible = true;
         }
 
         for (Event event; (event = queuedEvents.poll()) != null; ) {
             Entry entry = entries.get(event.actor);
-            if (entry == null || !remoteVisible(event.actor)) {
+            if (entry == null || entry.seenGeneration != generation) {
                 continue;
             }
             if (entry.events.size() >= 8) {
@@ -116,14 +146,15 @@ public final class CoHeroRemoteView {
         }
 
         boolean changed = false;
-        ArrayList<Mob> stale = new ArrayList<>();
-        for (Map.Entry<Mob, Entry> mapped : entries.entrySet()) {
+        Iterator<Map.Entry<Mob, Entry>> iterator = entries.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<Mob, Entry> mapped = iterator.next();
             Mob mob = mapped.getKey();
             Entry entry = mapped.getValue();
 
-            if (!seen.containsKey(mob) || !remoteVisible(mob)) {
+            if (entry.seenGeneration != generation) {
                 entry.sprite.killAndErase();
-                stale.add(mob);
+                iterator.remove();
                 changed = true;
                 continue;
             }
@@ -150,10 +181,6 @@ public final class CoHeroRemoteView {
             }
         }
 
-        for (Mob mob : stale) {
-            entries.remove(mob);
-        }
-
         if (changed) {
             GameScene.sortMobSprites();
         }
@@ -171,15 +198,20 @@ public final class CoHeroRemoteView {
         return new Entry(mob, proxy);
     }
 
-    private static boolean remoteVisible(Mob mob) {
-        if (mob == null
-                || !mob.isAlive()
-                || mob.pos < 0
-                || mob.pos >= Dungeon.level.length()
-                || Dungeon.level.heroFOV[mob.pos]) {
-            return false;
+    private static void clearEntries() {
+        for (Entry entry : entries.values()) {
+            entry.sprite.killAndErase();
         }
-        return CoHero.companionCanSee(mob.pos);
+        entries.clear();
+    }
+
+    private static boolean remoteVisible(Mob mob, CoHeroAlly companion) {
+        return mob != null
+                && mob.isAlive()
+                && mob.pos >= 0
+                && mob.pos < Dungeon.level.length()
+                && !Dungeon.level.heroFOV[mob.pos]
+                && companion.fieldOfView[mob.pos];
     }
 
     private static void play(final Entry entry, Event event) {
