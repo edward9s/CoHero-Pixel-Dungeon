@@ -870,6 +870,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     void setDebugLogEnabled(boolean enabled) {
         debugLogEnabled = enabled;
+        timings().setEnabled(enabled);
         if (!enabled) {
             lastBossDecisionLog = null;
         }

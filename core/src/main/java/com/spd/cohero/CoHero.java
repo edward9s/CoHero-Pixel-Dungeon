@@ -65,13 +65,19 @@ public final class CoHero {
     }
 
     public static void onGameFrameStarted() {
-        if (Dungeon.hero != null) {
+        if (timings.isEnabled() && Dungeon.hero != null) {
             timings.frameStarted(Dungeon.hero.pos);
         }
     }
 
+    public static long onRemoteViewStarted() {
+        return timings.isEnabled() ? System.nanoTime() : 0L;
+    }
+
     public static void onRemoteViewUpdated(long started) {
-        timings.remoteViewUpdated(started);
+        if (started != 0L) {
+            timings.remoteViewUpdated(started);
+        }
     }
 
     public static void onHeroSelectSceneCreated() {
@@ -284,6 +290,7 @@ public final class CoHero {
 
         CoHeroAlly existing = findCompanion();
         if (existing != null) {
+            timings.setEnabled(existing.debugLogEnabled());
             refreshCompanionVision(existing);
             restoringSavedGame = false;
             return;
@@ -312,6 +319,8 @@ public final class CoHero {
             CompanionStartingEquipment.initialize(companion, heroClass);
             spawn = findSpawnCell();
         }
+
+        timings.setEnabled(companion.debugLogEnabled());
 
         restoringSavedGame = false;
 

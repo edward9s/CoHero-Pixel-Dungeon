@@ -128,7 +128,7 @@ text = text.replace(
         "\n\t\tsuper.update();\n",
         "\n" + frame_marker + "\n\t\tsuper.update();\n",
     )
-    + "\t\tlong coHeroRemoteStarted = System.nanoTime();\n"
+    + "\t\tlong coHeroRemoteStarted = com.spd.cohero.CoHero.onRemoteViewStarted();\n"
     + remote_view_marker + "\n"
     + remote_timing_marker + "\n",
     1,

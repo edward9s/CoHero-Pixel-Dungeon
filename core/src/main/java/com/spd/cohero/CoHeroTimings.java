@@ -1,5 +1,6 @@
 package com.spd.cohero;
 
+import com.badlogic.gdx.files.FileHandle;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
@@ -7,6 +8,7 @@ import com.watabou.utils.FileUtils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 
 /** A bounded, in-memory report of companion action timings. */
 final class CoHeroTimings {
@@ -50,6 +52,7 @@ final class CoHeroTimings {
     private int next;
     private int size;
     private boolean dirty;
+    private volatile boolean enabled;
     private long lastFrameStarted;
     private long peakFrameSinceStep;
     private int lastHeroPos = -1;
@@ -58,6 +61,25 @@ final class CoHeroTimings {
     private long lastBlockingGcCount = -1;
     private long lastBlockingGcTime = -1;
     private long lastBytesAllocated = -1;
+
+    synchronized void setEnabled(boolean enabled) {
+        if (this.enabled == enabled) {
+            return;
+        }
+        this.enabled = enabled;
+        Arrays.fill(history, null);
+        Arrays.fill(counts, 0);
+        Arrays.fill(totals, 0L);
+        Arrays.fill(maxima, 0L);
+        next = 0;
+        size = 0;
+        dirty = false;
+        sceneStarted();
+    }
+
+    boolean isEnabled() {
+        return enabled;
+    }
 
     synchronized void sceneStarted() {
         lastFrameStarted = 0L;
@@ -72,6 +94,9 @@ final class CoHeroTimings {
 
     // Called on the render thread. No allocations or platform queries on ordinary frames.
     synchronized void frameStarted(int heroPos) {
+        if (!enabled) {
+            return;
+        }
         long now = System.nanoTime();
         if (lastFrameStarted != 0L) {
             long elapsed = Math.max(0L, now - lastFrameStarted);
@@ -92,6 +117,9 @@ final class CoHeroTimings {
     }
 
     synchronized void remoteViewUpdated(long started) {
+        if (!enabled) {
+            return;
+        }
         long elapsed = Math.max(0L, System.nanoTime() - started);
         accumulate(Action.REMOTE_VIEW, elapsed);
         if (elapsed >= SLOW_PHASE_NANOS) {
@@ -174,6 +202,9 @@ final class CoHeroTimings {
     }
 
     synchronized void record(CoHeroAlly owner, Action action, long started, String detail) {
+        if (!enabled) {
+            return;
+        }
         long elapsed = Math.max(0L, System.nanoTime() - started);
         accumulate(action, elapsed);
 
@@ -227,6 +258,15 @@ final class CoHeroTimings {
     }
 
     synchronized void saveReport() {
+        String path = GamesInProgress.gameFolder(GamesInProgress.curSlot)
+                + "/cohero-timings.txt";
+        FileHandle file = FileUtils.getFileHandle(path);
+        if (!enabled) {
+            if (file.exists() && !file.delete()) {
+                throw new IllegalStateException("Could not delete disabled CoHero timing report: " + path);
+            }
+            return;
+        }
         if (!dirty) {
             return;
         }
@@ -234,9 +274,7 @@ final class CoHeroTimings {
             // Export may happen before the next movement; include the last observed step.
             recordHeroStep(lastHeroPos);
         }
-        String path = GamesInProgress.gameFolder(GamesInProgress.curSlot)
-                + "/cohero-timings.txt";
-        FileUtils.getFileHandle(path).writeString(report(), false, "UTF-8");
+        file.writeString(report(), false, "UTF-8");
         dirty = false;
     }
 
