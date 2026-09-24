@@ -721,7 +721,13 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
-                Boolean meleePositioning = combat.tryMeleePositioning(combatTarget, visibleThreats);
+                long meleeStarted = System.nanoTime();
+                Boolean meleePositioning;
+                try {
+                    meleePositioning = combat.tryMeleePositioning(combatTarget, visibleThreats);
+                } finally {
+                    timings().record(this, CoHeroTimings.Action.MELEE_POSITIONING, meleeStarted);
+                }
                 if (meleePositioning != null) {
                     logBossDecision("melee_positioning:" + combatTarget.id(),
                             targetDebug(combatTarget) + " -> melee positioning");

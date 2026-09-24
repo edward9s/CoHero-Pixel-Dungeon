@@ -12,6 +12,7 @@ final class CoHeroTimings {
         ACT("act"),
         PREPARE("prepare"),
         COMBAT("combat"),
+        MELEE_POSITIONING("melee_positioning"),
         SUPPORT("support"),
         RECOVERY("recovery"),
         GUARD("guard"),
@@ -58,6 +59,7 @@ final class CoHeroTimings {
         if ((action == Action.LOOT_SEARCH
                 || action == Action.PREPARE
                 || action == Action.COMBAT
+                || action == Action.MELEE_POSITIONING
                 || action == Action.SUPPORT
                 || action == Action.RECOVERY
                 || action == Action.GUARD

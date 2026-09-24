@@ -615,7 +615,8 @@ final class CoHeroCombatController {
     }
 
     private int chooseMeleeTacticalCell(Mob targetMob, boolean greatCrab) {
-        PathFinder.buildDistanceMap(owner.pos, Dungeon.level.passable);
+        PathFinder.buildDistanceMap(
+                owner.pos, Dungeon.level.passable, MELEE_TACTICAL_SEARCH_RADIUS);
 
         int best = -1;
         int bestScore = Integer.MAX_VALUE;
