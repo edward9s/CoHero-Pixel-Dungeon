@@ -1,6 +1,6 @@
 # CoHero Pixel Dungeon
 
-CoHero Pixel Dungeon is an experimental Shattered Pixel Dungeon mod where you play with an autonomous second hero.
+CoHero Pixel Dungeon is an experimental [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon) mod where you play with an autonomous second hero.
 
 You control the main Hero. The CoHero explores, fights, uses items, and tries to survive on its own.
 
