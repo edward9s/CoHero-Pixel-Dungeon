@@ -18,9 +18,9 @@ CoHero Pixel Dungeon 的核心不是重做 Shattered Pixel Dungeon，而是在�
 
 CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
-- 唯一權威來源是 `CoHeroVersion.VERSION`；目前為 `0.1.0`，版本值本身不含 `v` / `c` prefix。
+- 唯一權威來源是 `CoHeroVersion.VERSION`；版本值本身不含 `v` / `c` prefix。文件不複製目前版本號，避免版本更新時產生第二份需要同步的狀態。
 - `CoHero.version()` 只委派給 `CoHeroVersion.version()`，避免出現第二份版本常數。
-- TitleScene 右下角與遊戲內 MenuPane 都顯示短格式：`SPD v<host> | CoH v<cohero>`。例如 `SPD v4.0.0 | CoH v0.1.0`；`CoH` 作為 CoHero 的短標記。
+- TitleScene 右下角與遊戲內 MenuPane 都顯示短格式：`SPD v<host> | CoH v<cohero>`；`CoH` 作為 CoHero 的短標記。
 - UI 使用宿主執行時的 `Game.version`，因此 source patch build 與未來 binary APK injection 都不需要把 SPD 版本複製進 CoHero。
 - App package 固定為原版 package 加 `.cohero`：`com.shatteredpixel.shatteredpixeldungeon.cohero`；一般 CoHero build 的顯示名稱為 `CoShattered Pixel Dungeon`。
 - TitleScene 保留原版 Shattered Pixel Dungeon banner 資產，另外以較大的灰綠色 `CoHero` 文字緊貼在 banner 上方，不複製或重畫上游 logo。
@@ -198,7 +198,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - CoHero 若目前站在仍有效的預告格上，會在一般戰鬥、喝藥、探索與靠近 Hero 之前優先走到相鄰安全格。
 - 有 active warning 時，普通尋路會暫時把所有預告格視為不可通行，因此 CoHero 不會從安全位置主動走進即將爆發的攻擊範圍。
 - warning 到期後該格立即恢復正常尋路；換樓層時警示紀錄清空。
-- CoHero 同時把原版持續性環境危險納入同一套移動遮罩：火焰、毒氣、酸蝕氣體、麻痺／混亂／惡臭氣體、電流、冰凍／暴風雪、Inferno、Vault flame traps、特殊房間的 `MagicalFireRoom.EternalFire`，以及 `VaultBossElemental.FireWall`。`EternalFire` 會在每次 evolve 時點燃火牆本格與四方向相鄰角色，因此 CoHero 會把火牆旁一格也視為危險；Boss FireWall 則另外讀取目前兩列燃燒區與下一列推進方向作為安全緩衝。若 CoHero 對實際效果免疫，該危險不納入遮罩。
+- CoHero 同時把原版持續性環境危險納入同一套移動遮罩：火焰、蜘蛛網（`Web`）、毒氣、酸蝕氣體、麻痺／混亂／惡臭氣體、電流、冰凍／暴風雪、Inferno、Vault flame traps、特殊房間的 `MagicalFireRoom.EternalFire`，以及 `VaultBossElemental.FireWall`。`EternalFire` 會在每次 evolve 時點燃火牆本格與四方向相鄰角色，因此 CoHero 會把火牆旁一格也視為危險；Boss FireWall 則另外讀取目前兩列燃燒區與下一列推進方向作為安全緩衝。若 CoHero 對實際效果免疫，該危險不納入遮罩。
 - SPD 4.0 小惡魔寶庫的機關另外直接讀取原版 actor / blob 狀態，不依賴畫面 warning：`VaultFlameTraps` 會把下一次 evolve 即將點火的格子預先視為危險；`VaultLaser` 依 `curCooldown`、`laserDirIdx` 與原版 `Ballistica` 算出下一發光束；`VaultSentry` 依 `curCooldown`、`scanDirIdx` 與原版 `ConeAOE` 算出下一次掃描區。這涵蓋寶物房中刻意設為 `giveWarning = false` 的雷射／掃描器；隱形中的 CoHero 不避 `VaultSentry` 掃描，因原版掃描不會傷害 invisible ally。
 - 若目前正站在這些環境危險中，會在一般戰鬥、喝藥、探索之前優先撤離；若危險區大於一格（例如天狗定時炸彈半徑），不要求一步就完全離開，而是每回合依當前地圖重新尋找最近安全格並沿最短路徑撤出，不保存額外逃生狀態。一般尋路也不主動踏入已存在的危險區。
 - 天狗第二階段的定時炸彈直接掃描目前 `Tengu.BombAbility`：以原版爆炸規則的 2 格可達範圍視為危險，炸彈 buff 消失後危險區立即消失。`Tengu.FireAbility.FireBlob` 則依原版火焰免疫規則納入環境危險，因此 CoHero 會避開火牆目前已覆蓋、即將引燃的格子。
@@ -359,6 +359,8 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護盾時顯示為 `HP+shield/HT`）、STR、近戰 DMG 範圍、DR 範圍與實際 SPD 倍率。這些值直接由 CoHero 當前裝備、固有 trait、戒指與負重計算，不保存第二份 UI 專用數值。直向維持單欄與 5 欄背包格，縮小格子間距並在窄螢幕時微縮 slot。橫向使用左右配置：左側為數值、生成倍率、裝備與加入物品控制，右側背包固定維持 5 欄，使用較小 slot 與 1px 間距以控制高度。敵人生成倍率 slider 與「從玩家背包加入物品」按鈕縮窄後靠左對齊。「從玩家背包加入物品」採連續 selector：每成功加入一個物品後立即再次開啟玩家背包選擇器，可連續加入多個物品；沿用 SPD `WndBag.lastBag` 保留目前選中的袋子 tab，不會每次跳回第一個 tab；按取消才回到 CoHero 背包視窗。
 
 背包不只是儲物空間，而是玩家間接塑造同伴 AI 的方式。背包視窗另外提供「敵人生成倍率」滑桿，作為 CoHero 模式的難度壓力控制：預設 1.5x，範圍 1.0x～4.0x，每 0.25x 一格；1.0x 是完整原版自然生成，較高倍率只擴張自然重生速率與自然敵人數量上限，不修改怪物本身。
+
+目前仍為舊版 0.1x 刻度存檔保留一次性的單向轉換：若只存在舊欄位 `multiplier_tenths`，載入時轉成新的 `multiplier_quarters`，新存檔只寫新欄位。這是暫時 migration；待舊存檔不再需要支援時應連同 `CompanionEnemySurge` 中對應的 `TODO` 一併移除，不擴充成長期相容層。
 
 
 - 給近戰武器 → 同伴取得近戰能力。
