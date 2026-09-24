@@ -6,6 +6,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.LevelTransition;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
@@ -47,6 +48,8 @@ public final class CoHero {
     private static int excludedDepth = -1;
     private static int excludedBranch = -1;
     private static boolean[] renderFieldOfView;
+    private static Level companionLookupLevel;
+    private static CoHeroAlly companionLookup;
 
     private CoHero() {
     }
@@ -592,11 +595,24 @@ public final class CoHero {
 
     static CoHeroAlly findCompanion() {
         if (Dungeon.level == null) {
+            companionLookupLevel = null;
+            companionLookup = null;
             return null;
         }
+
+        if (companionLookupLevel != Dungeon.level) {
+            companionLookupLevel = Dungeon.level;
+            companionLookup = null;
+        } else if (companionLookup != null
+                && Dungeon.level.mobs.contains(companionLookup)) {
+            return companionLookup;
+        }
+
+        companionLookup = null;
         for (Mob mob : Dungeon.level.mobs) {
             if (mob instanceof CoHeroAlly) {
-                return (CoHeroAlly) mob;
+                companionLookup = (CoHeroAlly) mob;
+                return companionLookup;
             }
         }
         return null;
