@@ -10,6 +10,13 @@ final class CoHeroTimings {
 
     enum Action {
         ACT("act"),
+        PREPARE("prepare"),
+        COMBAT("combat"),
+        SUPPORT("support"),
+        RECOVERY("recovery"),
+        GUARD("guard"),
+        EXPLORE("explore"),
+        VISION("vision"),
         ATTACK("attack"),
         ATTACK_KILL("attack_kill"),
         ATTACK_ANIMATION("attack_animation"),
@@ -26,7 +33,7 @@ final class CoHeroTimings {
     }
 
     private static final int HISTORY_SIZE = 64;
-    private static final long SLOW_SEARCH_NANOS = 10_000_000L;
+    private static final long SLOW_PHASE_NANOS = 10_000_000L;
 
     private final String[] history = new String[HISTORY_SIZE];
     private final int[] counts = new int[Action.values().length];
@@ -48,7 +55,15 @@ final class CoHeroTimings {
         maxima[index] = Math.max(maxima[index], elapsed);
         dirty = true;
 
-        if (action == Action.LOOT_SEARCH && elapsed < SLOW_SEARCH_NANOS) {
+        if ((action == Action.LOOT_SEARCH
+                || action == Action.PREPARE
+                || action == Action.COMBAT
+                || action == Action.SUPPORT
+                || action == Action.RECOVERY
+                || action == Action.GUARD
+                || action == Action.EXPLORE
+                || action == Action.VISION)
+                && elapsed < SLOW_PHASE_NANOS) {
             return;
         }
 
