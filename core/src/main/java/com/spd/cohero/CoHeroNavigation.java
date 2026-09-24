@@ -62,19 +62,44 @@ final class CoHeroNavigation {
     }
 
     boolean[] ordinarySafePassable(boolean knownOnly) {
-        boolean[] result = Dungeon.level.passable.clone();
-        for (int cell = 0; cell < result.length; cell++) {
-            if (cell == owner.pos) {
-                result[cell] = true;
-                continue;
-            }
-            if (!result[cell]
-                    || !isMovementSafe(cell)
-                    || (knownOnly && !isKnown(cell))) {
-                result[cell] = false;
+        boolean[] result = CoHeroHazards.maskDangerous(owner, Dungeon.level.passable);
+        maskSleepingEnemyWakeRisk(result);
+
+        if (knownOnly) {
+            for (int cell = 0; cell < result.length; cell++) {
+                if (cell != owner.pos && result[cell] && !isKnown(cell)) {
+                    result[cell] = false;
+                }
             }
         }
+
+        // The current cell must remain a valid pathfinding origin even when CoHero is already
+        // standing in danger or next to a sleeping enemy.
+        result[owner.pos] = true;
         return result;
+    }
+
+    private void maskSleepingEnemyWakeRisk(boolean[] passable) {
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob == owner
+                    || mob.alignment != Char.Alignment.ENEMY
+                    || !mob.isAlive()
+                    || mob.state != mob.SLEEPING
+                    || mob.pos < 0
+                    || mob.pos >= owner.fieldOfView.length
+                    || !owner.fieldOfView[mob.pos]) {
+                continue;
+            }
+
+            passable[mob.pos] = false;
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int cell = mob.pos + offset;
+                if (Dungeon.level.insideMap(cell)
+                        && Dungeon.level.distance(mob.pos, cell) == 1) {
+                    passable[cell] = false;
+                }
+            }
+        }
     }
 
     Boolean tryAvoidHazard() {
@@ -166,7 +191,7 @@ final class CoHeroNavigation {
 
         safePassable[owner.pos] = true;
         int step = Dungeon.findStep(owner, target, safePassable, owner.fieldOfView, true);
-        if (step == -1 || !isMovementSafe(step)) {
+        if (step == -1 || !safePassable[step]) {
             owner.clearNavigationPath();
             return false;
         }
@@ -222,7 +247,7 @@ final class CoHeroNavigation {
 
         boolean[] passable = ordinarySafePassable(false);
         int step = Dungeon.findStep(owner, target, passable, owner.fieldOfView, true);
-        if (step == -1 || !isMovementSafe(step)) {
+        if (step == -1 || !passable[step]) {
             owner.clearNavigationPath();
             return false;
         }
@@ -239,11 +264,10 @@ final class CoHeroNavigation {
         ArrayList<Integer> unknown = new ArrayList<>();
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell == owner.pos
-                    || !Dungeon.level.passable[cell]
+                    || !passable[cell]
                     || !Dungeon.level.discoverable[cell]
                     || (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell])
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || !isMovementSafe(cell)) {
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
                 continue;
             }
 
@@ -261,9 +285,8 @@ final class CoHeroNavigation {
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell == owner.pos
                     || !isKnown(cell)
-                    || !Dungeon.level.passable[cell]
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || !isMovementSafe(cell)) {
+                    || !passable[cell]
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
                 continue;
             }
 
