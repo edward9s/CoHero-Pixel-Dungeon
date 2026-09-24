@@ -9,6 +9,7 @@ import com.watabou.utils.FileUtils;
 final class CoHeroTimings {
 
     enum Action {
+        ACT("act"),
         ATTACK("attack"),
         ATTACK_KILL("attack_kill"),
         ATTACK_ANIMATION("attack_animation"),
@@ -36,6 +37,10 @@ final class CoHeroTimings {
     private boolean dirty;
 
     synchronized void record(CoHeroAlly owner, Action action, long started) {
+        record(owner, action, started, null);
+    }
+
+    synchronized void record(CoHeroAlly owner, Action action, long started, String detail) {
         long elapsed = Math.max(0L, System.nanoTime() - started);
         int index = action.ordinal();
         counts[index]++;
@@ -57,7 +62,8 @@ final class CoHeroTimings {
                 + " t=" + (int) Actor.now() + " " + action.label
                 + " " + milliseconds(elapsed) + "ms"
                 + " co=" + owner.pos + " hero=" + heroPos
-                + (visible ? " visible" : " outside");
+                + (visible ? " visible" : " outside")
+                + (detail == null ? "" : " decision=" + detail);
         next = (next + 1) % HISTORY_SIZE;
         size = Math.min(size + 1, HISTORY_SIZE);
     }

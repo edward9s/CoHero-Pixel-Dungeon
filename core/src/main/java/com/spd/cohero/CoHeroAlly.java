@@ -558,6 +558,15 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean act() {
+        long started = System.nanoTime();
+        try {
+            return decideAction();
+        } finally {
+            timings().record(this, CoHeroTimings.Action.ACT, started, movementDecision);
+        }
+    }
+
+    private boolean decideAction() {
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
         resetInheritedDecisionState();
