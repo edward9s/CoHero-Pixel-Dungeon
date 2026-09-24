@@ -113,7 +113,7 @@ final class CoHeroTimings {
         if (lastGcCount >= 0) {
             appendHistory("depth=" + Dungeon.depth + " t=" + (int) Actor.now()
                     + (lastHeroPos == heroPos
-                        ? " hero_step_end pos=" + heroPos
+                        ? " save_snapshot pos=" + heroPos
                         : " hero_step from=" + lastHeroPos + " to=" + heroPos)
                     + " frame_peak=" + milliseconds(peakFrameSinceStep) + "ms"
                     + " gc_count=" + (gcCount - lastGcCount)
