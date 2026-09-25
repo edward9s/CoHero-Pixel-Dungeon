@@ -18,6 +18,8 @@ fi
 case "$phase" in
   base)
     python "$patches/patch_app_package.py" "$upstream/build.gradle"
+    python "$patches/patch_android_manifest.py" \
+      "$upstream/android/src/main/AndroidManifest.xml"
     python "$patches/patch_gamescene.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java"
     python "$patches/patch_cohero_visual_fov.py" \
@@ -46,6 +48,8 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java"
     python "$patches/patch_menu_pane.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java"
+    python "$patches/patch_wndsettings.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndSettings.java"
     python "$patches/patch_level_mobs.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java"
     python "$patches/patch_mob_cohero.py" \
