@@ -32,7 +32,7 @@ public class WndCompanionInventory extends Window {
     private static final int MIN_PORTRAIT_SLOT = 22;
     private static final int SLOT_GAP = 1;
     private static final int BACKPACK_COLS = 5;
-    private static final int CONTROL_INSET = 6;
+    private static final int ADD_ITEM_INSET = 6;
     private static final int LANDSCAPE_PANEL_GAP = 4;
 
     private final CoHeroAlly companion;
@@ -109,10 +109,10 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
 
-        float afterControls = addEquipment(0, statsY + 19, layoutWidth, true);
+        float afterEquipment = addEquipment(0, statsY + 19, layoutWidth, true);
 
         RenderedTextBlock backpackLabel = backpackLabel(layoutWidth);
-        backpackLabel.setPos(0, afterControls + 3);
+        backpackLabel.setPos(0, afterEquipment + 3);
         add(backpackLabel);
 
         float backpackY = backpackLabel.bottom() + 2;
@@ -168,7 +168,7 @@ public class WndCompanionInventory extends Window {
 
     private float addEquipment(
             float x, float startY, int width, boolean includeAddItemButton) {
-        int inset = Math.min(CONTROL_INSET, Math.max(0, width - 80));
+        int inset = Math.min(ADD_ITEM_INSET, Math.max(0, width - 80));
         int buttonWidth = width - inset;
 
         RenderedTextBlock equipmentLabel =

@@ -46,7 +46,7 @@ public final class CoHeroSettingsTab extends Component {
 
         if (companion != null && companion.isAlive()) {
             enemySpawnLabel =
-                    PixelScene.renderTextBlock(CoHeroMessages.get("inventory.enemy_spawn"), 7);
+                    PixelScene.renderTextBlock(CoHeroMessages.get("settings.enemy_spawn"), 7);
             add(enemySpawnLabel);
 
             enemySpawnValue = PixelScene.renderTextBlock(enemySpawnValueText(), 7);
@@ -68,7 +68,7 @@ public final class CoHeroSettingsTab extends Component {
             enemySpawnSlider.setSelectedValue(companion.enemySpawnMultiplierQuarters());
             add(enemySpawnSlider);
 
-            debugLog = new CheckBox(CoHeroMessages.get("inventory.debug_log")) {
+            debugLog = new CheckBox(CoHeroMessages.get("settings.debug_log")) {
                 @Override
                 protected void onClick() {
                     super.onClick();
