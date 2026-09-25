@@ -60,7 +60,12 @@ def main() -> None:
 """
     text = replace_once(text, create_anchor, create_replacement, "UITab create")
 
-    layout_anchor = (\n        "\t\t\t\tchkVibrate.setRect(0, chkFont.bottom() + GAP, width, BTN_HEIGHT);\\n"\n        "\t\t\t\theight = chkVibrate.bottom();\\n"\n        "\t\t\t}\\n"\n    )\n    layout_replacement = layout_anchor + """
+    layout_anchor = (
+        "\t\t\t\tchkVibrate.setRect(0, chkFont.bottom() + GAP, width, BTN_HEIGHT);\n"
+        "\t\t\t\theight = chkVibrate.bottom();\n"
+        "\t\t\t}\n"
+    )
+    layout_replacement = layout_anchor + """
 
 			if (btnExportSave != null) {
 				sep3.size(width, 1);
