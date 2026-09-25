@@ -61,7 +61,7 @@ These are important for the finished port but should not block early gameplay br
 
 - `FogOfWar.java` — companion visual FOV.
 - `TitleScene.java` / `MenuPane.java` — version branding.
-- `WndSettings.java` — Android save export/import controls in the Interface tab.
+- `WndSettings.java` — Android/Desktop save export/import controls in the Interface tab.
 - `WndGame.java` — CoHero game-menu integration.
 - `GameScene.java` — locator, inventory tag, remote view, hazard overlays, and examination visibility.
 - message resources — CoHero strings.
@@ -92,6 +92,6 @@ The number of upstream files has not been artificially reduced; instead, failure
 - Keep host-specific anchors under `integration/<fork>/patches/`.
 - Preserve fail-fast exact anchors; do not use fuzzy patching.
 - Preserve patch order explicitly in the fork's `apply.sh`.
-- Keep save-transfer storage permission wiring host-specific; common CoHero code must not depend on SMM.
+- Keep Android save-transfer storage permission wiring host-specific; common CoHero code must not depend on SMM. Desktop folder selection stays reflection-based in common code so Android does not acquire a desktop library dependency.
 - Bring up lifecycle first, then actor semantics, then equipment/combat, encounter safety, and presentation.
 - A successful compile is necessary but not sufficient: verify loading an existing CoHero save after any lifecycle or persistence change.

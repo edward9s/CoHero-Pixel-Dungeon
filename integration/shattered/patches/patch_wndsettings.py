@@ -34,7 +34,7 @@ def main() -> None:
     create_anchor = "\t\t\tadd(chkVibrate);\n"
     create_replacement = create_anchor + """
 
-			if (DeviceCompat.isAndroid()) {
+			if (DeviceCompat.isAndroid() || DeviceCompat.isDesktop()) {
 				// COHERO_SAVE_TRANSFER
 				sep3 = new ColorBlock(1, 1, 0xFF000000);
 				add(sep3);
@@ -84,7 +84,7 @@ def main() -> None:
     text = replace_once(text, layout_anchor, layout_replacement, "UITab layout")
 
     path.write_text(text, encoding="utf-8")
-    print(f"patched {path}: CoHero Android save-transfer controls")
+    print(f"patched {path}: CoHero Android/Desktop save-transfer controls")
 
 
 if __name__ == "__main__":
