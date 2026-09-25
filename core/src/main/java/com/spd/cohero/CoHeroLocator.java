@@ -34,7 +34,6 @@ public class CoHeroLocator extends Button {
     private static final float AVATAR_SCALE = 0.7f;
     private static final float TEXT_SCALE = 0.7f;
     private static final float DIRECTION_SCALE = 0.7f;
-    private static final float COMBAT_WARNING_SCALE = 0.7f;
     private static final float VERTICAL_EDGE_MARGIN = 2f;
     private static final float TAG_GAP = 1f;
     private static final float RAD_TO_DEG = 180f / 3.1415926f;
@@ -51,8 +50,7 @@ public class CoHeroLocator extends Button {
     private final BitmapText identity;
     private final HealthBar hp;
     private final BuffStrip buffs;
-    private final BitmapText lowHealthWarning;
-    private final Image combatWarning;
+    private final BitmapText warning;
 
     private Char locatorTarget;
 
@@ -97,17 +95,11 @@ public class CoHeroLocator extends Button {
         buffs = new BuffStrip();
         add(buffs);
 
-        lowHealthWarning = new BitmapText(PixelScene.pixelFont);
-        lowHealthWarning.text("!");
-        lowHealthWarning.measure();
-        lowHealthWarning.scale.set(TEXT_SCALE);
-        lowHealthWarning.hardlight(0xFF0000);
-        add(lowHealthWarning);
-
-        combatWarning = Icons.ALERT.get();
-        combatWarning.scale.set(COMBAT_WARNING_SCALE);
-        combatWarning.visible = false;
-        add(combatWarning);
+        warning = new BitmapText(PixelScene.pixelFont);
+        warning.text("!");
+        warning.measure();
+        warning.visible = false;
+        add(warning);
 
         setSize(WIDTH, HEIGHT);
         visible = false;
@@ -168,8 +160,13 @@ public class CoHeroLocator extends Button {
         visible = true;
         hp.level(locatorTarget);
         buffs.target(locatorTarget);
-        lowHealthWarning.visible = locatorTarget == companion && companion.isLowHealth();
-        combatWarning.visible = locatorTarget == companion && companion.inCombat();
+        boolean companionWarning = locatorTarget == companion;
+        boolean lowHealth = companionWarning && companion.isLowHealth();
+        boolean inCombat = companionWarning && companion.inCombat();
+        warning.visible = lowHealth || inCombat;
+        if (warning.visible) {
+            warning.hardlight(lowHealth ? 0xFF0000 : 0xFFFF00);
+        }
 
         float worldCenterX = world.scroll.x + world.width / 2f;
         float worldCenterY = world.scroll.y + world.height / 2f;
@@ -273,11 +270,8 @@ public class CoHeroLocator extends Button {
         hp.setRect(x + 1, y + 12, width - 2, 2);
         buffs.setRect(x + 1, y + 15, width - 2, 5);
 
-        lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + 1;
-        lowHealthWarning.y = y + 2;
-
-        combatWarning.x = x + width - combatWarning.width() * COMBAT_WARNING_SCALE - 1;
-        combatWarning.y = y + 6;
+        warning.x = identity.x + identity.width() * TEXT_SCALE + 1;
+        warning.y = y + 1;
     }
 
     private static class BuffStrip extends Component {
