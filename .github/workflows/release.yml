@@ -3,7 +3,7 @@ name: Release CoHero
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 18 * * *' # 02:00 Asia/Taipei
+    - cron: '0 19 * * *' # 03:00 Asia/Taipei
 
 permissions:
   contents: write
