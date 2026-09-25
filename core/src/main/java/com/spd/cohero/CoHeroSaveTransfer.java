@@ -17,16 +17,12 @@ import java.util.UUID;
  * Save-file transfer for CoHero builds.
  *
  * <p>Android mirrors SMM's full-snapshot behavior without depending on SMM.
- * Desktop uses a native folder chooser and only replaces folders explicitly
- * marked as CoHero exports.</p>
+ * Desktop uses a native folder chooser; the selected directory is the complete
+ * snapshot source or destination.</p>
  */
 public final class CoHeroSaveTransfer {
 
     private static final String LOG_PREFIX = "CoHero save transfer: ";
-
-    private static final String DESKTOP_MARKER = ".cohero-save-transfer";
-    private static final byte[] DESKTOP_MARKER_CONTENT =
-            "CoHero save transfer v1\n".getBytes(StandardCharsets.UTF_8);
 
     private static final String PREF_EXPORT_DIRECTORY =
             "desktop_export_directory";
@@ -157,18 +153,10 @@ public final class CoHeroSaveTransfer {
                     "Selected export directory overlaps the active save directory");
         }
 
-        File[] targetFiles = listFiles(targetDir);
-        File marker = new File(targetDir, DESKTOP_MARKER);
-        if (targetFiles.length > 0 && !marker.isFile()) {
-            throw new IOException(
-                    "Desktop export directory is not empty and is not a previous CoHero export");
-        }
-
         // As on Android, export is a complete replacement snapshot.
         Dungeon.saveAll();
         deleteContents(targetDir);
         copyRecursively(sourceDir, targetDir, false);
-        writeDesktopMarker(targetDir);
         return true;
     }
 
@@ -186,14 +174,14 @@ public final class CoHeroSaveTransfer {
                     "Selected import directory overlaps the active save directory");
         }
 
-        if (!validDesktopSnapshot(sourceDir)) {
+        if (!hasAnyContent(sourceDir)) {
             System.out.println(
                     LOG_PREFIX + CoHeroMessages.get("save_transfer.no_save"));
             return;
         }
 
         deleteContents(targetDir);
-        copyDesktopSnapshotContents(sourceDir, targetDir, true);
+        copyRecursively(sourceDir, targetDir, true);
 
         // The imported preferences and saves are now on disk, while the current
         // process still has the old state in memory. Exit instead of mixing them.
@@ -292,169 +280,6 @@ public final class CoHeroSaveTransfer {
         String identity = UUID.nameUUIDFromBytes(
                 savePath.getBytes(StandardCharsets.UTF_8)).toString();
         return key + "." + identity;
-    }
-
-    private static boolean validDesktopSnapshot(File sourceDir)
-            throws IOException {
-
-        File marker = new File(sourceDir, DESKTOP_MARKER);
-        if (!marker.isFile()) {
-            return false;
-        }
-
-        File[] files = listFiles(sourceDir);
-        for (File file : files) {
-            if (!DESKTOP_MARKER.equals(file.getName())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void writeDesktopMarker(File directory)
-            throws IOException {
-
-        File marker = new File(directory, DESKTOP_MARKER);
-        try (FileOutputStream output = new FileOutputStream(marker)) {
-            output.write(DESKTOP_MARKER_CONTENT);
-            output.flush();
-            try {
-                output.getFD().sync();
-            } catch (IOException ignored) {
-                // Best effort only. Snapshot data has already been copied.
-            }
-        }
-    }
-
-    private static void copyDesktopSnapshotContents(
-            File sourceDir,
-            File targetDir,
-            boolean syncFiles) throws IOException {
-
-        File[] files = listFiles(sourceDir);
-        if (!targetDir.exists()
-                && !targetDir.mkdirs()
-                && !targetDir.isDirectory()) {
-            throw new IOException(
-                    "Unable to create directory: "
-                            + targetDir.getAbsolutePath());
-        }
-
-        for (File file : files) {
-            if (DESKTOP_MARKER.equals(file.getName())) {
-                continue;
-            }
-            copyRecursively(
-                    file,
-                    new File(targetDir, file.getName()),
-                    syncFiles);
-        }
-    }
-
-    private static void replaceSnapshot(
-            File sourceDir,
-            File targetDir,
-            boolean syncFiles) throws IOException {
-
-        if (targetDir.exists()) {
-            if (!targetDir.isDirectory()) {
-                throw new IOException(
-                        "Export path is not a directory: "
-                                + targetDir.getAbsolutePath());
-            }
-            deleteContents(targetDir);
-        } else if (!targetDir.mkdirs() && !targetDir.isDirectory()) {
-            throw new IOException(
-                    "Unable to create export directory: "
-                            + targetDir.getAbsolutePath());
-        }
-
-        copyRecursively(sourceDir, targetDir, syncFiles);
-    }
-
-    private static File androidExternalSaveDirectory(Object context)
-            throws Exception {
-
-        String packageName = (String) context.getClass()
-                .getMethod("getPackageName")
-                .invoke(context);
-        return new File("/sdcard/Download/" + packageName);
-    }
-
-    private static Object androidContext() throws Exception {
-        try {
-            Class<?> activityThread = Class.forName("android.app.ActivityThread");
-            Object application = activityThread
-                    .getMethod("currentApplication")
-                    .invoke(null);
-            if (application == null) {
-                throw new IllegalStateException(
-                        "Android application context is unavailable");
-            }
-            return application;
-        } catch (ClassNotFoundException notAndroid) {
-            throw new UnsupportedOperationException(
-                    "Android context is unavailable",
-                    notAndroid);
-        }
-    }
-
-    private static boolean ensureAllFilesAccess(Object context)
-            throws Exception {
-
-        Class<?> buildVersionClass =
-                Class.forName("android.os.Build$VERSION");
-        int sdkInt = buildVersionClass
-                .getField("SDK_INT")
-                .getInt(null);
-
-        if (sdkInt < 30) {
-            return true;
-        }
-
-        Class<?> environmentClass =
-                Class.forName("android.os.Environment");
-        boolean manager = ((Boolean) environmentClass
-                .getMethod("isExternalStorageManager")
-                .invoke(null)).booleanValue();
-
-        if (manager) {
-            return true;
-        }
-
-        Class<?> intentClass = Class.forName("android.content.Intent");
-        Object intent = intentClass
-                .getConstructor(String.class)
-                .newInstance(
-                        "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
-
-        Class<?> uriClass = Class.forName("android.net.Uri");
-        String packageName = (String) context.getClass()
-                .getMethod("getPackageName")
-                .invoke(context);
-        Object uri = uriClass
-                .getMethod(
-                        "fromParts",
-                        String.class,
-                        String.class,
-                        String.class)
-                .invoke(null, "package", packageName, null);
-
-        intentClass.getMethod("setData", uriClass).invoke(intent, uri);
-        intentClass.getMethod("addFlags", int.class)
-                .invoke(intent, 0x10000000);
-        context.getClass()
-                .getMethod("startActivity", intentClass)
-                .invoke(context, intent);
-
-        GLog.w(CoHeroMessages.get("save_transfer.permission"), new Object[0]);
-        return false;
-    }
-
-    private static boolean hasAnyContent(File directory)
-            throws IOException {
-
-        return listFiles(directory).length > 0;
     }
 
     private static File[] listFiles(File directory)
