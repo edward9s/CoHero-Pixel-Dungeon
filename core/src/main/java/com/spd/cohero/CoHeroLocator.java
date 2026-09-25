@@ -204,17 +204,15 @@ public class CoHeroLocator extends Button {
         float locatorX = centerX + dx * scale - WIDTH / 2f;
         float locatorY = centerY + dy * scale - HEIGHT / 2f;
 
-        RectF tagBounds = GameScene.coHeroTagBounds();
+        RectF locatorBounds =
+                new RectF(locatorX, locatorY, locatorX + WIDTH, locatorY + HEIGHT);
+        RectF tagBounds = GameScene.coHeroOverlappingTagBounds(locatorBounds);
         if (tagBounds != null) {
-            RectF locatorBounds =
-                    new RectF(locatorX, locatorY, locatorX + WIDTH, locatorY + HEIGHT);
-            if (!locatorBounds.intersect(tagBounds).isEmpty()) {
-                float screenCenterX = (left + right) / 2f;
-                if (tagBounds.right <= screenCenterX) {
-                    locatorX = Math.min(right - WIDTH, tagBounds.right + TAG_GAP);
-                } else {
-                    locatorX = Math.max(left, tagBounds.left - WIDTH - TAG_GAP);
-                }
+            float screenCenterX = (left + right) / 2f;
+            if (tagBounds.right <= screenCenterX) {
+                locatorX = Math.min(right - WIDTH, tagBounds.right + TAG_GAP);
+            } else {
+                locatorX = Math.max(left, tagBounds.left - WIDTH - TAG_GAP);
             }
         }
 
