@@ -29,7 +29,7 @@ import java.util.ArrayList;
  */
 public class CoHeroLocator extends Button {
 
-    private static final float WIDTH = 50f;
+    private static final float WIDTH = 44f;
     private static final float HEIGHT = 31f;
     private static final float VERTICAL_EDGE_MARGIN = 2f;
     private static final float TAG_GAP = 1f;
@@ -47,7 +47,8 @@ public class CoHeroLocator extends Button {
     private final BitmapText identity;
     private final HealthBar hp;
     private final BuffStrip buffs;
-    private final BitmapText warning;
+    private final BitmapText lowHealthWarning;
+    private final Image combatWarning;
 
     private Char locatorTarget;
 
@@ -90,11 +91,15 @@ public class CoHeroLocator extends Button {
         buffs = new BuffStrip();
         add(buffs);
 
-        warning = new BitmapText(PixelScene.pixelFont);
-        warning.text("!");
-        warning.measure();
-        warning.hardlight(0xFFFF00);
-        add(warning);
+        lowHealthWarning = new BitmapText(PixelScene.pixelFont);
+        lowHealthWarning.text("!");
+        lowHealthWarning.measure();
+        lowHealthWarning.hardlight(0xFFFF00);
+        add(lowHealthWarning);
+
+        combatWarning = Icons.ALERT.get();
+        combatWarning.visible = false;
+        add(combatWarning);
 
         setSize(WIDTH, HEIGHT);
         visible = false;
@@ -153,7 +158,8 @@ public class CoHeroLocator extends Button {
         visible = true;
         hp.level(locatorTarget);
         buffs.target(locatorTarget);
-        warning.visible = locatorTarget == companion && companion.lowHealthRally();
+        lowHealthWarning.visible = locatorTarget == companion && companion.lowHealthRally();
+        combatWarning.visible = locatorTarget == companion && companion.inCombat();
 
         float worldCenterX = world.scroll.x + world.width / 2f;
         float worldCenterY = world.scroll.y + world.height / 2f;
@@ -255,16 +261,19 @@ public class CoHeroLocator extends Button {
         identity.y = y + 3;
 
         hp.setRect(x + 16, y + 16, width - 20, 2);
-        buffs.setRect(x + 2, y + 21, width - 4, 8);
+        buffs.setRect(x + 1, y + 21, width - 2, 8);
 
-        warning.x = identity.x + identity.width() + 2;
-        warning.y = y + 3;
+        lowHealthWarning.x = identity.x + identity.width() + 2;
+        lowHealthWarning.y = y + 3;
+
+        combatWarning.x = x + width - combatWarning.width() - 1;
+        combatWarning.y = y + 8;
     }
 
     private static class BuffStrip extends Component {
 
         private static final int MAX_BUFFS = 6;
-        private static final float ICON_STEP = 8f;
+        private static final float ICON_STEP = 7f;
 
         private final ArrayList<Buff> shownBuffs = new ArrayList<>();
         private final ArrayList<BuffIcon> icons = new ArrayList<>();
