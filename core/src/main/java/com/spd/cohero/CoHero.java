@@ -321,6 +321,7 @@ public final class CoHero {
             spawn = findSpawnCell();
         }
 
+        boolean newRunCompanion = companionState == null;
         timings.setEnabled(companion.debugLogEnabled());
 
         restoringSavedGame = false;
@@ -330,6 +331,11 @@ public final class CoHero {
         }
 
         companion.enterLevel(spawn);
+        if (newRunCompanion) {
+            companion.setEnemySpawnMultiplierQuarters(
+                    CoHeroSettings.defaultEnemySpawnMultiplierQuarters());
+            companion.setDebugLogEnabled(CoHeroSettings.defaultDebugLogEnabled());
+        }
         GameScene.add(companion);
 
         // Loading a save restores an already-occupied cell; it is not a new step onto that cell.
