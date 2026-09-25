@@ -1,6 +1,6 @@
 # Shattered integration port map
 
-This profile currently patches 44 upstream Java files, plus `build.gradle` and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
+This profile currently patches 45 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
 
 ## Recommended port order
 
@@ -61,6 +61,7 @@ These are important for the finished port but should not block early gameplay br
 
 - `FogOfWar.java` — companion visual FOV.
 - `TitleScene.java` / `MenuPane.java` — version branding.
+- `WndSettings.java` — Android save export/import controls in the Interface tab.
 - `WndGame.java` — CoHero game-menu integration.
 - `GameScene.java` — locator, inventory tag, remote view, hazard overlays, and examination visibility.
 - message resources — CoHero strings.
@@ -91,5 +92,6 @@ The number of upstream files has not been artificially reduced; instead, failure
 - Keep host-specific anchors under `integration/<fork>/patches/`.
 - Preserve fail-fast exact anchors; do not use fuzzy patching.
 - Preserve patch order explicitly in the fork's `apply.sh`.
+- Keep save-transfer storage permission wiring host-specific; common CoHero code must not depend on SMM.
 - Bring up lifecycle first, then actor semantics, then equipment/combat, encounter safety, and presentation.
 - A successful compile is necessary but not sufficient: verify loading an existing CoHero save after any lifecycle or persistence change.
