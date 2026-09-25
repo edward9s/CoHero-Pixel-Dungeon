@@ -11,7 +11,6 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.SpellSprite;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
-import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Random;
@@ -26,24 +25,19 @@ final class CoHeroRevivalController {
         this.owner = owner;
     }
 
-    boolean tryRevive(Object cause) {
+    boolean tryRevive() {
         Ankh ankh = owner.inventory().takeAnkhForRevive();
         if (ankh == null) {
             return false;
         }
 
-        boolean fellIntoChasm = cause == Chasm.class;
         int destination = -1;
 
-        // Ordinary Ankhs already relocate CoHero. A blessed Ankh normally revives in place, but
-        // reviving in place on a pit would immediately leave CoHero in an invalid lethal cell.
-        if (!ankh.isBlessed() || fellIntoChasm) {
+        // Ordinary Ankhs relocate CoHero. Blessed Ankhs retain the stock revive-in-place behavior.
+        if (!ankh.isBlessed()) {
             destination = chooseReviveCell(true);
             if (destination == -1) {
                 destination = chooseReviveCell(false);
-            }
-            if (fellIntoChasm && destination == -1) {
-                return false;
             }
         }
 
@@ -66,8 +60,8 @@ final class CoHeroRevivalController {
             Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
             owner.revealVisibleCells();
         } else {
-            // Blessed Ankh deaths that did not involve a chasm keep the stock revive-in-place
-            // behavior. An ordinary Ankh only reaches this fallback on a pathological full level.
+            // A blessed Ankh revives in place. An ordinary Ankh only reaches this fallback on a
+            // pathological full level with no valid relocation cell.
             Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
         }
 
