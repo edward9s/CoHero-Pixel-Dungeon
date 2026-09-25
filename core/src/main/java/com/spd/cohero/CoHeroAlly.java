@@ -591,6 +591,9 @@ public class CoHeroAlly extends DirectableAlly {
         guard.updateSession();
         combatObjective.update();
 
+        ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
+        inCombat = !visibleThreats.isEmpty();
+
         if (paralysed > 0) {
             logBossDecision("paralysed", "paralysed");
             spend(TICK);
@@ -614,8 +617,6 @@ public class CoHeroAlly extends DirectableAlly {
                 guard.isActive() ? support.heroSupportThreat() : null;
         guard.prepareMovementScope(guardSupportThreat);
 
-        ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
-        inCombat = !visibleThreats.isEmpty();
         timings().record(this, CoHeroTimings.Action.PREPARE, prepareStarted);
         if (visibleThreats.isEmpty() && debugLogEnabled) {
             String detail = threatScanDebug();
