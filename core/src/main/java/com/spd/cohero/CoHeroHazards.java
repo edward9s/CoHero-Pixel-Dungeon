@@ -23,6 +23,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultSentry;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.quest.vault.VaultBossElemental.FireWall;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.MagicalFireRoom.EternalFire;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.PitfallTrap;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ConeAOE;
@@ -71,6 +72,7 @@ public final class CoHeroHazards {
         }
         return isWarned(cell)
                 || isKnownActiveTrap(cell)
+                || isDelayedPitDanger(owner, cell)
                 || isVaultMechanismDanger(owner, cell)
                 || isEnvironmentalDanger(owner, cell);
     }
@@ -80,6 +82,7 @@ public final class CoHeroHazards {
         pruneExpired();
         return !WARNED_UNTIL.isEmpty()
                 || hasKnownActiveTrap()
+                || hasDelayedPitHazard(owner)
                 || hasVaultMechanismHazard(owner)
                 || hasEnvironmentalHazard(owner);
     }
@@ -104,6 +107,8 @@ public final class CoHeroHazards {
                 }
             }
         }
+
+        maskDelayedPitDanger(owner, result);
 
         if (owner != null) {
             ensureVaultMechanismDanger(owner);
@@ -178,6 +183,84 @@ public final class CoHeroHazards {
 
         Trap trap = Dungeon.level.traps.get(cell);
         return trap != null && trap.active && trap.visible;
+    }
+
+    private static boolean hasDelayedPitHazard(Char owner) {
+        if (owner == null
+                || owner.flying
+                || Dungeon.hero == null
+                || Dungeon.level == null) {
+            return false;
+        }
+
+        for (PitfallTrap.DelayedPit pit : Dungeon.hero.buffs(PitfallTrap.DelayedPit.class)) {
+            if (delayedPitAffects(owner, pit)) {
+                for (int cell : pit.positions) {
+                    if (isLiveDelayedPitCell(cell)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isDelayedPitDanger(Char owner, int cell) {
+        if (owner == null
+                || owner.flying
+                || Dungeon.hero == null
+                || Dungeon.level == null
+                || !Dungeon.level.insideMap(cell)) {
+            return false;
+        }
+
+        for (PitfallTrap.DelayedPit pit : Dungeon.hero.buffs(PitfallTrap.DelayedPit.class)) {
+            if (!delayedPitAffects(owner, pit)) {
+                continue;
+            }
+            for (int pitCell : pit.positions) {
+                if (pitCell == cell && isLiveDelayedPitCell(pitCell)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void maskDelayedPitDanger(Char owner, boolean[] passable) {
+        if (owner == null
+                || owner.flying
+                || Dungeon.hero == null
+                || Dungeon.level == null) {
+            return;
+        }
+
+        for (PitfallTrap.DelayedPit pit : Dungeon.hero.buffs(PitfallTrap.DelayedPit.class)) {
+            if (!delayedPitAffects(owner, pit)) {
+                continue;
+            }
+            for (int cell : pit.positions) {
+                if (cell >= 0
+                        && cell < passable.length
+                        && passable[cell]
+                        && isLiveDelayedPitCell(cell)) {
+                    passable[cell] = false;
+                }
+            }
+        }
+    }
+
+    private static boolean delayedPitAffects(Char owner, PitfallTrap.DelayedPit pit) {
+        return pit != null
+                && pit.positions != null
+                && pit.depth == Dungeon.depth
+                && pit.branch == Dungeon.branch
+                && !(pit.ignoreAllies && owner.alignment == Char.Alignment.ALLY);
+    }
+
+    private static boolean isLiveDelayedPitCell(int cell) {
+        return Dungeon.level.insideMap(cell)
+                && (!Dungeon.level.solid[cell] || Dungeon.level.passable[cell]);
     }
 
     private static boolean hasEnvironmentalHazard(Char owner) {
