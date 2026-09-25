@@ -169,9 +169,14 @@ public class CoHeroLocator extends Button {
         visible = true;
         hp.level(locatorTarget);
         buffs.target(locatorTarget);
-        boolean companionWarning = locatorTarget == companion;
-        lowHealthWarning.visible = companionWarning && companion.isLowHealth();
-        combatWarning.visible = companionWarning && companion.inCombat();
+        boolean companionTarget = locatorTarget == companion;
+        boolean heroTarget = locatorTarget == Dungeon.hero;
+        lowHealthWarning.visible =
+                companionTarget ? companion.isLowHealth()
+                        : heroTarget && CoHeroSupportController.isLowHealth(Dungeon.hero);
+        combatWarning.visible =
+                companionTarget ? companion.inCombat()
+                        : heroTarget && Dungeon.hero.visibleEnemies() > 0;
 
         float worldCenterX = world.scroll.x + world.width / 2f;
         float worldCenterY = world.scroll.y + world.height / 2f;
@@ -275,7 +280,7 @@ public class CoHeroLocator extends Button {
         hp.setRect(x + 1, y + 12, width - 2, 2);
         buffs.setRect(x + 1, y + 15, width - 2, 5);
 
-        lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + 1;
+        lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + 3;
         lowHealthWarning.y = y + 1;
 
         combatWarning.x = lowHealthWarning.x + lowHealthWarning.width() + 1;
