@@ -52,6 +52,7 @@ public class CoHeroAlly extends DirectableAlly {
     private String movementDecision = "unspecified";
     private int movementDecisionTarget = -1;
     private boolean debugLogEnabled;
+    private boolean inCombat;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -73,6 +74,14 @@ public class CoHeroAlly extends DirectableAlly {
 
     boolean lowHealthRally() {
         return support.isLowHealthRally();
+    }
+
+    boolean isLowHealth() {
+        return support.isBelowLowHealthThreshold();
+    }
+
+    boolean inCombat() {
+        return inCombat;
     }
 
     void clearLowHealthRally() {
@@ -233,6 +242,7 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
+        inCombat = false;
         timeToNow();
 
         // Recreate item-owned buffs against this live Char after save restoration / floor transfer.
@@ -266,6 +276,7 @@ public class CoHeroAlly extends DirectableAlly {
         alerted = false;
         defendingPos = -1;
         movingToDefendPos = false;
+        inCombat = false;
 
         if (sprite != null) {
             sprite.interruptMotion();
@@ -584,6 +595,9 @@ public class CoHeroAlly extends DirectableAlly {
         guard.updateSession();
         combatObjective.update();
 
+        ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
+        inCombat = !visibleThreats.isEmpty();
+
         if (paralysed > 0) {
             logBossDecision("paralysed", "paralysed");
             spend(TICK);
@@ -607,7 +621,6 @@ public class CoHeroAlly extends DirectableAlly {
                 guard.isActive() ? support.heroSupportThreat() : null;
         guard.prepareMovementScope(guardSupportThreat);
 
-        ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         timings().record(this, CoHeroTimings.Action.PREPARE, prepareStarted);
         if (visibleThreats.isEmpty() && debugLogEnabled) {
             String detail = threatScanDebug();
@@ -1001,6 +1014,7 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
+        inCombat = false;
     }
 
     private void resetInheritedDecisionState() {
@@ -1013,6 +1027,7 @@ public class CoHeroAlly extends DirectableAlly {
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
+        inCombat = false;
     }
 
     boolean isCombatInvulnerable(Mob threat) {
