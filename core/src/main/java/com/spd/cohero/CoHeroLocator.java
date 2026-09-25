@@ -30,8 +30,9 @@ import java.util.ArrayList;
 public class CoHeroLocator extends Button {
 
     private static final float WIDTH = 32f;
-    private static final float HEIGHT = 31f;
+    private static final float HEIGHT = 22f;
     private static final float AVATAR_SCALE = 0.7f;
+    private static final float TEXT_SCALE = 0.7f;
     private static final float DIRECTION_SCALE = 0.7f;
     private static final float COMBAT_WARNING_SCALE = 0.7f;
     private static final float VERTICAL_EDGE_MARGIN = 2f;
@@ -87,6 +88,7 @@ public class CoHeroLocator extends Button {
         identity = new BitmapText(PixelScene.pixelFont);
         identity.text("CO");
         identity.measure();
+        identity.scale.set(TEXT_SCALE);
         add(identity);
 
         hp = new HealthBar();
@@ -98,6 +100,7 @@ public class CoHeroLocator extends Button {
         lowHealthWarning = new BitmapText(PixelScene.pixelFont);
         lowHealthWarning.text("!");
         lowHealthWarning.measure();
+        lowHealthWarning.scale.set(TEXT_SCALE);
         lowHealthWarning.hardlight(0xFF0000);
         add(lowHealthWarning);
 
@@ -259,22 +262,22 @@ public class CoHeroLocator extends Button {
         background.size(width, height);
 
         heroAvatar.x = companionAvatar.x = x + 1;
-        heroAvatar.y = companionAvatar.y = y + 2;
+        heroAvatar.y = companionAvatar.y = y + 1;
 
-        direction.x = x + width - direction.width() - 1;
-        direction.y = y + 2;
+        direction.x = x + width - direction.width() * DIRECTION_SCALE - 1;
+        direction.y = y + 1;
 
         identity.x = x + 10;
-        identity.y = y + 3;
+        identity.y = y + 2;
 
-        hp.setRect(x + 10, y + 16, width - 13, 2);
-        buffs.setRect(x + 1, y + 21, width - 2, 8);
+        hp.setRect(x + 10, y + 11, width - 13, 2);
+        buffs.setRect(x + 1, y + 15, width - 2, 5);
 
-        lowHealthWarning.x = identity.x + identity.width() + 1;
-        lowHealthWarning.y = y + 3;
+        lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + 1;
+        lowHealthWarning.y = y + 2;
 
         combatWarning.x = x + width - combatWarning.width() * COMBAT_WARNING_SCALE - 1;
-        combatWarning.y = y + 8;
+        combatWarning.y = y + 6;
     }
 
     private static class BuffStrip extends Component {
