@@ -1,6 +1,6 @@
 # Shattered integration port map
 
-This profile currently patches 45 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
+This profile currently patches 46 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
 
 ## Recommended port order
 
@@ -26,7 +26,8 @@ These make stock SPD rules treat CoHero as a real second combatant instead of as
 - `GreatCrab.java` — Great Crab surprise handling.
 - `HighGrass.java` — Huntress grass semantics.
 - `Dread.java` — CoHero fear behavior.
-- `Chasm.java` — Ankh/chasm revive presentation.
+- `Chasm.java` — redirects CoHero chasm falls through the stock Hero fall transition.
+- `PitfallTrap.java` — defers shared Hero/CoHero pitfall transitions until the trap finishes scanning affected cells.
 - `LockedFloor.java` — boss-floor relocation lifecycle.
 
 `Mob.java` is a high-value, high-risk port target because several CoHero behaviors depend on the host fork's real mob attack semantics.
@@ -70,7 +71,7 @@ These are important for the finished port but should not block early gameplay br
 
 The Shattered profile now keeps Java patch ownership one-to-one:
 
-- 44 Java patch calls target 44 unique upstream Java files.
+- 46 Java patch calls target 46 unique upstream Java files.
 - each Java patch script edits exactly one upstream Java file;
 - each upstream Java file is owned by exactly one patch script.
 
