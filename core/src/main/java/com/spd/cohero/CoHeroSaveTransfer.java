@@ -124,17 +124,15 @@ public final class CoHeroSaveTransfer {
         }
 
         if (directoriesOverlap(sourceDir, targetDir)) {
-            GLog.w(CoHeroMessages.get("save_transfer.desktop_overlap"), new Object[0]);
-            return;
+            throw new IOException(
+                    "Selected export directory overlaps the active save directory");
         }
 
         File[] targetFiles = listFiles(targetDir);
         File marker = new File(targetDir, DESKTOP_MARKER);
         if (targetFiles.length > 0 && !marker.isFile()) {
-            GLog.w(
-                    CoHeroMessages.get("save_transfer.desktop_export_nonempty"),
-                    new Object[0]);
-            return;
+            throw new IOException(
+                    "Desktop export directory is not empty and is not a previous CoHero export");
         }
 
         // As on Android, export is a complete replacement snapshot.
@@ -156,14 +154,12 @@ public final class CoHeroSaveTransfer {
 
         File targetDir = desktopSaveDirectory();
         if (directoriesOverlap(sourceDir, targetDir)) {
-            GLog.w(CoHeroMessages.get("save_transfer.desktop_overlap"), new Object[0]);
-            return;
+            throw new IOException(
+                    "Selected import directory overlaps the active save directory");
         }
 
         if (!validDesktopSnapshot(sourceDir)) {
-            GLog.w(
-                    CoHeroMessages.get("save_transfer.desktop_import_invalid"),
-                    new Object[0]);
+            GLog.w(CoHeroMessages.get("save_transfer.no_save"), new Object[0]);
             return;
         }
 
