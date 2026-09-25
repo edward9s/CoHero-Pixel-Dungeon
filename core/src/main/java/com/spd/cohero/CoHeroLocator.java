@@ -50,7 +50,8 @@ public class CoHeroLocator extends Button {
     private final BitmapText identity;
     private final HealthBar hp;
     private final BuffStrip buffs;
-    private final BitmapText warning;
+    private final BitmapText lowHealthWarning;
+    private final BitmapText combatWarning;
 
     private Char locatorTarget;
 
@@ -95,11 +96,19 @@ public class CoHeroLocator extends Button {
         buffs = new BuffStrip();
         add(buffs);
 
-        warning = new BitmapText(PixelScene.pixelFont);
-        warning.text("!");
-        warning.measure();
-        warning.visible = false;
-        add(warning);
+        lowHealthWarning = new BitmapText(PixelScene.pixelFont);
+        lowHealthWarning.text("!");
+        lowHealthWarning.measure();
+        lowHealthWarning.hardlight(0xFF0000);
+        lowHealthWarning.visible = false;
+        add(lowHealthWarning);
+
+        combatWarning = new BitmapText(PixelScene.pixelFont);
+        combatWarning.text("!");
+        combatWarning.measure();
+        combatWarning.hardlight(0xFFFF00);
+        combatWarning.visible = false;
+        add(combatWarning);
 
         setSize(WIDTH, HEIGHT);
         visible = false;
@@ -161,12 +170,8 @@ public class CoHeroLocator extends Button {
         hp.level(locatorTarget);
         buffs.target(locatorTarget);
         boolean companionWarning = locatorTarget == companion;
-        boolean lowHealth = companionWarning && companion.isLowHealth();
-        boolean inCombat = companionWarning && companion.inCombat();
-        warning.visible = lowHealth || inCombat;
-        if (warning.visible) {
-            warning.hardlight(lowHealth ? 0xFF0000 : 0xFFFF00);
-        }
+        lowHealthWarning.visible = companionWarning && companion.isLowHealth();
+        combatWarning.visible = companionWarning && companion.inCombat();
 
         float worldCenterX = world.scroll.x + world.width / 2f;
         float worldCenterY = world.scroll.y + world.height / 2f;
@@ -270,8 +275,11 @@ public class CoHeroLocator extends Button {
         hp.setRect(x + 1, y + 12, width - 2, 2);
         buffs.setRect(x + 1, y + 15, width - 2, 5);
 
-        warning.x = identity.x + identity.width() * TEXT_SCALE + 1;
-        warning.y = y + 1;
+        lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + 1;
+        lowHealthWarning.y = y + 1;
+
+        combatWarning.x = lowHealthWarning.x + lowHealthWarning.width() + 1;
+        combatWarning.y = lowHealthWarning.y;
     }
 
     private static class BuffStrip extends Component {
