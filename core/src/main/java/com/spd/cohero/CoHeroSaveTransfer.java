@@ -83,18 +83,14 @@ public final class CoHeroSaveTransfer {
             String operation = export ? "export" : "import";
             try {
                 if (export) {
-                    exportDesktopSnapshot();
+                    if (exportDesktopSnapshot()) {
+                        System.out.println(LOG_PREFIX + "Save exported!");
+                    }
                 } else {
                     importDesktopSnapshot();
                 }
             } catch (Exception e) {
                 logFailure(operation, e);
-                GLog.w(
-                        CoHeroMessages.get(
-                                export
-                                        ? "save_transfer.export_failed"
-                                        : "save_transfer.import_failed"),
-                        new Object[0]);
             }
         });
     }
@@ -147,13 +143,13 @@ public final class CoHeroSaveTransfer {
                 .invoke(null, pid);
     }
 
-    private static void exportDesktopSnapshot() throws Exception {
+    private static boolean exportDesktopSnapshot() throws Exception {
         File sourceDir = desktopSaveDirectory();
         File targetDir = chooseDesktopDirectory(
                 CoHeroMessages.get("save_transfer.export"),
                 PREF_EXPORT_DIRECTORY);
         if (targetDir == null) {
-            return;
+            return false;
         }
 
         if (directoriesOverlap(sourceDir, targetDir)) {
@@ -173,8 +169,7 @@ public final class CoHeroSaveTransfer {
         deleteContents(targetDir);
         copyRecursively(sourceDir, targetDir, false);
         writeDesktopMarker(targetDir);
-
-        GLog.h(CoHeroMessages.get("save_transfer.exported"), new Object[0]);
+        return true;
     }
 
     private static void importDesktopSnapshot() throws Exception {
@@ -192,7 +187,8 @@ public final class CoHeroSaveTransfer {
         }
 
         if (!validDesktopSnapshot(sourceDir)) {
-            GLog.w(CoHeroMessages.get("save_transfer.no_save"), new Object[0]);
+            System.out.println(
+                    LOG_PREFIX + CoHeroMessages.get("save_transfer.no_save"));
             return;
         }
 
