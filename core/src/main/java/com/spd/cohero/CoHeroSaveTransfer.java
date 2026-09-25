@@ -2,6 +2,7 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.watabou.noosa.Game;
 import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.FileUtils;
 
@@ -36,11 +37,14 @@ public final class CoHeroSaveTransfer {
     }
 
     public static void exportSave() {
+        if (DeviceCompat.isDesktop()) {
+            runDesktopTransferLater(true);
+            return;
+        }
+
         try {
             if (DeviceCompat.isAndroid()) {
                 exportAndroidSnapshot();
-            } else if (DeviceCompat.isDesktop()) {
-                exportDesktopSnapshot();
             } else {
                 throw new UnsupportedOperationException(
                         "save export is not supported on this platform");
@@ -52,11 +56,14 @@ public final class CoHeroSaveTransfer {
     }
 
     public static void importSave() {
+        if (DeviceCompat.isDesktop()) {
+            runDesktopTransferLater(false);
+            return;
+        }
+
         try {
             if (DeviceCompat.isAndroid()) {
                 importAndroidSnapshot();
-            } else if (DeviceCompat.isDesktop()) {
-                importDesktopSnapshot();
             } else {
                 throw new UnsupportedOperationException(
                         "save import is not supported on this platform");
@@ -65,6 +72,27 @@ public final class CoHeroSaveTransfer {
             logFailure("import", e);
             GLog.w(CoHeroMessages.get("save_transfer.import_failed"), new Object[0]);
         }
+    }
+
+    private static void runDesktopTransferLater(final boolean export) {
+        Game.runOnRenderThread(() -> {
+            String operation = export ? "export" : "import";
+            try {
+                if (export) {
+                    exportDesktopSnapshot();
+                } else {
+                    importDesktopSnapshot();
+                }
+            } catch (Exception e) {
+                logFailure(operation, e);
+                GLog.w(
+                        CoHeroMessages.get(
+                                export
+                                        ? "save_transfer.export_failed"
+                                        : "save_transfer.import_failed"),
+                        new Object[0]);
+            }
+        });
     }
 
     private static void exportAndroidSnapshot() throws Exception {
