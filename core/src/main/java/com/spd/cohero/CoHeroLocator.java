@@ -34,7 +34,8 @@ public class CoHeroLocator extends Button {
     private static final float AVATAR_SCALE = 0.7f;
     private static final float TEXT_SCALE = 0.7f;
     private static final float DIRECTION_SCALE = 0.7f;
-    private static final float WARNING_GAP = 2f;
+    private static final float LABEL_TO_WARNING_GAP = 4f;
+    private static final float WARNING_TO_WARNING_GAP = 2f;
     private static final float VERTICAL_EDGE_MARGIN = 2f;
     private static final float TAG_GAP = 1f;
     private static final float RAD_TO_DEG = 180f / 3.1415926f;
@@ -281,10 +282,10 @@ public class CoHeroLocator extends Button {
         hp.setRect(x + 1, y + 12, width - 2, 2);
         buffs.setRect(x + 1, y + 15, width - 2, 5);
 
-        lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + WARNING_GAP;
+        lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + LABEL_TO_WARNING_GAP;
         lowHealthWarning.y = y + 1;
 
-        combatWarning.x = lowHealthWarning.x + lowHealthWarning.width() + WARNING_GAP;
+        combatWarning.x = lowHealthWarning.x + lowHealthWarning.width() + WARNING_TO_WARNING_GAP;
         combatWarning.y = lowHealthWarning.y;
     }
 
