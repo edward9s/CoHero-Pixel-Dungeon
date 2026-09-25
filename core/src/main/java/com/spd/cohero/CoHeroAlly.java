@@ -76,6 +76,10 @@ public class CoHeroAlly extends DirectableAlly {
         return support.isLowHealthRally();
     }
 
+    boolean isLowHealth() {
+        return support.isBelowLowHealthThreshold();
+    }
+
     boolean inCombat() {
         return inCombat;
     }
