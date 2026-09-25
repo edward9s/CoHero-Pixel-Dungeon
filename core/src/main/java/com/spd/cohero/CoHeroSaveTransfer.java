@@ -282,6 +282,112 @@ public final class CoHeroSaveTransfer {
         return key + "." + identity;
     }
 
+    private static void replaceSnapshot(
+            File sourceDir,
+            File targetDir,
+            boolean syncFiles) throws IOException {
+
+        if (targetDir.exists()) {
+            if (!targetDir.isDirectory()) {
+                throw new IOException(
+                        "Export path is not a directory: "
+                                + targetDir.getAbsolutePath());
+            }
+            deleteContents(targetDir);
+        } else if (!targetDir.mkdirs() && !targetDir.isDirectory()) {
+            throw new IOException(
+                    "Unable to create export directory: "
+                            + targetDir.getAbsolutePath());
+        }
+
+        copyRecursively(sourceDir, targetDir, syncFiles);
+    }
+
+    private static File androidExternalSaveDirectory(Object context)
+            throws Exception {
+
+        String packageName = (String) context.getClass()
+                .getMethod("getPackageName")
+                .invoke(context);
+        return new File("/sdcard/Download/" + packageName);
+    }
+
+    private static Object androidContext() throws Exception {
+        try {
+            Class<?> activityThread = Class.forName("android.app.ActivityThread");
+            Object application = activityThread
+                    .getMethod("currentApplication")
+                    .invoke(null);
+            if (application == null) {
+                throw new IllegalStateException(
+                        "Android application context is unavailable");
+            }
+            return application;
+        } catch (ClassNotFoundException notAndroid) {
+            throw new UnsupportedOperationException(
+                    "Android context is unavailable",
+                    notAndroid);
+        }
+    }
+
+    private static boolean ensureAllFilesAccess(Object context)
+            throws Exception {
+
+        Class<?> buildVersionClass =
+                Class.forName("android.os.Build$VERSION");
+        int sdkInt = buildVersionClass
+                .getField("SDK_INT")
+                .getInt(null);
+
+        if (sdkInt < 30) {
+            return true;
+        }
+
+        Class<?> environmentClass =
+                Class.forName("android.os.Environment");
+        boolean manager = ((Boolean) environmentClass
+                .getMethod("isExternalStorageManager")
+                .invoke(null)).booleanValue();
+
+        if (manager) {
+            return true;
+        }
+
+        Class<?> intentClass = Class.forName("android.content.Intent");
+        Object intent = intentClass
+                .getConstructor(String.class)
+                .newInstance(
+                        "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION");
+
+        Class<?> uriClass = Class.forName("android.net.Uri");
+        String packageName = (String) context.getClass()
+                .getMethod("getPackageName")
+                .invoke(context);
+        Object uri = uriClass
+                .getMethod(
+                        "fromParts",
+                        String.class,
+                        String.class,
+                        String.class)
+                .invoke(null, "package", packageName, null);
+
+        intentClass.getMethod("setData", uriClass).invoke(intent, uri);
+        intentClass.getMethod("addFlags", int.class)
+                .invoke(intent, 0x10000000);
+        context.getClass()
+                .getMethod("startActivity", intentClass)
+                .invoke(context, intent);
+
+        GLog.w(CoHeroMessages.get("save_transfer.permission"), new Object[0]);
+        return false;
+    }
+
+    private static boolean hasAnyContent(File directory)
+            throws IOException {
+
+        return listFiles(directory).length > 0;
+    }
+
     private static File[] listFiles(File directory)
             throws IOException {
 
