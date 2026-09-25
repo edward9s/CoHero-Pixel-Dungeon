@@ -270,7 +270,7 @@ public class CoHeroLocator extends Button {
         identity.x = x + 10;
         identity.y = y + 2;
 
-        hp.setRect(x + 10, y + 11, width - 13, 2);
+        hp.setRect(x + 1, y + 12, width - 2, 2);
         buffs.setRect(x + 1, y + 15, width - 2, 5);
 
         lowHealthWarning.x = identity.x + identity.width() * TEXT_SCALE + 1;
