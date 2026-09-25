@@ -265,7 +265,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 - 每回合先估算目前所有可見、清醒敵人的總 incoming DPT。已能直接攻擊 CoHero 的敵人權重最高；下一步即可進入合法攻擊位置者也納入風險。命中率用攻防值近似，傷害估算使用獨立 RNG stack 取樣，不消耗正式戰鬥 RNG。
 - TTD（time to death）以目前 `HP + shield` 為核心；正在進行的 Healing 與「下一瓶」已鑑定生存藥只提供保守的近程緩衝，不能把整個背包藥量當作額外血條。Ankh 完全不計入可揮霍戰力。
-- CoHero 跌落 chasm 不走 Mob 死亡或 CoHero Ankh 流程，而是把 CoHero 的實際跌落格直接交給原版 `Chasm.heroFall(pos)`，等同於 Hero 從該格跌落。WeakFloorRoom 等落點判定使用 CoHero 的跌落位置；換層後的 Feather Fall、Cripple、Bleeding 與掉血等效果仍只作用於玩家 Hero。CoHero 由既有跨樓層 companion state 帶到下一層，不因這次跌落另外死亡或消耗 Ankh。`PitfallTrap` 會在範圍掃描完成後只觸發一次共享 fall；若 Hero 與 CoHero 同時跌落，實際 Hero 的位置優先。
+- Chasm 的「換層」與「落地懲罰」分開處理：任一 Hero 跌落都只觸發一次原版 `Chasm.heroFall(pos)` party transition，但 Cripple、Bleeding 與掉血只作用於實際跌落的角色。CoHero 跌落時使用 CoHero 的實際跌落格判定 WeakFloorRoom 等落點，換層後由既有 companion state 在目的樓層重建，再套用與 Hero 共用的落地傷害公式；Hero 不代替 CoHero 受傷。Hero 的 Feather Fall 仍只保護 Hero，不會替 CoHero 免除落地懲罰。若 Hero 與 CoHero 同時被 `PitfallTrap` 波及，只進行一次樓層 transition，但兩人各自結算落地效果；實際 Hero 的位置優先作為共享 transition 的落點判定。CoHero 不因『掉進 chasm』本身直接走 Mob 死亡或消耗 Ankh，但若落地傷害造成死亡，仍走一般 CoHero 死亡／Ankh 流程。
 - TTK（time to kill）依 CoHero 實際當前攻擊規則估算；已建立正確近戰距離時仍以近戰為主，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
 - 臨戰優先序分成「安全／必要狀態處理 → anti-ranged 貼身 → 直接遠程輸出 → 非緊急戰鬥消耗品／buff → 特殊近戰走位 → 普通近戰／接近」。只要目前沒有建立應有的近戰距離，而且存在合法射線，投擲武器、Spirit Bow 或法杖會被視為正常攻擊手段，而不是等所有走位與 setup 都失敗後才使用。若目前首要威脅沒有合法遠程攻擊線，才會在其他可見威脅中選最近的合法遠程目標；但首要威脅已進入正確近戰距離時不會轉頭射遠處敵人。
 - 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死，或 TTD 明顯不優於 TTK，也進入撤退。Boss 是明確例外：Boss 的整體 HP 並不代表 CoHero 必須單獨完成的擊殺工作量，因此不以「CoHero 個人 TTD ≤ 打完整個 Boss 所需 TTK」作為撤退理由；立即致命與被多名敵人壓制等風險仍照常生效。
