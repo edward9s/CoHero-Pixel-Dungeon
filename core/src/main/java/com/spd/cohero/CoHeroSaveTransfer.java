@@ -223,8 +223,10 @@ public final class CoHeroSaveTransfer {
             String key,
             String defaultValue) throws Exception {
 
-        Object preferences = desktopPreferences();
-        return (String) preferences.getClass()
+        Class<?> preferencesClass =
+                Class.forName("java.util.prefs.Preferences");
+        Object preferences = desktopPreferences(preferencesClass);
+        return (String) preferencesClass
                 .getMethod("get", String.class, String.class)
                 .invoke(preferences, key, defaultValue);
     }
@@ -232,17 +234,20 @@ public final class CoHeroSaveTransfer {
     private static void desktopPreferencePut(String key, String value)
             throws Exception {
 
-        Object preferences = desktopPreferences();
-        preferences.getClass()
+        Class<?> preferencesClass =
+                Class.forName("java.util.prefs.Preferences");
+        Object preferences = desktopPreferences(preferencesClass);
+        preferencesClass
                 .getMethod("put", String.class, String.class)
                 .invoke(preferences, key, value);
-        preferences.getClass()
+        preferencesClass
                 .getMethod("flush")
                 .invoke(preferences);
     }
 
-    private static Object desktopPreferences() throws Exception {
-        Class<?> preferencesClass = Class.forName("java.util.prefs.Preferences");
+    private static Object desktopPreferences(Class<?> preferencesClass)
+            throws Exception {
+
         return preferencesClass
                 .getMethod("userNodeForPackage", Class.class)
                 .invoke(null, CoHeroSaveTransfer.class);
