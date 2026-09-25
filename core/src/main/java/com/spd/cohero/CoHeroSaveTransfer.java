@@ -75,6 +75,10 @@ public final class CoHeroSaveTransfer {
     }
 
     private static void runDesktopTransferLater(final boolean export) {
+        // Button clicks run while PointerEvent is iterating its event queue.
+        // Opening a native desktop dialog synchronously can enqueue focus/pointer
+        // events into that same list and trigger ConcurrentModificationException.
+        // postRunnable runs after the current input dispatch has returned.
         Game.runOnRenderThread(() -> {
             String operation = export ? "export" : "import";
             try {
