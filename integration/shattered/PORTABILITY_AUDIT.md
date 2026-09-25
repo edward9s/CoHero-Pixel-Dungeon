@@ -53,7 +53,7 @@ The 45 Java targets are classified A 7, B 11, C 14, D 6, E 7. `build.gradle` (`p
 | D | `StartScene.java` | `patch_start_scene.py` | save slot portrait and label |
 | D | `TitleScene.java` | `patch_title_scene.py` | CoHero branding |
 | D | `MenuPane.java` | `patch_menu_pane.py` | version branding |
-| D | `WndSettings.java` | `patch_wndsettings.py` | Android save export/import controls |
+| D | `WndSettings.java` | `patch_wndsettings.py` | Android/Desktop save export/import controls |
 | E | `GreatCrab.java` | `patch_great_crab_cohero.py` | special surprise defense |
 | E | `PrisonBossLevel.java` | `patch_prison_boss_cohero.py` | arena rewrite relocation |
 | E | `LockedFloor.java` | `patch_locked_floor_cohero.py` | boss-floor relocation and persisted relocation flag |
