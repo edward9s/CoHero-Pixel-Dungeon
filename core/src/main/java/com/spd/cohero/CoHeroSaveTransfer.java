@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 /**
  * Save-file transfer for CoHero builds.
@@ -228,7 +229,10 @@ public final class CoHeroSaveTransfer {
         Object preferences = desktopPreferences(preferencesClass);
         return (String) preferencesClass
                 .getMethod("get", String.class, String.class)
-                .invoke(preferences, key, defaultValue);
+                .invoke(
+                        preferences,
+                        desktopPreferenceKey(key),
+                        defaultValue);
     }
 
     private static void desktopPreferencePut(String key, String value)
@@ -239,7 +243,7 @@ public final class CoHeroSaveTransfer {
         Object preferences = desktopPreferences(preferencesClass);
         preferencesClass
                 .getMethod("put", String.class, String.class)
-                .invoke(preferences, key, value);
+                .invoke(preferences, desktopPreferenceKey(key), value);
         preferencesClass
                 .getMethod("flush")
                 .invoke(preferences);
@@ -251,6 +255,15 @@ public final class CoHeroSaveTransfer {
         return preferencesClass
                 .getMethod("userNodeForPackage", Class.class)
                 .invoke(null, CoHeroSaveTransfer.class);
+    }
+
+    private static String desktopPreferenceKey(String key)
+            throws IOException {
+
+        String savePath = desktopSaveDirectory().getAbsolutePath();
+        String identity = UUID.nameUUIDFromBytes(
+                savePath.getBytes(StandardCharsets.UTF_8)).toString();
+        return key + "." + identity;
     }
 
     private static boolean validDesktopSnapshot(File sourceDir)
