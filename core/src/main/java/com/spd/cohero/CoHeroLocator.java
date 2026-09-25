@@ -29,8 +29,11 @@ import java.util.ArrayList;
  */
 public class CoHeroLocator extends Button {
 
-    private static final float WIDTH = 44f;
+    private static final float WIDTH = 38f;
     private static final float HEIGHT = 31f;
+    private static final float AVATAR_SCALE = 0.8f;
+    private static final float DIRECTION_SCALE = 0.85f;
+    private static final float COMBAT_WARNING_SCALE = 0.75f;
     private static final float VERTICAL_EDGE_MARGIN = 2f;
     private static final float TAG_GAP = 1f;
     private static final float RAD_TO_DEG = 180f / 3.1415926f;
@@ -78,6 +81,7 @@ public class CoHeroLocator extends Button {
 
         direction = Icons.COMPASS.get();
         direction.origin.set(direction.width() / 2f, direction.height() / 2f);
+        direction.scale.set(DIRECTION_SCALE);
         add(direction);
 
         identity = new BitmapText(PixelScene.pixelFont);
@@ -98,6 +102,7 @@ public class CoHeroLocator extends Button {
         add(lowHealthWarning);
 
         combatWarning = Icons.ALERT.get();
+        combatWarning.scale.set(COMBAT_WARNING_SCALE);
         combatWarning.visible = false;
         add(combatWarning);
 
@@ -106,7 +111,9 @@ public class CoHeroLocator extends Button {
     }
 
     private Image classAvatar(HeroClass heroClass) {
-        return new Image(heroClass.spritesheet(), 0, 90, 12, 15);
+        Image avatar = new Image(heroClass.spritesheet(), 0, 90, 12, 15);
+        avatar.scale.set(AVATAR_SCALE);
+        return avatar;
     }
 
     @Override
@@ -251,29 +258,30 @@ public class CoHeroLocator extends Button {
         background.y = y;
         background.size(width, height);
 
-        heroAvatar.x = companionAvatar.x = x + 2;
+        heroAvatar.x = companionAvatar.x = x + 1;
         heroAvatar.y = companionAvatar.y = y + 2;
 
-        direction.x = x + width - direction.width() - 2;
+        direction.x = x + width - direction.width() - 1;
         direction.y = y + 2;
 
-        identity.x = x + 16;
+        identity.x = x + 12;
         identity.y = y + 3;
 
-        hp.setRect(x + 16, y + 16, width - 20, 2);
+        hp.setRect(x + 12, y + 16, width - 15, 2);
         buffs.setRect(x + 1, y + 21, width - 2, 8);
 
-        lowHealthWarning.x = identity.x + identity.width() + 2;
+        lowHealthWarning.x = identity.x + identity.width() + 1;
         lowHealthWarning.y = y + 3;
 
-        combatWarning.x = x + width - combatWarning.width() - 1;
+        combatWarning.x = x + width - combatWarning.width() * COMBAT_WARNING_SCALE - 1;
         combatWarning.y = y + 8;
     }
 
     private static class BuffStrip extends Component {
 
         private static final int MAX_BUFFS = 6;
-        private static final float ICON_STEP = 7f;
+        private static final float ICON_SCALE = 6f / 7f;
+        private static final float ICON_STEP = 6f;
 
         private final ArrayList<Buff> shownBuffs = new ArrayList<>();
         private final ArrayList<BuffIcon> icons = new ArrayList<>();
@@ -342,6 +350,7 @@ public class CoHeroLocator extends Button {
 
             for (Buff buff : current) {
                 BuffIcon icon = new BuffIcon(buff, false);
+                icon.scale.set(ICON_SCALE);
                 add(icon);
                 icons.add(icon);
                 shownBuffs.add(buff);
