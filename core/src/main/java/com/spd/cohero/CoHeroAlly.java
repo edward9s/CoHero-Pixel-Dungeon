@@ -978,7 +978,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     public void die(Object cause) {
-        if (revival.tryRevive(cause)) {
+        if (revival.tryRevive()) {
             return;
         }
 

@@ -62,6 +62,8 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/buffs/LockedFloor.java"
     python "$patches/patch_chasm_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/Chasm.java"
+    python "$patches/patch_pitfalltrap_cohero.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/traps/PitfallTrap.java"
     python "$patches/patch_highgrass.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/features/HighGrass.java"
     python "$patches/patch_dread_cohero.py" \

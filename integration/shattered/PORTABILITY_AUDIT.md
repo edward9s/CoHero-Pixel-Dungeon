@@ -12,7 +12,7 @@ Each row has one **primary** label, for triage only. A file can contain several 
 - **D — presentation or branding:** preview, visual FOV, display and labels.
 - **E — encounter or hazard rule:** particular enemy, boss, terrain or delayed effect.
 
-The 45 Java targets are classified A 7, B 11, C 14, D 6, E 7. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
+The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
 
 | Primary | Host target | Shattered patch owner | Existing responsibility |
 | --- | --- | --- | --- |
@@ -57,7 +57,8 @@ The 45 Java targets are classified A 7, B 11, C 14, D 6, E 7. `build.gradle` (`p
 | E | `GreatCrab.java` | `patch_great_crab_cohero.py` | special surprise defense |
 | E | `PrisonBossLevel.java` | `patch_prison_boss_cohero.py` | arena rewrite relocation |
 | E | `LockedFloor.java` | `patch_locked_floor_cohero.py` | boss-floor relocation and persisted relocation flag |
-| E | `Chasm.java` | `patch_chasm_cohero.py` | companion Ankh survival behavior |
+| E | `Chasm.java` | `patch_chasm_cohero.py` | redirect companion chasm falls through Hero fall transition |
+| E | `PitfallTrap.java` | `patch_pitfalltrap_cohero.py` | defer shared Hero/CoHero pitfall transition until trap scan completes |
 | E | `DelayedRockFall.java` | `patch_delayed_rockfall.py` | delayed hazard warning |
 | E | `VaultBossElemental.java` | `patch_vault_firewall.py` | vault firewall hazard probe |
 | E | `ElementalBlast.java` | `patch_elemental_blast_living_earth.py` | Living Earth guardian ownership |
@@ -84,7 +85,7 @@ The sleeping patch replaces stock hostile selection (`highestChance = Float.POSI
 
 ## Exactness and persistence
 
-The one-owner-per-target invariant was checked against the 45 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
+The one-owner-per-target invariant was checked against the 46 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
 
 - `patch_wand_lightning.py`, `patch_wand_regrowth.py`, `patch_wand_fireblast.py` and `patch_wand_prismatic_light.py` now check the complete set of source lines containing `curUser` before the existing replacement. The expected lines were taken from the Shattered v4.0.0 release. Extra, missing or changed source lines cause an explicit failure before writing the file.
 - `patch_living_earth.py` now verifies the exact cardinality of each former unchecked replacement, including the two occurrences of guardian armor assignment and the two caster particle calls. All replacements still produce the same Java source when their known anchors match.
