@@ -4,6 +4,7 @@ import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
@@ -449,6 +450,55 @@ public final class CoHero {
 
     public static boolean companionDeathEndedRun() {
         return companionDeathEndedRun;
+    }
+
+    public static void markCompanionChasmFall(boolean heroAlsoFell) {
+        if (Dungeon.hero == null) {
+            throw new IllegalStateException("Cannot mark a CoHero chasm fall without Dungeon.hero");
+        }
+        CoHeroAlly companion = findCompanion();
+        if (companion == null || !companion.isAlive()) {
+            throw new IllegalStateException("Cannot mark a chasm fall for an unavailable CoHero");
+        }
+
+        CompanionChasmFallTracker tracker =
+                Buff.affect(Dungeon.hero, CompanionChasmFallTracker.class);
+        if (tracker == null) {
+            throw new IllegalStateException("Could not attach CoHero chasm fall tracker");
+        }
+        tracker.includeHeroFall(heroAlsoFell);
+    }
+
+    public static boolean hasPendingCompanionChasmLanding() {
+        return Dungeon.hero != null
+                && Dungeon.hero.buff(CompanionChasmFallTracker.class) != null;
+    }
+
+    public static boolean companionChasmFallIncludesHero() {
+        return pendingCompanionChasmFallTracker().heroAlsoFell();
+    }
+
+    public static CoHeroAlly consumeCompanionChasmLanding() {
+        CompanionChasmFallTracker tracker = pendingCompanionChasmFallTracker();
+        CoHeroAlly companion = findCompanion();
+        if (companion == null || !companion.isAlive()) {
+            throw new IllegalStateException(
+                    "Pending CoHero chasm landing has no live companion on the destination floor");
+        }
+        tracker.detach();
+        return companion;
+    }
+
+    private static CompanionChasmFallTracker pendingCompanionChasmFallTracker() {
+        if (Dungeon.hero == null) {
+            throw new IllegalStateException("Pending CoHero chasm landing has no Dungeon.hero");
+        }
+        CompanionChasmFallTracker tracker =
+                Dungeon.hero.buff(CompanionChasmFallTracker.class);
+        if (tracker == null) {
+            throw new IllegalStateException("No pending CoHero chasm landing exists");
+        }
+        return tracker;
     }
 
     /**

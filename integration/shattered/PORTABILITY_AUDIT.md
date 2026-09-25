@@ -57,8 +57,8 @@ The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`p
 | E | `GreatCrab.java` | `patch_great_crab_cohero.py` | special surprise defense |
 | E | `PrisonBossLevel.java` | `patch_prison_boss_cohero.py` | arena rewrite relocation |
 | E | `LockedFloor.java` | `patch_locked_floor_cohero.py` | boss-floor relocation and persisted relocation flag |
-| E | `Chasm.java` | `patch_chasm_cohero.py` | redirect companion chasm falls through Hero fall transition |
-| E | `PitfallTrap.java` | `patch_pitfalltrap_cohero.py` | defer shared Hero/CoHero pitfall transition until trap scan completes |
+| E | `Chasm.java` | `patch_chasm_cohero.py` | shared fall transition with actor-owned landing penalties |
+| E | `PitfallTrap.java` | `patch_pitfalltrap_cohero.py` | record actual fallers and defer one party transition until trap scan completes |
 | E | `DelayedRockFall.java` | `patch_delayed_rockfall.py` | delayed hazard warning |
 | E | `VaultBossElemental.java` | `patch_vault_firewall.py` | vault firewall hazard probe |
 | E | `ElementalBlast.java` | `patch_elemental_blast_living_earth.py` | Living Earth guardian ownership |

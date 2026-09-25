@@ -11,6 +11,8 @@ text = path.read_text(encoding="utf-8")
 state_old = """\t\t\tboolean herofell = false;
 """
 state_new = """\t\t\tint heroFallPos = -1;
+\t\t\tboolean heroFell = false;
+\t\t\tboolean companionFell = false;
 """
 
 fall_old = """\t\t\t\t\t\tif (ch == Dungeon.hero) {
@@ -20,9 +22,12 @@ fall_old = """\t\t\t\t\t\tif (ch == Dungeon.hero) {
 \t\t\t\t\t\t}
 """
 fall_new = """\t\t\t\t\t\tif (ch == Dungeon.hero) {
-\t\t\t\t\t\t\t// If both heroes fall in the same pitfall event, the real Hero's cell wins.
+\t\t\t\t\t\t\theroFell = true;
+\t\t\t\t\t\t\t// If both heroes fall in the same pitfall event, the real Hero's cell wins
+\t\t\t\t\t\t\t// for stock WeakFloorRoom / fallIntoPit destination semantics.
 \t\t\t\t\t\t\theroFallPos = ch.pos;
 \t\t\t\t\t\t} else if (ch instanceof com.spd.cohero.CoHeroAlly) {
+\t\t\t\t\t\t\tcompanionFell = true;
 \t\t\t\t\t\t\tif (heroFallPos == -1) {
 \t\t\t\t\t\t\t\theroFallPos = ch.pos;
 \t\t\t\t\t\t\t}
@@ -39,9 +44,12 @@ finish_old = """\t\t\t//process hero falling last
 \t\t\tdetach();
 \t\t\treturn !herofell;
 """
-finish_new = """\t\t\t// Process the shared Hero/CoHero fall last so a multi-cell pitfall triggers
-\t\t\t// exactly one floor transition after all affected cells have been handled.
+finish_new = """\t\t\t// Process the shared floor transition last so a multi-cell pitfall changes floors
+\t\t\t// exactly once, while retaining which party members actually fell for landing damage.
 \t\t\tif (heroFallPos != -1){
+\t\t\t\tif (companionFell) {
+\t\t\t\t\tcom.spd.cohero.CoHero.markCompanionChasmFall(heroFell);
+\t\t\t\t}
 \t\t\t\tChasm.heroFall(heroFallPos);
 \t\t\t}
 
@@ -49,8 +57,8 @@ finish_new = """\t\t\t// Process the shared Hero/CoHero fall last so a multi-cel
 \t\t\treturn heroFallPos == -1;
 """
 
-if "heroFallPos" in text:
-    raise SystemExit("CoHero PitfallTrap redirect seam is already present")
+if "boolean companionFell = false;" in text:
+    raise SystemExit("CoHero PitfallTrap landing-owner seam is already present")
 for name, old in (("state", state_old), ("fall", fall_old), ("finish", finish_old)):
     if text.count(old) != 1:
         raise SystemExit(f"expected exactly one PitfallTrap {name} anchor, found {text.count(old)}")

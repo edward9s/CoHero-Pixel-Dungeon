@@ -26,8 +26,8 @@ These make stock SPD rules treat CoHero as a real second combatant instead of as
 - `GreatCrab.java` — Great Crab surprise handling.
 - `HighGrass.java` — Huntress grass semantics.
 - `Dread.java` — CoHero fear behavior.
-- `Chasm.java` — redirects CoHero chasm falls through the stock Hero fall transition.
-- `PitfallTrap.java` — defers shared Hero/CoHero pitfall transitions until the trap finishes scanning affected cells.
+- `Chasm.java` — keeps the stock party fall transition while applying landing penalties to the actor that actually fell.
+- `PitfallTrap.java` — records which Hero/CoHero actors actually fell, then triggers one shared transition after the affected-cell scan.
 - `LockedFloor.java` — boss-floor relocation lifecycle.
 
 `Mob.java` is a high-value, high-risk port target because several CoHero behaviors depend on the host fork's real mob attack semantics.
