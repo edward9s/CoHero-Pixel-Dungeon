@@ -94,7 +94,7 @@ public class CoHeroLocator extends Button {
         lowHealthWarning = new BitmapText(PixelScene.pixelFont);
         lowHealthWarning.text("!");
         lowHealthWarning.measure();
-        lowHealthWarning.hardlight(0xFFFF00);
+        lowHealthWarning.hardlight(0xFF0000);
         add(lowHealthWarning);
 
         combatWarning = Icons.ALERT.get();
