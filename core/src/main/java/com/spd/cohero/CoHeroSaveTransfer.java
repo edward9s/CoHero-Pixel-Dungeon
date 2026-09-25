@@ -17,16 +17,12 @@ import java.util.UUID;
  * Save-file transfer for CoHero builds.
  *
  * <p>Android mirrors SMM's full-snapshot behavior without depending on SMM.
- * Desktop uses a native folder chooser and only replaces folders explicitly
- * marked as CoHero exports.</p>
+ * Desktop uses a native folder chooser; the selected directory is the complete
+ * snapshot source or destination.</p>
  */
 public final class CoHeroSaveTransfer {
 
     private static final String LOG_PREFIX = "CoHero save transfer: ";
-
-    private static final String DESKTOP_MARKER = ".cohero-save-transfer";
-    private static final byte[] DESKTOP_MARKER_CONTENT =
-            "CoHero save transfer v1\n".getBytes(StandardCharsets.UTF_8);
 
     private static final String PREF_EXPORT_DIRECTORY =
             "desktop_export_directory";
@@ -157,18 +153,10 @@ public final class CoHeroSaveTransfer {
                     "Selected export directory overlaps the active save directory");
         }
 
-        File[] targetFiles = listFiles(targetDir);
-        File marker = new File(targetDir, DESKTOP_MARKER);
-        if (targetFiles.length > 0 && !marker.isFile()) {
-            throw new IOException(
-                    "Desktop export directory is not empty and is not a previous CoHero export");
-        }
-
         // As on Android, export is a complete replacement snapshot.
         Dungeon.saveAll();
         deleteContents(targetDir);
         copyRecursively(sourceDir, targetDir, false);
-        writeDesktopMarker(targetDir);
         return true;
     }
 
@@ -186,14 +174,14 @@ public final class CoHeroSaveTransfer {
                     "Selected import directory overlaps the active save directory");
         }
 
-        if (!validDesktopSnapshot(sourceDir)) {
+        if (!hasAnyContent(sourceDir)) {
             System.out.println(
                     LOG_PREFIX + CoHeroMessages.get("save_transfer.no_save"));
             return;
         }
 
         deleteContents(targetDir);
-        copyDesktopSnapshotContents(sourceDir, targetDir, true);
+        copyRecursively(sourceDir, targetDir, true);
 
         // The imported preferences and saves are now on disk, while the current
         // process still has the old state in memory. Exit instead of mixing them.
@@ -292,63 +280,6 @@ public final class CoHeroSaveTransfer {
         String identity = UUID.nameUUIDFromBytes(
                 savePath.getBytes(StandardCharsets.UTF_8)).toString();
         return key + "." + identity;
-    }
-
-    private static boolean validDesktopSnapshot(File sourceDir)
-            throws IOException {
-
-        File marker = new File(sourceDir, DESKTOP_MARKER);
-        if (!marker.isFile()) {
-            return false;
-        }
-
-        File[] files = listFiles(sourceDir);
-        for (File file : files) {
-            if (!DESKTOP_MARKER.equals(file.getName())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void writeDesktopMarker(File directory)
-            throws IOException {
-
-        File marker = new File(directory, DESKTOP_MARKER);
-        try (FileOutputStream output = new FileOutputStream(marker)) {
-            output.write(DESKTOP_MARKER_CONTENT);
-            output.flush();
-            try {
-                output.getFD().sync();
-            } catch (IOException ignored) {
-                // Best effort only. Snapshot data has already been copied.
-            }
-        }
-    }
-
-    private static void copyDesktopSnapshotContents(
-            File sourceDir,
-            File targetDir,
-            boolean syncFiles) throws IOException {
-
-        File[] files = listFiles(sourceDir);
-        if (!targetDir.exists()
-                && !targetDir.mkdirs()
-                && !targetDir.isDirectory()) {
-            throw new IOException(
-                    "Unable to create directory: "
-                            + targetDir.getAbsolutePath());
-        }
-
-        for (File file : files) {
-            if (DESKTOP_MARKER.equals(file.getName())) {
-                continue;
-            }
-            copyRecursively(
-                    file,
-                    new File(targetDir, file.getName()),
-                    syncFiles);
-        }
     }
 
     private static void replaceSnapshot(
