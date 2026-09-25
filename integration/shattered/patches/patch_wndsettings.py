@@ -2,7 +2,7 @@
 from pathlib import Path
 import sys
 
-MARKER = "// COHERO_SAVE_TRANSFER"
+MARKER = "// COHERO_SETTINGS_TAB"
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -20,71 +20,49 @@ def main() -> None:
     text = path.read_text(encoding="utf-8")
 
     if MARKER in text:
-        raise SystemExit(f"CoHero save-transfer controls already exist in {path}")
+        raise SystemExit(f"CoHero settings tab already exists in {path}")
 
-    field_anchor = "\t\tCheckBox chkVibrate;\n"
+    field_anchor = "\tprivate LangsTab    langs;\n"
     field_replacement = (
         field_anchor
-        + "\t\tColorBlock sep3;\n"
-        + "\t\tRedButton btnExportSave;\n"
-        + "\t\tRedButton btnImportSave;\n"
+        + "\tprivate com.spd.cohero.CoHeroSettingsTab cohero; "
+        + MARKER
+        + "\n"
     )
-    text = replace_once(text, field_anchor, field_replacement, "UITab field")
+    text = replace_once(text, field_anchor, field_replacement, "settings field")
 
-    create_anchor = "\t\t\tadd(chkVibrate);\n"
-    create_replacement = create_anchor + """
+    tab_anchor = "\t\tadd( langsTab );\n\n\t\tresize(width, (int)Math.ceil(height));\n"
+    tab_replacement = """\t\tadd( langsTab );
 
-			if (DeviceCompat.isAndroid() || DeviceCompat.isDesktop()) {
-				// COHERO_SAVE_TRANSFER
-				sep3 = new ColorBlock(1, 1, 0xFF000000);
-				add(sep3);
+\t\tcohero = new com.spd.cohero.CoHeroSettingsTab();
+\t\tcohero.setSize(width, 0);
+\t\theight = Math.max(height, cohero.height());
+\t\tadd(cohero);
 
-				btnExportSave = new RedButton(Messages.get("cohero.save_transfer.export"), 8) {
-					@Override
-					protected void onClick() {
-						super.onClick();
-						com.spd.cohero.CoHeroSaveTransfer.exportSave();
-					}
-				};
-				add(btnExportSave);
+\t\tadd(new IconTab(Icons.get(Icons.TALENT)) {
+\t\t\t@Override
+\t\t\tprotected void select(boolean value) {
+\t\t\t\tsuper.select(value);
+\t\t\t\tcohero.visible = cohero.active = value;
+\t\t\t\tif (value) last_index = 6;
+\t\t\t}
+\t\t});
 
-				btnImportSave = new RedButton(Messages.get("cohero.save_transfer.import"), 8) {
-					@Override
-					protected void onClick() {
-						super.onClick();
-						com.spd.cohero.CoHeroSaveTransfer.importSave();
-					}
-				};
-				add(btnImportSave);
-			}
+\t\tresize(width, (int)Math.ceil(height));
 """
-    text = replace_once(text, create_anchor, create_replacement, "UITab create")
+    text = replace_once(text, tab_anchor, tab_replacement, "settings tab")
 
-    layout_anchor = (
-        "\t\t\t\tchkVibrate.setRect(0, chkFont.bottom() + GAP, width, BTN_HEIGHT);\n"
-        "\t\t\t\theight = chkVibrate.bottom();\n"
-        "\t\t\t}\n"
+    hidden_input_anchor = "\t\tif (tabs.size() == 5 && last_index >= 3){\n"
+    hidden_input_replacement = "\t\tif (tabs.size() == 6 && last_index >= 3){\n"
+    text = replace_once(
+        text,
+        hidden_input_anchor,
+        hidden_input_replacement,
+        "hidden input tab selection",
     )
-    layout_replacement = layout_anchor + """
-
-			if (btnExportSave != null) {
-				sep3.size(width, 1);
-				sep3.y = height + GAP;
-
-				float transferWidth = width / 2f - GAP / 2f;
-				btnExportSave.setRect(0, sep3.y + 1 + GAP, transferWidth, BTN_HEIGHT);
-				btnImportSave.setRect(
-						btnExportSave.right() + GAP,
-						btnExportSave.top(),
-						transferWidth,
-						BTN_HEIGHT);
-				height = btnImportSave.bottom();
-			}
-"""
-    text = replace_once(text, layout_anchor, layout_replacement, "UITab layout")
 
     path.write_text(text, encoding="utf-8")
-    print(f"patched {path}: CoHero Android/Desktop save-transfer controls")
+    print(f"patched {path}: CoHero settings tab")
 
 
 if __name__ == "__main__":
