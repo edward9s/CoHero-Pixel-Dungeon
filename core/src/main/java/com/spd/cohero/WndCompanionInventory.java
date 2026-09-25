@@ -10,9 +10,7 @@ import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
-import com.shatteredpixel.shatteredpixeldungeon.ui.CheckBox;
 import com.shatteredpixel.shatteredpixeldungeon.ui.InventorySlot;
-import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
@@ -111,7 +109,7 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
 
-        float afterControls = addControlsAndEquipment(0, statsY + 19, layoutWidth, true);
+        float afterControls = addEquipment(0, statsY + 19, layoutWidth, true);
 
         RenderedTextBlock backpackLabel = backpackLabel(layoutWidth);
         backpackLabel.setPos(0, afterControls + 3);
@@ -150,7 +148,7 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
 
-        float leftBottom = addControlsAndEquipment(0, statsY + 14, leftWidth, false);
+        float leftBottom = addEquipment(0, statsY + 14, leftWidth, false);
 
         float backpackHeaderBottom = addItemButton(backpackX, startY, backpackWidth);
         RenderedTextBlock backpackLabel = backpackLabel(backpackWidth);
@@ -168,70 +166,14 @@ public class WndCompanionInventory extends Window {
         resize(layoutWidth, (int) Math.max(leftBottom, rightBottom));
     }
 
-    private float addControlsAndEquipment(
+    private float addEquipment(
             float x, float startY, int width, boolean includeAddItemButton) {
         int inset = Math.min(CONTROL_INSET, Math.max(0, width - 80));
-        int controlWidth = width - inset;
-        float controlX = x;
-
-        final float enemySpawnLabelY = startY;
-        final RenderedTextBlock enemySpawnValue =
-                PixelScene.renderTextBlock(enemySpawnValueText(), 7);
-        enemySpawnValue.setPos(
-                controlX + controlWidth - enemySpawnValue.width(),
-                enemySpawnLabelY);
-        add(enemySpawnValue);
-
-        RenderedTextBlock enemySpawnLabel =
-                PixelScene.renderTextBlock(text("inventory.enemy_spawn"), 7);
-        enemySpawnLabel.maxWidth(
-                Math.max(
-                        1,
-                        controlWidth - (int) Math.ceil(enemySpawnValue.width()) - 2));
-        enemySpawnLabel.setPos(controlX, enemySpawnLabelY);
-        add(enemySpawnLabel);
-
-        OptionSlider enemySpawnSlider = new OptionSlider(
-                "",
-                "1.0x",
-                "4.0x",
-                CompanionEnemySurge.MIN_MULTIPLIER_QUARTERS,
-                CompanionEnemySurge.MAX_MULTIPLIER_QUARTERS) {
-            @Override
-            protected void onChange() {
-                companion.setEnemySpawnMultiplierQuarters(getSelectedValue());
-                enemySpawnValue.text(enemySpawnValueText());
-                enemySpawnValue.setPos(
-                        controlX + controlWidth - enemySpawnValue.width(),
-                        enemySpawnLabelY);
-            }
-        };
-        enemySpawnSlider.setSelectedValue(companion.enemySpawnMultiplierQuarters());
-        enemySpawnSlider.setRect(
-                controlX,
-                enemySpawnLabel.bottom() + 1,
-                controlWidth,
-                21);
-        add(enemySpawnSlider);
-
-        CheckBox debugLog = new CheckBox(text("inventory.debug_log")) {
-            @Override
-            protected void onClick() {
-                super.onClick();
-                companion.setDebugLogEnabled(checked());
-            }
-        };
-        debugLog.checked(companion.debugLogEnabled());
-        debugLog.setRect(
-                controlX,
-                enemySpawnSlider.bottom() + 2,
-                controlWidth,
-                16);
-        add(debugLog);
+        int buttonWidth = width - inset;
 
         RenderedTextBlock equipmentLabel =
                 PixelScene.renderTextBlock(text("inventory.equipment"), 7);
-        equipmentLabel.setPos(x, debugLog.bottom() + 3);
+        equipmentLabel.setPos(x, startY);
         add(equipmentLabel);
 
         float equipmentY = equipmentLabel.bottom() + 2;
@@ -244,7 +186,7 @@ public class WndCompanionInventory extends Window {
         if (!includeAddItemButton) {
             return equipmentBottom;
         }
-        return addItemButton(controlX, equipmentBottom + 3, controlWidth);
+        return addItemButton(x, equipmentBottom + 3, buttonWidth);
     }
 
     private float addItemButton(float x, float y, int width) {
@@ -329,13 +271,6 @@ public class WndCompanionInventory extends Window {
 
     private String speedText() {
         return String.format(Locale.ENGLISH, "%.2fx", companion.speed());
-    }
-
-    private String enemySpawnValueText() {
-        return String.format(
-                Locale.ENGLISH,
-                "%.2fx",
-                companion.enemySpawnMultiplierQuarters() / 4f);
     }
 
     private void addEquipmentButton(int column, float startX, float y, SlotType type) {
