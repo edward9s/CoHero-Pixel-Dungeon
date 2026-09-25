@@ -153,7 +153,16 @@ public final class CoHeroSaveTransfer {
                     "Selected export directory overlaps the active save directory");
         }
 
-        // As on Android, export is a complete replacement snapshot.
+        if (!hasAnyContent(targetDir)) {
+            // Empty directories are always safe export targets.
+        } else if (!looksLikeSpdSaveDirectory(targetDir)) {
+            throw new IOException(
+                    "Selected export directory does not look like SPD save data: "
+                            + targetDir.getAbsolutePath());
+        }
+
+        // Desktop export is a complete replacement snapshot, but only after
+        // the existing non-empty target has been identified as SPD save data.
         Dungeon.saveAll();
         deleteContents(targetDir);
         copyRecursively(sourceDir, targetDir, false);
@@ -386,6 +395,31 @@ public final class CoHeroSaveTransfer {
             throws IOException {
 
         return listFiles(directory).length > 0;
+    }
+
+    private static boolean looksLikeSpdSaveDirectory(File directory)
+            throws IOException {
+
+        // settings.xml is intentionally not sufficient by itself: many libGDX
+        // applications use that generic name. These are SPD-specific save
+        // artifacts that are stable across Shattered-derived forks.
+        if (new File(directory, "rankings.dat").isFile()
+                || new File(directory, "badges.dat").isFile()
+                || new File(directory, "journal.dat").isFile()) {
+            return true;
+        }
+
+        for (File file : listFiles(directory)) {
+            if (!file.isDirectory()
+                    || !file.getName().matches("game\\d+")) {
+                continue;
+            }
+            if (new File(file, "game.dat").isFile()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static File[] listFiles(File directory)
