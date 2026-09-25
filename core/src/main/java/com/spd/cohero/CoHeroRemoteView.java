@@ -42,14 +42,16 @@ public final class CoHeroRemoteView {
     private static final class Entry {
         final Mob actor;
         final CharSprite sprite;
+        final CoHeroHealthIndicator health;
         final ArrayDeque<Event> events = new ArrayDeque<>();
         int visualCell;
         boolean actionBusy;
         long seenGeneration;
 
-        Entry(Mob actor, CharSprite sprite) {
+        Entry(Mob actor, CharSprite sprite, CoHeroHealthIndicator health) {
             this.actor = actor;
             this.sprite = sprite;
+            this.health = health;
             this.visualCell = actor.pos;
         }
     }
@@ -153,7 +155,7 @@ public final class CoHeroRemoteView {
             Entry entry = mapped.getValue();
 
             if (entry.seenGeneration != generation) {
-                entry.sprite.killAndErase();
+                destroyEntry(entry);
                 iterator.remove();
                 changed = true;
                 continue;
@@ -195,14 +197,25 @@ public final class CoHeroRemoteView {
         proxy.place(mob.pos);
         proxy.idle();
         mobLayer.add(proxy);
-        return new Entry(mob, proxy);
+
+        CoHeroHealthIndicator health = mob instanceof CoHeroAlly
+                ? new CoHeroHealthIndicator(mob, proxy)
+                : null;
+        return new Entry(mob, proxy, health);
     }
 
     private static void clearEntries() {
         for (Entry entry : entries.values()) {
-            entry.sprite.killAndErase();
+            destroyEntry(entry);
         }
         entries.clear();
+    }
+
+    private static void destroyEntry(Entry entry) {
+        if (entry.health != null) {
+            entry.health.killAndErase();
+        }
+        entry.sprite.killAndErase();
     }
 
     private static boolean remoteVisible(Mob mob, CoHeroAlly companion) {
