@@ -29,11 +29,11 @@ import java.util.ArrayList;
  */
 public class CoHeroLocator extends Button {
 
-    private static final float WIDTH = 38f;
+    private static final float WIDTH = 32f;
     private static final float HEIGHT = 31f;
-    private static final float AVATAR_SCALE = 0.8f;
-    private static final float DIRECTION_SCALE = 0.85f;
-    private static final float COMBAT_WARNING_SCALE = 0.75f;
+    private static final float AVATAR_SCALE = 0.7f;
+    private static final float DIRECTION_SCALE = 0.7f;
+    private static final float COMBAT_WARNING_SCALE = 0.7f;
     private static final float VERTICAL_EDGE_MARGIN = 2f;
     private static final float TAG_GAP = 1f;
     private static final float RAD_TO_DEG = 180f / 3.1415926f;
@@ -264,10 +264,10 @@ public class CoHeroLocator extends Button {
         direction.x = x + width - direction.width() - 1;
         direction.y = y + 2;
 
-        identity.x = x + 12;
+        identity.x = x + 10;
         identity.y = y + 3;
 
-        hp.setRect(x + 12, y + 16, width - 15, 2);
+        hp.setRect(x + 10, y + 16, width - 13, 2);
         buffs.setRect(x + 1, y + 21, width - 2, 8);
 
         lowHealthWarning.x = identity.x + identity.width() + 1;
@@ -280,8 +280,8 @@ public class CoHeroLocator extends Button {
     private static class BuffStrip extends Component {
 
         private static final int MAX_BUFFS = 6;
-        private static final float ICON_SCALE = 6f / 7f;
-        private static final float ICON_STEP = 6f;
+        private static final float ICON_SCALE = 5f / 7f;
+        private static final float ICON_STEP = 5f;
 
         private final ArrayList<Buff> shownBuffs = new ArrayList<>();
         private final ArrayList<BuffIcon> icons = new ArrayList<>();
