@@ -12,7 +12,7 @@ Each row has one **primary** label, for triage only. A file can contain several 
 - **D — presentation or branding:** preview, visual FOV, display and labels.
 - **E — encounter or hazard rule:** particular enemy, boss, terrain or delayed effect.
 
-The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
+The 52 Java targets are classified A 7, B 11, C 14, D 6, E 14. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
 
 | Primary | Host target | Shattered patch owner | Existing responsibility |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`p
 | A | `Hero.java` | `patch_hero.py` | transition gate; identification EXP is B |
 | A | `HeroSelectScene.java` | `patch_hero_select.py` | new run companion selection; scene presentation is D |
 | A | `GameScene.java` | `patch_gamescene.py` | scene-ready restore; UI is D and hazard display is E |
-| A | `Mob.java` | `patch_mob_cohero.py` | combat target semantics; remote attack display is D |
+| A | `Mob.java` | `patch_mob_cohero.py` | combat target and ranged-damage base semantics; remote attack display is D |
 | A | `WndGame.java` | `patch_wndgame.py` | restart availability after companion run end |
 | B | `Char.java` | `patch_cohero_class_traits.py` | cleric Bless accuracy and evasion |
 | B | `RingOfArcana.java` | `patch_cohero_ring_traits.py` | huntress ring effect |
@@ -55,6 +55,12 @@ The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`p
 | D | `MenuPane.java` | `patch_menu_pane.py` | version branding |
 | D | `WndSettings.java` | `patch_wndsettings.py` | CoHero settings-tab hook |
 | E | `GreatCrab.java` | `patch_great_crab_cohero.py` | special surprise defense |
+| E | `Shaman.java` | `patch_shaman_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `DM100.java` | `patch_dm100_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `Warlock.java` | `patch_warlock_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `Eye.java` | `patch_eye_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `GnollGuard.java` | `patch_gnoll_guard_ranged_damage.py` | exact ranged spear damage probe for close-vs-trade AI |
+| E | `Elemental.java` | `patch_elemental_ranged_damage.py` | marks subtype-specific effect attacks as non-comparable direct damage |
 | E | `PrisonBossLevel.java` | `patch_prison_boss_cohero.py` | arena rewrite relocation |
 | E | `LockedFloor.java` | `patch_locked_floor_cohero.py` | boss-floor relocation and persisted relocation flag |
 | E | `Chasm.java` | `patch_chasm_cohero.py` | shared fall transition with actor-owned landing penalties |
@@ -85,7 +91,7 @@ The sleeping patch replaces stock hostile selection (`highestChance = Float.POSI
 
 ## Exactness and persistence
 
-The one-owner-per-target invariant was checked against the 46 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
+The one-owner-per-target invariant was checked against the 52 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
 
 - `patch_wand_lightning.py`, `patch_wand_regrowth.py`, `patch_wand_fireblast.py` and `patch_wand_prismatic_light.py` now check the complete set of source lines containing `curUser` before the existing replacement. The expected lines were taken from the Shattered v4.0.0 release. Extra, missing or changed source lines cause an explicit failure before writing the file.
 - `patch_living_earth.py` now verifies the exact cardinality of each former unchecked replacement, including the two occurrences of guardian armor assignment and the two caster particle calls. All replacements still produce the same Java source when their known anchors match.
