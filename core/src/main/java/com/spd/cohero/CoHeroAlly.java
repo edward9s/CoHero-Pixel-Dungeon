@@ -627,15 +627,26 @@ public class CoHeroAlly extends DirectableAlly {
             logBossDecision("no_visible_threat:" + detail, detail);
         }
 
-        if (!visibleThreats.isEmpty()) {
+        ArrayList<Mob> combatThreats = combat.collectActiveThreats(visibleThreats);
+        if (combatThreats.isEmpty() && combat.hasRecoveringCrystalGuardian(visibleThreats)) {
+            clearCombatTarget();
+            clearExplorationTarget();
+            prepareGuardHeroSupportMovement();
+            setMovementDecision("crystal_guardian_recovering_follow", Dungeon.hero.pos);
+            logBossDecision("crystal_guardian_recovering",
+                    "recovering Crystal Guardian -> follow Hero");
+            return support.followHeroDirective();
+        }
+
+        if (!combatThreats.isEmpty()) {
             long combatStarted = System.nanoTime();
             try {
-                ArrayList<Mob> attackableThreats = combat.collectAttackableThreats(visibleThreats);
+                ArrayList<Mob> attackableThreats = combat.collectAttackableThreats(combatThreats);
 
                 // Invulnerability does not end the fight. It only has tactical priority while an
                 // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
                 // ordinary combat against any damageable enemies resumes immediately.
-                Boolean invulnerableRetreat = combat.tryAvoidInvulnerableThreats(visibleThreats);
+                Boolean invulnerableRetreat = combat.tryAvoidInvulnerableThreats(combatThreats);
                 if (invulnerableRetreat != null) {
                     return invulnerableRetreat;
                 }
@@ -648,9 +659,9 @@ public class CoHeroAlly extends DirectableAlly {
                 }
 
                 Mob combatTarget = combat.nearestThreat(attackableThreats);
-                CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, visibleThreats);
+                CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, combatThreats);
 
-                Boolean survivalAction = combat.tryCombatSurvival(combatRisk, visibleThreats);
+                Boolean survivalAction = combat.tryCombatSurvival(combatRisk, combatThreats);
                 if (survivalAction != null) {
                     if (debugLogEnabled) {
                         logBossDecision("combat_survival:" + combatTarget.id(),
@@ -690,14 +701,14 @@ public class CoHeroAlly extends DirectableAlly {
                 Mob offensiveTarget = combat.nearestThreat(attackableThreats);
                 if (offensiveTarget != combatTarget) {
                     combatTarget = offensiveTarget;
-                    combatRisk = assessCombatRisk(combatTarget, visibleThreats);
+                    combatRisk = assessCombatRisk(combatTarget, combatThreats);
                 } else {
                     combatTarget = offensiveTarget;
                 }
 
                 // Tactical exception: when an enemy is actively attacking from range and CoHero has
                 // a melee weapon, closing to adjacency remains more important than trading shots.
-                Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, visibleThreats);
+                Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, combatThreats);
                 if (rangedEngagement != null) {
                     logBossDecision("ranged_positioning:" + combatTarget.id(),
                             targetDebug(combatTarget) + " -> ranged positioning");
@@ -714,7 +725,7 @@ public class CoHeroAlly extends DirectableAlly {
 
                 // Non-emergency consumables and setup should not repeatedly steal turns from an
                 // immediately available ranged attack.
-                Boolean armorPlant = survival.tryKnownCombatArmorPlant(combatTarget, visibleThreats);
+                Boolean armorPlant = survival.tryKnownCombatArmorPlant(combatTarget, combatThreats);
                 if (armorPlant != null) {
                     return armorPlant;
                 }
@@ -725,19 +736,19 @@ public class CoHeroAlly extends DirectableAlly {
                 }
 
                 if (survival.tryUseCombatEarthenArmor(
-                        combatTarget, visibleThreats, combatRisk)) {
+                        combatTarget, combatThreats, combatRisk)) {
                     return true;
                 }
 
                 if (survival.tryUseCombatStamina(
-                        combatTarget, visibleThreats, combatRisk)) {
+                        combatTarget, combatThreats, combatRisk)) {
                     return true;
                 }
 
                 long meleeStarted = System.nanoTime();
                 Boolean meleePositioning;
                 try {
-                    meleePositioning = combat.tryMeleePositioning(combatTarget, visibleThreats);
+                    meleePositioning = combat.tryMeleePositioning(combatTarget, combatThreats);
                 } finally {
                     timings().record(this, CoHeroTimings.Action.MELEE_POSITIONING, meleeStarted);
                 }
@@ -752,12 +763,12 @@ public class CoHeroAlly extends DirectableAlly {
                     return combatResult;
                 }
 
-                Boolean escapeUtility = combat.tryEscapeUtility(visibleThreats);
+                Boolean escapeUtility = combat.tryEscapeUtility(combatThreats);
                 if (escapeUtility != null) {
                     return escapeUtility;
                 }
 
-                int escapeStep = combat.chooseEscapeStep(visibleThreats);
+                int escapeStep = combat.chooseEscapeStep(combatThreats);
                 if (escapeStep != -1) {
                     int oldPos = pos;
                     guard.allowAnyMovement();
@@ -1072,6 +1083,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     float estimatedThreatDamage(Mob threat, int defenderCell) {
         return riskEstimator.estimatedThreatDamage(threat, defenderCell);
+    }
+
+    float averageThreatDamage(Mob threat) {
+        return riskEstimator.averageThreatDamage(threat, pos);
     }
 
     float estimatedHitChance(Mob threat, int defenderCell) {
