@@ -999,9 +999,11 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // Ordinary melee reach still wins when already established, except when the target-level
-        // strategy explicitly prefers ranged combat (including melee-target kiting or wand use).
-        boolean preferredRanged = shouldPreferRangedAttack(preferredTarget);
+        // A pure-melee target with an existing gap is always worth shooting before spending a
+        // turn closing, even if an extended melee weapon can already reach it.
+        boolean preferredRanged =
+                !owner.hasNonAdjacentAttackCapability(preferredTarget)
+                || shouldPreferRangedAttack(preferredTarget);
         boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
                 && !preferredRanged
                 && (!owner.isCurrentRangedPressure(preferredTarget)
@@ -1027,7 +1029,10 @@ final class CoHeroCombatController {
                 continue;
             }
 
-            boolean alternateRanged = shouldPreferRangedAttack(threat);
+            int distance = Dungeon.level.distance(owner.pos, threat.pos);
+            boolean alternateRanged =
+                    (distance > 1 && !owner.hasNonAdjacentAttackCapability(threat))
+                    || shouldPreferRangedAttack(threat);
             boolean meleeEstablished = owner.canAttack(threat)
                     && !alternateRanged
                     && (!owner.isCurrentRangedPressure(threat)
@@ -1041,7 +1046,6 @@ final class CoHeroCombatController {
                 continue;
             }
 
-            int distance = Dungeon.level.distance(owner.pos, threat.pos);
             if (distance <= 1) {
                 continue;
             }
