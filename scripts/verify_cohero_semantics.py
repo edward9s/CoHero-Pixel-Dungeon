@@ -7,9 +7,10 @@ import sys
 OWNER_DECLARATION = "private final CoHeroAlly owner;"
 UNLINKED_SPRITE_FACTORY = re.compile(r"\bowner\s*\.\s*sprite\s*\(")
 COMPANION_DEATH_FAILURE_FLOW = """            CoHero.markCompanionDeathGameOver();
-            Hero.reallyDie(cause);
+            Dungeon.hero.die(cause);
             Dungeon.fail(cause);
 """
+HERO_FINAL_DEATH_ANKH_GATE = "if (!com.spd.cohero.CoHero.companionDeathEndedRun()) {"
 FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
 
 
@@ -44,8 +45,18 @@ def main() -> int:
     ally_source = (package_root / "CoHeroAlly.java").read_text(encoding="utf-8")
     if ally_source.count(COMPANION_DEATH_FAILURE_FLOW) != 1:
         print(
-            "CoHeroAlly death must mark companion game-over, run stock Hero death cleanup, "
-            "then submit Dungeon.fail exactly once through the guarded failure path.",
+            "CoHeroAlly final death must mark the shared run over, kill the Hero through "
+            "Hero.die(), then submit Dungeon.fail exactly once through the guarded path.",
+            file=sys.stderr,
+        )
+        return 1
+
+    hero_patch = (
+        root / "integration" / "shattered" / "patches" / "patch_hero.py"
+    ).read_text(encoding="utf-8")
+    if hero_patch.count(HERO_FINAL_DEATH_ANKH_GATE) != 1:
+        print(
+            "Hero final death caused by CoHero must bypass the Hero inventory Ankh path.",
             file=sys.stderr,
         )
         return 1
