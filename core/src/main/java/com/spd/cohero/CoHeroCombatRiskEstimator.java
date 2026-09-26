@@ -125,6 +125,10 @@ final class CoHeroCombatRiskEstimator {
     }
 
     float estimatedThreatDamage(Mob threat, int defenderCell) {
+        return Math.max(0.5f, averageThreatDamage(threat, defenderCell) * 0.85f);
+    }
+
+    float averageThreatDamage(Mob threat, int defenderCell) {
         int livePos = owner.pos;
         Random.pushGenerator(0xC0E0A11L ^ ((long) threat.id() << 21) ^ defenderCell);
         try {
@@ -133,7 +137,7 @@ final class CoHeroCombatRiskEstimator {
             for (int i = 0; i < 7; i++) {
                 total += Math.max(0, threat.damageRoll());
             }
-            return Math.max(0.5f, total / 7f * 0.85f);
+            return total / 7f;
         } finally {
             owner.pos = livePos;
             Random.popGenerator();
