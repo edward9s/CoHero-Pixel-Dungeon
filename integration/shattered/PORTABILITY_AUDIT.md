@@ -12,7 +12,7 @@ Each row has one **primary** label, for triage only. A file can contain several 
 - **D — presentation or branding:** preview, visual FOV, display and labels.
 - **E — encounter or hazard rule:** particular enemy, boss, terrain or delayed effect.
 
-The 52 Java targets are classified A 7, B 11, C 14, D 6, E 14. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
+The 53 Java targets are classified A 7, B 12, C 14, D 6, E 14. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
 
 | Primary | Host target | Shattered patch owner | Existing responsibility |
 | --- | --- | --- | --- |
@@ -25,6 +25,7 @@ The 52 Java targets are classified A 7, B 11, C 14, D 6, E 14. `build.gradle` (`
 | A | `WndGame.java` | `patch_wndgame.py` | restart availability after companion run end |
 | B | `Char.java` | `patch_cohero_class_traits.py` | cleric Bless accuracy and evasion |
 | B | `RingOfArcana.java` | `patch_cohero_ring_traits.py` | huntress ring effect |
+| B | `RingOfForce.java` | `patch_ring_force.py` | stock unarmed force damage seam |
 | B | `Weapon.java` | `patch_weapon_identification.py` | shared identification on use and EXP |
 | B | `Armor.java` | `patch_armor_identification.py` | shared identification on use and EXP |
 | B | `Ring.java` | `patch_ring_identification.py` | shared identification EXP |
@@ -91,7 +92,7 @@ The sleeping patch replaces stock hostile selection (`highestChance = Float.POSI
 
 ## Exactness and persistence
 
-The one-owner-per-target invariant was checked against the 52 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
+The one-owner-per-target invariant was checked against the 53 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
 
 - `patch_wand_lightning.py`, `patch_wand_regrowth.py`, `patch_wand_fireblast.py` and `patch_wand_prismatic_light.py` now check the complete set of source lines containing `curUser` before the existing replacement. The expected lines were taken from the Shattered v4.0.0 release. Extra, missing or changed source lines cause an explicit failure before writing the file.
 - `patch_living_earth.py` now verifies the exact cardinality of each former unchecked replacement, including the two occurrences of guardian armor assignment and the two caster particle calls. All replacements still produce the same Java source when their known anchors match.
