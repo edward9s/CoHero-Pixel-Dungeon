@@ -144,6 +144,26 @@ final class CoHeroCombatRiskEstimator {
         }
     }
 
+    float averageRangedThreatDamage(Mob threat, int defenderCell) {
+        int livePos = owner.pos;
+        Random.pushGenerator(0xC0E0A12L ^ ((long) threat.id() << 21) ^ defenderCell);
+        try {
+            owner.pos = defenderCell;
+            float total = 0f;
+            for (int i = 0; i < 7; i++) {
+                int damage = threat.coHeroRangedDamageRoll(owner);
+                if (damage < 0) {
+                    return -1f;
+                }
+                total += damage;
+            }
+            return total / 7f;
+        } finally {
+            owner.pos = livePos;
+            Random.popGenerator();
+        }
+    }
+
     float estimatedHitChance(Mob threat, int defenderCell) {
         int livePos = owner.pos;
         try {
