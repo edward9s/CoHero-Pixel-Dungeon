@@ -1,6 +1,6 @@
 # Shattered integration port map
 
-This profile currently patches 46 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
+This profile currently patches 52 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
 
 ## Recommended port order
 
@@ -22,7 +22,8 @@ Do not change CoHero Bundle keys or the serialized `CoHeroAlly` class while adap
 These make stock SPD rules treat CoHero as a real second combatant instead of assuming every player-controlled actor is `Hero`.
 
 - `Char.java` — class-trait seams.
-- `Mob.java` — attack probes, surprise semantics, sleeping detection, remote attack presentation, and held-allies exclusion.
+- `Mob.java` — attack probes, ranged-damage base semantics, surprise semantics, sleeping detection, remote attack presentation, and held-allies exclusion.
+- `Shaman.java`, `DM100.java`, `Warlock.java`, `Eye.java`, `GnollGuard.java`, `Elemental.java` — exact ranged-damage semantics used by CoHero's close-vs-trade decision when stock ranged behavior differs from the generic `damageRoll()` assumption.
 - `GreatCrab.java` — Great Crab surprise handling.
 - `HighGrass.java` — Huntress grass semantics.
 - `Dread.java` — CoHero fear behavior.
@@ -71,7 +72,7 @@ These are important for the finished port but should not block early gameplay br
 
 The Shattered profile now keeps Java patch ownership one-to-one:
 
-- 46 Java patch calls target 46 unique upstream Java files.
+- 52 Java patch calls target 52 unique upstream Java files.
 - each Java patch script edits exactly one upstream Java file;
 - each upstream Java file is owned by exactly one patch script.
 
@@ -80,7 +81,7 @@ Keep this invariant when adding or changing Shattered hooks. It localizes fork d
 The highest-churn individual targets are still:
 
 1. `GameScene.java` / `patch_gamescene.py` — lifecycle plus several UI/presentation seams.
-2. `Mob.java` / `patch_mob_cohero.py` — core mob attack, surprise, sleep and transport semantics.
+2. `Mob.java` / `patch_mob_cohero.py` — core mob attack/ranged-damage probe, surprise, sleep and transport semantics.
 3. individual wand classes — concrete caster/effect behavior, now isolated into one script per wand.
 4. `Hero.java` / `patch_hero.py` — transition interception plus shared identification EXP.
 5. `Wand.java` / `patch_wand_base.py` — common non-Hero wand-caster context.
