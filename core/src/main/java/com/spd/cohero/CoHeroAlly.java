@@ -706,8 +706,8 @@ public class CoHeroAlly extends DirectableAlly {
                     combatTarget = offensiveTarget;
                 }
 
-                // Tactical exception: when an enemy is actively attacking from range and CoHero has
-                // a melee weapon, closing to adjacency remains more important than trading shots.
+                // Ranged enemies are normally closed to adjacency. Exception: sufficiently stronger
+                // ranged offense may keep spacing, or create it against an immobilized/slower target.
                 Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, combatThreats);
                 if (rangedEngagement != null) {
                     logBossDecision("ranged_positioning:" + combatTarget.id(),
@@ -1085,8 +1085,8 @@ public class CoHeroAlly extends DirectableAlly {
         return riskEstimator.estimatedThreatDamage(threat, defenderCell);
     }
 
-    float averageThreatDamage(Mob threat) {
-        return riskEstimator.averageThreatDamage(threat, pos);
+    float averageRangedThreatDamage(Mob threat) {
+        return riskEstimator.averageRangedThreatDamage(threat, pos);
     }
 
     float estimatedHitChance(Mob threat, int defenderCell) {
