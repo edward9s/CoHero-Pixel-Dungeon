@@ -78,7 +78,19 @@ ring_buffed_old = """	@Override
 		return lvl;
 	}
 """
-ring_buffed_new = """	private int buffedLvl(Char target) {
+ring_buffed_new = """	private Char activeBuffTarget() {
+		if (buff == null || buff.target == null || !buff.target.buffs().contains(buff)) {
+			return null;
+		}
+		return buff.target;
+	}
+
+	private Char buffContext() {
+		Char target = activeBuffTarget();
+		return target != null ? target : Dungeon.hero;
+	}
+
+	private int buffedLvl(Char target) {
 		int lvl = super.buffedLvl();
 		if (target == Dungeon.hero && target != null && target.buff(EnhancedRings.class) != null){
 			lvl++;
@@ -88,7 +100,7 @@ ring_buffed_new = """	private int buffedLvl(Char target) {
 
 	@Override
 	public int buffedLvl() {
-		return buffedLvl(Dungeon.hero);
+		return buffedLvl(buffContext());
 	}
 """
 ring = replace_once(ring, ring_buffed_old, ring_buffed_new, "Ring owner-aware buffed level")
@@ -112,7 +124,7 @@ solo_buffed_new = """	private int soloBuffedBonus(Char target){
 
 	//just used for ring descriptions
 	public int soloBuffedBonus(){
-		return soloBuffedBonus(Dungeon.hero);
+		return soloBuffedBonus(buffContext());
 	}
 """
 ring = replace_once(ring, solo_buffed_old, solo_buffed_new, "Ring owner-aware solo buffed bonus")
