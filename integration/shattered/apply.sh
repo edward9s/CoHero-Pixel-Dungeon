@@ -54,6 +54,16 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java"
     python "$patches/patch_mob_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java"
+    python "$patches/patch_ranged_enemy_damage.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Shaman.java"
+    python "$patches/patch_ranged_enemy_damage.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/DM100.java"
+    python "$patches/patch_ranged_enemy_damage.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Warlock.java"
+    python "$patches/patch_ranged_enemy_damage.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Eye.java"
+    python "$patches/patch_ranged_enemy_damage.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Elemental.java"
     python "$patches/patch_great_crab_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GreatCrab.java"
     python "$patches/patch_prison_boss_cohero.py" \
