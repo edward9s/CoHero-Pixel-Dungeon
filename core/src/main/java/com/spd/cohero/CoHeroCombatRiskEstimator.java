@@ -176,7 +176,7 @@ final class CoHeroCombatRiskEstimator {
         float targetDr = sampledDrRoll(targetMob, owner.id());
 
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (!CoHeroMissileAdapter.supported(missile)
+            if (!owner.inventory().canUse(missile)
                     || new Ballistica(
                             owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
                             != targetMob.pos) {
@@ -190,8 +190,7 @@ final class CoHeroCombatRiskEstimator {
         }
 
         SpiritBow bow = owner.inventory().spiritBow();
-        if (bow != null
-                && !bow.cursed
+        if (owner.inventory().canUse(bow)
                 && new Ballistica(
                         owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
                         == targetMob.pos) {

@@ -680,7 +680,7 @@ public class WndCompanionInventory extends Window {
      * Uses the stock backpack slot chrome and state tinting, with only a subtle
      * frame to mark items the CoHero can actively use.
      */
-    private static class CoHeroInventorySlot extends InventorySlot {
+    private class CoHeroInventorySlot extends InventorySlot {
 
         private static final int USABLE_FRAME_COLOR = 0xCCB8A45A;
 
@@ -747,7 +747,7 @@ public class WndCompanionInventory extends Window {
         private void applyCapabilityFrame() {
             boolean visible = displayedItem != null
                     && !(displayedItem instanceof WndBag.Placeholder)
-                    && CompanionInventory.usableByCoHero(displayedItem);
+                    && inventory.canUse(displayedItem);
             frameTop.visible = visible;
             frameBottom.visible = visible;
             frameLeft.visible = visible;
