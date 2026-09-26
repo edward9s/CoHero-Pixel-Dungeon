@@ -64,6 +64,22 @@ specs = {
 \t}
 """,
     ),
+    "GnollGuard.java": (
+        """\t@Override
+\tpublic int damageRoll() {
+\t\tif (enemy != null && !Dungeon.level.adjacent(pos, enemy.pos)){
+\t\t\treturn Random.NormalIntRange( 16, 22 );
+\t\t} else {
+\t\t\treturn Random.NormalIntRange( 6, 12 );
+\t\t}
+\t}
+""",
+        """\n\t@Override
+\tpublic int coHeroRangedDamageRoll(Char enemy) {
+\t\treturn Random.NormalIntRange(16, 22);
+\t}
+""",
+    ),
     "Elemental.java": (
         """\t@Override
 \tpublic int damageRoll() {
