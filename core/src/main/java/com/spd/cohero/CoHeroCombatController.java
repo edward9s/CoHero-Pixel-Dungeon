@@ -403,8 +403,16 @@ final class CoHeroCombatController {
 
         float meleeDamage = averageMeleeDamage();
         if (!owner.hasNonAdjacentAttackCapability(targetMob)) {
-            // Pure melee targets cannot answer ranged pressure. Keep that safety advantage unless
-            // the build is clearly melee-focused.
+            int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
+            if (distance > 1) {
+                // With an existing gap, take the free ranged turn unless extended melee already
+                // reaches the target. In that special case neither option costs movement, so use
+                // whichever has the higher average damage.
+                return !owner.canAttack(targetMob) || rangedDamage > meleeDamage;
+            }
+
+            // Once a pure-melee target has reached adjacency, reopening distance costs a turn.
+            // Only kite again unless the melee build is clearly stronger.
             return meleeDamage < rangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
         }
 
@@ -999,11 +1007,9 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // A pure-melee target with an existing gap is always worth shooting before spending a
-        // turn closing, even if an extended melee weapon can already reach it.
-        boolean preferredRanged =
-                !owner.hasNonAdjacentAttackCapability(preferredTarget)
-                || shouldPreferRangedAttack(preferredTarget);
+        // Pure-melee targets with a gap normally get a free ranged opening, but if an extended
+        // melee weapon already reaches them, shouldPreferRangedAttack compares the two averages.
+        boolean preferredRanged = shouldPreferRangedAttack(preferredTarget);
         boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
                 && !preferredRanged
                 && (!owner.isCurrentRangedPressure(preferredTarget)
@@ -1030,9 +1036,7 @@ final class CoHeroCombatController {
             }
 
             int distance = Dungeon.level.distance(owner.pos, threat.pos);
-            boolean alternateRanged =
-                    (distance > 1 && !owner.hasNonAdjacentAttackCapability(threat))
-                    || shouldPreferRangedAttack(threat);
+            boolean alternateRanged = shouldPreferRangedAttack(threat);
             boolean meleeEstablished = owner.canAttack(threat)
                     && !alternateRanged
                     && (!owner.isCurrentRangedPressure(threat)
