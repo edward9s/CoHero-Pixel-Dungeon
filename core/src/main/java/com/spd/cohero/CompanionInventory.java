@@ -662,17 +662,22 @@ public final class CompanionInventory {
     }
 
     private float meleePower(MeleeWeapon value) {
-        float averageDamage = value.augment.damageFactor((value.min() + value.max()) / 2f);
-        int excessStrength = Math.max(0, owner.STR() - value.STRReq());
+        int min = value.levelKnown ? value.min() : value.min(0);
+        int max = value.levelKnown ? value.max() : value.max(0);
+        int strengthRequirement = value.levelKnown ? value.STRReq() : value.STRReq(0);
+        float averageDamage = value.augment.damageFactor((min + max) / 2f);
+        int excessStrength = Math.max(0, owner.STR() - strengthRequirement);
         averageDamage += excessStrength / 2f;
         return averageDamage / Math.max(0.01f, value.delayFactor(owner));
     }
 
     private float armorProtection(Armor value) {
-        int encumbrance = Math.max(0, value.STRReq() - owner.STR());
-        float min = Math.max(0, value.DRMin() - 2 * encumbrance);
-        float max = Math.max(0, value.DRMax() - 2 * encumbrance);
-        return (min + max) / 2f;
+        int min = value.levelKnown ? value.DRMin() : value.DRMin(0);
+        int max = value.levelKnown ? value.DRMax() : value.DRMax(0);
+        int strengthRequirement = value.levelKnown ? value.STRReq() : value.STRReq(0);
+        int encumbrance = Math.max(0, strengthRequirement - owner.STR());
+        return (Math.max(0, min - 2 * encumbrance)
+                + Math.max(0, max - 2 * encumbrance)) / 2f;
     }
 
     void gainIdentificationExp(float levelPercent) {
