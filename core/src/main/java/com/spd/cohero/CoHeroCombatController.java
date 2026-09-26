@@ -340,19 +340,9 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // A pure melee target normally rewards keeping distance, but intentionally melee-focused
-        // builds are respected: when melee is at least 1.5x the best legal ranged average damage,
-        // start closing instead of spending ranged resources.
-        if (!rangedAttacker && shouldCloseForMeleeDamage(targetMob)) {
-            if (owner.canAttack(targetMob)) {
-                return null;
-            }
-            int closeStep = chooseOneStepMeleeApproach(targetMob, threats);
-            if (closeStep != -1) {
-                return moveForRangedEngagement(closeStep, "melee_damage_close");
-            }
-            // If no safe melee approach exists, do not waste the turn; later combat phases may
-            // still use a legal ranged fallback from the current cell.
+        // Never spend turns closing on a pure melee target merely because melee damage is higher.
+        // Any current gap is free damage: keep it and let the direct ranged phase fire first.
+        if (!rangedAttacker && Dungeon.level.distance(owner.pos, targetMob.pos) > 1) {
             return null;
         }
 
@@ -424,18 +414,6 @@ final class CoHeroCombatController {
         boolean outdamagesMelee =
                 rangedDamage >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
         return outdamagesEnemy || outdamagesMelee;
-    }
-
-    private boolean shouldCloseForMeleeDamage(Mob targetMob) {
-        if (targetMob == null
-                || owner.hasNonAdjacentAttackCapability(targetMob)
-                || preferredDamageWandForHighEvasion(targetMob) != null) {
-            return false;
-        }
-        float rangedDamage = bestRangedAverageDamage(targetMob);
-        return rangedDamage > 0f
-                && averageMeleeDamage()
-                    >= rangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
     }
 
     private Wand preferredDamageWandForHighEvasion(Mob targetMob) {
