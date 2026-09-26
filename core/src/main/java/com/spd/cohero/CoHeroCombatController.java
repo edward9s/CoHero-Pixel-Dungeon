@@ -910,10 +910,12 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // Ordinary melee reach still wins when already established. Against active ranged
-        // pressure, only physical adjacency counts as established melee; extended reach must not
-        // suppress a legal ranged fallback if closing/cover was impossible this turn.
+        // Ordinary melee reach still wins when already established, except for the explicit
+        // high-damage ranged preference against enemies with non-adjacent attack capability.
+        boolean preferredRanged = owner.hasNonAdjacentAttackCapability(preferredTarget)
+                && shouldPreferRangedAttack(preferredTarget);
         boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
+                && !preferredRanged
                 && (!owner.isCurrentRangedPressure(preferredTarget)
                     || Dungeon.level.adjacent(owner.pos, preferredTarget.pos));
         if (preferredMeleeEstablished) {
@@ -937,7 +939,10 @@ final class CoHeroCombatController {
                 continue;
             }
 
+            boolean alternateRanged = owner.hasNonAdjacentAttackCapability(threat)
+                    && shouldPreferRangedAttack(threat);
             boolean meleeEstablished = owner.canAttack(threat)
+                    && !alternateRanged
                     && (!owner.isCurrentRangedPressure(threat)
                         || Dungeon.level.adjacent(owner.pos, threat.pos));
             if (meleeEstablished) {
