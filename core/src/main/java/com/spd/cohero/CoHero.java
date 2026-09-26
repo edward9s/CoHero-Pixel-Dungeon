@@ -35,8 +35,6 @@ public final class CoHero {
     private static final String SAVE_COHERO_VERSION = "cohero_version";
     private static final String SAVE_COMPANION_CLASS = "cohero_companion_class";
     private static final String SAVE_COMPANION_STATE = "cohero_companion_state";
-    private static final String SAVE_COMPANION_STATE_DEPTH = "cohero_companion_state_depth";
-    private static final String SAVE_COMPANION_STATE_BRANCH = "cohero_companion_state_branch";
     private static final String SAVE_COMPANION_ARMOR_TIER = "cohero_companion_armor_tier";
     private static final String SAVE_EXCLUDED_DEPTH = "cohero_excluded_depth";
     private static final String SAVE_EXCLUDED_BRANCH = "cohero_excluded_branch";
@@ -44,8 +42,6 @@ public final class CoHero {
     private static HeroClass playerSelection;
     private static HeroClass companionSelection;
     private static Bundle companionState;
-    private static int companionStateDepth = -1;
-    private static int companionStateBranch = -1;
     private static int companionPreviewArmorTier;
     private static boolean selectingCompanion;
     private static boolean openingCompanionSelection;
@@ -95,8 +91,6 @@ public final class CoHero {
         playerSelection = null;
         companionSelection = null;
         companionState = null;
-        companionStateDepth = -1;
-        companionStateBranch = -1;
         companionPreviewArmorTier = 0;
         selectingCompanion = false;
         companionDeathEndedRun = false;
@@ -115,10 +109,8 @@ public final class CoHero {
         if (!selectingCompanion) {
             playerSelection = selectedClass;
             companionState = null;
-            companionStateDepth = -1;
-            companionStateBranch = -1;
             companionDeathEndedRun = false;
-            companionDeathFailureSubmitted = false;
+        companionDeathFailureSubmitted = false;
             selectingCompanion = true;
             openingCompanionSelection = true;
             GamesInProgress.selectedClass = null;
@@ -193,10 +185,6 @@ public final class CoHero {
 
         if (companionState != null) {
             bundle.put(SAVE_COMPANION_STATE, companionState);
-            if (companionStateDepth >= 0 && companionStateBranch >= 0) {
-                bundle.put(SAVE_COMPANION_STATE_DEPTH, companionStateDepth);
-                bundle.put(SAVE_COMPANION_STATE_BRANCH, companionStateBranch);
-            }
         }
         bundle.put(SAVE_COMPANION_ARMOR_TIER, companionPreviewArmorTier);
         if (excludedDepth >= 0 && excludedBranch >= 0) {
@@ -223,18 +211,6 @@ public final class CoHero {
         companionState = bundle.contains(SAVE_COMPANION_STATE)
                 ? bundle.getBundle(SAVE_COMPANION_STATE)
                 : null;
-
-        boolean hasStateDepth = bundle.contains(SAVE_COMPANION_STATE_DEPTH);
-        boolean hasStateBranch = bundle.contains(SAVE_COMPANION_STATE_BRANCH);
-        if (hasStateDepth != hasStateBranch) {
-            throw new IllegalStateException("Save has incomplete CoHero companion state location");
-        }
-        if (companionState == null && hasStateDepth) {
-            throw new IllegalStateException("Save has CoHero companion state location without state");
-        }
-        companionStateDepth = hasStateDepth ? bundle.getInt(SAVE_COMPANION_STATE_DEPTH) : -1;
-        companionStateBranch = hasStateBranch ? bundle.getInt(SAVE_COMPANION_STATE_BRANCH) : -1;
-
         companionPreviewArmorTier = bundle.contains(SAVE_COMPANION_ARMOR_TIER)
                 ? bundle.getInt(SAVE_COMPANION_ARMOR_TIER)
                 : 0;
@@ -332,8 +308,7 @@ public final class CoHero {
         if (companionState != null) {
             companion.restoreFromBundle(companionState);
 
-            if (restoringSavedGame && !rejoiningAfterExcludedFloor
-                    && shouldRestoreCompanionInPlace()) {
+            if (restoringSavedGame && !rejoiningAfterExcludedFloor) {
                 spawn = companion.pos;
                 if (spawn < 0
                         || spawn >= Dungeon.level.length()
@@ -374,19 +349,6 @@ public final class CoHero {
             Dungeon.level.occupyCell(companion);
         }
         refreshCompanionVision(companion);
-    }
-
-    private static boolean shouldRestoreCompanionInPlace() {
-        // A saved position is trustworthy only when the save explicitly records which level
-        // owns it. Legacy saves predate that metadata, so their position is intentionally treated
-        // as unknown and CoHero is rebuilt next to the Hero once. This avoids both crashing on a
-        // stale source-floor cell and silently accepting a coincidentally-valid cell on another
-        // floor. New-format same-floor saves remain strict and fail if their recorded cell is bad.
-        if (companionStateDepth < 0 || companionStateBranch < 0) {
-            return false;
-        }
-        return companionStateDepth == Dungeon.depth
-                && companionStateBranch == Dungeon.branch;
     }
 
     private static void refreshCompanionVision(CoHeroAlly companion) {
@@ -478,8 +440,6 @@ public final class CoHero {
         Bundle state = new Bundle();
         companion.storeInBundle(state);
         companionState = state;
-        companionStateDepth = Dungeon.depth;
-        companionStateBranch = Dungeon.branch;
         companionPreviewArmorTier = companion.armorTier();
     }
 
