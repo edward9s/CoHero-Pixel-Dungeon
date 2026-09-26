@@ -53,6 +53,7 @@ final class CoHeroNavigation {
         if (explorationTarget != -1 && moveTowardExplorationTarget(explorationTarget)) {
             owner.spendActionTime(1 / owner.speed());
             owner.refreshOwnFieldOfView();
+            owner.passiveSearch();
             return owner.finishMovementAnimation(oldPos);
         }
 
