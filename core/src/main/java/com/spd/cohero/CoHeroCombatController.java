@@ -335,8 +335,14 @@ final class CoHeroCombatController {
                 }
             }
 
-            // Ordinary ranged attacks are forbidden while adjacent. If the target cannot be
-            // safely kited because it is not slower/immobilized, melee is the legal fallback.
+            // Ordinary ranged attacks are forbidden while adjacent. If no legal safe spacing
+            // step exists, stop trying to reposition and engage immediately instead of letting
+            // later melee-positioning logic spend another movement turn.
+            if (owner.canAttack(targetMob)) {
+                owner.logBossDecision("melee_fallback:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> no safe ranged spacing, melee");
+                return performMeleeAttack(targetMob);
+            }
             return null;
         }
 
