@@ -63,6 +63,8 @@ case "$phase" in
     python "$patches/patch_ranged_enemy_damage.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Eye.java"
     python "$patches/patch_ranged_enemy_damage.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GnollGuard.java"
+    python "$patches/patch_ranged_enemy_damage.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Elemental.java"
     python "$patches/patch_great_crab_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/GreatCrab.java"
