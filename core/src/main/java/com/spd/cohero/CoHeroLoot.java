@@ -301,7 +301,7 @@ final class CoHeroLoot {
     }
 
     private boolean canAutoPickup(Item item) {
-        return CompanionInventory.usableByCoHero(item)
+        return owner.inventory().canUse(item)
                 && owner.inventory().canAddToBackpack(item);
     }
 
