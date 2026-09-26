@@ -62,7 +62,7 @@ These are important for the finished port but should not block early gameplay br
 
 - `FogOfWar.java` — companion visual FOV.
 - `TitleScene.java` / `MenuPane.java` — version branding.
-- `WndSettings.java` — Android/Desktop save export/import controls in the Interface tab.
+- `WndSettings.java` — adds the CoHero settings tab; runtime CoHero controls and Android/Desktop save transfer live in common CoHero UI code.
 - `WndGame.java` — CoHero game-menu integration.
 - `GameScene.java` — locator, inventory tag, remote view, hazard overlays, and examination visibility.
 - message resources — CoHero strings.
