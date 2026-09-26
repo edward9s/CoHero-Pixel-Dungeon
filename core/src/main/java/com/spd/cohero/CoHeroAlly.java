@@ -15,6 +15,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfAccuracy;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
@@ -318,9 +319,16 @@ public class CoHeroAlly extends DirectableAlly {
         return activeMissileWeapon != null ? activeMissileWeapon : weapon();
     }
 
+    boolean hasMeleeCombatCapability() {
+        return weapon() != null || buff(RingOfForce.Force.class) != null;
+    }
+
     @Override
     protected boolean canAttack(Char enemy) {
-        return weapon() != null && (super.canAttack(enemy) || weapon().canReach(this, enemy.pos));
+        if (weapon() == null) {
+            return buff(RingOfForce.Force.class) != null && super.canAttack(enemy);
+        }
+        return super.canAttack(enemy) || weapon().canReach(this, enemy.pos);
     }
 
     /**
@@ -366,10 +374,18 @@ public class CoHeroAlly extends DirectableAlly {
     public int damageRoll() {
         Weapon attackWeapon = attackingWeapon();
         if (attackWeapon == null) {
-            return super.damageRoll();
+            if (buff(RingOfForce.Force.class) == null) {
+                return super.damageRoll();
+            }
+            return Random.NormalIntRange(
+                    RingOfForce.coHeroUnarmedMinDamage(this, STR()),
+                    RingOfForce.coHeroUnarmedMaxDamage(this, STR()));
         }
 
         int damage = attackWeapon.damageRoll(this);
+        if (!(attackWeapon instanceof MissileWeapon)) {
+            damage += RingOfForce.armedDamageBonus(this);
+        }
         int excessStrength = STR() - attackWeapon.STRReq();
         if (excessStrength > 0) {
             damage += Random.NormalIntRange(0, excessStrength);
