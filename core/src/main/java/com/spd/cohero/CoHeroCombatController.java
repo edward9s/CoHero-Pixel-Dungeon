@@ -304,7 +304,7 @@ final class CoHeroCombatController {
     }
 
     Boolean tryRangedEngagement(Mob targetMob, ArrayList<Mob> threats) {
-        if (owner.weapon() == null || targetMob == null || threats == null || threats.isEmpty()) {
+        if (targetMob == null || threats == null || threats.isEmpty()) {
             return null;
         }
 
@@ -329,7 +329,7 @@ final class CoHeroCombatController {
             return null;
         }
 
-        if (targetMob.properties().contains(Char.Property.BOSS)) {
+        if (owner.weapon() == null || targetMob.properties().contains(Char.Property.BOSS)) {
             return null;
         }
 
@@ -905,6 +905,11 @@ final class CoHeroCombatController {
             return null;
         }
 
+        // Direct ranged attacks require at least one empty tile of spacing.
+        if (Dungeon.level.distance(owner.pos, preferredTarget.pos) <= 1) {
+            return null;
+        }
+
         // Ordinary melee reach still wins when already established. Against active ranged
         // pressure, only physical adjacency counts as established melee; extended reach must not
         // suppress a legal ranged fallback if closing/cover was impossible this turn.
@@ -945,6 +950,9 @@ final class CoHeroCombatController {
             }
 
             int distance = Dungeon.level.distance(owner.pos, threat.pos);
+            if (distance <= 1) {
+                continue;
+            }
             if (alternateTarget == null
                     || distance < alternateDistance
                     || (distance == alternateDistance && threat.id() < alternateTarget.id())) {
