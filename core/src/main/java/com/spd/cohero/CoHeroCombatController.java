@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
@@ -11,6 +12,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -30,6 +32,7 @@ final class CoHeroCombatController {
 
     private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
+    private static final float RANGED_DAMAGE_PREFERENCE_MULTIPLIER = 1.5f;
 
     Mob nearestThreat(ArrayList<Mob> threats) {
         Mob result = null;
@@ -44,6 +47,39 @@ final class CoHeroCombatController {
         return result;
     }
 
+    ArrayList<Mob> collectActiveThreats(ArrayList<Mob> threats) {
+        ArrayList<Mob> result = new ArrayList<>();
+        if (threats == null) {
+            return result;
+        }
+
+        for (Mob threat : threats) {
+            if (threat != null
+                    && threat.isAlive()
+                    && !isTemporarilyInactiveThreat(threat)) {
+                result.add(threat);
+            }
+        }
+        return result;
+    }
+
+    boolean hasRecoveringCrystalGuardian(ArrayList<Mob> threats) {
+        if (threats == null) {
+            return false;
+        }
+        for (Mob threat : threats) {
+            if (isTemporarilyInactiveThreat(threat)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isTemporarilyInactiveThreat(Mob threat) {
+        return threat instanceof CrystalGuardian
+                && ((CrystalGuardian) threat).recovering();
+    }
+
     ArrayList<Mob> collectAttackableThreats(ArrayList<Mob> threats) {
         ArrayList<Mob> result = new ArrayList<>();
         if (threats == null) {
@@ -53,6 +89,7 @@ final class CoHeroCombatController {
         for (Mob threat : threats) {
             if (threat != null
                     && threat.isAlive()
+                    && !isTemporarilyInactiveThreat(threat)
                     && !owner.isCombatInvulnerable(threat)) {
                 result.add(threat);
             }
@@ -271,11 +308,31 @@ final class CoHeroCombatController {
             return null;
         }
 
+        boolean rangedPressure = owner.isCurrentRangedPressure(targetMob);
+        boolean rangedAttacker = rangedPressure || owner.hasNonAdjacentAttackCapability(targetMob);
+        if (rangedAttacker && shouldPreferRangedAttack(targetMob)) {
+            int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
+            if (distance > 1) {
+                return null;
+            }
+
+            if (canOpenRangedSpacingAgainst(targetMob)) {
+                int spacingStep = chooseRangedSpacingStep(targetMob, threats);
+                if (spacingStep != -1) {
+                    owner.allowAnyGuardMovement();
+                    return moveForRangedEngagement(spacingStep, "ranged_spacing");
+                }
+            }
+
+            // Ranged damage is preferable, but firing while adjacent is intentionally forbidden.
+            // If CoHero cannot safely create a gap, ordinary melee remains the legal fallback.
+            return null;
+        }
+
         if (targetMob.properties().contains(Char.Property.BOSS)) {
             return null;
         }
 
-        boolean rangedPressure = owner.isCurrentRangedPressure(targetMob);
         if (rangedPressure) {
             // Active ranged fire is combat territory, not guard-roaming territory. The ranged
             // planner already evaluates live safety/occupancy, so guard scope must not reject the
@@ -311,6 +368,117 @@ final class CoHeroCombatController {
 
         int step = rangedLureStep(coverCell);
         return step == -1 ? null : moveForRangedEngagement(step, "ranged_cover");
+    }
+
+    private boolean shouldPreferRangedAttack(Mob targetMob) {
+        float rangedDamage = bestRangedAverageDamage(targetMob);
+        if (rangedDamage <= 0f) {
+            return false;
+        }
+
+        float enemyRangedDamage = owner.averageThreatDamage(targetMob);
+        float meleeDamage = averageMeleeDamage();
+        return rangedDamage >= enemyRangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER
+                || rangedDamage >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+    }
+
+    private float bestRangedAverageDamage(Mob targetMob) {
+        if (targetMob == null) {
+            return 0f;
+        }
+
+        float best = 0f;
+        Ballistica shot = new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE);
+        if (shot.collisionPos == targetMob.pos) {
+            for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                if (owner.inventory().canUse(missile)) {
+                    best = Math.max(best, CoHeroMissileAdapter.expectedDamage(owner, missile));
+                }
+            }
+
+            SpiritBow spiritBow = owner.inventory().spiritBow();
+            if (owner.inventory().canUse(spiritBow)) {
+                best = Math.max(
+                        best, CoHeroMissileAdapter.expectedSpiritBowDamage(owner, spiritBow));
+            }
+        }
+
+        for (Wand wand : owner.inventory().wands()) {
+            if (CoHeroWandAdapter.supported(wand)
+                    && CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
+                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
+                best = Math.max(best, CoHeroWandAdapter.expectedDamage(wand, owner, targetMob));
+            }
+        }
+        return best;
+    }
+
+    private float averageMeleeDamage() {
+        MeleeWeapon weapon = owner.weapon();
+        if (weapon == null) {
+            return 0f;
+        }
+
+        int level = weapon.buffedLvl();
+        float average = (weapon.min(level) + weapon.max(level)) / 2f;
+        average = weapon.augment.damageFactor(average);
+        int excessStrength = owner.STR() - weapon.STRReq();
+        if (excessStrength > 0) {
+            average += excessStrength / 2f;
+        }
+        return average;
+    }
+
+    private boolean canOpenRangedSpacingAgainst(Mob targetMob) {
+        return !owner.rooted
+                && (targetMob.rooted
+                    || targetMob.paralysed > 0
+                    || targetMob.speed() < owner.speed() - 0.001f);
+    }
+
+    private int chooseRangedSpacingStep(Mob targetMob, ArrayList<Mob> threats) {
+        int currentAttackers = owner.countCurrentAttackersAtCell(owner.pos, threats);
+        float currentIncoming = owner.estimatedIncomingDptAtCell(owner.pos, threats);
+        int best = -1;
+        int bestAttackers = currentAttackers;
+        float bestIncoming = currentIncoming;
+        int bestDistance = Dungeon.level.distance(owner.pos, targetMob.pos);
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = owner.pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(owner.pos, cell) != 1
+                    || Dungeon.level.distance(cell, targetMob.pos) <= 1
+                    || !Dungeon.level.passable[cell]
+                    || !owner.isMovementSafe(cell)
+                    || Actor.findChar(cell) != null) {
+                continue;
+            }
+
+            int attackers = owner.countCurrentAttackersAtCell(cell, threats);
+            float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
+            int distance = Dungeon.level.distance(cell, targetMob.pos);
+
+            boolean noWorse = attackers < currentAttackers
+                    || (attackers == currentAttackers && incoming <= currentIncoming + 0.01f);
+            if (!noWorse) {
+                continue;
+            }
+
+            boolean better = best == -1
+                    || attackers < bestAttackers
+                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
+                    || (attackers == bestAttackers
+                        && Math.abs(incoming - bestIncoming) <= 0.01f
+                        && distance > bestDistance);
+            if (better) {
+                best = cell;
+                bestAttackers = attackers;
+                bestIncoming = incoming;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     private int chooseRangedTargetClosingStep(Mob targetMob, ArrayList<Mob> threats) {
