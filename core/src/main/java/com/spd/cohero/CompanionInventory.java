@@ -784,15 +784,18 @@ public final class CompanionInventory {
         }
     }
 
-    static boolean usableByCoHero(Item item) {
+    boolean canUse(Item item) {
         if (item == null) {
             return false;
         }
 
         if (item instanceof MeleeWeapon
                 || item instanceof Armor
-                || item instanceof Ring
-                || item instanceof SpiritBow) {
+                || item instanceof Ring) {
+            return equipFailure(item) == EquipFailure.NONE;
+        }
+
+        if (item instanceof SpiritBow) {
             return knownUncursed(item);
         }
 
