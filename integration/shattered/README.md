@@ -1,6 +1,6 @@
 # Shattered integration port map
 
-This profile currently patches 52 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
+This profile currently patches 53 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
 
 ## Recommended port order
 
@@ -39,6 +39,7 @@ Port these after basic melee movement/combat works.
 
 - `Weapon.java`, `Armor.java`, `Ring.java` — identification progress.
 - `RingOfArcana.java` — CoHero ring-trait behavior.
+- `RingOfForce.java` — exposes the stock force-ring unarmed min/max calculation to CoHero without duplicating the formula.
 - `MissileWeapon.java` — CoHero projectile resolution.
 - `MagesStaff.java` / `SpiritBow.java` — class-specific weapons.
 - `Wand.java`, `DamageWand.java`, `WandOfMagicMissile.java` — common CoHero wand context.
@@ -72,7 +73,7 @@ These are important for the finished port but should not block early gameplay br
 
 The Shattered profile now keeps Java patch ownership one-to-one:
 
-- 52 Java patch calls target 52 unique upstream Java files.
+- 53 Java patch calls target 53 unique upstream Java files.
 - each Java patch script edits exactly one upstream Java file;
 - each upstream Java file is owned by exactly one patch script.
 
