@@ -608,9 +608,7 @@ public final class CompanionInventory {
                     + (item == null ? "null" : item.getClass().getName()));
         }
 
-        // Weapons may be used before identification; only an actual curse blocks them.
-        // Armor and rings keep the stricter GhostHero-style known-uncursed requirement.
-        if (item.cursed || (!(item instanceof MeleeWeapon) && !item.cursedKnown)) {
+        if (!knownUncursed(item)) {
             return EquipFailure.CURSED_OR_UNKNOWN;
         }
 
@@ -631,6 +629,50 @@ public final class CompanionInventory {
         }
 
         return EquipFailure.NONE;
+    }
+
+    boolean autoEquipUpgrade(Item item) {
+        if (item instanceof MeleeWeapon) {
+            return autoEquipWeaponUpgrade((MeleeWeapon) item);
+        }
+        if (item instanceof Armor) {
+            return autoEquipArmorUpgrade((Armor) item);
+        }
+        return false;
+    }
+
+    private boolean autoEquipWeaponUpgrade(MeleeWeapon candidate) {
+        if (!backpack.contains(candidate) || equipFailure(candidate) != EquipFailure.NONE) {
+            return false;
+        }
+        if (weapon != null && meleePower(candidate) <= meleePower(weapon)) {
+            return false;
+        }
+        return equipWeapon(candidate);
+    }
+
+    private boolean autoEquipArmorUpgrade(Armor candidate) {
+        if (!backpack.contains(candidate) || equipFailure(candidate) != EquipFailure.NONE) {
+            return false;
+        }
+        if (armor != null && armorProtection(candidate) <= armorProtection(armor)) {
+            return false;
+        }
+        return equipArmor(candidate);
+    }
+
+    private float meleePower(MeleeWeapon value) {
+        float averageDamage = value.augment.damageFactor((value.min() + value.max()) / 2f);
+        int excessStrength = Math.max(0, owner.STR() - value.STRReq());
+        averageDamage += excessStrength / 2f;
+        return averageDamage / Math.max(0.01f, value.delayFactor(owner));
+    }
+
+    private float armorProtection(Armor value) {
+        int encumbrance = Math.max(0, value.STRReq() - owner.STR());
+        float min = Math.max(0, value.DRMin() - 2 * encumbrance);
+        float max = Math.max(0, value.DRMax() - 2 * encumbrance);
+        return (min + max) / 2f;
     }
 
     void gainIdentificationExp(float levelPercent) {
@@ -743,21 +785,29 @@ public final class CompanionInventory {
     }
 
     static boolean usableByCoHero(Item item) {
+        if (item == null) {
+            return false;
+        }
+
         if (item instanceof MeleeWeapon
                 || item instanceof Armor
                 || item instanceof Ring
-                || item instanceof SpiritBow
-                || item instanceof Torch
-                || item instanceof Ankh) {
-            return true;
+                || item instanceof SpiritBow) {
+            return knownUncursed(item);
         }
 
         if (item instanceof MissileWeapon) {
-            return CoHeroMissileAdapter.supported((MissileWeapon) item);
+            return knownUncursed(item)
+                    && CoHeroMissileAdapter.supported((MissileWeapon) item);
         }
 
         if (item instanceof Wand) {
-            return CoHeroWandAdapter.supported((Wand) item);
+            return knownUncursed(item)
+                    && CoHeroWandAdapter.supported((Wand) item);
+        }
+
+        if (item instanceof Torch || item instanceof Ankh) {
+            return true;
         }
 
         if (item instanceof Potion) {
@@ -787,5 +837,9 @@ public final class CompanionInventory {
                 || item instanceof StoneOfDeepSleep
                 || item instanceof StoneOfBlink
                 || item instanceof StoneOfFlock;
+    }
+
+    private static boolean knownUncursed(Item item) {
+        return item != null && item.cursedKnown && !item.cursed;
     }
 }
