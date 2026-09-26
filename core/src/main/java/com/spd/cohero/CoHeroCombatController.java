@@ -377,6 +377,10 @@ final class CoHeroCombatController {
     }
 
     private boolean shouldPreferRangedAttack(Mob targetMob) {
+        if (targetMob == null || targetMob.properties().contains(Char.Property.BOSS)) {
+            return false;
+        }
+
         float rangedDamage = bestRangedAverageDamage(targetMob);
         if (rangedDamage <= 0f) {
             return false;
@@ -1053,7 +1057,9 @@ final class CoHeroCombatController {
     }
 
     private RangedChoice chooseRangedAttack(Mob targetMob) {
-        if (targetMob == null || owner.isCombatInvulnerable(targetMob)) {
+        if (targetMob == null
+                || owner.isCombatInvulnerable(targetMob)
+                || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1) {
             return null;
         }
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
