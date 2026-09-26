@@ -308,6 +308,12 @@ final class CoHeroCombatController {
             return null;
         }
 
+        // Bosses keep their existing scripted combat path. This ranged preference rule is for
+        // ordinary ranged enemies whose close-vs-trade decision is otherwise generic.
+        if (targetMob.properties().contains(Char.Property.BOSS)) {
+            return null;
+        }
+
         boolean rangedPressure = owner.isCurrentRangedPressure(targetMob);
         boolean rangedAttacker = rangedPressure || owner.hasNonAdjacentAttackCapability(targetMob);
         if (rangedAttacker && shouldPreferRangedAttack(targetMob)) {
@@ -329,7 +335,7 @@ final class CoHeroCombatController {
             return null;
         }
 
-        if (owner.weapon() == null || targetMob.properties().contains(Char.Property.BOSS)) {
+        if (owner.weapon() == null) {
             return null;
         }
 
@@ -376,10 +382,13 @@ final class CoHeroCombatController {
             return false;
         }
 
-        float enemyRangedDamage = owner.averageThreatDamage(targetMob);
+        float enemyRangedDamage = owner.averageRangedThreatDamage(targetMob);
         float meleeDamage = averageMeleeDamage();
-        return rangedDamage >= enemyRangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER
-                || rangedDamage >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+        boolean outdamagesEnemy = enemyRangedDamage >= 0f
+                && rangedDamage >= enemyRangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+        boolean outdamagesMelee =
+                rangedDamage >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+        return outdamagesEnemy || outdamagesMelee;
     }
 
     private float bestRangedAverageDamage(Mob targetMob) {
