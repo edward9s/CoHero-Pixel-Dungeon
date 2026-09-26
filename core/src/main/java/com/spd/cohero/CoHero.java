@@ -46,6 +46,7 @@ public final class CoHero {
     private static boolean selectingCompanion;
     private static boolean openingCompanionSelection;
     private static boolean companionDeathEndedRun;
+    private static boolean companionDeathFailureSubmitted;
     private static boolean restoringSavedGame;
     private static int excludedDepth = -1;
     private static int excludedBranch = -1;
@@ -93,6 +94,7 @@ public final class CoHero {
         companionPreviewArmorTier = 0;
         selectingCompanion = false;
         companionDeathEndedRun = false;
+        companionDeathFailureSubmitted = false;
         restoringSavedGame = false;
         excludedDepth = -1;
         excludedBranch = -1;
@@ -108,6 +110,7 @@ public final class CoHero {
             playerSelection = selectedClass;
             companionState = null;
             companionDeathEndedRun = false;
+        companionDeathFailureSubmitted = false;
             selectingCompanion = true;
             openingCompanionSelection = true;
             GamesInProgress.selectedClass = null;
@@ -221,6 +224,7 @@ public final class CoHero {
         selectingCompanion = false;
         openingCompanionSelection = false;
         companionDeathEndedRun = false;
+        companionDeathFailureSubmitted = false;
         restoringSavedGame = true;
         timings = new CoHeroTimings();
     }
@@ -452,10 +456,22 @@ public final class CoHero {
 
     static void markCompanionDeathGameOver() {
         companionDeathEndedRun = true;
+        companionDeathFailureSubmitted = false;
     }
 
     public static boolean companionDeathEndedRun() {
         return companionDeathEndedRun;
+    }
+
+    public static synchronized boolean claimRunFailureSubmission() {
+        if (!companionDeathEndedRun) {
+            return true;
+        }
+        if (companionDeathFailureSubmitted) {
+            return false;
+        }
+        companionDeathFailureSubmitted = true;
+        return true;
     }
 
     public static void markCompanionChasmFall(boolean heroAlsoFell) {

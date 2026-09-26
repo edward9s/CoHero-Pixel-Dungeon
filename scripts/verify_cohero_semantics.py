@@ -6,6 +6,11 @@ import sys
 
 OWNER_DECLARATION = "private final CoHeroAlly owner;"
 UNLINKED_SPRITE_FACTORY = re.compile(r"\bowner\s*\.\s*sprite\s*\(")
+COMPANION_DEATH_FAILURE_FLOW = """            CoHero.markCompanionDeathGameOver();
+            Hero.reallyDie(cause);
+            Dungeon.fail(cause);
+"""
+FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
 
 
 def main() -> int:
@@ -34,6 +39,25 @@ def main() -> int:
         )
         for path, line in offenders:
             print(f"  {path}:{line}", file=sys.stderr)
+        return 1
+
+    ally_source = (package_root / "CoHeroAlly.java").read_text(encoding="utf-8")
+    if ally_source.count(COMPANION_DEATH_FAILURE_FLOW) != 1:
+        print(
+            "CoHeroAlly death must mark companion game-over, run stock Hero death cleanup, "
+            "then submit Dungeon.fail exactly once through the guarded failure path.",
+            file=sys.stderr,
+        )
+        return 1
+
+    dungeon_patch = (
+        root / "integration" / "shattered" / "patches" / "patch_dungeon_save.py"
+    ).read_text(encoding="utf-8")
+    if dungeon_patch.count(FAILURE_CLAIM_HOOK) != 1:
+        print(
+            "Dungeon.fail integration must claim CoHero run-failure submission exactly once.",
+            file=sys.stderr,
+        )
         return 1
 
     print("CoHero semantic boundaries: OK")

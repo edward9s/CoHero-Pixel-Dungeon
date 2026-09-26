@@ -16,7 +16,7 @@ The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`p
 
 | Primary | Host target | Shattered patch owner | Existing responsibility |
 | --- | --- | --- | --- |
-| A | `Dungeon.java` | `patch_dungeon_save.py` | save/load and preview hooks |
+| A | `Dungeon.java` | `patch_dungeon_save.py` | save/load, preview, and one-shot run-failure submission |
 | A | `Level.java` | `patch_level_mobs.py` | persist companion in level mob set |
 | A | `Hero.java` | `patch_hero.py` | transition gate; identification EXP is B |
 | A | `HeroSelectScene.java` | `patch_hero_select.py` | new run companion selection; scene presentation is D |
