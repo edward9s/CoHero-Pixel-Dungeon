@@ -68,6 +68,7 @@ public class CoHeroInventoryIndicator extends Tag {
                 && Dungeon.hero.ready
                 && companion != null
                 && companion.isAlive()) {
+            GameScene.centerNextWndOnInvPane();
             GameScene.show(new WndCompanionInventory(companion));
         }
     }
