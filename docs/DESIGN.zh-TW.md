@@ -297,12 +297,12 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 3. **有投擲武器時**
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
-   - 投擲武器不要求鑑定，也不限制詛咒狀態；只要屬於明確支援類型，就可以被 AI 投擲。Spirit Bow 仍只在實際未詛咒時使用。未鑑定本身不會降低使用優先級。
+   - 投擲武器與 Spirit Bow 不要求完整鑑定，但必須先確認詛咒狀態：只有 `cursedKnown == true` 且實際未詛咒時才可由 AI 使用。未鑑定本身不會降低使用優先級。
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
-   - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 也會把已知地圖上的金錢，以及背包可容納且屬於目前明確支援類型的地面投擲武器與法杖視為高優先 loot，在一般探索前主動前往拾取。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般投擲武器／法杖。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。目前未支援使用的特殊投擲武器或法杖不主動撿拾。
+   - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 會在一般探索前主動前往已知地圖上的金錢，以及背包可容納且「目前真的可由 CoHero 使用」的物品：已確認未詛咒的近戰／投擲武器、護甲、戒指與支援法杖，已知種類且有 AI 語意的藥水／卷軸，支援符石、Spirit Bow、火把與 Ankh。未知藥水／卷軸、詛咒狀態未知或已知詛咒的裝備、未支援物品都不主動撿。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般可用物品。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。撿起近戰武器或護甲後，若該物品可裝備且主要戰鬥能力明確高於目前裝備，CoHero 會立即自動換裝；近戰武器以平均傷害／攻擊延遲比較，護甲以平均有效 DR 比較。
    - 一般探索每完成一步後，CoHero 會從自己的位置做一次原版式被動搜尋：普通職業掃描周圍 3×3、Rogue 掃描 5×5，且只檢查自身 FOV 內的格子。隱藏陷阱與隱藏門分別沿用原版 `search(false)` 的深度機率，因此不是必定發現；在真正發現前，導航不會利用 `secret` 資訊選路或刻意靠近秘密位置。
-   - 已顯示且仍為 active 的陷阱視為 CoHero movement hazard：探索、撤退、戰術走位與前往拾取金錢／投擲武器／法杖時都不會主動踩入。未被發現的 `SECRET_TRAP` 不納入 AI 判斷，避免藉由 trap map 偷看隱藏資訊；若意外踩到，仍沿用 SPD 對非 Hero 角色的 soft-press 規則。
+   - 已顯示且仍為 active 的陷阱視為 CoHero movement hazard：探索、撤退、戰術走位與前往拾取金錢／可用物品時都不會主動踩入。未被發現的 `SECRET_TRAP` 不納入 AI 判斷，避免藉由 trap map 偷看隱藏資訊；若意外踩到，仍沿用 SPD 對非 Hero 角色的 soft-press 規則。
    - 換樓層時清除尚未回收的投擲物追蹤，不跨樓層追索。
 
 4. **有法杖時**
@@ -468,7 +468,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 已確定：
 
 - 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。`RingOfTenacity` 另在 CoHero 的 `damage()` 補上與 Hero 相同的 `RingOfTenacity.damageMultiplier()`；Warrior / Duelist 固有的 +0 Tenacity 在同一處以相同 `0.85^missingHP%` 公式相乘，因此與真正裝備的 Tenacity 戒指保持原版等價疊加。`RingOfElements` 的真戒效果先沿用原版 `Char.resist()`；Mage 固有的 +0 Elements 再對同一組 `RingOfElements.RESISTS` 來源乘上 `0.825`，因此與真正裝備的 Elements 戒指同樣保持原版等價疊加。Rogue 與 Duelist 的固有 Furor 都走同一個 `meleeAttackSpeedMultiplier()`；Rogue 只在 Hero 已轉職後啟用，Duelist 則是基礎被動。真正裝備的 Ring of Furor 已由原版 `Weapon.delayFactor()` → `RingOfFuror.attackSpeedMultiplier(owner)` 生效，因此會與固有 +0 Furor 自然相乘。Huntress 固有的 +0 Arcana 則直接加入原版 `RingOfArcana.enchantPowerMultiplier(Char)` 的 bonus，因此 Weapon enchant 與 Armor glyph 共用同一條原版倍率路徑，且與真正裝備的 Arcana 戒指按原版 exponent 疊加。
-- CoHero 的武器規則與防具／戒指分開：近戰武器只要求實際未詛咒，不要求已知詛咒狀態；防具與戒指仍維持 GhostHero 式的「已確認未詛咒」才能裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
+- CoHero 的近戰武器、防具與戒指都採同一條安全規則：不要求完整鑑定，但必須先確認詛咒狀態，只有 `cursedKnown == true` 且實際未詛咒時才可裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - CoHero 已裝備但尚未完全鑑定的近戰武器、護甲與戒指，沿用 SPD 原版被動鑑定進度：武器／護甲需要實際使用並搭配正常戰鬥 EXP 解鎖後續鑑定次數，戒指則依裝備期間取得的正常 EXP 推進。CoHero 不套用 Hero 的 item-ID Talent 加速，倍率固定 1.0；進度仍保存於物品本身，因此 Hero 與 CoHero 之間轉交同一件物品不會重置。Potion of Experience 不推進此被動鑑定。
 - CoHero 背包的「可存放」與「可由 CoHero 使用」是兩個獨立概念：任何正常 `Item` 都可交給 CoHero 保存，包括目前沒有 AI 語意的 Artifact、Trinket、食物、種子、未支援符石與第三方物品；storage-only 物品不會被 CoHero 主動使用，但可隨時交還 Hero。Wand 也遵守同一條規則：只有 `CoHeroWandAdapter.supported()` 的法杖在放入 CoHero 背包後會接上 CoHero 的 wand charge 流程；純 storage-only 的未知／未支援法杖不會因為只是存放在 CoHero 背包裡就被動充能。
