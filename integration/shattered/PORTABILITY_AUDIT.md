@@ -12,7 +12,7 @@ Each row has one **primary** label, for triage only. A file can contain several 
 - **D — presentation or branding:** preview, visual FOV, display and labels.
 - **E — encounter or hazard rule:** particular enemy, boss, terrain or delayed effect.
 
-The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
+The 52 Java targets are classified A 7, B 11, C 14, D 6, E 14. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
 
 | Primary | Host target | Shattered patch owner | Existing responsibility |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`p
 | A | `Hero.java` | `patch_hero.py` | transition gate; identification EXP is B |
 | A | `HeroSelectScene.java` | `patch_hero_select.py` | new run companion selection; scene presentation is D |
 | A | `GameScene.java` | `patch_gamescene.py` | scene-ready restore; UI is D and hazard display is E |
-| A | `Mob.java` | `patch_mob_cohero.py` | combat target semantics; remote attack display is D |
+| A | `Mob.java` | `patch_mob_cohero.py` | combat target and ranged-damage base semantics; remote attack display is D |
 | A | `WndGame.java` | `patch_wndgame.py` | restart availability after companion run end |
 | B | `Char.java` | `patch_cohero_class_traits.py` | cleric Bless accuracy and evasion |
 | B | `RingOfArcana.java` | `patch_cohero_ring_traits.py` | huntress ring effect |
@@ -55,6 +55,12 @@ The 46 Java targets are classified A 7, B 11, C 14, D 6, E 8. `build.gradle` (`p
 | D | `MenuPane.java` | `patch_menu_pane.py` | version branding |
 | D | `WndSettings.java` | `patch_wndsettings.py` | CoHero settings-tab hook |
 | E | `GreatCrab.java` | `patch_great_crab_cohero.py` | special surprise defense |
+| E | `Shaman.java` | `patch_shaman_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `DM100.java` | `patch_dm100_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `Warlock.java` | `patch_warlock_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `Eye.java` | `patch_eye_ranged_damage.py` | exact ranged damage probe for close-vs-trade AI |
+| E | `GnollGuard.java` | `patch_gnoll_guard_ranged_damage.py` | exact ranged spear damage probe for close-vs-trade AI |
+| E | `Elemental.java` | `patch_elemental_ranged_damage.py` | marks subtype-specific effect attacks as non-comparable direct damage |
 | E | `PrisonBossLevel.java` | `patch_prison_boss_cohero.py` | arena rewrite relocation |
 | E | `LockedFloor.java` | `patch_locked_floor_cohero.py` | boss-floor relocation and persisted relocation flag |
 | E | `Chasm.java` | `patch_chasm_cohero.py` | shared fall transition with actor-owned landing penalties |
@@ -73,7 +79,7 @@ The restore hook must remain after terrain/fog/UI construction and before Hero s
 
 ### Mob.java: semantics, not just a call site
 
-`patch_mob_cohero.py` implements `coHeroCanAttackFrom()` by temporarily changing `pos` in a `try/finally`, thereby invoking the actual overridden `canAttack()`. A fork's override may depend on more mutable state or produce side effects, so copying this probe without inspecting the host's attack implementations is unsafe. The same script also adds CoHero surprise defense, a sleeping hostile FOV gate, remote attack presentation, and an exclusion from stock held-ally transport.
+`patch_mob_cohero.py` implements `coHeroCanAttackFrom()` by temporarily changing `pos` in a `try/finally`, thereby invoking the actual overridden `canAttack()`. A fork's override may depend on more mutable state or produce side effects, so copying this probe without inspecting the host's attack implementations is unsafe. It also adds `coHeroRangedDamageRoll()`: standard ranged attacks default to `damageRoll()`, while enemy classes whose real ranged attack uses a different formula override that seam in their own one-target patch. A negative result marks effect-driven ranged behavior whose direct damage is not comparable, so the enemy-damage 1.5× preference rule is skipped for that target. The same Mob script also adds CoHero surprise defense, a sleeping hostile FOV gate, remote attack presentation, and an exclusion from stock held-ally transport.
 
 The sleeping patch replaces stock hostile selection (`highestChance = Float.POSITIVE_INFINITY` and smallest `detectionChance`) with the largest `detectionChance` candidate. That is an existing gameplay change in this profile, not a mechanical portability seam. Preserve it intentionally when porting, or explicitly review gameplay behavior before changing it. The remote attack callback is presentation; sleeping/attack/surprise are actor semantics; held-ally transport is lifecycle. Keep all of them visible under the single `Mob.java` owner.
 
@@ -85,14 +91,15 @@ The sleeping patch replaces stock hostile selection (`highestChance = Float.POSI
 
 ## Exactness and persistence
 
-The one-owner-per-target invariant was checked against the 46 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
+The one-owner-per-target invariant was checked against the 52 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
 
 - `patch_wand_lightning.py`, `patch_wand_regrowth.py`, `patch_wand_fireblast.py` and `patch_wand_prismatic_light.py` now check the complete set of source lines containing `curUser` before the existing replacement. The expected lines were taken from the Shattered v4.0.0 release. Extra, missing or changed source lines cause an explicit failure before writing the file.
 - `patch_living_earth.py` now verifies the exact cardinality of each former unchecked replacement, including the two occurrences of guardian armor assignment and the two caster particle calls. All replacements still produce the same Java source when their known anchors match.
+- The six ranged-enemy damage patches each own one stock mob class and require exactly one known `damageRoll()` anchor. Shaman, DM100, Warlock, Eye and GnollGuard expose their actual ranged damage formulas; Elemental explicitly reports its subtype-specific ranged effects as non-comparable direct damage.
 - `CoHeroAlly.storeInBundle()` and `restoreFromBundle()` staying unchanged establishes only the actor's schema. This existing integration profile also persists data in `LockedFloor` (`cohero_start_relocated`), `WandOfLivingEarth.EarthGuardian` (`owner_id`) and `WandOfWarding.Ward` (`cohero_owned`), in addition to CoHero game state. Review these before claiming whole-save compatibility. The anchor checks do not change those persisted fields.
 
 ## Next port and validation
 
 Choose a concrete SPD fork. Implement its `integration/<fork>/apply.sh` and one-target patch owners in the existing port order: lifecycle and persistence, actor semantics, equipment and combat, encounter safety, then presentation. Begin with a **defined minimal feature set**, since C and D are classifications and the existing common Java may still call methods introduced by their patches. Avoid fork conditionals in common Java and avoid silently skipping an anchor.
 
-When adapting these patches for another fork, establish its upstream release and exact anchor counts. Validate the host profile with the complete Android/Desktop overlay and SMM overlay where supported, then load an older CoHero save at runtime when touching lifecycle or persisted host actors. Build success alone does not establish runtime save compatibility. This branch changes the audit document and five patch scripts. It does not change the generated Java for Shattered v4.0.0 when the known anchors match. Build, patch execution and old-save loading are left for the user to run.
+When adapting these patches for another fork, establish its upstream release and exact anchor counts. Validate the host profile with the complete Android/Desktop overlay and SMM overlay where supported, then load an older CoHero save at runtime when touching lifecycle or persisted host actors. Build success alone does not establish runtime save compatibility. Changes that add or alter generated Java, including the ranged-damage probes, require full patch execution and build validation for the target host.

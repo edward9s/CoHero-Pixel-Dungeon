@@ -40,6 +40,15 @@ patch = anchor + """	/**
 	}
 
 	/**
+	 * CoHero ranged-damage probe. Standard non-adjacent attacks use damageRoll(), so that is the
+	 * default. Mobs with a distinct ranged attack override this method. A negative value means the
+	 * ranged effect has no directly comparable damage estimate.
+	 */
+	public int coHeroRangedDamageRoll(Char enemy) {
+		return damageRoll();
+	}
+
+	/**
 	 * CoHero-only surprise semantics. This deliberately does not feed Mob.surprisedBy(), because
 	 * the stock path also records Hero sneak-attack statistics and Hero-specific surprise effects.
 	 */
