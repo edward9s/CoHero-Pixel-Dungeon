@@ -9,10 +9,7 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
-import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
-import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Light;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -155,31 +152,11 @@ final class CoHeroLoot {
             }
         }
 
-        if (selected == null && Dungeon.level.viewDistance < Light.DISTANCE) {
-            for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof Torch && owner.inventory().canAddToBackpack(item)) {
-                    selected = item;
-                    break;
-                }
-            }
-        }
-
         if (selected == null) {
             for (Item item : new ArrayList<>(heap.items)) {
-                if (item instanceof MissileWeapon) {
-                    MissileWeapon missile = (MissileWeapon) item;
-                    if (CoHeroMissileAdapter.supported(missile)
-                            && owner.inventory().canAddToBackpack(missile)) {
-                        selected = missile;
-                        break;
-                    }
-                } else if (item instanceof Wand) {
-                    Wand wand = (Wand) item;
-                    if (CoHeroWandAdapter.supported(wand)
-                            && owner.inventory().canAddToBackpack(wand)) {
-                        selected = wand;
-                        break;
-                    }
+                if (canAutoPickup(item)) {
+                    selected = item;
+                    break;
                 }
             }
         }
@@ -206,7 +183,10 @@ final class CoHeroLoot {
         if (selectedOwnedMissile) {
             MissileWeapon missile = (MissileWeapon) selected;
             markRecovered(missile.setID, missile.quantity());
+        } else {
+            owner.inventory().autoEquipUpgrade(selected);
         }
+
         owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
         return true;
     }
@@ -272,26 +252,10 @@ final class CoHeroLoot {
                         ownedCandidate = true;
                         break;
                     }
+                }
 
-                    if (owner.isKnown(cell)
-                            && CoHeroMissileAdapter.supported(missile)
-                            && owner.inventory().canAddToBackpack(missile)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Wand) {
-                    Wand wand = (Wand) item;
-                    if (owner.isKnown(cell)
-                            && CoHeroWandAdapter.supported(wand)
-                            && owner.inventory().canAddToBackpack(wand)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Torch) {
-                    if (Dungeon.level.viewDistance < Light.DISTANCE
-                            && owner.isKnown(cell)
-                            && owner.inventory().canAddToBackpack(item)) {
-                        lootCandidate = true;
-                    }
-                } else if (item instanceof Gold && owner.isKnown(cell)) {
+                if (owner.isKnown(cell)
+                        && (item instanceof Gold || canAutoPickup(item))) {
                     lootCandidate = true;
                 }
             }
@@ -334,6 +298,11 @@ final class CoHeroLoot {
         }
 
         return bestOwnedCell != -1 ? bestOwnedCell : bestLootCell;
+    }
+
+    private boolean canAutoPickup(Item item) {
+        return CompanionInventory.usableByCoHero(item)
+                && owner.inventory().canAddToBackpack(item);
     }
 
     private int lootRecoveryStep(int cell) {
