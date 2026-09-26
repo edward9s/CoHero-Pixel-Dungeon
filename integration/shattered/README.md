@@ -37,7 +37,7 @@ These make stock SPD rules treat CoHero as a real second combatant instead of as
 
 Port these after basic melee movement/combat works.
 
-- `Weapon.java`, `Armor.java`, `Ring.java` — identification progress.
+- `Weapon.java`, `Armor.java`, `Ring.java` — identification progress; the Ring patch also prevents Hero-only `EnhancedRings` from increasing ring buffs attached to CoHero or other actors.
 - `RingOfArcana.java` — CoHero ring-trait behavior.
 - `RingOfForce.java` — exposes the stock force-ring unarmed min/max calculation to CoHero without duplicating the formula.
 - `MissileWeapon.java` — CoHero projectile resolution.
