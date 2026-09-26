@@ -52,7 +52,7 @@ CoHero 自己的版本與宿主 SPD / SMM 版本分開管理。
 
 ## 3. 同伴探索與路徑
 
-CoHero 的保存狀態另外記錄該 state 所屬的 depth / branch。存檔重新載入同一樓層時，只有 state 明確屬於目前樓層才恢復原始格子；若 state 來自上一層（例如跨樓層 transition 已切到目的樓層、但 GameScene 尚未重建 CoHero 時先觸發 `saveAll()`），則在 Hero 鄰近可用格重新生成，不能把上一層座標當成目前樓層座標。這是狀態恢復，不視為重新踏入原格，因此同樓層原位恢復不重播 `Level.occupyCell()`，避免讀檔時再次觸發高草、陷阱、植物等 entry effect；真正進入新樓層或從被排除樓層重新會合時則執行正常 occupancy。舊格式存檔沒有 state 樓層 metadata 時仍採嚴格原位恢復；唯一例外是存在 `CompanionChasmFallTracker` 的舊 chasm transition 存檔，該 tracker 可精確證明保存座標屬於來源樓層，因此允許在目的樓層鄰近 Hero 重建。GameScene 的 CoHero restore hook 必須位於 terrain / fog tilemap 建立完成之後、Hero 開始 actor scheduling 之前。
+CoHero 的保存狀態另外記錄該 state 所屬的 depth / branch。存檔重新載入同一樓層時，只有 state 明確屬於目前樓層才恢復原始格子；若 state 來自上一層（例如跨樓層 transition 已切到目的樓層、但 GameScene 尚未重建 CoHero 時先觸發 `saveAll()`），則在 Hero 鄰近可用格重新生成，不能把上一層座標當成目前樓層座標。這是狀態恢復，不視為重新踏入原格，因此同樓層原位恢復不重播 `Level.occupyCell()`，避免讀檔時再次觸發高草、陷阱、植物等 entry effect；真正進入新樓層或從被排除樓層重新會合時則執行正常 occupancy。舊格式存檔沒有 state 樓層 metadata，因此其位置一律視為不可驗證：第一次載入時保留 HP、裝備、背包、buff 與 AI state，但不採用舊 position，而是在 Hero 鄰近可用格重建 CoHero；下一次正常存檔即寫入新格式 metadata。這同時避免舊的跨樓層座標造成閃退，也避免舊座標剛好落在新樓層可通行格時被錯誤接受。GameScene 的 CoHero restore hook 必須位於 terrain / fog tilemap 建立完成之後、Hero 開始 actor scheduling 之前。
 
 同伴不應從樓層開始就知道出口位置，否則它會變成出口指南針。
 
