@@ -458,7 +458,9 @@ final class CoHeroCombatController {
         }
 
         float accuracyMultiplier = owner.blessRollMultiplier(owner);
-        float bestPhysicalAccuracy = owner.attackSkill(targetMob) * accuracyMultiplier;
+        float bestPhysicalAccuracy = owner.hasMeleeCombatCapability()
+                ? owner.attackSkill(targetMob) * accuracyMultiplier
+                : 0f;
 
         Ballistica shot = new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE);
         if (shot.collisionPos == targetMob.pos) {
