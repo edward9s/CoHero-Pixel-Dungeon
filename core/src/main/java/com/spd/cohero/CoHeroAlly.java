@@ -1000,6 +1000,7 @@ public class CoHeroAlly extends DirectableAlly {
             GLog.n(revival.deathMessage(cause));
             CoHero.markCompanionDeathGameOver();
             Hero.reallyDie(cause);
+            Dungeon.fail(cause);
         }
     }
 
