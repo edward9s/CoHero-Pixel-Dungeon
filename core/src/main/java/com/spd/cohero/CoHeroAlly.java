@@ -4,7 +4,6 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
@@ -1026,7 +1025,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
             GLog.n(revival.deathMessage(cause));
             CoHero.markCompanionDeathGameOver();
-            Hero.reallyDie(cause);
+            Dungeon.hero.die(cause);
             Dungeon.fail(cause);
         }
     }

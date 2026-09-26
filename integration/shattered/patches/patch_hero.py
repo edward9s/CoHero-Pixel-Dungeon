@@ -38,6 +38,18 @@ exp_old = """		if (source != PotionOfExperience.class) {
 				i.onHeroGainExp(percent, this);
 			}
 """
+
+death_ankh_old = "\t\tAnkh ankh = null;\n\n\t\t//look for ankhs in player inventory, prioritize ones which are blessed.\n\t\tfor (Ankh i : belongings.getAllItems(Ankh.class)){\n\t\t\tif (ankh == null || i.isBlessed()) {\n\t\t\t\tankh = i;\n\t\t\t}\n\t\t}\n"
+death_ankh_new = "\t\tAnkh ankh = null;\n\n\t\t// A final CoHero death ends the shared run. The Hero must follow the stock final-death\n\t\t// path without consuming or offering an Ankh from the Hero's own inventory.\n\t\tif (!com.spd.cohero.CoHero.companionDeathEndedRun()) {\n\t\t\t//look for ankhs in player inventory, prioritize ones which are blessed.\n\t\t\tfor (Ankh i : belongings.getAllItems(Ankh.class)){\n\t\t\t\tif (ankh == null || i.isBlessed()) {\n\t\t\t\t\tankh = i;\n\t\t\t\t}\n\t\t\t}\n\t\t}\n"
+
+if "CoHero.companionDeathEndedRun()" in text:
+    raise SystemExit("CoHero final-death Ankh gate is already present")
+if text.count(death_ankh_old) != 1:
+    raise SystemExit(
+        f"expected exactly one Hero Ankh search anchor, found {text.count(death_ankh_old)}"
+    )
+text = text.replace(death_ankh_old, death_ankh_new, 1)
+
 exp_new = """		if (source != PotionOfExperience.class) {
 			for (Item i : belongings) {
 				i.onHeroGainExp(percent, this);
