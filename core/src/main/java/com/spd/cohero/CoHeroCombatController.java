@@ -868,7 +868,7 @@ final class CoHeroCombatController {
         }
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (CompanionInventory.usableByCoHero(missile)
+            if (owner.inventory().canUse(missile)
                     && new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
                 missiles.add(missile);
             }
@@ -876,7 +876,7 @@ final class CoHeroCombatController {
 
         SpiritBow spiritBow = owner.inventory().spiritBow();
         MissileWeapon spiritArrow = null;
-        if (CompanionInventory.usableByCoHero(spiritBow)
+        if (owner.inventory().canUse(spiritBow)
                 && new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
             spiritArrow = spiritBow.knockArrow();
         }
@@ -1095,12 +1095,12 @@ final class CoHeroCombatController {
             return true;
         }
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (CompanionInventory.usableByCoHero(missile)) {
+            if (owner.inventory().canUse(missile)) {
                 return true;
             }
         }
         SpiritBow spiritBow = owner.inventory().spiritBow();
-        if (CompanionInventory.usableByCoHero(spiritBow)) {
+        if (owner.inventory().canUse(spiritBow)) {
             return true;
         }
         for (Wand wand : owner.inventory().wands()) {
