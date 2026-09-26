@@ -377,16 +377,16 @@ public final class CoHero {
     }
 
     private static boolean shouldRestoreCompanionInPlace() {
-        if (companionStateDepth >= 0 && companionStateBranch >= 0) {
-            return companionStateDepth == Dungeon.depth
-                    && companionStateBranch == Dungeon.branch;
+        // A saved position is trustworthy only when the save explicitly records which level
+        // owns it. Legacy saves predate that metadata, so their position is intentionally treated
+        // as unknown and CoHero is rebuilt next to the Hero once. This avoids both crashing on a
+        // stale source-floor cell and silently accepting a coincidentally-valid cell on another
+        // floor. New-format same-floor saves remain strict and fail if their recorded cell is bad.
+        if (companionStateDepth < 0 || companionStateBranch < 0) {
+            return false;
         }
-
-        // Saves written before level ownership metadata existed normally refer to the current
-        // floor. The one known exception is a save written during a CoHero chasm transition:
-        // its state still carries the source-floor pit cell while the game save already points
-        // at the destination floor. The persisted landing tracker identifies that case exactly.
-        return !hasPendingCompanionChasmLanding();
+        return companionStateDepth == Dungeon.depth
+                && companionStateBranch == Dungeon.branch;
     }
 
     private static void refreshCompanionVision(CoHeroAlly companion) {
