@@ -18,6 +18,9 @@ def replace_once(text, old, new, label):
 if "coHeroGainIdentificationExp" in ring:
     raise SystemExit("CoHero Ring identification seam is already present")
 
+if "soloBuffedBonus(Char target)" in ring:
+    raise SystemExit("CoHero Ring owner-aware buff seam is already present")
+
 ring_exp_old = """	public void onHeroGainExp( float levelPercent, Hero hero ){
 		if (isIdentified() || !isEquipped(hero)) return;
 		levelPercent *= Talent.itemIDSpeedFactor(hero, this);
@@ -65,6 +68,64 @@ ring_exp_new = """	private void gainIdentificationExp(float levelPercent) {
 	}
 """
 ring = replace_once(ring, ring_exp_old, ring_exp_new, "Ring EXP identification")
+
+ring_buffed_old = """	@Override
+	public int buffedLvl() {
+		int lvl = super.buffedLvl();
+		if (Dungeon.hero.buff(EnhancedRings.class) != null){
+			lvl++;
+		}
+		return lvl;
+	}
+"""
+ring_buffed_new = """	private int buffedLvl(Char target) {
+		int lvl = super.buffedLvl();
+		if (target == Dungeon.hero && target != null && target.buff(EnhancedRings.class) != null){
+			lvl++;
+		}
+		return lvl;
+	}
+
+	@Override
+	public int buffedLvl() {
+		return buffedLvl(Dungeon.hero);
+	}
+"""
+ring = replace_once(ring, ring_buffed_old, ring_buffed_new, "Ring owner-aware buffed level")
+
+solo_buffed_old = """	//just used for ring descriptions
+	public int soloBuffedBonus(){
+		if (cursed){
+			return Math.min( 0, Ring.this.buffedLvl()-2 );
+		} else {
+			return Ring.this.buffedLvl()+1;
+		}
+	}
+"""
+solo_buffed_new = """	private int soloBuffedBonus(Char target){
+		if (cursed){
+			return Math.min( 0, Ring.this.buffedLvl(target)-2 );
+		} else {
+			return Ring.this.buffedLvl(target)+1;
+		}
+	}
+
+	//just used for ring descriptions
+	public int soloBuffedBonus(){
+		return soloBuffedBonus(Dungeon.hero);
+	}
+"""
+ring = replace_once(ring, solo_buffed_old, solo_buffed_new, "Ring owner-aware solo buffed bonus")
+
+ring_buff_old = """		public int buffedLvl(){
+			return Ring.this.soloBuffedBonus();
+		}
+"""
+ring_buff_new = """		public int buffedLvl(){
+			return Ring.this.soloBuffedBonus(target);
+		}
+"""
+ring = replace_once(ring, ring_buff_old, ring_buff_new, "RingBuff owner-aware buffed level")
 
 
 path.write_text(ring, encoding="utf-8")

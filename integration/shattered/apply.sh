@@ -34,6 +34,8 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/armor/Armor.java"
     python "$patches/patch_ring_identification.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/Ring.java"
+    python "$patches/patch_ring_force.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfForce.java"
     python "$patches/patch_hero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/hero/Hero.java"
     python "$patches/patch_hero_select.py" \

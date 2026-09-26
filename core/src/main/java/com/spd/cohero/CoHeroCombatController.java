@@ -4,10 +4,12 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
@@ -308,17 +310,20 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // Bosses keep their existing scripted combat path. This ranged preference rule is for
-        // ordinary ranged enemies whose close-vs-trade decision is otherwise generic.
+        // Bosses keep their existing scripted combat path. Generic ranged preference and kiting
+        // must not override encounter-specific movement.
         if (targetMob.properties().contains(Char.Property.BOSS)) {
             return null;
         }
 
         boolean rangedPressure = owner.isCurrentRangedPressure(targetMob);
         boolean rangedAttacker = rangedPressure || owner.hasNonAdjacentAttackCapability(targetMob);
-        if (rangedAttacker && shouldPreferRangedAttack(targetMob)) {
+        boolean preferRanged = shouldPreferRangedAttack(targetMob);
+
+        if (preferRanged) {
             int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
             if (distance > 1) {
+                // Keep the existing gap. The direct ranged-attack phase will choose the weapon.
                 return null;
             }
 
@@ -330,12 +335,24 @@ final class CoHeroCombatController {
                 }
             }
 
-            // Ranged damage is preferable, but firing while adjacent is intentionally forbidden.
-            // If CoHero cannot safely create a gap, ordinary melee remains the legal fallback.
+            // Ordinary ranged attacks are forbidden while adjacent. If no legal safe spacing
+            // step exists, stop trying to reposition and engage immediately instead of letting
+            // later melee-positioning logic spend another movement turn.
+            if (owner.canAttack(targetMob)) {
+                owner.logBossDecision("melee_fallback:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> no safe ranged spacing, melee");
+                return performMeleeAttack(targetMob);
+            }
             return null;
         }
 
-        if (owner.weapon() == null) {
+        // Never spend turns closing on a pure melee target merely because melee damage is higher.
+        // Any current gap is free damage: keep it and let the direct ranged phase fire first.
+        if (!rangedAttacker && Dungeon.level.distance(owner.pos, targetMob.pos) > 1) {
+            return null;
+        }
+
+        if (!owner.hasMeleeCombatCapability()) {
             return null;
         }
 
@@ -381,18 +398,86 @@ final class CoHeroCombatController {
             return false;
         }
 
+        if (preferredDamageWandForHighEvasion(targetMob) != null) {
+            return true;
+        }
+
         float rangedDamage = bestRangedAverageDamage(targetMob);
         if (rangedDamage <= 0f) {
             return false;
         }
 
-        float enemyRangedDamage = owner.averageRangedThreatDamage(targetMob);
         float meleeDamage = averageMeleeDamage();
+        if (!owner.hasNonAdjacentAttackCapability(targetMob)) {
+            int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
+            if (distance > 1) {
+                // With an existing gap, take the free ranged turn unless extended melee already
+                // reaches the target. In that special case neither option costs movement, so use
+                // whichever has the higher average damage.
+                return !owner.canAttack(targetMob) || rangedDamage > meleeDamage;
+            }
+
+            // Once a pure-melee target has reached adjacency, reopening distance costs a turn.
+            // Only kite again unless the melee build is clearly stronger.
+            return meleeDamage < rangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+        }
+
+        float enemyRangedDamage = owner.averageRangedThreatDamage(targetMob);
         boolean outdamagesEnemy = enemyRangedDamage >= 0f
                 && rangedDamage >= enemyRangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
         boolean outdamagesMelee =
                 rangedDamage >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
         return outdamagesEnemy || outdamagesMelee;
+    }
+
+    private Wand preferredDamageWandForHighEvasion(Mob targetMob) {
+        if (targetMob == null
+                || targetMob.buff(MagicImmune.class) != null
+                || targetMob.coHeroSurprisedBy(owner)) {
+            return null;
+        }
+
+        ArrayList<Wand> damageWands = new ArrayList<>();
+        for (Wand wand : owner.inventory().wands()) {
+            if (CoHeroWandAdapter.supported(wand)
+                    && CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
+                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
+                damageWands.add(wand);
+            }
+        }
+        if (damageWands.isEmpty()) {
+            return null;
+        }
+
+        float accuracyMultiplier = owner.blessRollMultiplier(owner);
+        float bestPhysicalAccuracy = owner.hasMeleeCombatCapability()
+                ? owner.attackSkill(targetMob) * accuracyMultiplier
+                : 0f;
+
+        Ballistica shot = new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE);
+        if (shot.collisionPos == targetMob.pos) {
+            for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                if (owner.inventory().canUse(missile)) {
+                    bestPhysicalAccuracy = Math.max(
+                            bestPhysicalAccuracy,
+                            owner.attackSkillWith(missile, targetMob) * accuracyMultiplier);
+                }
+            }
+
+            SpiritBow spiritBow = owner.inventory().spiritBow();
+            if (owner.inventory().canUse(spiritBow)) {
+                MissileWeapon arrow = spiritBow.knockArrow();
+                bestPhysicalAccuracy = Math.max(
+                        bestPhysicalAccuracy,
+                        owner.attackSkillWith(arrow, targetMob) * accuracyMultiplier);
+            }
+        }
+
+        float targetEvasion =
+                targetMob.defenseSkill(owner) * owner.blessRollMultiplier(targetMob);
+        return targetEvasion > bestPhysicalAccuracy
+                ? bestDamageWand(damageWands, targetMob)
+                : null;
     }
 
     private float bestRangedAverageDamage(Mob targetMob) {
@@ -429,12 +514,17 @@ final class CoHeroCombatController {
     private float averageMeleeDamage() {
         MeleeWeapon weapon = owner.weapon();
         if (weapon == null) {
-            return 0f;
+            if (!owner.hasMeleeCombatCapability()) {
+                return 0f;
+            }
+            return (RingOfForce.coHeroUnarmedMinDamage(owner, owner.STR())
+                    + RingOfForce.coHeroUnarmedMaxDamage(owner, owner.STR())) / 2f;
         }
 
         int level = weapon.buffedLvl();
         float average = (weapon.min(level) + weapon.max(level)) / 2f;
         average = weapon.augment.damageFactor(average);
+        average += RingOfForce.armedDamageBonus(owner);
         int excessStrength = owner.STR() - weapon.STRReq();
         if (excessStrength > 0) {
             average += excessStrength / 2f;
@@ -923,10 +1013,9 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // Ordinary melee reach still wins when already established, except for the explicit
-        // high-damage ranged preference against enemies with non-adjacent attack capability.
-        boolean preferredRanged = owner.hasNonAdjacentAttackCapability(preferredTarget)
-                && shouldPreferRangedAttack(preferredTarget);
+        // Pure-melee targets with a gap normally get a free ranged opening, but if an extended
+        // melee weapon already reaches them, shouldPreferRangedAttack compares the two averages.
+        boolean preferredRanged = shouldPreferRangedAttack(preferredTarget);
         boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
                 && !preferredRanged
                 && (!owner.isCurrentRangedPressure(preferredTarget)
@@ -952,8 +1041,8 @@ final class CoHeroCombatController {
                 continue;
             }
 
-            boolean alternateRanged = owner.hasNonAdjacentAttackCapability(threat)
-                    && shouldPreferRangedAttack(threat);
+            int distance = Dungeon.level.distance(owner.pos, threat.pos);
+            boolean alternateRanged = shouldPreferRangedAttack(threat);
             boolean meleeEstablished = owner.canAttack(threat)
                     && !alternateRanged
                     && (!owner.isCurrentRangedPressure(threat)
@@ -967,7 +1056,6 @@ final class CoHeroCombatController {
                 continue;
             }
 
-            int distance = Dungeon.level.distance(owner.pos, threat.pos);
             if (distance <= 1) {
                 continue;
             }
@@ -1021,7 +1109,10 @@ final class CoHeroCombatController {
         // Melee is preferred once the intended engagement distance is actually established.
         // Against a ranged enemy, extended weapon reach is not enough: adjacency is required.
         boolean rangedPressure = owner.isCurrentRangedPressure(targetMob);
+        boolean rangedPreferred = Dungeon.level.distance(owner.pos, targetMob.pos) > 1
+                && shouldPreferRangedAttack(targetMob);
         if (owner.canAttack(targetMob)
+                && !rangedPreferred
                 && (!rangedPressure || Dungeon.level.adjacent(owner.pos, targetMob.pos))) {
             owner.logBossDecision("melee_attack:" + targetMob.id(),
                     owner.targetDebug(targetMob) + " -> melee attack");
@@ -1098,25 +1189,11 @@ final class CoHeroCombatController {
             return RangedChoice.wand(guaranteedControl, targetMob.pos);
         }
 
-        if ((!missiles.isEmpty() || spiritArrow != null) && !damageWands.isEmpty()) {
-            float bestPhysicalAccuracy = 0f;
-            float clericAccuracyMultiplier = owner.blessRollMultiplier(owner);
-            for (MissileWeapon missile : missiles) {
-                bestPhysicalAccuracy = Math.max(
-                        bestPhysicalAccuracy,
-                        owner.attackSkillWith(missile, targetMob) * clericAccuracyMultiplier);
-            }
-            if (spiritArrow != null) {
-                bestPhysicalAccuracy = Math.max(
-                        bestPhysicalAccuracy,
-                        owner.attackSkillWith(spiritArrow, targetMob) * clericAccuracyMultiplier);
-            }
-            float targetEvasion = targetMob.defenseSkill(owner) * owner.blessRollMultiplier(targetMob);
-            if (targetEvasion > bestPhysicalAccuracy) {
-                Wand best = bestDamageWand(damageWands, targetMob);
-                return RangedChoice.wand(
-                        best, CoHeroWandAdapter.aimCell(best, owner, targetMob));
-            }
+        Wand highEvasionWand = preferredDamageWandForHighEvasion(targetMob);
+        if (highEvasionWand != null) {
+            return RangedChoice.wand(
+                    highEvasionWand,
+                    CoHeroWandAdapter.aimCell(highEvasionWand, owner, targetMob));
         }
 
         MissileWeapon bestMissile = null;
@@ -1287,7 +1364,7 @@ final class CoHeroCombatController {
     }
 
     private boolean hasUsableCombatCapability(Mob targetMob) {
-        if (owner.weapon() != null) {
+        if (owner.hasMeleeCombatCapability()) {
             return true;
         }
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {

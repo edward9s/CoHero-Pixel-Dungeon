@@ -17,6 +17,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEar
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
@@ -645,7 +646,9 @@ public final class CompanionInventory {
         if (!backpack.contains(candidate) || equipFailure(candidate) != EquipFailure.NONE) {
             return false;
         }
-        if (weapon != null && meleePower(candidate) <= meleePower(weapon)) {
+
+        float currentPower = weapon == null ? forceUnarmedPower() : meleePower(weapon);
+        if (currentPower > 0f && meleePower(candidate) <= currentPower) {
             return false;
         }
         return equipWeapon(candidate);
@@ -666,9 +669,20 @@ public final class CompanionInventory {
         int max = value.levelKnown ? value.max() : value.max(0);
         int strengthRequirement = value.levelKnown ? value.STRReq() : value.STRReq(0);
         float averageDamage = value.augment.damageFactor((min + max) / 2f);
+        averageDamage += RingOfForce.armedDamageBonus(owner);
         int excessStrength = Math.max(0, owner.STR() - strengthRequirement);
         averageDamage += excessStrength / 2f;
         return averageDamage / Math.max(0.01f, value.delayFactor(owner));
+    }
+
+    private float forceUnarmedPower() {
+        if (owner.buff(RingOfForce.Force.class) == null) {
+            return 0f;
+        }
+        float averageDamage =
+                (RingOfForce.coHeroUnarmedMinDamage(owner, owner.STR())
+                + RingOfForce.coHeroUnarmedMaxDamage(owner, owner.STR())) / 2f;
+        return averageDamage / Math.max(0.01f, owner.attackDelay());
     }
 
     private float armorProtection(Armor value) {

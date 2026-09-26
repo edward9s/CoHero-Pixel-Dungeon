@@ -282,7 +282,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - `CrystalGuardian` 進入原版 `recovering()` 狀態後視為暫時退出戰鬥：不再列入 CoHero 的攻擊目標、無敵威脅逃跑或風險估算。若當前只剩恢復中的水晶守衛，CoHero 會清除戰鬥／探索目標並暫時追隨 Hero；若仍有其他有效威脅，則忽略恢復中的守衛並繼續處理其他敵人。
 - 面對 `Swarm` 或同時多個純近戰威脅時，CoHero 優先尋找只有 2–3 個可通行鄰格的狹口；兩向單格通道最佳。Swarm 仍可照原版分裂，但分裂體會被地形排在後方，避免開闊地上多隻同時貼身輸出。
 - 若有遠程敵人已能從距離外攻擊 CoHero，不會為了守狹口原地等待；地形戰術讓位給實際生存／逃跑決策。
-- 對目前能從非相鄰距離攻擊 CoHero 的遠程型敵人，若 CoHero 有近戰武器，預設仍啟用 anti-ranged engagement，而且理想距離明確定義為「與敵人相鄰」，不以武器 `canAttack()` 射程代替。只有兩種明確的高遠攻收益例外：CoHero 當前最佳合法遠攻的平均傷害 ≥ 該敵人平均遠攻傷害的 1.5 倍，或 ≥ CoHero 自己平均近戰傷害的 1.5 倍。敵人的遠攻若是無法合理換算成直接傷害的特殊效果，第一條不成立，只能由第二條觸發。符合任一條件時才保留距離遠攻。普通 combat 的 `isCurrentRangedPressure` 只描述敵人此刻是否正在遠距施壓；祭火等 objective 則使用獨立的 `hasNonAdjacentAttackCapability` 判斷敵人是否具備遠程能力，避免貼身後 capability 因距離變成 1 而消失。只要當回合存在 active ranged pressure，anti-ranged movement 會暫時解除 `GuardSession` 的 movement scope；guard 不能在路徑規劃完成後再把貼近或 LOS cover 的第一步擋掉。若實際 `move()` 最後仍未移動，該次戰術走位不消耗回合，普通 combat 會繼續嘗試其他合法行動。Debug movement decision 會區分 `ranged_close`、`ranged_charge`、`ranged_cover` 與 `ranged_spacing`。遠攻仍要求雙方至少隔一格；若已貼身，只有敵人被定身／麻痺，或敵人實際速度低於 CoHero 時，CoHero 才會先找不增加戰鬥風險的安全格拉開到非相鄰距離，下一回合再遠攻。若無法安全拉開，仍回退近戰。長鞭、長矛等延伸近戰即使在 2–3 格已可攻擊，也不會自行取消上述規則。
+- 對目前能從非相鄰距離攻擊 CoHero 的遠程型敵人，若 CoHero 有近戰能力，預設仍啟用 anti-ranged engagement，而且理想距離明確定義為「與敵人相鄰」，不以武器 `canAttack()` 射程代替。只有兩種明確的高遠攻收益例外：CoHero 當前最佳合法遠攻的平均傷害 ≥ 該敵人平均遠攻傷害的 1.5 倍，或 ≥ CoHero 自己平均近戰傷害的 1.5 倍。敵人的遠攻若是無法合理換算成直接傷害的特殊效果，第一條不成立，只能由第二條觸發。符合任一條件時才保留距離遠攻。對純近戰敵人則反過來利用其無法遠距反擊的弱點：只要目前仍隔著至少一格且存在合法遠攻，就不會為了更高的近戰傷害主動浪費回合貼上去，而是先利用現有距離攻擊。唯一例外是長矛、長鞭等延伸近戰已經能在當前位置直接打到目標；此時近戰與遠攻都不需要額外移動，便直接比較兩者平均傷害，哪個高就用哪個。敵人真正貼身後，再用 1.5 倍門檻判斷是否值得花回合重新拉開距離：若近戰平均傷害已達最佳遠攻的 1.5 倍，就留在原地近戰；否則只有在敵人被定身／麻痺或速度較慢、且存在不增加戰鬥風險的合法安全格時才拉開再射。若找不到這種格子，當回合直接接戰，不再交給後續近戰選位額外移動。若目標的實際閃避高於 CoHero 當前最佳物理命中能力、不是正在被 surprise hit，且至少有一把傷害法杖能實際作用於該敵人（包含自然免疫／`MagicImmune` 檢查），則優先法杖並覆寫上述物理傷害比。普通 combat 的 `isCurrentRangedPressure` 只描述敵人此刻是否正在遠距施壓；祭火等 objective 則使用獨立的 `hasNonAdjacentAttackCapability` 判斷敵人是否具備遠程能力，避免貼身後 capability 因距離變成 1 而消失。只要當回合存在 active ranged pressure，anti-ranged movement 會暫時解除 `GuardSession` 的 movement scope；guard 不能在路徑規劃完成後再把貼近或 LOS cover 的第一步擋掉。若實際 `move()` 最後仍未移動，該次戰術走位不消耗回合，普通 combat 會繼續嘗試其他合法行動。Debug movement decision 會區分 `ranged_close`、`ranged_charge`、`ranged_cover` 與 `ranged_spacing`。遠攻仍要求雙方至少隔一格；若已貼身，只有敵人被定身／麻痺，或敵人實際速度低於 CoHero 時，CoHero 才會先找不增加戰鬥風險的安全格拉開到非相鄰距離，下一回合再遠攻。若無法安全拉開，仍回退近戰。長鞭、長矛等延伸近戰即使在 2–3 格已可攻擊，也不會自行取消上述規則。
 - anti-ranged cover 不保存跨回合 plan。每回合若目標目前仍可見且正在施加非相鄰遠程壓力，就重新比較直接貼身、一步近身與目前可用 LOS cover；選到 cover 時只執行當回合的一步移動。下一回合若目標已離開視野，就不再記住舊 enemy id、舊 cover cell，也不原地等待固定回合數；普通 perception／support／guard 重新接手。
 - Boss 不使用這套 ranged lure／LOS cover 誘敵流程。Boss 常有 scripted movement、teleport 或階段機制，若要求它先追進掩體可能讓戰鬥停滯；對 Boss 改回正常的投擲武器、Spirit Bow、法杖、近戰接敵與生存決策。
 
@@ -294,7 +294,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 2. **有近戰武器時**
    - 可以進行普通近戰攻擊。
    - 近戰武器不要求鑑定；只要實際未詛咒即可裝備／使用。未知強化等級仍以 +0 的 `STRReq(0)` 判斷力量需求，避免由能否裝備直接反推出隱藏強化等級。
-   - 當敵人已進入該近戰武器的合法攻擊距離時，普通情況只使用近戰武器，不改用投擲武器或法杖；但若目標正在從非相鄰距離施加遠程壓力，延伸近戰射程不代表理想交戰距離，AI 仍優先貼到相鄰格。
+   - 當敵人已進入該近戰武器的合法攻擊距離時，普通情況使用近戰；但高閃避且可被有效傷害法杖作用的目標例外，會優先法杖。對純近戰敵人若仍有至少一格空隙且存在合法遠攻，不會為了更高近戰傷害主動貼近；若長矛／長鞭等延伸近戰已在原地可攻擊，則直接比較近戰與最佳遠攻平均傷害，選較高者。若目標正在從非相鄰距離施加遠程壓力，延伸近戰射程也不代表理想交戰距離，AI 仍依 anti-ranged 規則處理。
 
 3. **有投擲武器時**
    - 在合法的遠程距離下，可以使用已明確支援的投擲武器攻擊。
@@ -470,6 +470,8 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 
 - 武器、防具、戒指、法杖屬於 CoHero 裝備／戰鬥系統。`RingOfTenacity` 另在 CoHero 的 `damage()` 補上與 Hero 相同的 `RingOfTenacity.damageMultiplier()`；Warrior / Duelist 固有的 +0 Tenacity 在同一處以相同 `0.85^missingHP%` 公式相乘，因此與真正裝備的 Tenacity 戒指保持原版等價疊加。`RingOfElements` 的真戒效果先沿用原版 `Char.resist()`；Mage 固有的 +0 Elements 再對同一組 `RingOfElements.RESISTS` 來源乘上 `0.825`，因此與真正裝備的 Elements 戒指同樣保持原版等價疊加。Rogue 與 Duelist 的固有 Furor 都走同一個 `meleeAttackSpeedMultiplier()`；Rogue 只在 Hero 已轉職後啟用，Duelist 則是基礎被動。真正裝備的 Ring of Furor 已由原版 `Weapon.delayFactor()` → `RingOfFuror.attackSpeedMultiplier(owner)` 生效，因此會與固有 +0 Furor 自然相乘。Huntress 固有的 +0 Arcana 則直接加入原版 `RingOfArcana.enchantPowerMultiplier(Char)` 的 bonus，因此 Weapon enchant 與 Armor glyph 共用同一條原版倍率路徑，且與真正裝備的 Arcana 戒指按原版 exponent 疊加。
 - CoHero 的近戰武器、防具與戒指都採同一條安全規則：不要求完整鑑定，但必須先確認詛咒狀態，只有 `cursedKnown == true` 且實際未詛咒時才可裝備。武器與防具若力量需求超過 CoHero STR 仍不能裝備。投擲武器是例外：明確支援的投擲武器不受詛咒狀態限制，可直接使用。
+- `RingOfForce` 對 CoHero 使用原版戒指語意：持近戰武器時加入原版 `armedDamageBonus()`；未裝近戰武器但裝有武力之戒時，允許徒手近戰，傷害上下限直接由宿主 `RingOfForce` 的原版 tier／STR／戒指等級公式取得。AI 的平均近戰傷害比較使用同一組上下限，因此不會把高強化武力之戒的徒手流錯判為「沒有近戰傷害」。自動撿到近戰武器時也先拿候選武器的實際 melee power 與目前武力之戒徒手 power 比較；較弱或相同的武器不會自動裝上去破壞刻意培養的徒手配置。
+- 戒指效果以實際 `RingBuff.target` 為持有者。原版盜賊的 `EnhancedRings` 只在戒指 buff 實際掛在 Hero 身上時提供 +1；Hero 的暫時戒指強化不會外溢到 CoHero 自己裝備的 Haste、Force 或其他戒指。
 - 武器／防具的強化等級若未知，力量檢查使用 +0 的 `STRReq(0)`，避免藉由能否裝備反推出隱藏強化等級。
 - CoHero 已裝備但尚未完全鑑定的近戰武器、護甲與戒指，沿用 SPD 原版被動鑑定進度：武器／護甲需要實際使用並搭配正常戰鬥 EXP 解鎖後續鑑定次數，戒指則依裝備期間取得的正常 EXP 推進。CoHero 不套用 Hero 的 item-ID Talent 加速，倍率固定 1.0；進度仍保存於物品本身，因此 Hero 與 CoHero 之間轉交同一件物品不會重置。Potion of Experience 不推進此被動鑑定。
 - CoHero 背包的「可存放」與「可由 CoHero 使用」是兩個獨立概念：任何正常 `Item` 都可交給 CoHero 保存，包括目前沒有 AI 語意的 Artifact、Trinket、食物、種子、未支援符石與第三方物品；storage-only 物品不會被 CoHero 主動使用，但可隨時交還 Hero。Wand 也遵守同一條規則：只有 `CoHeroWandAdapter.supported()` 的法杖在放入 CoHero 背包後會接上 CoHero 的 wand charge 流程；純 storage-only 的未知／未支援法杖不會因為只是存放在 CoHero 背包裡就被動充能。
