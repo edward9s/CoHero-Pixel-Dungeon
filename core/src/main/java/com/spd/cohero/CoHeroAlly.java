@@ -1212,6 +1212,10 @@ public class CoHeroAlly extends DirectableAlly {
         vision.refreshOwnFieldOfView();
     }
 
+    void passiveSearch() {
+        vision.passiveSearch();
+    }
+
     void clearExplorationTarget() {
         navigation.clearExplorationTarget();
     }
