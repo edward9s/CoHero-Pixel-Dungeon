@@ -23,6 +23,7 @@ import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 final class CoHeroCombatController {
 
@@ -32,7 +33,9 @@ final class CoHeroCombatController {
         this.owner = owner;
     }
 
-    private static final int MELEE_TACTICAL_SEARCH_RADIUS = 5;
+    private static final int ENCIRCLEMENT_SEARCH_RADIUS = 5;
+    private static final int CHOKE_REAR_SCAN_RADIUS = 6;
+    private static final int GREAT_CRAB_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
     private static final float RANGED_DAMAGE_PREFERENCE_MULTIPLIER = 1.5f;
 
@@ -814,40 +817,256 @@ final class CoHeroCombatController {
         return owner.animateMoveFrom(oldPos);
     }
 
-    Boolean tryMeleePositioning(Mob targetMob, ArrayList<Mob> threats) {
-        if (owner.weapon() == null || targetMob == null || threats == null || threats.isEmpty()) {
+    Boolean tryEncirclementPositioning(
+            Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
+        if (targetMob == null
+                || threats == null
+                || threats.isEmpty()
+                || risk == null) {
             return null;
         }
 
-        boolean greatCrab = targetMob instanceof GreatCrab;
-        boolean swarmPressure = false;
-        for (Mob threat : threats) {
-            if (threat instanceof Swarm) {
-                swarmPressure = true;
-                break;
+        // Swarm is the only single-enemy special case here. Convert melee DPT back to
+        // expected damage per swing before applying Swarm.defenseProc's HP >= damage + 2 split
+        // threshold. Ranged estimates are already expressed per offensive action.
+        float expectedNextDamage = owner.canAttack(targetMob)
+                ? risk.outgoingDpt * Math.max(0.25f, owner.attackDelay())
+                : risk.outgoingDpt;
+        boolean swarmSplitPressure =
+                targetMob instanceof Swarm && targetMob.HP >= expectedNextDamage + 2f;
+        ArrayList<Mob> meleeThreats = collectEncirclementMeleeThreats(threats);
+        boolean crowdedMelee = meleeThreats.size() >= 2;
+        if (!swarmSplitPressure && !crowdedMelee) {
+            return null;
+        }
+
+        // Ranged pressure does not disable anti-encirclement positioning. Melee threats define
+        // whether a choke actually limits frontage; every threat still contributes to incoming
+        // DPT when choosing between otherwise valid positions.
+        int tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
+        if (tacticalCell != -1 && tacticalCell != owner.pos) {
+            int oldPos = owner.pos;
+            owner.allowAnyGuardMovement();
+            owner.setMovementDecision("encirclement_positioning", tacticalCell);
+            if (owner.getCloser(tacticalCell)) {
+                owner.spendActionTime(1 / owner.speed());
+                Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
+                owner.revealVisibleCells();
+                return owner.animateMoveFrom(oldPos);
+            }
+        } else if (tacticalCell == owner.pos) {
+            return null;
+        }
+
+        // With several melee threats and no usable choke nearby, prefer a step that already
+        // improves current exposure against the whole threat set, including ranged enemies.
+        // chooseEscapeStep refuses neutral/worse moves, so this does not make CoHero run forever
+        // from a lone swarm in an open room.
+        if (crowdedMelee && !owner.rooted) {
+            int escape = chooseEscapeStep(threats);
+            if (escape != -1) {
+                int oldPos = owner.pos;
+                owner.allowAnyGuardMovement();
+                owner.setMovementDecision("encirclement_escape", escape);
+                owner.move(escape, true);
+                if (owner.pos != oldPos) {
+                    owner.spendActionTime(1 / owner.speed());
+                    Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
+                    owner.revealVisibleCells();
+                    return owner.animateMoveFrom(oldPos);
+                }
             }
         }
 
-        boolean crowdedMelee = threats.size() >= 2 && !owner.hasRangedPressure(threats);
-        if (!greatCrab && !swarmPressure && !crowdedMelee) {
+        return null;
+    }
+
+    private ArrayList<Mob> collectEncirclementMeleeThreats(ArrayList<Mob> threats) {
+        ArrayList<Mob> result = new ArrayList<>();
+        for (Mob threat : threats) {
+            if (threat == null
+                    || !threat.isAlive()
+                    || owner.isCombatInvulnerable(threat)
+                    || owner.hasNonAdjacentAttackCapability(threat)) {
+                continue;
+            }
+            result.add(threat);
+        }
+        return result;
+    }
+
+    private int chooseEncirclementCell(
+            Mob targetMob, ArrayList<Mob> meleeThreats, ArrayList<Mob> allThreats) {
+        if (meleeThreats.isEmpty()) {
+            return -1;
+        }
+
+        PathFinder.buildDistanceMap(
+                owner.pos, Dungeon.level.passable, ENCIRCLEMENT_SEARCH_RADIUS);
+
+        int best = -1;
+        float bestIncoming = Float.POSITIVE_INFINITY;
+        int bestPathDistance = Integer.MAX_VALUE;
+        int bestTargetDistance = Integer.MAX_VALUE;
+
+        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            int pathDistance = PathFinder.distance[cell];
+            if (pathDistance == Integer.MAX_VALUE
+                    || pathDistance > ENCIRCLEMENT_SEARCH_RADIUS
+                    || !owner.fieldOfView[cell]
+                    || !owner.isKnown(cell)
+                    || !Dungeon.level.passable[cell]
+                    || !owner.isMovementSafe(cell)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != owner) {
+                continue;
+            }
+            if (!isDefensibleChoke(cell, meleeThreats)) {
+                continue;
+            }
+
+            float incoming = owner.estimatedIncomingDptAtCell(cell, allThreats);
+            int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
+
+            boolean better = best == -1
+                    || incoming < bestIncoming - 0.01f
+                    || (Math.abs(incoming - bestIncoming) <= 0.01f
+                        && pathDistance < bestPathDistance)
+                    || (Math.abs(incoming - bestIncoming) <= 0.01f
+                        && pathDistance == bestPathDistance
+                        && targetDistance < bestTargetDistance)
+                    || (Math.abs(incoming - bestIncoming) <= 0.01f
+                        && pathDistance == bestPathDistance
+                        && targetDistance == bestTargetDistance
+                        && cell < best);
+            if (better) {
+                best = cell;
+                bestIncoming = incoming;
+                bestPathDistance = pathDistance;
+                bestTargetDistance = targetDistance;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean isDefensibleChoke(int cell, ArrayList<Mob> threats) {
+        if (threats == null || threats.isEmpty()) {
+            return false;
+        }
+
+        int[] exits = new int[2];
+        int exitCount = 0;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent < 0
+                    || adjacent >= Dungeon.level.length()
+                    || Dungeon.level.distance(cell, adjacent) != 1
+                    || !Dungeon.level.passable[adjacent]) {
+                continue;
+            }
+            if (exitCount == exits.length) {
+                return false;
+            }
+            exits[exitCount++] = adjacent;
+        }
+        if (exitCount != 2) {
+            return false;
+        }
+
+        // If multiple enemies can already attack this cell, its geometry is not protecting us.
+        if (owner.countCurrentAttackersAtCell(cell, threats) > 1) {
+            return false;
+        }
+
+        int[] side0Distance =
+                localPathDistances(exits[0], cell, CHOKE_REAR_SCAN_RADIUS);
+        int[] side1Distance =
+                localPathDistances(exits[1], cell, CHOKE_REAR_SCAN_RADIUS);
+
+        boolean pressure0 = false;
+        boolean pressure1 = false;
+        for (Mob threat : threats) {
+            if (!Dungeon.level.insideMap(threat.pos)) {
+                continue;
+            }
+            boolean side0 = side0Distance[threat.pos] >= 0;
+            boolean side1 = side1Distance[threat.pos] >= 0;
+
+            // Both exits are locally reachable without crossing the candidate cell: enemies can
+            // flank this position in the near term, so it is not a real defensive choke.
+            if (side0 && side1) {
+                return false;
+            }
+            pressure0 |= side0;
+            pressure1 |= side1;
+        }
+
+        if (pressure0 == pressure1) {
+            return false;
+        }
+
+        int rear = pressure0 ? exits[1] : exits[0];
+        return owner.isKnown(rear)
+                && owner.isMovementSafe(rear)
+                && Actor.findChar(rear) == null;
+    }
+
+    private int[] localPathDistances(int start, int blockedCell, int maxDistance) {
+        int[] distance = new int[Dungeon.level.length()];
+        Arrays.fill(distance, -1);
+        if (!Dungeon.level.insideMap(start) || start == blockedCell) {
+            return distance;
+        }
+
+        int[] queue = new int[Dungeon.level.length()];
+        int head = 0;
+        int tail = 0;
+        distance[start] = 0;
+        queue[tail++] = start;
+
+        while (head < tail) {
+            int current = queue[head++];
+            int nextDistance = distance[current] + 1;
+            if (nextDistance > maxDistance) {
+                continue;
+            }
+
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int next = current + offset;
+                if (!Dungeon.level.insideMap(next)
+                        || next == blockedCell
+                        || Dungeon.level.distance(current, next) != 1
+                        || distance[next] != -1
+                        || !Dungeon.level.passable[next]) {
+                    continue;
+                }
+                distance[next] = nextDistance;
+                queue[tail++] = next;
+            }
+        }
+
+        return distance;
+    }
+
+    Boolean tryMeleePositioning(Mob targetMob, ArrayList<Mob> threats) {
+        if (!owner.hasMeleeCombatCapability()
+                || !(targetMob instanceof GreatCrab)
+                || threats == null
+                || threats.isEmpty()) {
             return null;
         }
 
-        if (greatCrab
-                && targetMob.coHeroSurprisedBy(owner)
-                && owner.canAttack(targetMob)) {
+        if (targetMob.coHeroSurprisedBy(owner) && owner.canAttack(targetMob)) {
             return null;
         }
 
-        if (!greatCrab && meleeFrontage(owner.pos) <= 2) {
-            return null;
-        }
-
-        int tacticalCell = chooseMeleeTacticalCell(targetMob, greatCrab);
+        int tacticalCell = chooseGreatCrabTacticalCell(targetMob);
         if (tacticalCell == -1) {
-            if (greatCrab
-                    && owner.canAttack(targetMob)
-                    && !targetMob.coHeroSurprisedBy(owner)) {
+            if (owner.canAttack(targetMob) && !targetMob.coHeroSurprisedBy(owner)) {
                 int escape = chooseEscapeStep(threats);
                 if (escape != -1) {
                     int oldPos = owner.pos;
@@ -872,8 +1091,7 @@ final class CoHeroCombatController {
             return null;
         }
 
-        if (owner.canAttack(targetMob)
-                && (!greatCrab || targetMob.coHeroSurprisedBy(owner))) {
+        if (owner.canAttack(targetMob) && targetMob.coHeroSurprisedBy(owner)) {
             return null;
         }
 
@@ -885,9 +1103,9 @@ final class CoHeroCombatController {
         return null;
     }
 
-    private int chooseMeleeTacticalCell(Mob targetMob, boolean greatCrab) {
+    private int chooseGreatCrabTacticalCell(Mob targetMob) {
         PathFinder.buildDistanceMap(
-                owner.pos, Dungeon.level.passable, MELEE_TACTICAL_SEARCH_RADIUS);
+                owner.pos, Dungeon.level.passable, GREAT_CRAB_TACTICAL_SEARCH_RADIUS);
 
         int best = -1;
         int bestScore = Integer.MAX_VALUE;
@@ -895,7 +1113,7 @@ final class CoHeroCombatController {
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             int pathDistance = PathFinder.distance[cell];
             if (pathDistance == Integer.MAX_VALUE
-                    || pathDistance > MELEE_TACTICAL_SEARCH_RADIUS
+                    || pathDistance > GREAT_CRAB_TACTICAL_SEARCH_RADIUS
                     || !owner.fieldOfView[cell]
                     || !owner.isKnown(cell)
                     || !Dungeon.level.passable[cell]
@@ -908,35 +1126,23 @@ final class CoHeroCombatController {
                 continue;
             }
 
+            int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
+            if (targetMob.fieldOfView == null
+                    || targetMob.fieldOfView.length != Dungeon.level.length()
+                    || targetMob.fieldOfView[cell]
+                    || targetDistance < 2
+                    || targetDistance > GREAT_CRAB_TACTICAL_SEARCH_RADIUS) {
+                continue;
+            }
+
             int frontage = meleeFrontage(cell);
             if (frontage < 2) {
                 continue;
             }
 
-            int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
-
-            if (greatCrab) {
-                if (targetMob.fieldOfView == null
-                        || targetMob.fieldOfView.length != Dungeon.level.length()
-                        || targetMob.fieldOfView[cell]
-                        || targetDistance < 2
-                        || targetDistance > MELEE_TACTICAL_SEARCH_RADIUS) {
-                    continue;
-                }
-            } else if (frontage > 3) {
-                continue;
-            }
-
-            int score = pathDistance * 12 + frontage * 40;
-            if (greatCrab) {
-                score += Math.abs(targetDistance - 3) * 10;
-            } else {
-                score += Math.abs(targetDistance - 2) * 4;
-                if (frontage == 2) {
-                    score -= 80;
-                }
-            }
-
+            int score = pathDistance * 12
+                    + frontage * 40
+                    + Math.abs(targetDistance - 3) * 10;
             if (best == -1 || score < bestScore || (score == bestScore && cell < best)) {
                 best = cell;
                 bestScore = score;
@@ -1005,6 +1211,13 @@ final class CoHeroCombatController {
     Boolean tryDirectRangedAttack(
             Mob preferredTarget, ArrayList<Mob> visibleThreats) {
         if (preferredTarget == null || visibleThreats == null || visibleThreats.isEmpty()) {
+            return null;
+        }
+
+        // Boss offense is selected later from all immediately legal attacks by expected DPT.
+        // Deferring it here also preserves the existing chance to use one-time combat setup
+        // resources before committing to an attack.
+        if (preferredTarget.properties().contains(Char.Property.BOSS)) {
             return null;
         }
 
@@ -1101,9 +1314,80 @@ final class CoHeroCombatController {
         throw new IllegalStateException("Empty CoHero ranged choice");
     }
 
+    private Boolean tryBossMaximumDamageAttack(Mob targetMob) {
+        if (targetMob == null
+                || !targetMob.properties().contains(Char.Property.BOSS)
+                || owner.isCombatInvulnerable(targetMob)) {
+            return null;
+        }
+
+        float bestDpt = 0f;
+        boolean meleeBest = false;
+        RangedChoice rangedBest = null;
+
+        float meleeDpt = owner.estimateMeleeDpt(targetMob);
+        if (meleeDpt > bestDpt + 0.001f) {
+            bestDpt = meleeDpt;
+            meleeBest = true;
+            rangedBest = null;
+        }
+
+        // On exact ties prefer non-consumable attacks first: melee, then Spirit Bow, then
+        // missiles, then wand charges. Higher expected DPT always overrides that tie-break.
+        SpiritBow spiritBow = owner.inventory().spiritBow();
+        float spiritBowDpt = owner.estimateSpiritBowDpt(targetMob, spiritBow);
+        if (spiritBowDpt > bestDpt + 0.001f) {
+            bestDpt = spiritBowDpt;
+            meleeBest = false;
+            rangedBest = RangedChoice.spiritBow(spiritBow);
+        }
+
+        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+            float dpt = owner.estimateMissileDpt(targetMob, missile);
+            if (dpt > bestDpt + 0.001f) {
+                bestDpt = dpt;
+                meleeBest = false;
+                rangedBest = RangedChoice.missile(missile);
+            }
+        }
+
+        for (Wand wand : owner.inventory().wands()) {
+            float dpt = owner.estimateDamageWandDpt(targetMob, wand);
+            int aimCell = dpt > 0f ? CoHeroWandAdapter.aimCell(wand, owner, targetMob) : -1;
+            if (aimCell >= 0 && dpt > bestDpt + 0.001f) {
+                bestDpt = dpt;
+                meleeBest = false;
+                rangedBest = RangedChoice.wand(wand, aimCell);
+            }
+        }
+
+        if (bestDpt <= 0f) {
+            return null;
+        }
+
+        if (meleeBest) {
+            owner.logBossDecision("boss_max_dpt_melee:" + targetMob.id(),
+                    owner.targetDebug(targetMob)
+                            + " -> max DPT melee "
+                            + String.format("%.2f", bestDpt));
+            return performMeleeAttack(targetMob);
+        }
+
+        owner.logBossDecision("boss_max_dpt_ranged:" + targetMob.id(),
+                owner.targetDebug(targetMob)
+                        + " -> max DPT ranged "
+                        + String.format("%.2f", bestDpt));
+        return performRangedChoice(targetMob, rangedBest);
+    }
+
     Boolean tryCombat(Mob targetMob) {
         if (targetMob == null || owner.isCombatInvulnerable(targetMob)) {
             return null;
+        }
+
+        Boolean bossMaximumDamage = tryBossMaximumDamageAttack(targetMob);
+        if (bossMaximumDamage != null) {
+            return bossMaximumDamage;
         }
 
         // Melee is preferred once the intended engagement distance is actually established.

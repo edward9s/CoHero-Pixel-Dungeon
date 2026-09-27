@@ -75,6 +75,10 @@ final class CoHeroCombatRiskEstimator {
 
         boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
         boolean overwhelmed = attackersNow >= 3;
+        float currentTtd = incomingDpt <= 0.01f
+                ? Float.POSITIVE_INFINITY
+                : effectiveHp / incomingDpt;
+        boolean criticalTtd = currentTtd <= 3f;
 
         boolean bossTarget = targetMob.properties().contains(Char.Property.BOSS);
         boolean losingRace = !bossTarget
@@ -85,7 +89,7 @@ final class CoHeroCombatRiskEstimator {
                 && ttd <= ttk * 1.5f;
 
         boolean retreat =
-                immediateLethal || overwhelmed || losingRace || outnumberedRace;
+                immediateLethal || overwhelmed || criticalTtd || losingRace || outnumberedRace;
 
         return new CoHeroCombatRisk(
                 retreat,
@@ -181,50 +185,18 @@ final class CoHeroCombatRiskEstimator {
             return 0f;
         }
 
-        if (owner.canAttack(targetMob)) {
-            if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(owner)) {
-                return 0f;
-            }
-
-            float raw = sampledDamageRoll(owner, targetMob.id());
-            float dr = sampledDrRoll(targetMob, owner.id());
-            float effective = Math.max(0.5f, raw - dr);
-            float hitChance = targetMob.coHeroSurprisedBy(owner)
-                    ? 1f
-                    : estimatedPhysicalHitChance(
-                            owner.attackSkill(targetMob), targetMob, owner);
-            return effective * hitChance / Math.max(0.25f, owner.attackDelay());
+        float melee = estimateMeleeDpt(targetMob);
+        if (melee > 0f) {
+            return melee;
         }
 
         float best = 0f;
-        float targetDr = sampledDrRoll(targetMob, owner.id());
-
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (!owner.inventory().canUse(missile)
-                    || new Ballistica(
-                            owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
-                            != targetMob.pos) {
-                continue;
-            }
-            float hitChance = estimatedPhysicalHitChance(
-                    owner.attackSkillWith(missile, targetMob), targetMob, owner);
-            best = Math.max(best,
-                    Math.max(0.5f, CoHeroMissileAdapter.expectedDamage(owner, missile) - targetDr)
-                            * hitChance);
+            best = Math.max(best, estimateMissileDpt(targetMob, missile));
         }
 
         SpiritBow bow = owner.inventory().spiritBow();
-        if (owner.inventory().canUse(bow)
-                && new Ballistica(
-                        owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
-                        == targetMob.pos) {
-            MissileWeapon arrow = bow.knockArrow();
-            float hitChance = estimatedPhysicalHitChance(
-                    owner.attackSkillWith(arrow, targetMob), targetMob, owner);
-            best = Math.max(best,
-                    Math.max(0.5f, CoHeroMissileAdapter.expectedSpiritBowDamage(owner, bow) - targetDr)
-                            * hitChance);
-        }
+        best = Math.max(best, estimateSpiritBowDpt(targetMob, bow));
 
         for (Wand wand : owner.inventory().wands()) {
             if (!CoHeroWandAdapter.supported(wand)) {
@@ -233,14 +205,79 @@ final class CoHeroCombatRiskEstimator {
             if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
                 return Math.max(best, targetMob.HP);
             }
-            if (CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                best = Math.max(
-                        best, CoHeroWandAdapter.expectedDamage(wand, owner, targetMob));
-            }
+            best = Math.max(best, estimateDamageWandDpt(targetMob, wand));
         }
 
         return best;
+    }
+
+    float estimateMeleeDpt(Mob targetMob) {
+        if (targetMob == null || !owner.canAttack(targetMob)) {
+            return 0f;
+        }
+        if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(owner)) {
+            return 0f;
+        }
+
+        float raw = sampledDamageRoll(owner, targetMob.id());
+        float dr = sampledDrRoll(targetMob, owner.id());
+        float effective = Math.max(0.5f, raw - dr);
+        float hitChance = targetMob.coHeroSurprisedBy(owner)
+                ? 1f
+                : estimatedPhysicalHitChance(
+                        owner.attackSkill(targetMob), targetMob, owner);
+        return effective * hitChance / Math.max(0.25f, owner.attackDelay());
+    }
+
+    float estimateMissileDpt(Mob targetMob, MissileWeapon missile) {
+        if (targetMob == null
+                || missile == null
+                || !owner.inventory().canUse(missile)
+                || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1
+                || new Ballistica(
+                        owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
+                        != targetMob.pos) {
+            return 0f;
+        }
+
+        float targetDr = sampledDrRoll(targetMob, owner.id());
+        float hitChance = estimatedPhysicalHitChance(
+                owner.attackSkillWith(missile, targetMob), targetMob, owner);
+        float effective = Math.max(
+                0.5f, CoHeroMissileAdapter.expectedDamage(owner, missile) - targetDr);
+        float delay = Math.max(0.25f, missile.castDelay(owner, targetMob.pos));
+        return effective * hitChance / delay;
+    }
+
+    float estimateSpiritBowDpt(Mob targetMob, SpiritBow bow) {
+        if (targetMob == null
+                || !owner.inventory().canUse(bow)
+                || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1
+                || new Ballistica(
+                        owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
+                        != targetMob.pos) {
+            return 0f;
+        }
+
+        MissileWeapon arrow = bow.knockArrow();
+        float targetDr = sampledDrRoll(targetMob, owner.id());
+        float hitChance = estimatedPhysicalHitChance(
+                owner.attackSkillWith(arrow, targetMob), targetMob, owner);
+        float effective = Math.max(
+                0.5f, CoHeroMissileAdapter.expectedSpiritBowDamage(owner, bow) - targetDr);
+        float delay = Math.max(0.25f, arrow.castDelay(owner, targetMob.pos));
+        return effective * hitChance / delay;
+    }
+
+    float estimateDamageWandDpt(Mob targetMob, Wand wand) {
+        if (targetMob == null
+                || wand == null
+                || !owner.inventory().canUse(wand)
+                || !CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
+                || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
+            return 0f;
+        }
+        return Math.max(0f, CoHeroWandAdapter.expectedDamage(wand, owner, targetMob));
     }
 
     private float estimatedNearTermSurvivalReserve(int attackersNow) {

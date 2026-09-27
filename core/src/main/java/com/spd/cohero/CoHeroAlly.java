@@ -16,6 +16,8 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.Weapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
@@ -721,6 +723,21 @@ public class CoHeroAlly extends DirectableAlly {
                     combatTarget = offensiveTarget;
                 }
 
+                long encirclementStarted = System.nanoTime();
+                Boolean encirclementPositioning;
+                try {
+                    encirclementPositioning = combat.tryEncirclementPositioning(
+                            combatTarget, combatThreats, combatRisk);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.MELEE_POSITIONING, encirclementStarted);
+                }
+                if (encirclementPositioning != null) {
+                    logBossDecision("encirclement_positioning:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> encirclement positioning");
+                    return encirclementPositioning;
+                }
+
                 // Ranged enemies are normally closed to adjacency. Exception: sufficiently stronger
                 // ranged offense may keep spacing, or create it against an immobilized/slower target.
                 Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, combatThreats);
@@ -1084,6 +1101,22 @@ public class CoHeroAlly extends DirectableAlly {
     float estimatedIncomingDptAtCell(
             int defenderCell, ArrayList<Mob> threats) {
         return riskEstimator.estimatedIncomingDptAtCell(defenderCell, threats);
+    }
+
+    float estimateMeleeDpt(Mob targetMob) {
+        return riskEstimator.estimateMeleeDpt(targetMob);
+    }
+
+    float estimateMissileDpt(Mob targetMob, MissileWeapon missile) {
+        return riskEstimator.estimateMissileDpt(targetMob, missile);
+    }
+
+    float estimateSpiritBowDpt(Mob targetMob, SpiritBow bow) {
+        return riskEstimator.estimateSpiritBowDpt(targetMob, bow);
+    }
+
+    float estimateDamageWandDpt(Mob targetMob, Wand wand) {
+        return riskEstimator.estimateDamageWandDpt(targetMob, wand);
     }
 
     float threatOpportunity(Mob threat, int defenderCell) {
