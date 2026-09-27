@@ -944,21 +944,27 @@ final class CoHeroCombatController {
             return false;
         }
 
+        int[] side0Distance =
+                localPathDistances(exits[0], cell, CHOKE_REAR_SCAN_RADIUS);
+        int[] side1Distance =
+                localPathDistances(exits[1], cell, CHOKE_REAR_SCAN_RADIUS);
+
         boolean pressure0 = false;
         boolean pressure1 = false;
         for (Mob threat : threats) {
-            int distance0 = localPathDistance(
-                    threat.pos, exits[0], cell, CHOKE_REAR_SCAN_RADIUS);
-            int distance1 = localPathDistance(
-                    threat.pos, exits[1], cell, CHOKE_REAR_SCAN_RADIUS);
+            if (!Dungeon.level.insideMap(threat.pos)) {
+                continue;
+            }
+            boolean side0 = side0Distance[threat.pos] >= 0;
+            boolean side1 = side1Distance[threat.pos] >= 0;
 
             // Both exits are locally reachable without crossing the candidate cell: enemies can
             // flank this position in the near term, so it is not a real defensive choke.
-            if (distance0 >= 0 && distance1 >= 0) {
+            if (side0 && side1) {
                 return false;
             }
-            pressure0 |= distance0 >= 0;
-            pressure1 |= distance1 >= 0;
+            pressure0 |= side0;
+            pressure1 |= side1;
         }
 
         if (pressure0 == pressure1) {
@@ -971,20 +977,13 @@ final class CoHeroCombatController {
                 && Actor.findChar(rear) == null;
     }
 
-    private int localPathDistance(
-            int start, int target, int blockedCell, int maxDistance) {
-        if (start == target) {
-            return 0;
-        }
-        if (!Dungeon.level.insideMap(start)
-                || !Dungeon.level.insideMap(target)
-                || start == blockedCell
-                || target == blockedCell) {
-            return -1;
-        }
-
+    private int[] localPathDistances(int start, int blockedCell, int maxDistance) {
         int[] distance = new int[Dungeon.level.length()];
         Arrays.fill(distance, -1);
+        if (!Dungeon.level.insideMap(start) || start == blockedCell) {
+            return distance;
+        }
+
         int[] queue = new int[Dungeon.level.length()];
         int head = 0;
         int tail = 0;
@@ -1007,15 +1006,12 @@ final class CoHeroCombatController {
                         || !Dungeon.level.passable[next]) {
                     continue;
                 }
-                if (next == target) {
-                    return nextDistance;
-                }
                 distance[next] = nextDistance;
                 queue[tail++] = next;
             }
         }
 
-        return -1;
+        return distance;
     }
 
     Boolean tryMeleePositioning(Mob targetMob, ArrayList<Mob> threats) {
