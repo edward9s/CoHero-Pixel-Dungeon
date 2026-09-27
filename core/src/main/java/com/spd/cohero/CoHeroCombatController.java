@@ -834,19 +834,16 @@ final class CoHeroCombatController {
                 : risk.outgoingDpt;
         boolean swarmSplitPressure =
                 targetMob instanceof Swarm && targetMob.HP >= expectedNextDamage + 2f;
-        boolean crowdedMelee = threats.size() >= 2 && !owner.hasRangedPressure(threats);
+        ArrayList<Mob> meleeThreats = collectEncirclementMeleeThreats(threats);
+        boolean crowdedMelee = meleeThreats.size() >= 2;
         if (!swarmSplitPressure && !crowdedMelee) {
             return null;
         }
 
-        // A one-tile choke is useful only when all nearby pressure is on one side. Merely having
-        // two walkable neighbours is not enough: an enemy approaching from the rear turns the
-        // same corridor into a trap.
-        if (isDefensibleChoke(owner.pos, threats)) {
-            return null;
-        }
-
-        int tacticalCell = chooseEncirclementCell(targetMob, threats);
+        // Ranged pressure does not disable anti-encirclement positioning. Melee threats define
+        // whether a choke actually limits frontage; every threat still contributes to incoming
+        // DPT when choosing between otherwise valid positions.
+        int tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
         if (tacticalCell != -1 && tacticalCell != owner.pos) {
             int oldPos = owner.pos;
             owner.allowAnyGuardMovement();
@@ -857,11 +854,14 @@ final class CoHeroCombatController {
                 owner.revealVisibleCells();
                 return owner.animateMoveFrom(oldPos);
             }
+        } else if (tacticalCell == owner.pos) {
+            return null;
         }
 
         // With several melee threats and no usable choke nearby, prefer a step that already
-        // improves current exposure. chooseEscapeStep refuses neutral/worse moves, so this does
-        // not make CoHero run forever from a lone swarm in an open room.
+        // improves current exposure against the whole threat set, including ranged enemies.
+        // chooseEscapeStep refuses neutral/worse moves, so this does not make CoHero run forever
+        // from a lone swarm in an open room.
         if (crowdedMelee && !owner.rooted) {
             int escape = chooseEscapeStep(threats);
             if (escape != -1) {
@@ -881,12 +881,33 @@ final class CoHeroCombatController {
         return null;
     }
 
-    private int chooseEncirclementCell(Mob targetMob, ArrayList<Mob> threats) {
+    private ArrayList<Mob> collectEncirclementMeleeThreats(ArrayList<Mob> threats) {
+        ArrayList<Mob> result = new ArrayList<>();
+        for (Mob threat : threats) {
+            if (threat == null
+                    || !threat.isAlive()
+                    || owner.isCombatInvulnerable(threat)
+                    || owner.hasNonAdjacentAttackCapability(threat)) {
+                continue;
+            }
+            result.add(threat);
+        }
+        return result;
+    }
+
+    private int chooseEncirclementCell(
+            Mob targetMob, ArrayList<Mob> meleeThreats, ArrayList<Mob> allThreats) {
+        if (meleeThreats.isEmpty()) {
+            return -1;
+        }
+
         PathFinder.buildDistanceMap(
                 owner.pos, Dungeon.level.passable, ENCIRCLEMENT_SEARCH_RADIUS);
 
         int best = -1;
-        int bestScore = Integer.MAX_VALUE;
+        float bestIncoming = Float.POSITIVE_INFINITY;
+        int bestPathDistance = Integer.MAX_VALUE;
+        int bestTargetDistance = Integer.MAX_VALUE;
 
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             int pathDistance = PathFinder.distance[cell];
@@ -903,15 +924,29 @@ final class CoHeroCombatController {
             if (occupant != null && occupant != owner) {
                 continue;
             }
-            if (!isDefensibleChoke(cell, threats)) {
+            if (!isDefensibleChoke(cell, meleeThreats)) {
                 continue;
             }
 
+            float incoming = owner.estimatedIncomingDptAtCell(cell, allThreats);
             int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
-            int score = pathDistance * 12 + Math.abs(targetDistance - 2) * 4;
-            if (best == -1 || score < bestScore || (score == bestScore && cell < best)) {
+
+            boolean better = best == -1
+                    || incoming < bestIncoming - 0.01f
+                    || (Math.abs(incoming - bestIncoming) <= 0.01f
+                        && pathDistance < bestPathDistance)
+                    || (Math.abs(incoming - bestIncoming) <= 0.01f
+                        && pathDistance == bestPathDistance
+                        && targetDistance < bestTargetDistance)
+                    || (Math.abs(incoming - bestIncoming) <= 0.01f
+                        && pathDistance == bestPathDistance
+                        && targetDistance == bestTargetDistance
+                        && cell < best);
+            if (better) {
                 best = cell;
-                bestScore = score;
+                bestIncoming = incoming;
+                bestPathDistance = pathDistance;
+                bestTargetDistance = targetDistance;
             }
         }
 
