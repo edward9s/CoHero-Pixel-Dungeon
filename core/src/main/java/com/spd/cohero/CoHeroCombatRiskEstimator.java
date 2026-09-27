@@ -272,7 +272,7 @@ final class CoHeroCombatRiskEstimator {
     float estimateDamageWandDpt(Mob targetMob, Wand wand) {
         if (targetMob == null
                 || wand == null
-                || !CoHeroWandAdapter.supported(wand)
+                || !owner.inventory().canUse(wand)
                 || !CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
                 || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
             return 0f;
