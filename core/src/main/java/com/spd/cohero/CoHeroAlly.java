@@ -1101,6 +1101,22 @@ public class CoHeroAlly extends DirectableAlly {
         return riskEstimator.estimatedIncomingDptAtCell(defenderCell, threats);
     }
 
+    float estimateMeleeDpt(Mob targetMob) {
+        return riskEstimator.estimateMeleeDpt(targetMob);
+    }
+
+    float estimateMissileDpt(Mob targetMob, MissileWeapon missile) {
+        return riskEstimator.estimateMissileDpt(targetMob, missile);
+    }
+
+    float estimateSpiritBowDpt(Mob targetMob, SpiritBow bow) {
+        return riskEstimator.estimateSpiritBowDpt(targetMob, bow);
+    }
+
+    float estimateDamageWandDpt(Mob targetMob, Wand wand) {
+        return riskEstimator.estimateDamageWandDpt(targetMob, wand);
+    }
+
     float threatOpportunity(Mob threat, int defenderCell) {
         return riskEstimator.threatOpportunity(threat, defenderCell);
     }
