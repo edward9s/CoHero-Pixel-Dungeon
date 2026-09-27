@@ -385,6 +385,12 @@ public final class CompanionInventory {
         return item != null && backpack.contains(item);
     }
 
+    boolean canReceiveFromHero(Item item) {
+        // Stock SnipersMark resolves the player's Spirit Bow only through Hero belongings.
+        // Moving it to CoHero would silently remove the Sniper special-attack action.
+        return !(item instanceof SpiritBow) && canAddToBackpack(item);
+    }
+
     public boolean canAddToBackpack(Item item) {
         if (item == null) {
             return false;
