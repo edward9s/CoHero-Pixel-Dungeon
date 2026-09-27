@@ -180,7 +180,7 @@ public class WndCompanionInventory extends Window {
     private float addBackpackHeader(float x, float y, int width) {
         RenderedTextBlock label = backpackLabel(
                 width - BACKPACK_ADD_BUTTON_SIZE - BACKPACK_ADD_BUTTON_GAP);
-        label.setPos(x, y);
+        label.setPos(x, y + BACKPACK_ADD_BUTTON_SIZE - label.height());
         add(label);
 
         RedButton addButton = new RedButton("+", 7) {
