@@ -826,11 +826,14 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // A swarm only needs special treatment when the next expected attack is unlikely to
-        // kill it. Swarm.defenseProc splits when HP >= damage + 2, so mirror that threshold
-        // with the combat estimator instead of treating every non-one-shot enemy as dangerous.
+        // Swarm is the only single-enemy special case here. Convert melee DPT back to
+        // expected damage per swing before applying Swarm.defenseProc's HP >= damage + 2 split
+        // threshold. Ranged estimates are already expressed per offensive action.
+        float expectedNextDamage = owner.canAttack(targetMob)
+                ? risk.outgoingDpt * Math.max(0.25f, owner.attackDelay())
+                : risk.outgoingDpt;
         boolean swarmSplitPressure =
-                targetMob instanceof Swarm && targetMob.HP >= risk.outgoingDpt + 2f;
+                targetMob instanceof Swarm && targetMob.HP >= expectedNextDamage + 2f;
         boolean crowdedMelee = threats.size() >= 2 && !owner.hasRangedPressure(threats);
         if (!swarmSplitPressure && !crowdedMelee) {
             return null;
