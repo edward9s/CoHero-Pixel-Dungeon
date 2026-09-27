@@ -12,6 +12,9 @@ COMPANION_DEATH_FAILURE_FLOW = """            CoHero.markCompanionDeathGameOver(
 """
 HERO_FINAL_DEATH_ANKH_GATE = "if (!com.spd.cohero.CoHero.companionDeathEndedRun()) {"
 FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
+HERO_SPIRIT_BOW_TRANSFER_GUARD = "return !(item instanceof SpiritBow) && canAddToBackpack(item);"
+HERO_TRANSFER_SELECTOR_GUARD = "return inventory.canReceiveFromHero(item);"
+HERO_TRANSFER_RUNTIME_GUARD = "if (!inventory.canReceiveFromHero(item)) {"
 
 
 def main() -> int:
@@ -67,6 +70,28 @@ def main() -> int:
     if dungeon_patch.count(FAILURE_CLAIM_HOOK) != 1:
         print(
             "Dungeon.fail integration must claim CoHero run-failure submission exactly once.",
+            file=sys.stderr,
+        )
+        return 1
+
+    inventory_source = (package_root / "CompanionInventory.java").read_text(encoding="utf-8")
+    if inventory_source.count(HERO_SPIRIT_BOW_TRANSFER_GUARD) != 1:
+        print(
+            "Hero Spirit Bow must remain in Hero belongings so stock SnipersMark can resolve it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    inventory_window_source = (package_root / "WndCompanionInventory.java").read_text(encoding="utf-8")
+    if inventory_window_source.count(HERO_TRANSFER_SELECTOR_GUARD) != 1:
+        print(
+            "Hero-to-CoHero item selection must enforce the transfer ownership boundary.",
+            file=sys.stderr,
+        )
+        return 1
+    if inventory_window_source.count(HERO_TRANSFER_RUNTIME_GUARD) != 1:
+        print(
+            "Hero-to-CoHero transfer execution must fail fast when the ownership boundary is violated.",
             file=sys.stderr,
         )
         return 1
