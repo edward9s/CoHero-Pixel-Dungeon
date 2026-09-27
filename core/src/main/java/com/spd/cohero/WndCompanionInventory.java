@@ -195,6 +195,7 @@ public class WndCompanionInventory extends Window {
                 y,
                 BACKPACK_ADD_BUTTON_SIZE,
                 BACKPACK_ADD_BUTTON_SIZE);
+        addButton.enable(inventory.backpack().size() < CompanionInventory.BACKPACK_CAPACITY);
         add(addButton);
 
         return Math.max(label.bottom(), addButton.bottom());
