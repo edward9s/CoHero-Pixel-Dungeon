@@ -81,7 +81,9 @@ for filename in RING_FILES:
             raise SystemExit(f"RingOfForce strength context anchor missing in {path}")
         method = method.replace(
             anchor,
-            "statsOwner() != null ? statsOwner().STR() : 10",
+            "statsOwner() instanceof Hero ? ((Hero) statsOwner()).STR() : "
+            "statsOwner() instanceof com.spd.cohero.CoHeroAlly "
+            "? ((com.spd.cohero.CoHeroAlly) statsOwner()).STR() : 10",
         )
 
     if method == original:
