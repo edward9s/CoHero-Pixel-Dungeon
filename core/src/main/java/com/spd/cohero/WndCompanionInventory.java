@@ -11,6 +11,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.InventorySlot;
+import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
@@ -31,6 +32,8 @@ public class WndCompanionInventory extends Window {
     private static final int MIN_PORTRAIT_SLOT = 22;
     private static final int SLOT_GAP = 1;
     private static final int BACKPACK_COLS = 5;
+    private static final int BACKPACK_ADD_BUTTON_SIZE = 12;
+    private static final int BACKPACK_ADD_BUTTON_GAP = 2;
     private static final int LANDSCAPE_PANEL_GAP = 4;
 
     private final CoHeroAlly companion;
@@ -109,11 +112,9 @@ public class WndCompanionInventory extends Window {
 
         float afterEquipment = addEquipment(0, statsY + 19);
 
-        RenderedTextBlock backpackLabel = backpackLabel(layoutWidth);
-        backpackLabel.setPos(0, afterEquipment + 3);
-        add(backpackLabel);
+        float backpackHeaderBottom = addBackpackHeader(0, afterEquipment + 3, layoutWidth);
 
-        float backpackY = backpackLabel.bottom() + 2;
+        float backpackY = backpackHeaderBottom + 2;
         for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
             addBackpackSlot(i, 0, backpackY);
         }
@@ -148,11 +149,9 @@ public class WndCompanionInventory extends Window {
 
         float leftBottom = addEquipment(0, statsY + 14);
 
-        RenderedTextBlock backpackLabel = backpackLabel(backpackWidth);
-        backpackLabel.setPos(backpackX, startY);
-        add(backpackLabel);
+        float backpackHeaderBottom = addBackpackHeader(backpackX, startY, backpackWidth);
 
-        float backpackY = backpackLabel.bottom() + 2;
+        float backpackY = backpackHeaderBottom + 2;
         for (int i = 0; i < CompanionInventory.BACKPACK_CAPACITY; i++) {
             addBackpackSlot(i, backpackX, backpackY);
         }
@@ -178,14 +177,36 @@ public class WndCompanionInventory extends Window {
         return equipmentY + slotSize;
     }
 
+    private float addBackpackHeader(float x, float y, int width) {
+        RenderedTextBlock label = backpackLabel(
+                width - BACKPACK_ADD_BUTTON_SIZE - BACKPACK_ADD_BUTTON_GAP);
+        label.setPos(x, y + BACKPACK_ADD_BUTTON_SIZE - label.height());
+        add(label);
+
+        RedButton addButton = new RedButton("+", 7) {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                selectItemFromHero();
+            }
+        };
+        addButton.setRect(
+                x + width - BACKPACK_ADD_BUTTON_SIZE,
+                y,
+                BACKPACK_ADD_BUTTON_SIZE,
+                BACKPACK_ADD_BUTTON_SIZE);
+        addButton.enable(inventory.backpack().size() < CompanionInventory.BACKPACK_CAPACITY);
+        add(addButton);
+
+        return Math.max(label.bottom(), addButton.bottom());
+    }
+
     private RenderedTextBlock backpackLabel(int width) {
         String backpackText = text(
                 "inventory.backpack",
                 inventory.backpack().size(),
                 CompanionInventory.BACKPACK_CAPACITY);
-        RenderedTextBlock label = PixelScene.renderTextBlock(
-                backpackText + " (" + text("inventory.add_item") + ")",
-                7);
+        RenderedTextBlock label = PixelScene.renderTextBlock(backpackText, 7);
         label.maxWidth(width);
         return label;
     }
