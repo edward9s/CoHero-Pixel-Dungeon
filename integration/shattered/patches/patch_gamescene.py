@@ -32,9 +32,7 @@ if (ready_marker in text
         or cleric_range_grid_marker in text
         or remote_view_marker in text
         or frame_marker in text
-        or remote_timing_marker in text
-        or game_over_restart_front_marker in text
-        or game_over_menu_front_marker in text):
+        or remote_timing_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
 ready_anchor = (
