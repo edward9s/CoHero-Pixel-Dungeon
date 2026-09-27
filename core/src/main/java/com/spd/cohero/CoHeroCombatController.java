@@ -1214,6 +1214,13 @@ final class CoHeroCombatController {
             return null;
         }
 
+        // Boss offense is selected later from all immediately legal attacks by expected DPT.
+        // Deferring it here also preserves the existing chance to use one-time combat setup
+        // resources before committing to an attack.
+        if (preferredTarget.properties().contains(Char.Property.BOSS)) {
+            return null;
+        }
+
         // Direct ranged attacks require at least one empty tile of spacing.
         if (Dungeon.level.distance(owner.pos, preferredTarget.pos) <= 1) {
             return null;
@@ -1307,9 +1314,80 @@ final class CoHeroCombatController {
         throw new IllegalStateException("Empty CoHero ranged choice");
     }
 
+    private Boolean tryBossMaximumDamageAttack(Mob targetMob) {
+        if (targetMob == null
+                || !targetMob.properties().contains(Char.Property.BOSS)
+                || owner.isCombatInvulnerable(targetMob)) {
+            return null;
+        }
+
+        float bestDpt = 0f;
+        boolean meleeBest = false;
+        RangedChoice rangedBest = null;
+
+        float meleeDpt = owner.estimateMeleeDpt(targetMob);
+        if (meleeDpt > bestDpt + 0.001f) {
+            bestDpt = meleeDpt;
+            meleeBest = true;
+            rangedBest = null;
+        }
+
+        // On exact ties prefer non-consumable attacks first: melee, then Spirit Bow, then
+        // missiles, then wand charges. Higher expected DPT always overrides that tie-break.
+        SpiritBow spiritBow = owner.inventory().spiritBow();
+        float spiritBowDpt = owner.estimateSpiritBowDpt(targetMob, spiritBow);
+        if (spiritBowDpt > bestDpt + 0.001f) {
+            bestDpt = spiritBowDpt;
+            meleeBest = false;
+            rangedBest = RangedChoice.spiritBow(spiritBow);
+        }
+
+        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+            float dpt = owner.estimateMissileDpt(targetMob, missile);
+            if (dpt > bestDpt + 0.001f) {
+                bestDpt = dpt;
+                meleeBest = false;
+                rangedBest = RangedChoice.missile(missile);
+            }
+        }
+
+        for (Wand wand : owner.inventory().wands()) {
+            float dpt = owner.estimateDamageWandDpt(targetMob, wand);
+            if (dpt > bestDpt + 0.001f) {
+                bestDpt = dpt;
+                meleeBest = false;
+                rangedBest = RangedChoice.wand(
+                        wand, CoHeroWandAdapter.aimCell(wand, owner, targetMob));
+            }
+        }
+
+        if (bestDpt <= 0f) {
+            return null;
+        }
+
+        if (meleeBest) {
+            owner.logBossDecision("boss_max_dpt_melee:" + targetMob.id(),
+                    owner.targetDebug(targetMob)
+                            + " -> max DPT melee "
+                            + String.format("%.2f", bestDpt));
+            return performMeleeAttack(targetMob);
+        }
+
+        owner.logBossDecision("boss_max_dpt_ranged:" + targetMob.id(),
+                owner.targetDebug(targetMob)
+                        + " -> max DPT ranged "
+                        + String.format("%.2f", bestDpt));
+        return performRangedChoice(targetMob, rangedBest);
+    }
+
     Boolean tryCombat(Mob targetMob) {
         if (targetMob == null || owner.isCombatInvulnerable(targetMob)) {
             return null;
+        }
+
+        Boolean bossMaximumDamage = tryBossMaximumDamageAttack(targetMob);
+        if (bossMaximumDamage != null) {
+            return bossMaximumDamage;
         }
 
         // Melee is preferred once the intended engagement distance is actually established.
