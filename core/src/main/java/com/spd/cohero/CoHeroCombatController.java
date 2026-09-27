@@ -1353,11 +1353,11 @@ final class CoHeroCombatController {
 
         for (Wand wand : owner.inventory().wands()) {
             float dpt = owner.estimateDamageWandDpt(targetMob, wand);
-            if (dpt > bestDpt + 0.001f) {
+            int aimCell = dpt > 0f ? CoHeroWandAdapter.aimCell(wand, owner, targetMob) : -1;
+            if (aimCell >= 0 && dpt > bestDpt + 0.001f) {
                 bestDpt = dpt;
                 meleeBest = false;
-                rangedBest = RangedChoice.wand(
-                        wand, CoHeroWandAdapter.aimCell(wand, owner, targetMob));
+                rangedBest = RangedChoice.wand(wand, aimCell);
             }
         }
 
