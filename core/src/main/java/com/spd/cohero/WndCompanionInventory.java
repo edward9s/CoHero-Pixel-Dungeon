@@ -11,7 +11,6 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.InventorySlot;
-import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
@@ -32,7 +31,6 @@ public class WndCompanionInventory extends Window {
     private static final int MIN_PORTRAIT_SLOT = 22;
     private static final int SLOT_GAP = 1;
     private static final int BACKPACK_COLS = 5;
-    private static final int ADD_ITEM_INSET = 6;
     private static final int LANDSCAPE_PANEL_GAP = 4;
 
     private final CoHeroAlly companion;
@@ -109,7 +107,7 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
 
-        float afterEquipment = addEquipment(0, statsY + 19, layoutWidth, true);
+        float afterEquipment = addEquipment(0, statsY + 19);
 
         RenderedTextBlock backpackLabel = backpackLabel(layoutWidth);
         backpackLabel.setPos(0, afterEquipment + 3);
@@ -148,11 +146,10 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
 
-        float leftBottom = addEquipment(0, statsY + 14, leftWidth, false);
+        float leftBottom = addEquipment(0, statsY + 14);
 
-        float backpackHeaderBottom = addItemButton(backpackX, startY, backpackWidth);
         RenderedTextBlock backpackLabel = backpackLabel(backpackWidth);
-        backpackLabel.setPos(backpackX, backpackHeaderBottom + 3);
+        backpackLabel.setPos(backpackX, startY);
         add(backpackLabel);
 
         float backpackY = backpackLabel.bottom() + 2;
@@ -166,11 +163,7 @@ public class WndCompanionInventory extends Window {
         resize(layoutWidth, (int) Math.max(leftBottom, rightBottom));
     }
 
-    private float addEquipment(
-            float x, float startY, int width, boolean includeAddItemButton) {
-        int inset = Math.min(ADD_ITEM_INSET, Math.max(0, width - 80));
-        int buttonWidth = width - inset;
-
+    private float addEquipment(float x, float startY) {
         RenderedTextBlock equipmentLabel =
                 PixelScene.renderTextBlock(text("inventory.equipment"), 7);
         equipmentLabel.setPos(x, startY);
@@ -182,31 +175,16 @@ public class WndCompanionInventory extends Window {
         addEquipmentButton(2, x, equipmentY, SlotType.RING_ONE);
         addEquipmentButton(3, x, equipmentY, SlotType.RING_TWO);
 
-        float equipmentBottom = equipmentY + slotSize;
-        if (!includeAddItemButton) {
-            return equipmentBottom;
-        }
-        return addItemButton(x, equipmentBottom + 3, buttonWidth);
-    }
-
-    private float addItemButton(float x, float y, int width) {
-        RedButton addItem = new RedButton(text("inventory.add_item")) {
-            @Override
-            protected void onClick() {
-                selectItemFromHero();
-            }
-        };
-        addItem.setRect(x, y, width, 16);
-        add(addItem);
-        return addItem.bottom();
+        return equipmentY + slotSize;
     }
 
     private RenderedTextBlock backpackLabel(int width) {
+        String backpackText = text(
+                "inventory.backpack",
+                inventory.backpack().size(),
+                CompanionInventory.BACKPACK_CAPACITY);
         RenderedTextBlock label = PixelScene.renderTextBlock(
-                text(
-                        "inventory.backpack",
-                        inventory.backpack().size(),
-                        CompanionInventory.BACKPACK_CAPACITY),
+                backpackText + " (" + text("inventory.add_item") + ")",
                 7);
         label.maxWidth(width);
         return label;
