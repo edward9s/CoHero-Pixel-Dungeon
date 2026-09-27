@@ -721,6 +721,21 @@ public class CoHeroAlly extends DirectableAlly {
                     combatTarget = offensiveTarget;
                 }
 
+                long encirclementStarted = System.nanoTime();
+                Boolean encirclementPositioning;
+                try {
+                    encirclementPositioning = combat.tryEncirclementPositioning(
+                            combatTarget, combatThreats, combatRisk);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.MELEE_POSITIONING, encirclementStarted);
+                }
+                if (encirclementPositioning != null) {
+                    logBossDecision("encirclement_positioning:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> encirclement positioning");
+                    return encirclementPositioning;
+                }
+
                 // Ranged enemies are normally closed to adjacency. Exception: sufficiently stronger
                 // ranged offense may keep spacing, or create it against an immobilized/slower target.
                 Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, combatThreats);
