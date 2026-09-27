@@ -379,7 +379,7 @@ public class WndCompanionInventory extends Window {
 
             @Override
             public boolean itemSelectable(Item item) {
-                return inventory.canAddToBackpack(item);
+                return inventory.canReceiveFromHero(item);
             }
 
             @Override
@@ -414,6 +414,12 @@ public class WndCompanionInventory extends Window {
     }
 
     private void transferFromPlayer(Item item, TransferAmount amount) {
+        if (!inventory.canReceiveFromHero(item)) {
+            throw new IllegalArgumentException(
+                    "Item cannot be transferred from Hero to CoHero: "
+                            + (item == null ? "null" : item.getClass().getName()));
+        }
+
         Item moved = takeFromPlayer(item, amount);
         if (moved != null && !inventory.addToBackpack(moved)) {
             returnToPlayer(moved);
