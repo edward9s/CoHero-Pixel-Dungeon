@@ -107,7 +107,7 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
 
-        float afterEquipment = addEquipment(0, statsY + 19, layoutWidth);
+        float afterEquipment = addEquipment(0, statsY + 19);
 
         RenderedTextBlock backpackLabel = backpackLabel(layoutWidth);
         backpackLabel.setPos(0, afterEquipment + 3);
@@ -146,7 +146,7 @@ public class WndCompanionInventory extends Window {
         addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
         addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
 
-        float leftBottom = addEquipment(0, statsY + 14, leftWidth);
+        float leftBottom = addEquipment(0, statsY + 14);
 
         RenderedTextBlock backpackLabel = backpackLabel(backpackWidth);
         backpackLabel.setPos(backpackX, startY);
@@ -163,8 +163,7 @@ public class WndCompanionInventory extends Window {
         resize(layoutWidth, (int) Math.max(leftBottom, rightBottom));
     }
 
-    private float addEquipment(float x, float startY, int width) {
-
+    private float addEquipment(float x, float startY) {
         RenderedTextBlock equipmentLabel =
                 PixelScene.renderTextBlock(text("inventory.equipment"), 7);
         equipmentLabel.setPos(x, startY);
