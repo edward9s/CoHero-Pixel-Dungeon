@@ -29,6 +29,7 @@ The 53 Java targets are classified A 7, B 12, C 14, D 6, E 14. `build.gradle` (`
 | B | `Weapon.java` | `patch_weapon_identification.py` | shared identification on use and EXP |
 | B | `Armor.java` | `patch_armor_identification.py` | shared identification on use and EXP |
 | B | `Ring.java` | `patch_ring_identification.py` | shared identification EXP; scopes `EnhancedRings` to the actual Hero-owned ring buff |
+| B | `RingOf*.java` | `patch_ring_info_owner.py` | owner-aware combined ring stats in item info |
 | B | `HighGrass.java` | `patch_highgrass.py` | huntress grass behavior |
 | B | `Dread.java` | `patch_dread_cohero.py` | source-aware fear and FOV |
 | B | `MissileWeapon.java` | `patch_missileweapon.py` | non-Hero owner, damage and durability |
