@@ -19,6 +19,8 @@ cleric_range_grid_marker = "\t\tcom.spd.cohero.CoHeroClericRangeGrid.install(lev
 remote_view_marker = "\t\tcom.spd.cohero.CoHeroRemoteView.update(mobs);"
 frame_marker = "\t\tcom.spd.cohero.CoHero.onGameFrameStarted();"
 remote_timing_marker = "\t\tcom.spd.cohero.CoHero.onRemoteViewUpdated(coHeroRemoteStarted);"
+game_over_restart_front_marker = "\t\tscene.addToFront(restart);"
+game_over_menu_front_marker = "\t\tscene.addToFront(menu);"
 
 if (ready_marker in text
         or locator_marker in text
@@ -30,7 +32,9 @@ if (ready_marker in text
         or cleric_range_grid_marker in text
         or remote_view_marker in text
         or frame_marker in text
-        or remote_timing_marker in text):
+        or remote_timing_marker in text
+        or game_over_restart_front_marker in text
+        or game_over_menu_front_marker in text):
     raise SystemExit("CoHero GameScene hooks are already present")
 
 ready_anchor = (
@@ -300,6 +304,28 @@ if text.count(targeted_anchor) != 1:
 text = text.replace(
     targeted_anchor,
     targeted_anchor + hazard_marker + "\n",
+    1,
+)
+
+game_over_restart_anchor = "\t\tscene.add(restart);\n"
+if text.count(game_over_restart_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene game-over restart anchor, found {text.count(game_over_restart_anchor)}"
+    )
+text = text.replace(
+    game_over_restart_anchor,
+    game_over_restart_front_marker + "\n",
+    1,
+)
+
+game_over_menu_anchor = "\t\tscene.add(menu);\n"
+if text.count(game_over_menu_anchor) != 1:
+    raise SystemExit(
+        f"expected exactly one GameScene game-over menu anchor, found {text.count(game_over_menu_anchor)}"
+    )
+text = text.replace(
+    game_over_menu_anchor,
+    game_over_menu_front_marker + "\n",
     1,
 )
 
