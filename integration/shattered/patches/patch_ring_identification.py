@@ -90,6 +90,14 @@ ring_buffed_new = """	private Char activeBuffTarget() {
 		return target != null ? target : Dungeon.hero;
 	}
 
+	protected Char statsOwner() {
+		return buffContext();
+	}
+
+	protected boolean isEquippedForStats() {
+		return activeBuffTarget() != null || isEquipped(Dungeon.hero);
+	}
+
 	private int buffedLvl(Char target) {
 		int lvl = super.buffedLvl();
 		if (target == Dungeon.hero && target != null && target.buff(EnhancedRings.class) != null){
@@ -128,6 +136,57 @@ solo_buffed_new = """	private int soloBuffedBonus(Char target){
 	}
 """
 ring = replace_once(ring, solo_buffed_old, solo_buffed_new, "Ring owner-aware solo buffed bonus")
+
+combined_stats_old = """	//just used for ring descriptions
+	public int combinedBonus(Hero hero){
+		int bonus = 0;
+		if (hero.belongings.ring() != null && hero.belongings.ring().getClass() == getClass()){
+			bonus += hero.belongings.ring().soloBonus();
+		}
+		if (hero.belongings.misc() != null && hero.belongings.misc().getClass() == getClass()){
+			bonus += ((Ring)hero.belongings.misc()).soloBonus();
+		}
+		return bonus;
+	}
+
+	//just used for ring descriptions
+	public int combinedBuffedBonus(Hero hero){
+		int bonus = 0;
+		if (hero.belongings.ring() != null && hero.belongings.ring().getClass() == getClass()){
+			bonus += hero.belongings.ring().soloBuffedBonus();
+		}
+		if (hero.belongings.misc() != null && hero.belongings.misc().getClass() == getClass()){
+			bonus += ((Ring)hero.belongings.misc()).soloBuffedBonus();
+		}
+		return bonus;
+	}
+"""
+combined_stats_new = combined_stats_old + """
+	protected int combinedBonusForStats() {
+		Char target = activeBuffTarget();
+		if (target == null || target == Dungeon.hero) {
+			return Dungeon.hero == null ? soloBonus() : combinedBonus(Dungeon.hero);
+		}
+		int bonus = 0;
+		for (RingBuff ringBuff : target.buffs(buffClass)) {
+			bonus += ringBuff.level();
+		}
+		return bonus;
+	}
+
+	protected int combinedBuffedBonusForStats() {
+		Char target = activeBuffTarget();
+		if (target == null || target == Dungeon.hero) {
+			return Dungeon.hero == null ? soloBuffedBonus() : combinedBuffedBonus(Dungeon.hero);
+		}
+		int bonus = 0;
+		for (RingBuff ringBuff : target.buffs(buffClass)) {
+			bonus += ringBuff.buffedLvl();
+		}
+		return bonus;
+	}
+"""
+ring = replace_once(ring, combined_stats_old, combined_stats_new, "Ring owner-aware combined stats")
 
 ring_buff_old = """		public int buffedLvl(){
 			return Ring.this.soloBuffedBonus();
