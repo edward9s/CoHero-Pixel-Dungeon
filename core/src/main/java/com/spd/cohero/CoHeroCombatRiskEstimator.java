@@ -70,14 +70,11 @@ final class CoHeroCombatRiskEstimator {
         float effectiveHp = owner.HP + owner.shielding();
         float reserve = estimatedNearTermSurvivalReserve(attackersNow);
         float outgoingDpt = estimateOutgoingDpt(targetMob);
-        float effectiveTargetHp = estimateEffectiveTargetHp(targetMob, outgoingDpt);
 
         float ttd = incomingDpt <= 0.01f
                 ? Float.POSITIVE_INFINITY
                 : (effectiveHp + reserve) / incomingDpt;
-        float ttk = outgoingDpt <= 0.01f
-                ? Float.POSITIVE_INFINITY
-                : Math.max(0.25f, effectiveTargetHp / outgoingDpt);
+        float ttk = estimateTargetTtk(targetMob, outgoingDpt);
 
         boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
         boolean overwhelmed = attackersNow >= 3;
@@ -290,6 +287,17 @@ final class CoHeroCombatRiskEstimator {
         } finally {
             owner.pos = livePos;
         }
+    }
+
+    float estimateTargetTtk(Mob targetMob) {
+        return estimateTargetTtk(targetMob, estimateOutgoingDpt(targetMob));
+    }
+
+    private float estimateTargetTtk(Mob targetMob, float outgoingDpt) {
+        if (outgoingDpt <= 0.01f) {
+            return Float.POSITIVE_INFINITY;
+        }
+        return Math.max(0.25f, estimateEffectiveTargetHp(targetMob, outgoingDpt) / outgoingDpt);
     }
 
     private float estimateEffectiveTargetHp(Mob targetMob, float outgoingDpt) {
