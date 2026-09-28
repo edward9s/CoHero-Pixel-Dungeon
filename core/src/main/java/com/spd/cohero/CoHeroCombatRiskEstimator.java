@@ -49,6 +49,10 @@ final class CoHeroCombatRiskEstimator {
         final float[] averageRangedDamage;
         final int[] hitChanceStamp;
         final float[] hitChance;
+        int ownerNonAdjacentTurn = -1;
+        boolean ownerNonAdjacent;
+        int heroNonAdjacentTurn = -1;
+        boolean heroNonAdjacent;
         final int[] reachabilitySteps;
         final int[] reachabilityQueue;
         int reachabilityTurn = -1;
@@ -723,6 +727,26 @@ final class CoHeroCombatRiskEstimator {
             return false;
         }
 
+        ThreatTurnCache cache = threatTurnCache(threat);
+        if (target == owner && cache.ownerNonAdjacentTurn == turnSerial) {
+            return cache.ownerNonAdjacent;
+        }
+        if (target == Dungeon.hero && cache.heroNonAdjacentTurn == turnSerial) {
+            return cache.heroNonAdjacent;
+        }
+
+        boolean result = calculateNonAdjacentAttackCapability(threat, target);
+        if (target == owner) {
+            cache.ownerNonAdjacent = result;
+            cache.ownerNonAdjacentTurn = turnSerial;
+        } else if (target == Dungeon.hero) {
+            cache.heroNonAdjacent = result;
+            cache.heroNonAdjacentTurn = turnSerial;
+        }
+        return result;
+    }
+
+    private boolean calculateNonAdjacentAttackCapability(Mob threat, Char target) {
         if (canThreatUseNonAdjacentAttackFrom(threat, threat.pos, target)) {
             return true;
         }
