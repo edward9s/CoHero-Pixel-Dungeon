@@ -12,6 +12,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.FlameParticle;
 import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfMagicMapping;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
@@ -52,6 +53,8 @@ final class CoHeroVision {
 
     void revealVisibleCells() {
         long started = System.nanoTime();
+        boolean remoteWardRevealedNewCell = mergeOwnedWardVision();
+
         boolean newlyVisited = false;
         for (int i = 0; i < owner.fieldOfView.length; i++) {
             if (owner.fieldOfView[i]
@@ -63,12 +66,53 @@ final class CoHeroVision {
         }
 
         // CoHero vision is display-only. Do not alter Hero gameplay visibility.
-        // An unchanged visited map needs neither a new fog texture nor a sprite visibility pass.
+        // A CoHero-owned ward can reveal a remote area, so refresh the full fog texture only when
+        // that ward actually expands visibility into an unvisited cell. Ordinary CoHero movement
+        // keeps the cheaper local fog update.
         if (newlyVisited) {
-            GameScene.updateFog(owner.pos, owner.viewDistance + 1);
+            if (remoteWardRevealedNewCell) {
+                GameScene.updateFog();
+            } else {
+                GameScene.updateFog(owner.pos, owner.viewDistance + 1);
+            }
             GameScene.afterObserve();
         }
         owner.timings().record(owner, CoHeroTimings.Action.VISION, started);
+    }
+
+    private boolean mergeOwnedWardVision() {
+        boolean revealedNewCell = false;
+
+        for (Mob mob : Dungeon.level.mobs) {
+            if (!(mob instanceof WandOfWarding.Ward)) {
+                continue;
+            }
+
+            WandOfWarding.Ward ward = (WandOfWarding.Ward) mob;
+            if (!ward.coHeroOwned() || !ward.isAlive()) {
+                continue;
+            }
+
+            if (ward.fieldOfView == null
+                    || ward.fieldOfView.length != Dungeon.level.length()) {
+                ward.fieldOfView = new boolean[Dungeon.level.length()];
+            }
+            Dungeon.level.updateFieldOfView(ward, ward.fieldOfView);
+
+            for (int i = 0; i < owner.fieldOfView.length; i++) {
+                if (!ward.fieldOfView[i]) {
+                    continue;
+                }
+                if (!owner.fieldOfView[i]
+                        && Dungeon.level.discoverable[i]
+                        && !Dungeon.level.visited[i]) {
+                    revealedNewCell = true;
+                }
+                owner.fieldOfView[i] = true;
+            }
+        }
+
+        return revealedNewCell;
     }
 
     boolean tryAutoTorch() {
