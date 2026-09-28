@@ -347,27 +347,41 @@ final class CoHeroEnemyTactics {
         return null;
     }
 
-        return tryArmoredBruteRageCombat(targetMob, allThreats, risk);
-    }
+    private Boolean tryArmoredBruteRageCombat(
+            Mob brute, ArrayList<Mob> allThreats, CoHeroCombatRisk risk) {
+        // With no damaging ranged option, creating distance only forces a melee-only CoHero to
+        // close it again later. In that case leave the fight to the normal melee/risk logic.
+        if (combat.bestRangedAverageDamage(brute) <= 0f) {
+            return null;
+        }
 
-    private Mob nearestShortBruteRageThreat(ArrayList<Mob> threats) {
-        Mob best = null;
-        int bestDistance = Integer.MAX_VALUE;
-        for (Mob threat : threats) {
-            Brute.BruteRage rage = activeBruteRage(threat);
-            if (rage == null || rage instanceof ArmoredBrute.ArmoredRage) {
-                continue;
+        if (Dungeon.level.distance(owner.pos, brute.pos) > 1) {
+            Boolean ranged = combat.tryBestRangedAttack(brute);
+            if (ranged != null) {
+                return ranged;
             }
+            return null;
+        }
 
-            int distance = Dungeon.level.distance(owner.pos, threat.pos);
-            if (best == null
-                    || distance < bestDistance
-                    || (distance == bestDistance && threat.id() < best.id())) {
-                best = threat;
-                bestDistance = distance;
+        // ArmoredRage lasts far too long to wait out. When already in melee range, first try to
+        // create a genuinely better position; speed-aware escape planning rejects fake +1 spacing.
+        if (!owner.rooted) {
+            int escapeStep = positioning.chooseEscapeStep(allThreats);
+            if (escapeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return combat.moveForRangedEngagement(
+                        escapeStep, "armored_brute_rage_spacing");
             }
         }
-        return best;
+
+        // Renewable displacement/rooting is worthwhile here because it creates time to damage a
+        // long-lived rage shield from range. If none exists, fall through to ordinary combat.
+        Boolean escapeUtility = combat.tryEscapeUtility(risk, allThreats);
+        if (escapeUtility != null) {
+            return escapeUtility;
+        }
+
+        return null;
     }
 
     Boolean tryScorpioTactics(
