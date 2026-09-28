@@ -755,6 +755,14 @@ public class CoHeroAlly extends DirectableAlly {
                     combatTarget = offensiveTarget;
                 }
 
+                Boolean bruteRageTactics = combat.tryBruteRageTactics(
+                        combatTarget, combatThreats, combatRisk);
+                if (bruteRageTactics != null) {
+                    logBossDecision("brute_rage_tactics:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> brute rage tactics");
+                    return bruteRageTactics;
+                }
+
                 long encirclementStarted = System.nanoTime();
                 Boolean encirclementPositioning;
                 try {
