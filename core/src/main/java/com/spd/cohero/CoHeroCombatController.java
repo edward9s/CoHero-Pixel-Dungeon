@@ -49,6 +49,9 @@ final class CoHeroCombatController {
         boolean preferRanged;
         boolean choiceEvaluated;
         RangedChoice choice;
+        boolean bestDamageWandEvaluated;
+        Wand bestDamageWand;
+        float bestDamageWandDamage;
 
         void reset(int turn) {
             this.turn = turn;
@@ -57,8 +60,11 @@ final class CoHeroCombatController {
             bestAverageDamageEvaluated = false;
             preferRangedEvaluated = false;
             choiceEvaluated = false;
+            bestDamageWandEvaluated = false;
             highEvasionWand = null;
             choice = null;
+            bestDamageWand = null;
+            bestDamageWandDamage = Float.NEGATIVE_INFINITY;
         }
     }
 
@@ -398,6 +404,46 @@ final class CoHeroCombatController {
         return step == -1 ? null : moveForRangedEngagement(step, "ranged_cover");
     }
 
+    private void evaluateBestDamageWand(Mob targetMob) {
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (cache.bestDamageWandEvaluated) {
+            return;
+        }
+
+        Wand best = null;
+        float bestDamage = Float.NEGATIVE_INFINITY;
+        for (Wand wand : owner.inventory().wands()) {
+            if (!CoHeroWandAdapter.supported(wand)
+                    || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
+                continue;
+            }
+
+            float damage =
+                    CoHeroWandAdapter.expectedUsableDamage(wand, owner, targetMob);
+            if (damage == Float.NEGATIVE_INFINITY) {
+                continue;
+            }
+            if (best == null || damage > bestDamage) {
+                best = wand;
+                bestDamage = damage;
+            }
+        }
+
+        cache.bestDamageWand = best;
+        cache.bestDamageWandDamage = bestDamage;
+        cache.bestDamageWandEvaluated = true;
+    }
+
+    private Wand bestUsableDamageWand(Mob targetMob) {
+        evaluateBestDamageWand(targetMob);
+        return rangedTurnCache(targetMob).bestDamageWand;
+    }
+
+    private float bestUsableDamageWandDamage(Mob targetMob) {
+        evaluateBestDamageWand(targetMob);
+        return rangedTurnCache(targetMob).bestDamageWandDamage;
+    }
+
     private boolean shouldPreferRangedAttack(Mob targetMob) {
         if (targetMob == null || targetMob.properties().contains(Char.Property.BOSS)) {
             return false;
@@ -471,46 +517,35 @@ final class CoHeroCombatController {
             int rawDefenseSkill = targetMob.defenseSkill(owner);
             boolean infiniteEvasion = rawDefenseSkill >= Char.INFINITE_EVASION;
             if (infiniteEvasion || !targetMob.coHeroSurprisedBy(owner)) {
-                ArrayList<Wand> damageWands = new ArrayList<>();
-                for (Wand wand : owner.inventory().wands()) {
-                    if (CoHeroWandAdapter.supported(wand)
-                            && CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
-                            && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                        damageWands.add(wand);
-                    }
-                }
+                float accuracyMultiplier = owner.blessRollMultiplier(owner);
+                float bestPhysicalAccuracy = owner.hasMeleeCombatCapability()
+                        ? owner.attackSkill(targetMob) * accuracyMultiplier
+                        : 0f;
 
-                if (!damageWands.isEmpty()) {
-                    float accuracyMultiplier = owner.blessRollMultiplier(owner);
-                    float bestPhysicalAccuracy = owner.hasMeleeCombatCapability()
-                            ? owner.attackSkill(targetMob) * accuracyMultiplier
-                            : 0f;
-
-                    if (hasProjectileLine(targetMob)) {
-                        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-                            if (owner.inventory().canUse(missile)) {
-                                bestPhysicalAccuracy = Math.max(
-                                        bestPhysicalAccuracy,
-                                        owner.attackSkillWith(missile, targetMob)
-                                                * accuracyMultiplier);
-                            }
-                        }
-
-                        SpiritBow spiritBow = owner.inventory().spiritBow();
-                        if (owner.inventory().canUse(spiritBow)) {
-                            MissileWeapon arrow = spiritBow.knockArrow();
+                if (hasProjectileLine(targetMob)) {
+                    for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                        if (owner.inventory().canUse(missile)) {
                             bestPhysicalAccuracy = Math.max(
                                     bestPhysicalAccuracy,
-                                    owner.attackSkillWith(arrow, targetMob)
+                                    owner.attackSkillWith(missile, targetMob)
                                             * accuracyMultiplier);
                         }
                     }
 
-                    float targetEvasion =
-                            rawDefenseSkill * owner.blessRollMultiplier(targetMob);
-                    if (targetEvasion > bestPhysicalAccuracy) {
-                        result = bestDamageWand(damageWands, targetMob);
+                    SpiritBow spiritBow = owner.inventory().spiritBow();
+                    if (owner.inventory().canUse(spiritBow)) {
+                        MissileWeapon arrow = spiritBow.knockArrow();
+                        bestPhysicalAccuracy = Math.max(
+                                bestPhysicalAccuracy,
+                                owner.attackSkillWith(arrow, targetMob)
+                                    * accuracyMultiplier);
                     }
+                }
+
+                float targetEvasion =
+                        rawDefenseSkill * owner.blessRollMultiplier(targetMob);
+                if (targetEvasion > bestPhysicalAccuracy) {
+                    result = bestUsableDamageWand(targetMob);
                 }
             }
         }
@@ -545,13 +580,7 @@ final class CoHeroCombatController {
             }
         }
 
-        for (Wand wand : owner.inventory().wands()) {
-            if (CoHeroWandAdapter.supported(wand)
-                    && CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                best = Math.max(best, CoHeroWandAdapter.expectedDamage(wand, owner, targetMob));
-            }
-        }
+        best = Math.max(best, bestUsableDamageWandDamage(targetMob));
 
         cache.bestAverageDamage = best;
         cache.bestAverageDamageEvaluated = true;
@@ -947,18 +976,14 @@ final class CoHeroCombatController {
                 : null;
 
         Wand guaranteedControl = null;
-        ArrayList<Wand> damageWands = new ArrayList<>();
         for (Wand wand : owner.inventory().wands()) {
             if (!CoHeroWandAdapter.supported(wand)) {
                 continue;
             }
-            if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
-                if (guaranteedControl == null || wand.buffedLvl() > guaranteedControl.buffedLvl()) {
-                    guaranteedControl = wand;
-                }
-            } else if (CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                damageWands.add(wand);
+            if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)
+                    && (guaranteedControl == null
+                        || wand.buffedLvl() > guaranteedControl.buffedLvl())) {
+                guaranteedControl = wand;
             }
         }
 
@@ -988,10 +1013,8 @@ final class CoHeroCombatController {
                 float bestPhysicalDamage =
                         spiritBowBestPhysical ? spiritBowDamage : bestMissileDamage;
 
-                Wand bestWand = bestDamageWand(damageWands, targetMob);
-                float bestWandDamage = bestWand == null
-                        ? Float.NEGATIVE_INFINITY
-                        : CoHeroWandAdapter.expectedDamage(bestWand, owner, targetMob);
+                Wand bestWand = bestUsableDamageWand(targetMob);
+                float bestWandDamage = bestUsableDamageWandDamage(targetMob);
 
                 if (bestPhysicalDamage > Float.NEGATIVE_INFINITY
                         && (bestWand == null || bestPhysicalDamage >= bestWandDamage)) {
