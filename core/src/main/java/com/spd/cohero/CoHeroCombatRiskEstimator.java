@@ -721,8 +721,9 @@ final class CoHeroCombatRiskEstimator {
                 || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
             return 0f;
         }
-        return Math.max(
-                0f, CoHeroWandAdapter.expectedUsableDamage(wand, owner, targetMob));
+        CoHeroWandAdapter.DamageEvaluation evaluation =
+                owner.usableDamageWandEvaluation(targetMob, wand);
+        return evaluation == null ? 0f : Math.max(0f, evaluation.expectedDamage);
     }
 
     private float targetDr(Mob targetMob) {
