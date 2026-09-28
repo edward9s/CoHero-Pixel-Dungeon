@@ -296,19 +296,23 @@ final class CoHeroEnemyTactics {
             return null;
         }
 
-        Brute.BruteRage result = null;
+        Brute.BruteRage active = null;
         for (Brute.BruteRage rage : mob.buffs(Brute.BruteRage.class)) {
             if (rage.shielding() <= 0) {
                 continue;
             }
-            if (result != null) {
-                throw new IllegalStateException(
-                        "Brute has multiple active rage shields: "
-                                + mob.getClass().getSimpleName());
+
+            // SPD permits duplicate buffs in general, and Brute.isAlive() itself does not
+            // require BruteRage uniqueness. If both rage implementations are ever present,
+            // prefer the actual long-lived ArmoredRage behavior for tactical classification.
+            if (rage instanceof ArmoredBrute.ArmoredRage) {
+                return rage;
             }
-            result = rage;
+            if (active == null) {
+                active = rage;
+            }
         }
-        return result;
+        return active;
     }
 
     private Boolean tryShortBruteRageSurvival(
