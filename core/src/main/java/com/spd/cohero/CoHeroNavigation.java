@@ -149,58 +149,65 @@ final class CoHeroNavigation {
             return null;
         }
 
-        boolean[] escapePassable = hazardEscapePassable();
-        PathFinder.buildDistanceMap(owner.pos, escapePassable);
+        long started = System.nanoTime();
+        try {
+            boolean[] dangerMask = CoHeroHazards.dangerMask(owner);
+            boolean[] escapePassable = hazardEscapePassable();
+            PathFinder.buildDistanceMap(owner.pos, escapePassable);
 
-        int target = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        int bestNearbyDanger = Integer.MAX_VALUE;
-        int bestHeroDistance = Integer.MAX_VALUE;
+            int target = -1;
+            int bestDistance = Integer.MAX_VALUE;
+            int bestNearbyDanger = Integer.MAX_VALUE;
+            int bestHeroDistance = Integer.MAX_VALUE;
 
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (cell == owner.pos
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || CoHeroHazards.isDangerous(owner, cell)) {
-                continue;
+            for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+                if (cell == owner.pos
+                        || PathFinder.distance[cell] == Integer.MAX_VALUE
+                        || dangerMask[cell]) {
+                    continue;
+                }
+
+                int distance = PathFinder.distance[cell];
+                int nearbyDanger = CoHeroHazards.nearbyDangerCount(dangerMask, cell);
+                int heroDistance = Dungeon.hero == null
+                        ? 0
+                        : Dungeon.level.distance(cell, Dungeon.hero.pos);
+
+                if (target == -1
+                        || distance < bestDistance
+                        || (distance == bestDistance && nearbyDanger < bestNearbyDanger)
+                        || (distance == bestDistance
+                            && nearbyDanger == bestNearbyDanger
+                            && heroDistance < bestHeroDistance)) {
+                    target = cell;
+                    bestDistance = distance;
+                    bestNearbyDanger = nearbyDanger;
+                    bestHeroDistance = heroDistance;
+                }
             }
 
-            int distance = PathFinder.distance[cell];
-            int nearbyDanger = CoHeroHazards.nearbyDangerCount(owner, cell);
-            int heroDistance = Dungeon.hero == null
-                    ? 0
-                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
-
-            if (target == -1
-                    || distance < bestDistance
-                    || (distance == bestDistance && nearbyDanger < bestNearbyDanger)
-                    || (distance == bestDistance
-                        && nearbyDanger == bestNearbyDanger
-                        && heroDistance < bestHeroDistance)) {
-                target = cell;
-                bestDistance = distance;
-                bestNearbyDanger = nearbyDanger;
-                bestHeroDistance = heroDistance;
+            if (target == -1) {
+                return null;
             }
-        }
 
-        if (target == -1) {
-            return null;
-        }
+            int step = Dungeon.findStep(
+                    owner, target, escapePassable, owner.fieldOfView, true);
+            if (step == -1 || step == owner.pos || !escapePassable[step]) {
+                owner.clearNavigationPath();
+                return null;
+            }
 
-        int step = Dungeon.findStep(owner, target, escapePassable, owner.fieldOfView, true);
-        if (step == -1 || step == owner.pos || !escapePassable[step]) {
+            int oldPos = owner.pos;
+            owner.allowAnyGuardMovement();
+            owner.setMovementDecision("hazard_escape", step);
             owner.clearNavigationPath();
-            return null;
+            owner.move(step, true);
+            owner.spendActionTime(1 / owner.speed());
+            owner.refreshOwnFieldOfView();
+            return owner.finishMovementAnimation(oldPos);
+        } finally {
+            owner.timings().record(owner, CoHeroTimings.Action.HAZARD_ESCAPE, started);
         }
-
-        int oldPos = owner.pos;
-        owner.allowAnyGuardMovement();
-        owner.setMovementDecision("hazard_escape", step);
-        owner.clearNavigationPath();
-        owner.move(step, true);
-        owner.spendActionTime(1 / owner.speed());
-        owner.refreshOwnFieldOfView();
-        return owner.finishMovementAnimation(oldPos);
     }
 
     private boolean[] hazardEscapePassable() {
