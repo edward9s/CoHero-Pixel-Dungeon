@@ -767,5 +767,104 @@ final class CoHeroCombatPositioning {
         return best;
     }
 
+
+
+    int chooseRangedTargetClosingStep(Mob targetMob, ArrayList<Mob> threats) {
+        if (owner.rooted || targetMob == null) {
+            return -1;
+        }
+
+        boolean[] passable = rangedLurePassable();
+        int bestStep = -1;
+        int bestScore = Integer.MAX_VALUE;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int destination = targetMob.pos + offset;
+            if (!Dungeon.level.insideMap(destination)
+                    || Dungeon.level.distance(destination, targetMob.pos) != 1
+                    || !passable[destination]
+                    || !owner.isMovementSafe(destination)) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(destination);
+            if (occupant != null && occupant != owner) {
+                continue;
+            }
+
+            PathFinder.Path route =
+                    Dungeon.findPath(owner, destination, passable, owner.fieldOfView, true);
+            if (route == null || route.isEmpty()) {
+                continue;
+            }
+
+            int exposedSteps = 0;
+            if (targetMob.fieldOfView != null
+                    && targetMob.fieldOfView.length == Dungeon.level.length()) {
+                for (int routeCell : route) {
+                    if (targetMob.fieldOfView[routeCell]) {
+                        exposedSteps++;
+                    }
+                }
+            }
+
+            int attackers = owner.countCurrentAttackersAtCell(destination, threats);
+            int score = route.size() * 24
+                    + exposedSteps * 18
+                    + attackers * 90;
+
+            int firstStep = route.getFirst();
+            if (bestStep == -1
+                    || score < bestScore
+                    || (score == bestScore && firstStep < bestStep)) {
+                bestStep = firstStep;
+                bestScore = score;
+            }
+        }
+
+        return bestStep;
+    }
+
+    int chooseOneStepMeleeApproach(Mob targetMob, ArrayList<Mob> threats) {
+        if (owner.rooted || targetMob == null) {
+            return -1;
+        }
+
+        int best = -1;
+        int bestAttackers = Integer.MAX_VALUE;
+        float bestIncoming = Float.POSITIVE_INFINITY;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = owner.pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(owner.pos, cell) != 1
+                    || !Dungeon.level.passable[cell]
+                    || !owner.isMovementSafe(cell)
+                    || (!owner.fieldOfView[cell] && !owner.isKnown(cell))
+                    || Actor.findChar(cell) != null
+                    || !Dungeon.level.adjacent(cell, targetMob.pos)) {
+                continue;
+            }
+
+            int attackers = owner.countCurrentAttackersAtCell(cell, threats);
+            float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
+            int distance = Dungeon.level.distance(cell, targetMob.pos);
+
+            if (best == -1
+                    || attackers < bestAttackers
+                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
+                    || (attackers == bestAttackers
+                        && Math.abs(incoming - bestIncoming) <= 0.01f
+                        && distance < bestDistance)) {
+                best = cell;
+                bestAttackers = attackers;
+                bestIncoming = incoming;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
 }
 
