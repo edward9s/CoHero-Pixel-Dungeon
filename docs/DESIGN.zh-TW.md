@@ -413,7 +413,7 @@ CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明�
 - CoHero 目前只會主動使用七種明確定義的戰鬥符石：`StoneOfAggression`、`StoneOfBlast`、`StoneOfShock`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock`；其他 Runestone 仍可存放，但 AI 不會使用。Runestone 在 SPD 本來就永遠 identified，因此不存在用符石選擇洩漏未知身份的問題。
 - 原版 `Runestone.onThrow()` 仍以玩家 Hero 為中心，會讀 `Dungeon.hero`、`curUser` 與 Hero Talent hook；CoHero 不直接呼叫這個入口，而是在自身 AI 中重現七種已確認安全的效果，仍更新 `Catalog.countUse()`、消耗一枚符石、解除 CoHero 自身隱形並花費一回合。
 - `StoneOfBlast` 只在爆炸半徑內至少能命中 2 名可見清醒敵人時使用；只要會炸到 Hero、CoHero、其他友軍／中立角色、睡眠敵人或任何地面 heap 就放棄。實際爆炸仍使用原版 `Bomb.ConjuredBomb.explode()`，因此傷害與地形破壞語意保持原版。
-- `StoneOfShock` 同時是進攻與撤退資源。進攻時必須有能傷害目前目標的法杖，且作用區不能碰到 Hero、CoHero、友軍／中立角色或睡眠敵人；若攻擊法杖缺充能，安全命中單體即可使用，否則至少要能新麻痺 2 名敵人才值得消耗。撤退時仍依實際降低下一回合攻擊者／預期傷害的程度決定是否使用。充能數量比照原版，按符石命中的目標數計算，即使目標免疫麻痺仍算命中。
+- `StoneOfShock` 同時是進攻與撤退資源。進攻時，針對目前目標實際有意義的傷害法杖必須全部處於低充能（0 或 1 charge）；仍有 2+ charge 且目前能安全、合法攻擊該目標的法杖時，不為了充能消耗電擊符石。高充能但因免疫、無敵或目前攻擊路徑／範圍不安全而不能實際攻擊目標的法杖不阻止使用。符石作用區不能碰到 Hero、CoHero、友軍／中立角色或睡眠敵人，且至少要能新麻痺 1 名敵人，避免只為純充能浪費符石。撤退時仍依實際降低下一回合攻擊者／預期傷害的程度獨立判斷，不受法杖充能限制。充能數量比照原版，按符石命中的目標數計算，即使目標免疫麻痺仍算命中。
 - `StoneOfAggression` 只在至少 3 名可見清醒威脅時使用，目標必須不是 Boss / Miniboss，並偏好附近還有其他敵人且 HP 較高者，讓敵群互相轉火；已存在 Aggression 的目標不重複浪費。
 - `StoneOfDeepSleep` 主要用於兩名高價值威脅的戰鬥（例如存在遠程壓制、Boss / Miniboss 戰），優先讓非當前近戰目標退出戰鬥；retreat 且無安全走位時也可作單體緊急控制。免疫 Sleep、已睡眠或已存在 `MagicalSleep` 的目標不使用。
 - `StoneOfFear` 定位為 retreat 單體控制：無安全走位後，若目前一輪接近致命、TTD ≤ 2.5 回合或有 2+ 當前攻擊者，優先對最危險且可恐懼的敵人使用；免疫 Terror 或已在 Terror 中的目標不浪費。
