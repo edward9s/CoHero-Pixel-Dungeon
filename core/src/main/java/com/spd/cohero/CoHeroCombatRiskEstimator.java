@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Bless;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Bat;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
@@ -14,7 +15,9 @@ import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Pure combat-risk estimation for CoHero.
@@ -23,6 +26,8 @@ import java.util.ArrayList;
  * items, or mutate tactical state.
  */
 final class CoHeroCombatRiskEstimator {
+
+    private static final int THREAT_APPROACH_SEARCH_STEPS = 8;
 
     private final CoHeroAlly owner;
 
@@ -65,13 +70,14 @@ final class CoHeroCombatRiskEstimator {
         float effectiveHp = owner.HP + owner.shielding();
         float reserve = estimatedNearTermSurvivalReserve(attackersNow);
         float outgoingDpt = estimateOutgoingDpt(targetMob);
+        float effectiveTargetHp = estimateEffectiveTargetHp(targetMob, outgoingDpt);
 
         float ttd = incomingDpt <= 0.01f
                 ? Float.POSITIVE_INFINITY
                 : (effectiveHp + reserve) / incomingDpt;
         float ttk = outgoingDpt <= 0.01f
                 ? Float.POSITIVE_INFINITY
-                : Math.max(0.25f, targetMob.HP / outgoingDpt);
+                : Math.max(0.25f, effectiveTargetHp / outgoingDpt);
 
         boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
         boolean overwhelmed = attackersNow >= 3;
@@ -99,6 +105,112 @@ final class CoHeroCombatRiskEstimator {
                 outgoingDpt,
                 ttd,
                 ttk);
+    }
+
+    CoHeroThreatTiming assessThreatTimingAtCell(
+            int defenderCell, ArrayList<Mob> threats, float horizon) {
+        if (horizon < 0f) {
+            throw new IllegalArgumentException("Threat timing horizon must be non-negative");
+        }
+
+        int attackersWithinHorizon = 0;
+        float incomingDptWithinHorizon = Math.max(0, owner.incomingDOT()) * 0.20f;
+        float nearestAttackTime = Float.POSITIVE_INFINITY;
+
+        if (threats == null || threats.isEmpty()) {
+            return new CoHeroThreatTiming(
+                    attackersWithinHorizon,
+                    incomingDptWithinHorizon,
+                    nearestAttackTime);
+        }
+
+        for (Mob threat : threats) {
+            float timeToAttack = estimatedTimeToAttackCell(threat, defenderCell);
+            nearestAttackTime = Math.min(nearestAttackTime, timeToAttack);
+
+            if (timeToAttack <= horizon + 0.001f) {
+                attackersWithinHorizon++;
+            }
+
+            float opportunity = timeToAttack <= horizon + 0.001f
+                    ? 1f
+                    : threatOpportunityForTime(timeToAttack);
+            if (opportunity <= 0f) {
+                continue;
+            }
+
+            incomingDptWithinHorizon += estimatedThreatDamage(threat, defenderCell)
+                    * estimatedHitChance(threat, defenderCell)
+                    * opportunity
+                    / Math.max(0.25f, threat.attackDelay());
+        }
+
+        return new CoHeroThreatTiming(
+                attackersWithinHorizon,
+                incomingDptWithinHorizon,
+                nearestAttackTime);
+    }
+
+    float estimatedTimeToAttackCell(Mob threat, int defenderCell) {
+        if (threat == null
+                || !threat.isAlive()
+                || !Dungeon.level.insideMap(defenderCell)
+                || threat.paralysed > 0) {
+            return Float.POSITIVE_INFINITY;
+        }
+
+        if (canThreatAttackCell(threat, defenderCell)) {
+            return 0f;
+        }
+        if (threat.rooted) {
+            return Float.POSITIVE_INFINITY;
+        }
+
+        float speed = threat.speed();
+        if (speed <= 0.001f) {
+            return Float.POSITIVE_INFINITY;
+        }
+
+        int steps = minimumMovementStepsToAttack(threat, defenderCell);
+        return steps == Integer.MAX_VALUE
+                ? Float.POSITIVE_INFINITY
+                : steps / speed;
+    }
+
+    private int minimumMovementStepsToAttack(Mob threat, int defenderCell) {
+        int length = Dungeon.level.length();
+        int[] steps = new int[length];
+        Arrays.fill(steps, -1);
+
+        ArrayDeque<Integer> queue = new ArrayDeque<>();
+        steps[threat.pos] = 0;
+        queue.add(threat.pos);
+
+        while (!queue.isEmpty()) {
+            int cell = queue.removeFirst();
+            int stepCount = steps[cell];
+
+            if (cell != threat.pos && canThreatAttackFromTo(threat, cell, defenderCell)) {
+                return stepCount;
+            }
+            if (stepCount >= THREAT_APPROACH_SEARCH_STEPS) {
+                continue;
+            }
+
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int next = cell + offset;
+                if (!Dungeon.level.insideMap(next)
+                        || Dungeon.level.distance(cell, next) != 1
+                        || steps[next] != -1
+                        || !enemyCanEnterForRisk(threat, next)) {
+                    continue;
+                }
+                steps[next] = stepCount + 1;
+                queue.addLast(next);
+            }
+        }
+
+        return Integer.MAX_VALUE;
     }
 
     int countCurrentAttackersAtCell(int defenderCell, ArrayList<Mob> threats) {
@@ -178,6 +290,41 @@ final class CoHeroCombatRiskEstimator {
         } finally {
             owner.pos = livePos;
         }
+    }
+
+    private float estimateEffectiveTargetHp(Mob targetMob, float outgoingDpt) {
+        float result = targetMob == null
+                ? 0f
+                : Math.max(0, targetMob.HP) + Math.max(0, targetMob.shielding());
+        if (!(targetMob instanceof Bat) || outgoingDpt <= 0.01f) {
+            return result;
+        }
+
+        float baseTtk = Math.max(0.25f, targetMob.HP / outgoingDpt);
+        float firstAttackTime = estimatedTimeToAttackCell(targetMob, owner.pos);
+        if (Float.isInfinite(firstAttackTime) || firstAttackTime >= baseTtk) {
+            return result;
+        }
+
+        float postArmorDamage = Math.max(
+                0f,
+                averageThreatDamage(targetMob, owner.pos)
+                        - sampledDrRoll(owner, targetMob.id()));
+        float expectedHealPerAttack =
+                Math.max(0f, postArmorDamage - 4f)
+                        * estimatedHitChance(targetMob, owner.pos);
+        if (expectedHealPerAttack <= 0.01f) {
+            return result;
+        }
+
+        float expectedAttacks =
+                Math.max(0f, baseTtk - firstAttackTime)
+                        / Math.max(0.25f, targetMob.attackDelay());
+        float missingHp = Math.max(0f, targetMob.HT - Math.max(0, targetMob.HP));
+        float projectedHealing = Math.min(
+                missingHp,
+                expectedHealPerAttack * expectedAttacks);
+        return result + projectedHealing;
     }
 
     float estimateOutgoingDpt(Mob targetMob) {
@@ -312,35 +459,37 @@ final class CoHeroCombatRiskEstimator {
 
     private float threatOpportunity(
             Mob threat, int defenderCell, boolean attacksNow) {
-        if (attacksNow) {
-            return 1f;
-        }
-        if (threat.rooted || threat.paralysed > 0) {
-            return 0f;
-        }
+        return attacksNow
+                ? 1f
+                : threatOpportunityForTime(estimatedTimeToAttackCell(threat, defenderCell));
+    }
 
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int source = threat.pos + offset;
-            if (!Dungeon.level.insideMap(source)
-                    || Dungeon.level.distance(threat.pos, source) != 1
-                    || !enemyCanEnterForRisk(threat, source)) {
-                continue;
-            }
-            if (canThreatAttackFromTo(threat, source, defenderCell)) {
-                return 0.55f;
-            }
+    private float threatOpportunityForTime(float timeToAttack) {
+        if (timeToAttack <= 0.50f) {
+            return 0.75f;
         }
-
-        return Dungeon.level.distance(threat.pos, defenderCell) <= 3 ? 0.10f : 0f;
+        if (timeToAttack <= 1.00f) {
+            return 0.55f;
+        }
+        if (timeToAttack <= 1.50f) {
+            return 0.25f;
+        }
+        if (timeToAttack <= 2.00f) {
+            return 0.10f;
+        }
+        return timeToAttack <= 3.00f ? 0.05f : 0f;
     }
 
     private boolean enemyCanEnterForRisk(Mob threat, int cell) {
         if (!Dungeon.level.passable[cell]) {
-            if (!threat.flying || Dungeon.level.avoid[cell]) {
+            // Match Mob.cellIsPathable(): flying mobs may cross avoid cells such as chasms,
+            // but cannot treat arbitrary solid terrain as traversable.
+            if (!threat.flying || !Dungeon.level.avoid[cell]) {
                 return false;
             }
         }
-        return !Char.hasProp(threat, Char.Property.LARGE) || Dungeon.level.openSpace[cell];
+        return !Char.hasProp(threat, Char.Property.IMMOVABLE)
+                && (!Char.hasProp(threat, Char.Property.LARGE) || Dungeon.level.openSpace[cell]);
     }
 
     private boolean canThreatAttackCell(Mob threat, int defenderCell) {

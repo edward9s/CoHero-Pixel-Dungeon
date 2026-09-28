@@ -710,6 +710,19 @@ public class CoHeroAlly extends DirectableAlly {
                 Mob combatTarget = combat.nearestThreat(attackableThreats);
                 CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, combatThreats);
 
+                Boolean shortBruteRage = combat.tryShortBruteRageTactics(combatThreats);
+                if (shortBruteRage != null) {
+                    logBossDecision("short_brute_rage",
+                            "visible short Brute rage -> escape/wait");
+                    return shortBruteRage;
+                }
+
+                Boolean monkFocus = combat.tryMonkFocusTactics(
+                        combatTarget, combatThreats, combatRisk);
+                if (monkFocus != null) {
+                    return monkFocus;
+                }
+
                 Boolean survivalAction = combat.tryCombatSurvival(combatRisk, combatThreats);
                 if (survivalAction != null) {
                     if (debugLogEnabled) {
@@ -753,6 +766,20 @@ public class CoHeroAlly extends DirectableAlly {
                     combatRisk = assessCombatRisk(combatTarget, combatThreats);
                 } else {
                     combatTarget = offensiveTarget;
+                }
+
+                Boolean armoredBruteRage = combat.tryArmoredBruteRageTactics(
+                        combatTarget, combatThreats, combatRisk);
+                if (armoredBruteRage != null) {
+                    logBossDecision("armored_brute_rage:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> ranged shield pressure");
+                    return armoredBruteRage;
+                }
+
+                Boolean monkOpening = combat.tryMonkOpeningTactics(
+                        combatTarget, combatThreats);
+                if (monkOpening != null) {
+                    return monkOpening;
                 }
 
                 long encirclementStarted = System.nanoTime();
@@ -1136,7 +1163,14 @@ public class CoHeroAlly extends DirectableAlly {
         return riskEstimator.countCurrentAttackersAtCell(defenderCell, threats);
     }
 
+    CoHeroThreatTiming assessThreatTimingAtCell(
+            int defenderCell, ArrayList<Mob> threats, float horizon) {
+        return riskEstimator.assessThreatTimingAtCell(defenderCell, threats, horizon);
+    }
 
+    float estimatedTimeToAttackCell(Mob threat, int defenderCell) {
+        return riskEstimator.estimatedTimeToAttackCell(threat, defenderCell);
+    }
 
     float estimatedIncomingDptAtCell(
             int defenderCell, ArrayList<Mob> threats) {

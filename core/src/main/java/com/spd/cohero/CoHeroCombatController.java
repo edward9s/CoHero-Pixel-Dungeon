@@ -6,9 +6,12 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Paralysis;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.ArmoredBrute;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Brute;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Monk;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Scorpio;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
@@ -440,6 +443,305 @@ final class CoHeroCombatController {
         return null;
     }
 
+    Boolean tryMonkFocusTactics(
+            Mob targetMob,
+            ArrayList<Mob> allThreats,
+            CoHeroCombatRisk risk) {
+        if (!(targetMob instanceof Monk)
+                || targetMob.buff(Monk.Focus.class) == null) {
+            return null;
+        }
+        if (allThreats == null || allThreats.isEmpty() || risk == null) {
+            throw new IllegalArgumentException(
+                    "Monk Focus tactics require current combat threats and risk");
+        }
+
+        float effectiveHp = owner.HP + owner.shielding();
+        boolean emergency =
+                risk.immediateIncoming * 1.35f >= effectiveHp
+                || risk.ttd <= 3f
+                || risk.attackersNow >= 2;
+        if (emergency) {
+            // Do not let the one-shot Focus mechanic override genuine survival pressure.
+            return null;
+        }
+
+        Wand focusBypass = bestMonkFocusBypassWand(targetMob);
+        if (focusBypass != null) {
+            int aim = CoHeroWandAdapter.aimCell(focusBypass, owner, targetMob);
+            if (aim >= 0) {
+                owner.logBossDecision("monk_focus_wand:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> bypass Focus with "
+                                + focusBypass.getClass().getSimpleName());
+                return performWandCast(aim, focusBypass);
+            }
+        }
+
+        // Focus is a one-use physical parry. Prefer a free attack to consume it before spending
+        // ammunition: current melee/reach first, then the reusable Spirit Bow.
+        if (owner.canAttack(targetMob)) {
+            owner.logBossDecision("monk_focus_melee_break:" + targetMob.id(),
+                    owner.targetDebug(targetMob) + " -> consume Focus with melee");
+            return performMeleeAttack(targetMob);
+        }
+
+        int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
+        if (distance > 1
+                && new Ballistica(
+                        owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
+                        == targetMob.pos) {
+            SpiritBow bow = owner.inventory().spiritBow();
+            if (owner.inventory().canUse(bow)) {
+                owner.logBossDecision("monk_focus_bow_break:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> consume Focus with Spirit Bow");
+                return performSpiritBowAttack(targetMob, bow);
+            }
+
+            MissileWeapon cheapest = cheapestMonkFocusBreaker();
+            if (cheapest != null) {
+                owner.logBossDecision("monk_focus_missile_break:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> consume Focus with "
+                                + cheapest.getClass().getSimpleName());
+                return performMissileAttack(targetMob, cheapest);
+            }
+        }
+
+        // If melee is the only answer and one safe step establishes adjacency, close now rather
+        // than retreating because the generic TTK sees Focus as infinite evasion.
+        if (owner.hasMeleeCombatCapability() && !owner.rooted) {
+            int closeStep = chooseOneStepMeleeApproach(targetMob, allThreats);
+            if (closeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(closeStep, "monk_focus_close");
+            }
+        }
+
+        return null;
+    }
+
+    Boolean tryMonkOpeningTactics(Mob targetMob, ArrayList<Mob> allThreats) {
+        if (!(targetMob instanceof Monk)
+                || targetMob.buff(Monk.Focus.class) != null) {
+            return null;
+        }
+        if (allThreats == null || allThreats.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Monk opening tactics require current combat threats");
+        }
+
+        // Once Focus is gone, movement helps a Monk rebuild it; Senior rebuilds it especially fast.
+        // Use the live opening immediately instead of ordinary spacing/encirclement positioning.
+        if (owner.canAttack(targetMob)) {
+            owner.logBossDecision("monk_opening_melee:" + targetMob.id(),
+                    owner.targetDebug(targetMob) + " -> exploit Focus cooldown");
+            return performMeleeAttack(targetMob);
+        }
+
+        if (Dungeon.level.distance(owner.pos, targetMob.pos) > 1) {
+            RangedChoice ranged = chooseRangedAttack(targetMob);
+            if (ranged != null) {
+                owner.logBossDecision("monk_opening_ranged:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> exploit Focus cooldown at range");
+                return performRangedChoice(targetMob, ranged);
+            }
+        }
+
+        if (owner.hasMeleeCombatCapability() && !owner.rooted) {
+            int closeStep = chooseOneStepMeleeApproach(targetMob, allThreats);
+            if (closeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(closeStep, "monk_opening_close");
+            }
+        }
+
+        return null;
+    }
+
+    private Wand bestMonkFocusBypassWand(Mob targetMob) {
+        ArrayList<Wand> candidates = new ArrayList<>();
+        for (Wand wand : owner.inventory().wands()) {
+            if (wand instanceof WandOfWarding
+                    || !CoHeroWandAdapter.supported(wand)
+                    || !CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
+                    || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
+                continue;
+            }
+
+            int aim = CoHeroWandAdapter.aimCell(wand, owner, targetMob);
+            float damage = CoHeroWandAdapter.expectedDamage(wand, owner, targetMob);
+            if (aim >= 0 && damage > 0f) {
+                candidates.add(wand);
+            }
+        }
+        return bestDamageWand(candidates, targetMob);
+    }
+
+    private MissileWeapon cheapestMonkFocusBreaker() {
+        MissileWeapon cheapest = null;
+        float cheapestDamage = Float.POSITIVE_INFINITY;
+        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+            if (!CoHeroMissileAdapter.supported(missile)
+                    || !owner.inventory().canUse(missile)) {
+                continue;
+            }
+
+            float damage = CoHeroMissileAdapter.expectedDamage(owner, missile);
+            if (cheapest == null
+                    || damage < cheapestDamage - 0.001f
+                    || (Math.abs(damage - cheapestDamage) <= 0.001f
+                        && missile.getClass().getName()
+                                .compareTo(cheapest.getClass().getName()) < 0)) {
+                cheapest = missile;
+                cheapestDamage = damage;
+            }
+        }
+        return cheapest;
+    }
+
+    Boolean tryShortBruteRageTactics(ArrayList<Mob> allThreats) {
+        if (allThreats == null || allThreats.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Short Brute rage tactics require current combat threats");
+        }
+
+        Mob shortRageThreat = nearestShortBruteRageThreat(allThreats);
+        return shortRageThreat == null
+                ? null
+                : tryShortBruteRageSurvival(shortRageThreat, allThreats);
+    }
+
+    Boolean tryArmoredBruteRageTactics(
+            Mob targetMob,
+            ArrayList<Mob> allThreats,
+            CoHeroCombatRisk risk) {
+        if (targetMob == null
+                || allThreats == null
+                || allThreats.isEmpty()
+                || risk == null) {
+            throw new IllegalArgumentException(
+                    "Armored Brute rage tactics require a target, threats, and risk");
+        }
+
+        Brute.BruteRage targetRage = activeBruteRage(targetMob);
+        if (!(targetRage instanceof ArmoredBrute.ArmoredRage)) {
+            return null;
+        }
+        return tryArmoredBruteRageCombat(targetMob, allThreats, risk);
+    }
+
+    private Mob nearestShortBruteRageThreat(ArrayList<Mob> threats) {
+        Mob best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (Mob threat : threats) {
+            Brute.BruteRage rage = activeBruteRage(threat);
+            if (rage == null || rage instanceof ArmoredBrute.ArmoredRage) {
+                continue;
+            }
+
+            int distance = Dungeon.level.distance(owner.pos, threat.pos);
+            if (best == null
+                    || distance < bestDistance
+                    || (distance == bestDistance && threat.id() < best.id())) {
+                best = threat;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private Brute.BruteRage activeBruteRage(Mob mob) {
+        if (!(mob instanceof Brute)) {
+            return null;
+        }
+
+        Brute.BruteRage result = null;
+        for (Brute.BruteRage rage : mob.buffs(Brute.BruteRage.class)) {
+            if (rage.shielding() <= 0) {
+                continue;
+            }
+            if (result != null) {
+                throw new IllegalStateException(
+                        "Brute has multiple active rage shields: "
+                                + mob.getClass().getSimpleName());
+            }
+            result = rage;
+        }
+        return result;
+    }
+
+    private Boolean tryShortBruteRageSurvival(
+            Mob brute, ArrayList<Mob> allThreats) {
+        // Ordinary BruteRage is a short self-destruct phase. Spending health to break the shield
+        // is usually worse than surviving until its automatic shield decay kills the Brute.
+        if (owner.buff(Invisibility.class) != null) {
+            int invisibleStep = owner.rooted ? -1 : chooseEscapeStep(allThreats);
+            if (invisibleStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(invisibleStep, "brute_rage_invisible_escape");
+            }
+            owner.spendActionTime(Actor.TICK);
+            return true;
+        }
+
+        int escapeStep = owner.rooted ? -1 : chooseEscapeStep(allThreats);
+        if (escapeStep != -1) {
+            owner.allowAnyGuardMovement();
+            return moveForRangedEngagement(escapeStep, "brute_rage_escape");
+        }
+
+        float attackTime = owner.estimatedTimeToAttackCell(brute, owner.pos);
+        CoHeroThreatTiming currentTiming =
+                owner.assessThreatTimingAtCell(owner.pos, allThreats, Actor.TICK);
+        if (attackTime > Actor.TICK + 0.001f
+                && currentTiming.attackersWithinHorizon == 0) {
+            // Already safe enough for the next turn from every visible threat: wait for the rage
+            // shield to decay instead of spending ammunition, wand charges, or movement to re-engage.
+            owner.clearCombatTarget();
+            owner.spendActionTime(Actor.TICK);
+            return true;
+        }
+
+        // Movement/waiting cannot safely solve the turn. Hand control back to the ordinary
+        // survival layer, which already owns consumable control, teleport, shielding, and healing.
+        return null;
+    }
+
+    private Boolean tryArmoredBruteRageCombat(
+            Mob brute, ArrayList<Mob> allThreats, CoHeroCombatRisk risk) {
+        // With no damaging ranged option, creating distance only forces a melee-only CoHero to
+        // close it again later. In that case leave the fight to the normal melee/risk logic.
+        if (bestRangedAverageDamage(brute) <= 0f) {
+            return null;
+        }
+
+        if (Dungeon.level.distance(owner.pos, brute.pos) > 1) {
+            RangedChoice ranged = chooseRangedAttack(brute);
+            if (ranged != null) {
+                return performRangedChoice(brute, ranged);
+            }
+            return null;
+        }
+
+        // ArmoredRage lasts far too long to wait out. When already in melee range, first try to
+        // create a genuinely better position; speed-aware escape planning rejects fake +1 spacing.
+        if (!owner.rooted) {
+            int escapeStep = chooseEscapeStep(allThreats);
+            if (escapeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(escapeStep, "armored_brute_rage_spacing");
+            }
+        }
+
+        // Renewable displacement/rooting is worthwhile here because it creates time to damage a
+        // long-lived rage shield from range. If none exists, fall through to ordinary combat.
+        Boolean escapeUtility = tryEscapeUtility(risk, allThreats);
+        if (escapeUtility != null) {
+            return escapeUtility;
+        }
+
+        return null;
+    }
+
     Boolean tryScorpioTactics(
             Mob targetMob,
             ArrayList<Mob> allThreats,
@@ -628,7 +930,8 @@ final class CoHeroCombatController {
             return false;
         }
 
-        float turnsToKill = Math.max(0.25f, scorpio.HP / rangedDpt);
+        float scorpioEffectiveHp = Math.max(0, scorpio.HP) + Math.max(0, scorpio.shielding());
+        float turnsToKill = Math.max(0.25f, scorpioEffectiveHp / rangedDpt);
         float projectedLoss = incomingDpt * turnsToKill;
         float effectiveHp = owner.HP + owner.shielding();
         float projectedRemaining = effectiveHp - projectedLoss;
@@ -679,7 +982,7 @@ final class CoHeroCombatController {
         }
 
         // Never spend turns closing on a pure melee target merely because melee damage is higher.
-        // Any current gap is free damage: keep it and let the direct ranged phase fire first.
+        // Keep an existing gap; speed-aware ranged preference decides whether it is truly a free shot.
         if (!rangedAttacker && Dungeon.level.distance(owner.pos, targetMob.pos) > 1) {
             return null;
         }
@@ -743,10 +1046,25 @@ final class CoHeroCombatController {
         if (!owner.hasNonAdjacentAttackCapability(targetMob)) {
             int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
             if (distance > 1) {
-                // With an existing gap, take the free ranged turn unless extended melee already
-                // reaches the target. In that special case neither option costs movement, so use
-                // whichever has the higher average damage.
-                return !owner.canAttack(targetMob) || rangedDamage > meleeDamage;
+                // A gap is only a truly free ranged turn when the target cannot enter attack range
+                // before a normal CoHero action finishes. Fast melee enemies such as bats and crabs
+                // can consume several cells of distance inside that same time window.
+                if (!owner.canAttack(targetMob)) {
+                    boolean freeRangedWindow =
+                            owner.estimatedTimeToAttackCell(targetMob, owner.pos)
+                                    > Actor.TICK + 0.001f;
+                    if (freeRangedWindow || !owner.hasMeleeCombatCapability()) {
+                        return true;
+                    }
+
+                    // Shooting can still be the best currently legal action, but do not treat the
+                    // spacing itself as strategically valuable unless ranged damage is compelling.
+                    return rangedDamage
+                            >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+                }
+
+                // Extended melee already reaches the target, so neither option costs movement.
+                return rangedDamage > meleeDamage;
             }
 
             // Once a pure-melee target has reached adjacency, reopening distance costs a turn.
@@ -763,9 +1081,11 @@ final class CoHeroCombatController {
     }
 
     private Wand preferredDamageWandForHighEvasion(Mob targetMob) {
+        boolean focusedMonk =
+                targetMob instanceof Monk && targetMob.buff(Monk.Focus.class) != null;
         if (targetMob == null
                 || targetMob.buff(MagicImmune.class) != null
-                || targetMob.coHeroSurprisedBy(owner)) {
+                || (!focusedMonk && targetMob.coHeroSurprisedBy(owner))) {
             return null;
         }
 
@@ -1496,14 +1816,12 @@ final class CoHeroCombatController {
     }
 
     int chooseEscapeStep(ArrayList<Mob> threats) {
-        float currentIncoming = owner.estimatedIncomingDptAtCell(owner.pos, threats);
-        int currentAttackers = owner.countCurrentAttackersAtCell(owner.pos, threats);
-        int currentDistance = owner.nearestThreatDistance(owner.pos, threats);
+        float moveTime = Math.max(0.25f, 1f / owner.speed());
+        CoHeroThreatTiming current =
+                owner.assessThreatTimingAtCell(owner.pos, threats, moveTime);
 
         int bestCell = -1;
-        float bestIncoming = currentIncoming;
-        int bestAttackers = currentAttackers;
-        int bestDistance = currentDistance;
+        CoHeroThreatTiming best = current;
 
         for (int offset : PathFinder.NEIGHBOURS8) {
             int cell = owner.pos + offset;
@@ -1516,21 +1834,30 @@ final class CoHeroCombatController {
                 continue;
             }
 
-            float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
-            int attackers = owner.countCurrentAttackersAtCell(cell, threats);
-            int distance = owner.nearestThreatDistance(cell, threats);
+            CoHeroThreatTiming candidate =
+                    owner.assessThreatTimingAtCell(cell, threats, moveTime);
 
-            boolean better = attackers < bestAttackers
-                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
-                    || (attackers == bestAttackers
-                        && Math.abs(incoming - bestIncoming) <= 0.01f
-                        && distance > bestDistance);
+            boolean gainsBreathingRoom =
+                    best.nearestAttackTime <= moveTime + 0.001f
+                    && candidate.nearestAttackTime > moveTime + 0.001f;
+            boolean extendsExistingWindow =
+                    best.nearestAttackTime > moveTime + 0.001f
+                    && candidate.nearestAttackTime > best.nearestAttackTime + 0.01f;
+
+            boolean better =
+                    candidate.attackersWithinHorizon < best.attackersWithinHorizon
+                    || (candidate.attackersWithinHorizon == best.attackersWithinHorizon
+                        && candidate.incomingDptWithinHorizon
+                                < best.incomingDptWithinHorizon - 0.01f)
+                    || (candidate.attackersWithinHorizon == best.attackersWithinHorizon
+                        && Math.abs(
+                                candidate.incomingDptWithinHorizon
+                                        - best.incomingDptWithinHorizon) <= 0.01f
+                        && (gainsBreathingRoom || extendsExistingWindow));
 
             if (better) {
                 bestCell = cell;
-                bestIncoming = incoming;
-                bestAttackers = attackers;
-                bestDistance = distance;
+                best = candidate;
             }
         }
 
@@ -1555,8 +1882,8 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // Pure-melee targets with a gap normally get a free ranged opening, but if an extended
-        // melee weapon already reaches them, shouldPreferRangedAttack compares the two averages.
+        // A pure-melee target with a gap may still be worth shooting, but speed-aware planning
+        // decides whether the spacing is actually free. Extended melee is compared separately.
         boolean preferredRanged = shouldPreferRangedAttack(preferredTarget);
         boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
                 && !preferredRanged
