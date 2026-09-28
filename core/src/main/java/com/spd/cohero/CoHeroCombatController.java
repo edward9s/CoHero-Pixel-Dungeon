@@ -1583,8 +1583,8 @@ final class CoHeroCombatController {
             return null;
         }
 
-        // Pure-melee targets with a gap normally get a free ranged opening, but if an extended
-        // melee weapon already reaches them, shouldPreferRangedAttack compares the two averages.
+        // A pure-melee target with a gap may still be worth shooting, but speed-aware planning
+        // decides whether the spacing is actually free. Extended melee is compared separately.
         boolean preferredRanged = shouldPreferRangedAttack(preferredTarget);
         boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
                 && !preferredRanged
