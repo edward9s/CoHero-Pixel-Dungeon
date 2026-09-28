@@ -19,6 +19,8 @@ final class CoHeroNavigation {
 
     private final CoHeroAlly owner;
     private int explorationTarget = -1;
+    private PathFinder.Path policyPath;
+    private int policyPathTarget = -1;
 
     CoHeroNavigation(CoHeroAlly owner) {
         this.owner = owner;
@@ -37,6 +39,7 @@ final class CoHeroNavigation {
             return;
         }
         explorationTarget = -1;
+        clearPolicyPath();
         owner.clearNavigationPath();
     }
 
@@ -187,6 +190,7 @@ final class CoHeroNavigation {
         if (!owner.isGuardMovementRestricted()
                 && !CoHeroHazards.hasActiveHazards(owner)
                 && !hasVisibleSleepingEnemy()) {
+            clearPolicyPath();
             return owner.getCloserWithoutCoHeroPolicy(target);
         }
         if (owner.rooted || target == owner.pos || !Dungeon.level.insideMap(target)) {
@@ -195,17 +199,48 @@ final class CoHeroNavigation {
 
         boolean[] safePassable = ordinarySafePassable(false);
         owner.restrictGuardPassable(safePassable);
-
         safePassable[owner.pos] = true;
-        int step = Dungeon.findStep(owner, target, safePassable, owner.fieldOfView, true);
-        if (step == -1 || !safePassable[step]) {
-            owner.clearNavigationPath();
+
+        int step = nextPolicyStep(target, safePassable);
+        if (step == -1) {
             return false;
         }
 
-        owner.clearNavigationPath();
         owner.move(step);
         return owner.pos == step;
+    }
+
+    private int nextPolicyStep(int target, boolean[] safePassable) {
+        boolean rebuild = policyPath == null
+                || policyPath.isEmpty()
+                || policyPathTarget != target
+                || !Dungeon.level.adjacent(owner.pos, policyPath.getFirst())
+                || !safePassable[policyPath.getFirst()]
+                || Actor.findChar(policyPath.getFirst()) != null;
+
+        if (rebuild) {
+            clearPolicyPath();
+            policyPath = Dungeon.findPath(
+                    owner, target, safePassable, owner.fieldOfView, true);
+            policyPathTarget = target;
+        }
+
+        if (policyPath == null || policyPath.isEmpty()) {
+            clearPolicyPath();
+            return -1;
+        }
+
+        int step = policyPath.removeFirst();
+        if (!safePassable[step] || Actor.findChar(step) != null) {
+            clearPolicyPath();
+            return -1;
+        }
+        return step;
+    }
+
+    private void clearPolicyPath() {
+        policyPath = null;
+        policyPathTarget = -1;
     }
 
     boolean isMovementSafe(int cell) {
