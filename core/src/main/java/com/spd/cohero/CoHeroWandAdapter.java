@@ -29,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfTransfusion;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ConeAOE;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 
 import com.watabou.utils.BArray;
 import com.watabou.utils.PathFinder;
@@ -270,11 +271,28 @@ final class CoHeroWandAdapter {
         return plan == null ? -1 : plan.aimCell;
     }
 
-    static boolean regrowthUsefulForEscape(
+    static boolean regrowthCanSafelyRoot(
             Wand wand, CoHeroAlly owner, Mob aimedThreat, List<Mob> visibleThreats) {
         if (!(wand instanceof WandOfRegrowth)
                 || !wand.coHeroCanZap(owner)
-                || aimedThreat == null) {
+                || aimedThreat == null
+                || !aimedThreat.isAlive()
+                || aimedThreat.flying
+                || Char.hasProp(aimedThreat, Char.Property.IMMOVABLE)
+                || aimedThreat.isImmune(Roots.class)
+                || aimedThreat.buff(Roots.class) != null
+                || Dungeon.level.plants.get(aimedThreat.pos) != null) {
+            return false;
+        }
+
+        int terrain = Dungeon.level.map[aimedThreat.pos];
+        boolean growable = terrain == Terrain.EMPTY
+                || terrain == Terrain.EMBERS
+                || terrain == Terrain.EMPTY_DECO
+                || terrain == Terrain.GRASS
+                || terrain == Terrain.HIGH_GRASS
+                || terrain == Terrain.FURROWED_GRASS;
+        if (!growable) {
             return false;
         }
 
@@ -303,15 +321,16 @@ final class CoHeroWandAdapter {
             }
         }
 
-        for (Mob threat : visibleThreats) {
-            if (cone.cells.contains(threat.pos)
-                    && !Char.hasProp(threat, Char.Property.IMMOVABLE)
-                    && !threat.isImmune(Roots.class)
-                    && threat.buff(Roots.class) == null) {
-                return true;
-            }
-        }
-        return false;
+        return visibleThreats.contains(aimedThreat);
+    }
+
+    static boolean frostUsefulForPursuit(Wand wand, CoHeroAlly owner, Mob target) {
+        return wand instanceof WandOfFrost
+                && target != null
+                && target.isAlive()
+                && target.speed() >= owner.speed() - 0.001f
+                && target.buff(Frost.class) == null
+                && canAffectEnemy(wand, owner, target);
     }
 
     static boolean transfusionShouldSupportHero(
