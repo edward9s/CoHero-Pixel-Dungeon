@@ -43,6 +43,12 @@ final class CoHeroCombatRiskEstimator {
         final float[] attackTime;
         final int[] attackNowStamp;
         final boolean[] attackNow;
+        final int[] averageDamageStamp;
+        final float[] averageDamage;
+        final int[] averageRangedDamageStamp;
+        final float[] averageRangedDamage;
+        final int[] hitChanceStamp;
+        final float[] hitChance;
         final int[] reachabilitySteps;
         final int[] reachabilityQueue;
         int reachabilityTurn = -1;
@@ -54,6 +60,12 @@ final class CoHeroCombatRiskEstimator {
             attackTime = new float[levelLength];
             attackNowStamp = new int[levelLength];
             attackNow = new boolean[levelLength];
+            averageDamageStamp = new int[levelLength];
+            averageDamage = new float[levelLength];
+            averageRangedDamageStamp = new int[levelLength];
+            averageRangedDamage = new float[levelLength];
+            hitChanceStamp = new int[levelLength];
+            hitChance = new float[levelLength];
             reachabilitySteps = new int[levelLength];
             reachabilityQueue = new int[levelLength];
         }
@@ -397,6 +409,11 @@ final class CoHeroCombatRiskEstimator {
     }
 
     float averageThreatDamage(Mob threat, int defenderCell) {
+        ThreatTurnCache cache = threatTurnCache(threat);
+        if (cache.averageDamageStamp[defenderCell] == turnSerial) {
+            return cache.averageDamage[defenderCell];
+        }
+
         int livePos = owner.pos;
         Random.pushGenerator(0xC0E0A11L ^ ((long) threat.id() << 21) ^ defenderCell);
         try {
@@ -405,7 +422,10 @@ final class CoHeroCombatRiskEstimator {
             for (int i = 0; i < 7; i++) {
                 total += Math.max(0, threat.damageRoll());
             }
-            return total / 7f;
+            float result = total / 7f;
+            cache.averageDamage[defenderCell] = result;
+            cache.averageDamageStamp[defenderCell] = turnSerial;
+            return result;
         } finally {
             owner.pos = livePos;
             Random.popGenerator();
@@ -413,6 +433,11 @@ final class CoHeroCombatRiskEstimator {
     }
 
     float averageRangedThreatDamage(Mob threat, int defenderCell) {
+        ThreatTurnCache cache = threatTurnCache(threat);
+        if (cache.averageRangedDamageStamp[defenderCell] == turnSerial) {
+            return cache.averageRangedDamage[defenderCell];
+        }
+
         int livePos = owner.pos;
         Random.pushGenerator(0xC0E0A12L ^ ((long) threat.id() << 21) ^ defenderCell);
         try {
@@ -421,11 +446,16 @@ final class CoHeroCombatRiskEstimator {
             for (int i = 0; i < 7; i++) {
                 int damage = threat.coHeroRangedDamageRoll(owner);
                 if (damage < 0) {
+                    cache.averageRangedDamage[defenderCell] = -1f;
+                    cache.averageRangedDamageStamp[defenderCell] = turnSerial;
                     return -1f;
                 }
                 total += damage;
             }
-            return total / 7f;
+            float result = total / 7f;
+            cache.averageRangedDamage[defenderCell] = result;
+            cache.averageRangedDamageStamp[defenderCell] = turnSerial;
+            return result;
         } finally {
             owner.pos = livePos;
             Random.popGenerator();
@@ -433,12 +463,20 @@ final class CoHeroCombatRiskEstimator {
     }
 
     float estimatedHitChance(Mob threat, int defenderCell) {
+        ThreatTurnCache cache = threatTurnCache(threat);
+        if (cache.hitChanceStamp[defenderCell] == turnSerial) {
+            return cache.hitChance[defenderCell];
+        }
+
         int livePos = owner.pos;
         try {
             owner.pos = defenderCell;
-            return estimatedUniformHitChance(
+            float result = estimatedUniformHitChance(
                     Math.max(0, threat.attackSkill(owner)) * blessRollMultiplier(threat),
                     Math.max(0, owner.defenseSkill(threat)) * blessRollMultiplier(owner));
+            cache.hitChance[defenderCell] = result;
+            cache.hitChanceStamp[defenderCell] = turnSerial;
+            return result;
         } finally {
             owner.pos = livePos;
         }
