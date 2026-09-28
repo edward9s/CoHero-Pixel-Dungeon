@@ -36,6 +36,7 @@ final class CoHeroCombatController {
     private Object rangedCacheLevel;
     private int meleeDamageTurn = -1;
     private float meleeDamage;
+    private CoHeroWardingPlanner.PlanningContext wardingPlanningContext;
 
     private static final class RangedTurnCache {
         int turn = -1;
@@ -94,6 +95,14 @@ final class CoHeroCombatController {
             rangedTurnSerial++;
         }
         meleeDamageTurn = -1;
+        wardingPlanningContext = null;
+    }
+
+    private CoHeroWardingPlanner.PlanningContext wardingPlanningContext() {
+        if (wardingPlanningContext == null) {
+            wardingPlanningContext = new CoHeroWardingPlanner.PlanningContext(owner);
+        }
+        return wardingPlanningContext;
     }
 
     private RangedTurnCache rangedTurnCache(Mob targetMob) {
@@ -125,7 +134,8 @@ final class CoHeroCombatController {
         if (!cache.wandDamageEvaluations.containsKey(wand)) {
             cache.wandDamageEvaluations.put(
                     wand,
-                    CoHeroWandAdapter.usableDamageEvaluation(wand, owner, targetMob));
+                    CoHeroWandAdapter.usableDamageEvaluation(
+                            wand, owner, targetMob, wardingPlanningContext()));
         }
         return cache.wandDamageEvaluations.get(wand);
     }
@@ -1094,7 +1104,10 @@ final class CoHeroCombatController {
 
             CoHeroWardingPlanner.RecallPlan plan =
                     CoHeroWardingPlanner.chooseRecall(
-                            (WandOfWarding) candidate, owner, targetMob);
+                            (WandOfWarding) candidate,
+                            owner,
+                            targetMob,
+                            wardingPlanningContext());
             if (plan != null && (best == null || plan.gain > best.gain)) {
                 best = plan;
             }
