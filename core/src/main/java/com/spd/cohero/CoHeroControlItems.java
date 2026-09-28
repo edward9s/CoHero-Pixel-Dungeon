@@ -538,9 +538,7 @@ final class CoHeroControlItems {
         boolean foundRelevantWand = false;
         for (Wand wand : owner.inventory().wands()) {
             if (!CoHeroWandAdapter.supported(wand)
-                    || !CoHeroWandAdapter.damagingCapability(wand, targetMob)
-                    || targetMob.isImmune(wand.getClass())
-                    || targetMob.isInvulnerable(wand.getClass())) {
+                    || !CoHeroWandAdapter.damagingPotential(wand, targetMob)) {
                 continue;
             }
 
