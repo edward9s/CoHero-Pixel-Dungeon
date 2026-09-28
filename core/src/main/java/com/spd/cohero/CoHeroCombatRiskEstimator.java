@@ -186,8 +186,12 @@ final class CoHeroCombatRiskEstimator {
         }
 
         float melee = estimateMeleeDpt(targetMob);
-        if (melee > 0f) {
-            return melee;
+        return melee > 0f ? melee : estimateBestRangedDpt(targetMob);
+    }
+
+    float estimateBestRangedDpt(Mob targetMob) {
+        if (targetMob == null) {
+            return 0f;
         }
 
         float best = 0f;

@@ -11,6 +11,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicalSleep;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Paralysis;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Sleep;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
@@ -28,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlink;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfDeepSleep;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfShock;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
@@ -87,16 +89,6 @@ final class CoHeroControlItems {
             }
         }
 
-        // A lone ranged attacker can be boxed in with sheep while CoHero closes the distance.
-        if (threats.size() == 1
-                && owner.isCurrentRangedPressure(targetMob)
-                && Dungeon.level.distance(owner.pos, targetMob.pos) >= 3
-                && owner.chooseRangedCoverCell(targetMob, threats) == -1
-                && canUseFlockAt(targetMob.pos)
-                && useFlockStone(targetMob.pos)) {
-            return true;
-        }
-
         return false;
     }
 
@@ -119,6 +111,19 @@ final class CoHeroControlItems {
             return false;
         }
 
+        // Flock is an escape barrier, not a pursuit tool. Sheep cannot be damaged and have
+        // effectively infinite evasion, so a safe cast can physically deny pursuit for several turns.
+        int flockCell = chooseEmergencyFlockCell(threats);
+        if (flockCell != -1 && useFlockStone(flockCell)) {
+            return true;
+        }
+
+        // Shock is short-lived but can buy the one clean movement turn needed to disengage.
+        int shockCell = chooseEmergencyShockCell(threats);
+        if (shockCell != -1 && useShockStone(shockCell)) {
+            return true;
+        }
+
         boolean immediateLethal = risk.immediateIncoming * 1.35f >= owner.HP + owner.shielding();
         Mob fearTarget = chooseFearTarget(threats);
         if (fearTarget != null
@@ -127,21 +132,13 @@ final class CoHeroControlItems {
             return true;
         }
 
-        // Deep sleep is a fallback single-target control when fear is unavailable or ineffective.
+        // Deep sleep removes a threat from the current fight and is therefore escape/control,
+        // not a pursuit setup. Sleeping enemies intentionally leave CoHero's active combat set.
         Mob sleepTarget = chooseEmergencySleepTarget(threats);
         if (sleepTarget != null
                 && (immediateLethal || risk.attackersNow >= 2)
                 && useDeepSleepStone(sleepTarget)) {
             return true;
-        }
-
-        // Flock is only used defensively here when it can be centered far enough away not to box
-        // the Hero or CoHero in with the summoned sheep.
-        if (threats.size() >= 2) {
-            int flockCell = chooseEmergencyFlockCell(threats);
-            if (flockCell != -1 && useFlockStone(flockCell)) {
-                return true;
-            }
         }
 
         return false;
@@ -400,6 +397,49 @@ final class CoHeroControlItems {
         return best;
     }
 
+    private int chooseEmergencyShockCell(ArrayList<Mob> threats) {
+        if (!owner.inventory().hasCombatRunestone(StoneOfShock.class)) {
+            return -1;
+        }
+
+        int best = -1;
+        int bestControllable = 0;
+        for (Mob candidate : threats) {
+            if (candidate == null || !candidate.isAlive() || !owner.fieldOfView[candidate.pos]) {
+                continue;
+            }
+
+            PathFinder.buildDistanceMap(
+                    candidate.pos, BArray.not(Dungeon.level.solid, null), 2);
+            int controllable = 0;
+            boolean unsafe = false;
+            for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+                if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                    continue;
+                }
+
+                Char ch = Actor.findChar(cell);
+                if (ch == null) {
+                    continue;
+                }
+                if (ch.alignment != Char.Alignment.ENEMY
+                        || (ch instanceof Mob && ((Mob) ch).state == ((Mob) ch).SLEEPING)) {
+                    unsafe = true;
+                    break;
+                }
+                if (!ch.isImmune(Paralysis.class) && ch.buff(Paralysis.class) == null) {
+                    controllable++;
+                }
+            }
+
+            if (!unsafe && controllable > bestControllable) {
+                best = candidate.pos;
+                bestControllable = controllable;
+            }
+        }
+        return best;
+    }
+
     private boolean useAggressionStone(Mob targetMob) {
         Runestone stone = owner.inventory().takeOneCombatRunestone(StoneOfAggression.class);
         if (!(stone instanceof StoneOfAggression)) {
@@ -461,6 +501,38 @@ final class CoHeroControlItems {
         owner.refreshOwnFieldOfView();
         owner.clearNavigationPath();
         return finishRunestoneUse(stone, null);
+    }
+
+    private boolean useShockStone(int center) {
+        Runestone stone = owner.inventory().takeOneCombatRunestone(StoneOfShock.class);
+        if (!(stone instanceof StoneOfShock)) {
+            return false;
+        }
+
+        PathFinder.buildDistanceMap(center, BArray.not(Dungeon.level.solid, null), 2);
+        int affected = 0;
+        for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+            if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            Char ch = Actor.findChar(cell);
+            if (ch == null
+                    || ch.alignment != Char.Alignment.ENEMY
+                    || ch.isImmune(Paralysis.class)) {
+                continue;
+            }
+            if (Buff.prolong(ch, Paralysis.class, 1f) != null) {
+                affected++;
+            }
+        }
+
+        if (affected == 0) {
+            owner.inventory().addToBackpack(stone);
+            return false;
+        }
+
+        return finishRunestoneUse(stone, Assets.Sounds.LIGHTNING);
     }
 
     private boolean useFlockStone(int center) {
