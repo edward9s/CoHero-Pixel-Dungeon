@@ -33,6 +33,7 @@ final class CoHeroCombatRiskEstimator {
     private final IdentityHashMap<Mob, ThreatTurnCache> threatTurnCaches =
             new IdentityHashMap<>();
     private int turnSerial;
+    private Object cacheLevel;
     private int levelLength = -1;
     private int[] blockedSteps = new int[0];
     private int[] blockedQueue = new int[0];
@@ -68,8 +69,11 @@ final class CoHeroCombatRiskEstimator {
         }
 
         int currentLevelLength = Dungeon.level.length();
-        if (currentLevelLength != levelLength || turnSerial == Integer.MAX_VALUE) {
+        if (cacheLevel != Dungeon.level
+                || currentLevelLength != levelLength
+                || turnSerial == Integer.MAX_VALUE) {
             threatTurnCaches.clear();
+            cacheLevel = Dungeon.level;
             levelLength = currentLevelLength;
             blockedSteps = new int[levelLength];
             blockedQueue = new int[levelLength];
@@ -81,7 +85,9 @@ final class CoHeroCombatRiskEstimator {
     }
 
     private ThreatTurnCache threatTurnCache(Mob threat) {
-        if (turnSerial == 0 || levelLength != Dungeon.level.length()) {
+        if (turnSerial == 0
+                || cacheLevel != Dungeon.level
+                || levelLength != Dungeon.level.length()) {
             throw new IllegalStateException(
                     "CoHero combat risk queried outside the current decision turn");
         }
