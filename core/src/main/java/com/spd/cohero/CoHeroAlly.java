@@ -710,6 +710,14 @@ public class CoHeroAlly extends DirectableAlly {
                 Mob combatTarget = combat.nearestThreat(attackableThreats);
                 CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, combatThreats);
 
+                Boolean shortBruteRage = combat.tryShortBruteRageTactics(
+                        combatThreats, combatRisk);
+                if (shortBruteRage != null) {
+                    logBossDecision("short_brute_rage",
+                            "visible short Brute rage -> escape/wait");
+                    return shortBruteRage;
+                }
+
                 Boolean survivalAction = combat.tryCombatSurvival(combatRisk, combatThreats);
                 if (survivalAction != null) {
                     if (debugLogEnabled) {
@@ -755,12 +763,12 @@ public class CoHeroAlly extends DirectableAlly {
                     combatTarget = offensiveTarget;
                 }
 
-                Boolean bruteRageTactics = combat.tryBruteRageTactics(
+                Boolean armoredBruteRage = combat.tryArmoredBruteRageTactics(
                         combatTarget, combatThreats, combatRisk);
-                if (bruteRageTactics != null) {
-                    logBossDecision("brute_rage_tactics:" + combatTarget.id(),
-                            targetDebug(combatTarget) + " -> brute rage tactics");
-                    return bruteRageTactics;
+                if (armoredBruteRage != null) {
+                    logBossDecision("armored_brute_rage:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> ranged shield pressure");
+                    return armoredBruteRage;
                 }
 
                 long encirclementStarted = System.nanoTime();
