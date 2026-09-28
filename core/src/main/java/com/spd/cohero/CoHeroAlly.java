@@ -608,6 +608,7 @@ public class CoHeroAlly extends DirectableAlly {
         long prepareStarted = System.nanoTime();
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
+        combat.beginTurn();
         riskEstimator.beginTurn();
         resetInheritedDecisionState();
         guard.beginTurn();
@@ -669,8 +670,15 @@ public class CoHeroAlly extends DirectableAlly {
         if (!combatThreats.isEmpty()) {
             long combatStarted = System.nanoTime();
             try {
-                ArrayList<Mob> attackableThreats = combat.collectAttackableThreats(combatThreats);
-                ArrayList<Mob> charmingThreats = combat.collectCharmingThreats(combatThreats);
+                ArrayList<Mob> attackableThreats;
+                ArrayList<Mob> charmingThreats;
+                Mob combatTarget;
+                Mob survivalTarget;
+
+                long combatSetupStarted = System.nanoTime();
+                try {
+                attackableThreats = combat.collectAttackableThreats(combatThreats);
+                charmingThreats = combat.collectCharmingThreats(combatThreats);
 
                 // Invulnerability does not end the fight. It only has tactical priority while an
                 // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
@@ -718,8 +726,13 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
-                Mob combatTarget = combat.selectCombatTarget(attackableThreats);
-                Mob survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                combatTarget = combat.selectCombatTarget(attackableThreats);
+                survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP, combatSetupStarted);
+                }
+
                 long riskStarted = System.nanoTime();
                 CoHeroCombatRisk combatRisk;
                 try {
