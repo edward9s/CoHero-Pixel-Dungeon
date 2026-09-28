@@ -1175,6 +1175,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     void resetNavigationAfterAnkhTeleport() {
         navigation.clearExplorationTarget();
+        clearNavigationPath();
         target = -1;
         enemy = null;
         enemyID = -1;
