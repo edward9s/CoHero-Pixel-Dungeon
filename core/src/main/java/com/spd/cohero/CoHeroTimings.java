@@ -58,6 +58,13 @@ final class CoHeroTimings {
         TTK_MISSILE("ttk_missile"),
         TTK_SPIRIT_BOW("ttk_spirit_bow"),
         TTK_WAND("ttk_wand"),
+        TTK_WAND_WARDING("ttk_wand_warding"),
+        TTK_WAND_CORROSION("ttk_wand_corrosion"),
+        TTK_WAND_FIREBLAST("ttk_wand_fireblast"),
+        TTK_WAND_BLAST_WAVE("ttk_wand_blast_wave"),
+        TTK_WAND_LIGHTNING("ttk_wand_lightning"),
+        TTK_WAND_DISINTEGRATION("ttk_wand_disintegration"),
+        TTK_WAND_OTHER("ttk_wand_other"),
         VISION("vision"),
         ATTACK("attack"),
         ATTACK_KILL("attack_kill"),
@@ -284,6 +291,13 @@ final class CoHeroTimings {
                 || action == Action.TTK_MISSILE
                 || action == Action.TTK_SPIRIT_BOW
                 || action == Action.TTK_WAND
+                || action == Action.TTK_WAND_WARDING
+                || action == Action.TTK_WAND_CORROSION
+                || action == Action.TTK_WAND_FIREBLAST
+                || action == Action.TTK_WAND_BLAST_WAVE
+                || action == Action.TTK_WAND_LIGHTNING
+                || action == Action.TTK_WAND_DISINTEGRATION
+                || action == Action.TTK_WAND_OTHER
                 || action == Action.VISION)
                 && elapsed < SLOW_PHASE_NANOS) {
             return;
