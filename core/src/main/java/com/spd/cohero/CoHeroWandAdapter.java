@@ -132,6 +132,22 @@ final class CoHeroWandAdapter {
         return wand.coHeroBallistica(owner, target.pos).collisionPos == target.pos;
     }
 
+    static boolean damagingPotential(Wand wand, Mob target) {
+        if (wand == null
+                || target == null
+                || !target.isAlive()
+                || !damagingCapability(wand, target)
+                || (!(wand instanceof WandOfBlastWave) && target.isImmune(wand.getClass()))
+                || target.isInvulnerable(wand.getClass())) {
+            return false;
+        }
+        if (wand instanceof WandOfFrost && target.buff(Frost.class) != null) {
+            return false;
+        }
+        return !(wand instanceof WandOfCorrosion)
+                || !target.isImmune(CorrosiveGas.class);
+    }
+
     static boolean damagingCapability(Wand wand, Mob target) {
         if (wand instanceof WandOfMagicMissile
                 || wand instanceof WandOfBlastWave
