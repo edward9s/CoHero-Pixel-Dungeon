@@ -40,8 +40,24 @@ final class CoHeroTimings {
         RECOVERY_VALIDATE("recovery_validate"),
         RECOVERY_MOVE("recovery_move"),
         RECOVERY_ANIMATION("recovery_animation"),
+        MOVE_GUARD_CHECK("move_guard_check"),
+        MOVE_HAZARD_CHECK("move_hazard_check"),
+        MOVE_SLEEP_CHECK("move_sleep_check"),
+        MOVE_STOCK_PATH("move_stock_path"),
+        MOVE_SAFE_MASK("move_safe_mask"),
+        MOVE_POLICY_PATH("move_policy_path"),
+        MOVE_EXECUTE("move_execute"),
         GUARD("guard"),
         EXPLORE("explore"),
+        EXPLORE_VALIDATE("explore_validate"),
+        EXPLORE_SELECT("explore_select"),
+        EXPLORE_MOVE("explore_move"),
+        TTK_TOTAL("ttk_total"),
+        TTK_MELEE("ttk_melee"),
+        TTK_RANGED("ttk_ranged"),
+        TTK_MISSILE("ttk_missile"),
+        TTK_SPIRIT_BOW("ttk_spirit_bow"),
+        TTK_WAND("ttk_wand"),
         VISION("vision"),
         ATTACK("attack"),
         ATTACK_KILL("attack_kill"),
@@ -250,8 +266,24 @@ final class CoHeroTimings {
                 || action == Action.RECOVERY_VALIDATE
                 || action == Action.RECOVERY_MOVE
                 || action == Action.RECOVERY_ANIMATION
+                || action == Action.MOVE_GUARD_CHECK
+                || action == Action.MOVE_HAZARD_CHECK
+                || action == Action.MOVE_SLEEP_CHECK
+                || action == Action.MOVE_STOCK_PATH
+                || action == Action.MOVE_SAFE_MASK
+                || action == Action.MOVE_POLICY_PATH
+                || action == Action.MOVE_EXECUTE
                 || action == Action.GUARD
                 || action == Action.EXPLORE
+                || action == Action.EXPLORE_VALIDATE
+                || action == Action.EXPLORE_SELECT
+                || action == Action.EXPLORE_MOVE
+                || action == Action.TTK_TOTAL
+                || action == Action.TTK_MELEE
+                || action == Action.TTK_RANGED
+                || action == Action.TTK_MISSILE
+                || action == Action.TTK_SPIRIT_BOW
+                || action == Action.TTK_WAND
                 || action == Action.VISION)
                 && elapsed < SLOW_PHASE_NANOS) {
             return;
