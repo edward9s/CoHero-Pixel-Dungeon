@@ -1131,7 +1131,6 @@ public class CoHeroAlly extends DirectableAlly {
         enemyID = -1;
         enemySeen = false;
         alerted = false;
-        path = null;
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
