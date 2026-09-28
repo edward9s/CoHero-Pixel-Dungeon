@@ -710,8 +710,7 @@ public class CoHeroAlly extends DirectableAlly {
                 Mob combatTarget = combat.nearestThreat(attackableThreats);
                 CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, combatThreats);
 
-                Boolean shortBruteRage = combat.tryShortBruteRageTactics(
-                        combatThreats, combatRisk);
+                Boolean shortBruteRage = combat.tryShortBruteRageTactics(combatThreats);
                 if (shortBruteRage != null) {
                     logBossDecision("short_brute_rage",
                             "visible short Brute rage -> escape/wait");
