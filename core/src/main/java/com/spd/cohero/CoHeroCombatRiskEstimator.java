@@ -319,7 +319,7 @@ final class CoHeroCombatRiskEstimator {
                 Math.max(0f, baseTtk - firstAttackTime)
                         / Math.max(0.25f, targetMob.attackDelay());
         float projectedHealing = Math.min(
-                targetMob.HT * 0.50f,
+                targetMob.HT,
                 expectedHealPerAttack * expectedAttacks);
         return result + projectedHealing;
     }
