@@ -15,6 +15,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfEvasion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfMight;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
+import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfFuror;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfTenacity;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
@@ -394,21 +395,29 @@ public class CoHeroAlly extends DirectableAlly {
         return damage;
     }
 
-    @Override
-    public float attackDelay() {
+    float meleeAttackDelay(MeleeWeapon attackWeapon) {
         float delay = super.attackDelay();
-        Weapon attackWeapon = attackingWeapon();
         if (attackWeapon != null) {
             delay *= attackWeapon.delayFactor(this);
-            if (attackWeapon == weapon()) {
-                delay /= CoHeroClassTraits.meleeAttackSpeedMultiplier(this);
-                int encumbrance = weaponEncumbrance();
-                if (encumbrance > 0) {
-                    delay *= Math.pow(1.2, encumbrance);
-                }
+            delay /= CoHeroClassTraits.meleeAttackSpeedMultiplier(this);
+            int encumbrance = Math.max(0, attackWeapon.STRReq() - STR());
+            if (encumbrance > 0) {
+                delay *= Math.pow(1.2, encumbrance);
             }
+        } else if (buff(RingOfForce.Force.class) != null) {
+            // Stock Hero semantics apply Furor to Ring of Force unarmed attacks too.
+            delay /= RingOfFuror.attackSpeedMultiplier(this);
+            delay /= CoHeroClassTraits.meleeAttackSpeedMultiplier(this);
         }
         return delay;
+    }
+
+    @Override
+    public float attackDelay() {
+        if (activeMissileWeapon != null) {
+            return super.attackDelay() * activeMissileWeapon.delayFactor(this);
+        }
+        return meleeAttackDelay(weapon());
     }
 
     @Override
