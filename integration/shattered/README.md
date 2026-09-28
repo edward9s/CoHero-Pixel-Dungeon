@@ -1,6 +1,6 @@
 # Shattered integration port map
 
-This profile currently patches 53 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
+This profile currently patches 54 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
 
 ## Recommended port order
 
@@ -67,13 +67,14 @@ These are important for the finished port but should not block early gameplay br
 - `WndSettings.java` — adds the CoHero settings tab; runtime CoHero controls and Android/Desktop save transfer live in common CoHero UI code.
 - `WndGame.java` — CoHero game-menu integration.
 - `GameScene.java` — locator, inventory tag, remote view, hazard overlays, and examination visibility.
+- `AttackIndicator.java` — rejects targets outside Hero gameplay FOV so remote CoHero combat cannot leak into Hero attack UI.
 - message resources — CoHero strings.
 
 ## Patch-target invariant
 
 The Shattered profile now keeps Java patch ownership one-to-one:
 
-- 53 Java patch calls target 53 unique upstream Java files.
+- 54 Java patch calls target 54 unique upstream Java files.
 - each Java patch script edits exactly one upstream Java file;
 - each upstream Java file is owned by exactly one patch script.
 
