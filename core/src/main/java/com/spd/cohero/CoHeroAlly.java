@@ -707,7 +707,7 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
-                Mob combatTarget = combat.nearestThreat(attackableThreats);
+                Mob combatTarget = combat.selectCombatTarget(attackableThreats);
                 CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, combatThreats);
 
                 Boolean shortBruteRage = combat.tryShortBruteRageTactics(combatThreats);
@@ -760,7 +760,7 @@ public class CoHeroAlly extends DirectableAlly {
                     throw new IllegalStateException(
                             "Active CoHero combat objective produced no offensive target");
                 }
-                Mob offensiveTarget = combat.nearestThreat(attackableThreats);
+                Mob offensiveTarget = combat.selectCombatTarget(attackableThreats);
                 if (offensiveTarget != combatTarget) {
                     combatTarget = offensiveTarget;
                     combatRisk = assessCombatRisk(combatTarget, combatThreats);
