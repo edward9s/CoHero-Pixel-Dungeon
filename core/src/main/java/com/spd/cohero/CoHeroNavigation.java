@@ -8,6 +8,7 @@ import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Owns ordinary CoHero navigation state and exploration.
@@ -19,6 +20,8 @@ final class CoHeroNavigation {
 
     private final CoHeroAlly owner;
     private int explorationTarget = -1;
+    private PathFinder.Path policyPath;
+    private int policyPathTarget = -1;
 
     CoHeroNavigation(CoHeroAlly owner) {
         this.owner = owner;
@@ -33,38 +36,88 @@ final class CoHeroNavigation {
     }
 
     void clearExplorationTarget() {
+        if (explorationTarget == -1) {
+            return;
+        }
         explorationTarget = -1;
+        clearPolicyPath();
+        owner.clearNavigationPath();
     }
 
     boolean actExplore() {
-        if (explorationTarget == -1
-                || explorationTarget == owner.pos
-                || !Dungeon.level.passable[explorationTarget]
-                || (Actor.findChar(explorationTarget) != null
-                    && Actor.findChar(explorationTarget) != owner)
-                || !isMovementSafe(explorationTarget)) {
-            explorationTarget = chooseExplorationTarget();
+        long validateStarted = System.nanoTime();
+        boolean targetInvalid;
+        try {
+            targetInvalid = explorationTarget == -1
+                    || explorationTarget == owner.pos
+                    || !Dungeon.level.passable[explorationTarget]
+                    || (Actor.findChar(explorationTarget) != null
+                        && Actor.findChar(explorationTarget) != owner)
+                    || !isMovementSafe(explorationTarget);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.EXPLORE_VALIDATE, validateStarted);
+        }
+
+        if (targetInvalid) {
+            owner.clearNavigationPath();
+            long selectStarted = System.nanoTime();
+            try {
+                explorationTarget = chooseExplorationTarget();
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.EXPLORE_SELECT, selectStarted);
+            }
         }
 
         int oldPos = owner.pos;
         if (explorationTarget != -1) {
             owner.setMovementDecision("explore", explorationTarget);
         }
-        if (explorationTarget != -1 && moveTowardExplorationTarget(explorationTarget)) {
+
+        boolean moved = false;
+        if (explorationTarget != -1) {
+            long moveStarted = System.nanoTime();
+            try {
+                moved = moveTowardExplorationTarget(explorationTarget);
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.EXPLORE_MOVE, moveStarted);
+            }
+        }
+        if (moved) {
             owner.spendActionTime(1 / owner.speed());
             owner.refreshOwnFieldOfView();
             owner.passiveSearch();
             return owner.finishMovementAnimation(oldPos);
         }
 
-        explorationTarget = chooseExplorationTarget();
+        owner.clearNavigationPath();
+        long selectStarted = System.nanoTime();
+        try {
+            explorationTarget = chooseExplorationTarget();
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.EXPLORE_SELECT, selectStarted);
+        }
         owner.spendActionTime(Actor.TICK);
         return true;
     }
 
-    boolean[] ordinarySafePassable(boolean knownOnly) {
-        boolean[] result = CoHeroHazards.maskDangerous(owner, Dungeon.level.passable);
+    boolean[] movementSafeMask() {
+        boolean[] allCells = new boolean[Dungeon.level.length()];
+        Arrays.fill(allCells, true);
+        return applyMovementSafety(allCells);
+    }
+
+    private boolean[] applyMovementSafety(boolean[] passable) {
+        boolean[] result = CoHeroHazards.maskDangerous(owner, passable);
         maskSleepingEnemyWakeRisk(result);
+        return result;
+    }
+
+    boolean[] ordinarySafePassable(boolean knownOnly) {
+        boolean[] result = applyMovementSafety(Dungeon.level.passable);
 
         if (knownOnly) {
             for (int cell = 0; cell < result.length; cell++) {
@@ -108,58 +161,65 @@ final class CoHeroNavigation {
             return null;
         }
 
-        boolean[] escapePassable = hazardEscapePassable();
-        PathFinder.buildDistanceMap(owner.pos, escapePassable);
+        long started = System.nanoTime();
+        try {
+            boolean[] dangerMask = CoHeroHazards.dangerMask(owner);
+            boolean[] escapePassable = hazardEscapePassable();
+            PathFinder.buildDistanceMap(owner.pos, escapePassable);
 
-        int target = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        int bestNearbyDanger = Integer.MAX_VALUE;
-        int bestHeroDistance = Integer.MAX_VALUE;
+            int target = -1;
+            int bestDistance = Integer.MAX_VALUE;
+            int bestNearbyDanger = Integer.MAX_VALUE;
+            int bestHeroDistance = Integer.MAX_VALUE;
 
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (cell == owner.pos
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || CoHeroHazards.isDangerous(owner, cell)) {
-                continue;
+            for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+                if (cell == owner.pos
+                        || PathFinder.distance[cell] == Integer.MAX_VALUE
+                        || dangerMask[cell]) {
+                    continue;
+                }
+
+                int distance = PathFinder.distance[cell];
+                int nearbyDanger = CoHeroHazards.nearbyDangerCount(dangerMask, cell);
+                int heroDistance = Dungeon.hero == null
+                        ? 0
+                        : Dungeon.level.distance(cell, Dungeon.hero.pos);
+
+                if (target == -1
+                        || distance < bestDistance
+                        || (distance == bestDistance && nearbyDanger < bestNearbyDanger)
+                        || (distance == bestDistance
+                            && nearbyDanger == bestNearbyDanger
+                            && heroDistance < bestHeroDistance)) {
+                    target = cell;
+                    bestDistance = distance;
+                    bestNearbyDanger = nearbyDanger;
+                    bestHeroDistance = heroDistance;
+                }
             }
 
-            int distance = PathFinder.distance[cell];
-            int nearbyDanger = CoHeroHazards.nearbyDangerCount(owner, cell);
-            int heroDistance = Dungeon.hero == null
-                    ? 0
-                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
-
-            if (target == -1
-                    || distance < bestDistance
-                    || (distance == bestDistance && nearbyDanger < bestNearbyDanger)
-                    || (distance == bestDistance
-                        && nearbyDanger == bestNearbyDanger
-                        && heroDistance < bestHeroDistance)) {
-                target = cell;
-                bestDistance = distance;
-                bestNearbyDanger = nearbyDanger;
-                bestHeroDistance = heroDistance;
+            if (target == -1) {
+                return null;
             }
-        }
 
-        if (target == -1) {
-            return null;
-        }
+            int step = Dungeon.findStep(
+                    owner, target, escapePassable, owner.fieldOfView, true);
+            if (step == -1 || step == owner.pos || !escapePassable[step]) {
+                owner.clearNavigationPath();
+                return null;
+            }
 
-        int step = Dungeon.findStep(owner, target, escapePassable, owner.fieldOfView, true);
-        if (step == -1 || step == owner.pos || !escapePassable[step]) {
+            int oldPos = owner.pos;
+            owner.allowAnyGuardMovement();
+            owner.setMovementDecision("hazard_escape", step);
             owner.clearNavigationPath();
-            return null;
+            owner.move(step, true);
+            owner.spendActionTime(1 / owner.speed());
+            owner.refreshOwnFieldOfView();
+            return owner.finishMovementAnimation(oldPos);
+        } finally {
+            owner.timings().record(owner, CoHeroTimings.Action.HAZARD_ESCAPE, started);
         }
-
-        int oldPos = owner.pos;
-        owner.allowAnyGuardMovement();
-        owner.setMovementDecision("hazard_escape", step);
-        owner.clearNavigationPath();
-        owner.move(step, true);
-        owner.spendActionTime(1 / owner.speed());
-        owner.refreshOwnFieldOfView();
-        return owner.finishMovementAnimation(oldPos);
     }
 
     private boolean[] hazardEscapePassable() {
@@ -178,28 +238,115 @@ final class CoHeroNavigation {
         return result;
     }
     boolean getCloser(int target) {
-        if (!owner.isGuardMovementRestricted()
-                && !CoHeroHazards.hasActiveHazards(owner)
-                && !hasVisibleSleepingEnemy()) {
-            return owner.getCloserWithoutCoHeroPolicy(target);
+        long guardStarted = System.nanoTime();
+        boolean guardRestricted;
+        try {
+            guardRestricted = owner.isGuardMovementRestricted();
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_GUARD_CHECK, guardStarted);
+        }
+
+        boolean activeHazards = false;
+        if (!guardRestricted) {
+            long hazardStarted = System.nanoTime();
+            try {
+                activeHazards = CoHeroHazards.hasActiveHazards(owner);
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.MOVE_HAZARD_CHECK, hazardStarted);
+            }
+        }
+
+        boolean sleepingEnemy = false;
+        if (!guardRestricted && !activeHazards) {
+            long sleepStarted = System.nanoTime();
+            try {
+                sleepingEnemy = hasVisibleSleepingEnemy();
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.MOVE_SLEEP_CHECK, sleepStarted);
+            }
+        }
+
+        if (!guardRestricted && !activeHazards && !sleepingEnemy) {
+            clearPolicyPath();
+            long stockPathStarted = System.nanoTime();
+            try {
+                return owner.getCloserWithoutCoHeroPolicy(target);
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.MOVE_STOCK_PATH, stockPathStarted);
+            }
         }
         if (owner.rooted || target == owner.pos || !Dungeon.level.insideMap(target)) {
             return false;
         }
 
-        boolean[] safePassable = ordinarySafePassable(false);
-        owner.restrictGuardPassable(safePassable);
+        boolean[] safePassable;
+        long safeMaskStarted = System.nanoTime();
+        try {
+            safePassable = ordinarySafePassable(false);
+            owner.restrictGuardPassable(safePassable);
+            safePassable[owner.pos] = true;
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_SAFE_MASK, safeMaskStarted);
+        }
 
-        safePassable[owner.pos] = true;
-        int step = Dungeon.findStep(owner, target, safePassable, owner.fieldOfView, true);
-        if (step == -1 || !safePassable[step]) {
-            owner.clearNavigationPath();
+        int step;
+        long policyPathStarted = System.nanoTime();
+        try {
+            step = nextPolicyStep(target, safePassable);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_POLICY_PATH, policyPathStarted);
+        }
+        if (step == -1) {
             return false;
         }
 
-        owner.clearNavigationPath();
-        owner.move(step);
-        return owner.pos == step;
+        long executeStarted = System.nanoTime();
+        try {
+            owner.move(step);
+            return owner.pos == step;
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_EXECUTE, executeStarted);
+        }
+    }
+
+    private int nextPolicyStep(int target, boolean[] safePassable) {
+        boolean rebuild = policyPath == null
+                || policyPath.isEmpty()
+                || policyPathTarget != target
+                || !Dungeon.level.adjacent(owner.pos, policyPath.getFirst())
+                || !safePassable[policyPath.getFirst()]
+                || Actor.findChar(policyPath.getFirst()) != null;
+
+        if (rebuild) {
+            clearPolicyPath();
+            policyPath = Dungeon.findPath(
+                    owner, target, safePassable, owner.fieldOfView, true);
+            policyPathTarget = target;
+        }
+
+        if (policyPath == null || policyPath.isEmpty()) {
+            clearPolicyPath();
+            return -1;
+        }
+
+        int step = policyPath.removeFirst();
+        if (!safePassable[step] || Actor.findChar(step) != null) {
+            clearPolicyPath();
+            return -1;
+        }
+        return step;
+    }
+
+    void clearPolicyPath() {
+        policyPath = null;
+        policyPathTarget = -1;
     }
 
     boolean isMovementSafe(int cell) {
@@ -246,16 +393,7 @@ final class CoHeroNavigation {
             return false;
         }
 
-        boolean[] passable = ordinarySafePassable(false);
-        int step = Dungeon.findStep(owner, target, passable, owner.fieldOfView, true);
-        if (step == -1 || !passable[step]) {
-            owner.clearNavigationPath();
-            return false;
-        }
-
-        owner.clearNavigationPath();
-        owner.move(step, true);
-        return true;
+        return getCloser(target);
     }
 
     private int chooseExplorationTarget() {

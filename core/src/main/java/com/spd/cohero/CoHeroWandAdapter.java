@@ -45,6 +45,16 @@ import java.util.List;
  */
 final class CoHeroWandAdapter {
 
+    static final class DamageEvaluation {
+        final float expectedDamage;
+        final int aimCell;
+
+        DamageEvaluation(float expectedDamage, int aimCell) {
+            this.expectedDamage = expectedDamage;
+            this.aimCell = aimCell;
+        }
+    }
+
     private CoHeroWandAdapter() {}
 
     static int absorbLivingEarthArmor(CoHeroAlly owner, int damage) {
@@ -130,6 +140,69 @@ final class CoHeroWandAdapter {
         }
 
         return wand.coHeroBallistica(owner, target.pos).collisionPos == target.pos;
+    }
+
+    static DamageEvaluation usableDamageEvaluation(
+            Wand wand, CoHeroAlly owner, Mob target) {
+        return usableDamageEvaluation(wand, owner, target, null);
+    }
+
+    static DamageEvaluation usableDamageEvaluation(
+            Wand wand,
+            CoHeroAlly owner,
+            Mob target,
+            CoHeroWardingPlanner.PlanningContext wardingContext) {
+        if (!hasOffensivePotential(wand, owner, target)
+                || !damagingCapability(wand, target)) {
+            return null;
+        }
+
+        if (wand instanceof WandOfBlastWave) {
+            CoHeroBlastWavePlanner.Plan plan =
+                    CoHeroBlastWavePlanner.choose((WandOfBlastWave) wand, owner, target);
+            return plan == null
+                    ? null
+                    : new DamageEvaluation(plan.expectedDamage, plan.aimCell);
+        }
+        if (wand instanceof WandOfCorrosion) {
+            CoHeroCorrosionPlanner.Plan plan =
+                    CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target);
+            return plan == null
+                    ? null
+                    : new DamageEvaluation(plan.expectedDamage, plan.aimCell);
+        }
+        if (wand instanceof WandOfFireblast) {
+            CoHeroFireblastPlanner.Plan plan =
+                    CoHeroFireblastPlanner.choose((WandOfFireblast) wand, owner, target);
+            return plan == null
+                    ? null
+                    : new DamageEvaluation(plan.expectedDamage, plan.aimCell);
+        }
+        if (wand instanceof WandOfWarding) {
+            CoHeroWardingPlanner.Plan plan = wardingContext == null
+                    ? CoHeroWardingPlanner.choose((WandOfWarding) wand, owner, target)
+                    : CoHeroWardingPlanner.choose(
+                            (WandOfWarding) wand, owner, target, wardingContext);
+            return plan == null
+                    ? null
+                    : new DamageEvaluation(plan.expectedDamage, plan.aimCell);
+        }
+
+        if (!canAffectEnemy(wand, owner, target)) {
+            return null;
+        }
+        float damage = expectedDamage(wand, owner, target);
+        return damage == Float.NEGATIVE_INFINITY
+                ? null
+                : new DamageEvaluation(damage, target.pos);
+    }
+
+    static float expectedUsableDamage(
+            Wand wand, CoHeroAlly owner, Mob target) {
+        DamageEvaluation evaluation = usableDamageEvaluation(wand, owner, target);
+        return evaluation == null
+                ? Float.NEGATIVE_INFINITY
+                : evaluation.expectedDamage;
     }
 
     static boolean damagingPotential(Wand wand, Mob target) {

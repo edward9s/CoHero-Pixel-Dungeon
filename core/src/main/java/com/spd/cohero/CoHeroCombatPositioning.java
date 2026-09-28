@@ -17,6 +17,7 @@ import com.watabou.utils.PathFinder;
 import java.util.ArrayList;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
 
@@ -41,6 +42,27 @@ final class CoHeroCombatPositioning {
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
 
     private final CoHeroAlly owner;
+    private int[] chokeSide0Distance = new int[0];
+    private int[] chokeSide1Distance = new int[0];
+    private int[] chokeQueue = new int[0];
+    private Object chokeTopologyLevel;
+    private boolean[] chokePassableSnapshot;
+    private ChokeTopology[] chokeTopologyByCell = new ChokeTopology[0];
+    private boolean[] chokeTopologyComputed = new boolean[0];
+
+    private static final class ChokeTopology {
+        final int exit0;
+        final int exit1;
+        final BitSet side0;
+        final BitSet side1;
+
+        ChokeTopology(int exit0, int exit1, BitSet side0, BitSet side1) {
+            this.exit0 = exit0;
+            this.exit1 = exit1;
+            this.side0 = side0;
+            this.side1 = side1;
+        }
+    }
 
     CoHeroCombatPositioning(CoHeroAlly owner) {
 
@@ -412,7 +434,14 @@ final class CoHeroCombatPositioning {
         // Ranged pressure does not disable anti-encirclement positioning. Melee threats define
         // whether a choke actually limits frontage; every threat still contributes to incoming
         // DPT when choosing between otherwise valid positions.
-        int tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
+        long searchStarted = System.nanoTime();
+        int tacticalCell;
+        try {
+            tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.ENCIRCLEMENT_SEARCH, searchStarted);
+        }
         if (tacticalCell != -1 && tacticalCell != owner.pos) {
             int oldPos = owner.pos;
             owner.allowAnyGuardMovement();
@@ -432,18 +461,24 @@ final class CoHeroCombatPositioning {
         // chooseEscapeStep refuses neutral/worse moves, so this does not make CoHero run forever
         // from a lone swarm in an open room.
         if (crowdedMelee && !owner.rooted) {
-            int escape = chooseEscapeStep(threats);
-            if (escape != -1) {
-                int oldPos = owner.pos;
-                owner.allowAnyGuardMovement();
-                owner.setMovementDecision("encirclement_escape", escape);
-                owner.move(escape, true);
-                if (owner.pos != oldPos) {
-                    owner.spendActionTime(1 / owner.speed());
-                    Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
-                    owner.revealVisibleCells();
-                    return owner.animateMoveFrom(oldPos);
+            long escapeStarted = System.nanoTime();
+            try {
+                int escape = chooseEscapeStep(threats);
+                if (escape != -1) {
+                    int oldPos = owner.pos;
+                    owner.allowAnyGuardMovement();
+                    owner.setMovementDecision("encirclement_escape", escape);
+                    owner.move(escape, true);
+                    if (owner.pos != oldPos) {
+                        owner.spendActionTime(1 / owner.speed());
+                        Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
+                        owner.revealVisibleCells();
+                        return owner.animateMoveFrom(oldPos);
+                    }
                 }
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.ENCIRCLEMENT_ESCAPE, escapeStarted);
             }
         }
 
@@ -470,8 +505,26 @@ final class CoHeroCombatPositioning {
             return -1;
         }
 
+        boolean profile = owner.timings().isEnabled();
+        long filterNanos = 0L;
+        long dynamicNanos = 0L;
+
+        long phaseStarted = profile ? System.nanoTime() : 0L;
+        boolean[] movementSafe = owner.movementSafeMask();
+        ensureChokeTopologyCache();
+        if (profile) {
+            filterNanos += System.nanoTime() - phaseStarted;
+        }
+
+        phaseStarted = profile ? System.nanoTime() : 0L;
         PathFinder.buildDistanceMap(
                 owner.pos, Dungeon.level.passable, ENCIRCLEMENT_SEARCH_RADIUS);
+        if (profile) {
+            owner.timings().recordElapsed(
+                    owner,
+                    CoHeroTimings.Action.ENCIRCLEMENT_DISTANCE_MAP,
+                    System.nanoTime() - phaseStarted);
+        }
 
         int best = -1;
         float bestIncoming = Float.POSITIVE_INFINITY;
@@ -479,21 +532,35 @@ final class CoHeroCombatPositioning {
         int bestTargetDistance = Integer.MAX_VALUE;
 
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+            phaseStarted = profile ? System.nanoTime() : 0L;
             int pathDistance = PathFinder.distance[cell];
-            if (pathDistance == Integer.MAX_VALUE
-                    || pathDistance > ENCIRCLEMENT_SEARCH_RADIUS
-                    || !owner.fieldOfView[cell]
-                    || !owner.isKnown(cell)
-                    || !Dungeon.level.passable[cell]
-                    || !owner.isMovementSafe(cell)) {
+            boolean candidate = pathDistance != Integer.MAX_VALUE
+                    && pathDistance <= ENCIRCLEMENT_SEARCH_RADIUS
+                    && owner.fieldOfView[cell]
+                    && owner.isKnown(cell)
+                    && Dungeon.level.passable[cell]
+                    && movementSafe[cell];
+            if (candidate) {
+                Char occupant = Actor.findChar(cell);
+                candidate = occupant == null || occupant == owner;
+            }
+            if (profile) {
+                filterNanos += System.nanoTime() - phaseStarted;
+            }
+            if (!candidate) {
                 continue;
             }
 
-            Char occupant = Actor.findChar(cell);
-            if (occupant != null && occupant != owner) {
+            ChokeTopology topology = chokeTopology(cell);
+            if (topology == null) {
                 continue;
             }
-            if (!isDefensibleChoke(cell, meleeThreats)) {
+
+            phaseStarted = profile ? System.nanoTime() : 0L;
+            if (!isDefensibleChokeCached(cell, topology, meleeThreats)) {
+                if (profile) {
+                    dynamicNanos += System.nanoTime() - phaseStarted;
+                }
                 continue;
             }
 
@@ -517,32 +584,29 @@ final class CoHeroCombatPositioning {
                 bestPathDistance = pathDistance;
                 bestTargetDistance = targetDistance;
             }
+            if (profile) {
+                dynamicNanos += System.nanoTime() - phaseStarted;
+            }
         }
 
+        if (profile) {
+            owner.timings().recordElapsed(
+                    owner, CoHeroTimings.Action.ENCIRCLEMENT_FILTER, filterNanos);
+            owner.timings().recordElapsed(
+                    owner, CoHeroTimings.Action.ENCIRCLEMENT_DYNAMIC, dynamicNanos);
+        }
         return best;
     }
 
     boolean isDefensibleChoke(int cell, ArrayList<Mob> threats) {
-        if (threats == null || threats.isEmpty()) {
-            return false;
-        }
+        ensureChokeTopologyCache();
+        ChokeTopology topology = chokeTopology(cell);
+        return topology != null && isDefensibleChokeCached(cell, topology, threats);
+    }
 
-        int[] exits = new int[2];
-        int exitCount = 0;
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int adjacent = cell + offset;
-            if (adjacent < 0
-                    || adjacent >= Dungeon.level.length()
-                    || Dungeon.level.distance(cell, adjacent) != 1
-                    || !Dungeon.level.passable[adjacent]) {
-                continue;
-            }
-            if (exitCount == exits.length) {
-                return false;
-            }
-            exits[exitCount++] = adjacent;
-        }
-        if (exitCount != 2) {
+    private boolean isDefensibleChokeCached(
+            int cell, ChokeTopology topology, ArrayList<Mob> threats) {
+        if (threats == null || threats.isEmpty()) {
             return false;
         }
 
@@ -551,19 +615,14 @@ final class CoHeroCombatPositioning {
             return false;
         }
 
-        int[] side0Distance =
-                localPathDistances(exits[0], cell, CHOKE_REAR_SCAN_RADIUS);
-        int[] side1Distance =
-                localPathDistances(exits[1], cell, CHOKE_REAR_SCAN_RADIUS);
-
         boolean pressure0 = false;
         boolean pressure1 = false;
         for (Mob threat : threats) {
             if (!Dungeon.level.insideMap(threat.pos)) {
                 continue;
             }
-            boolean side0 = side0Distance[threat.pos] >= 0;
-            boolean side1 = side1Distance[threat.pos] >= 0;
+            boolean side0 = topology.side0.get(threat.pos);
+            boolean side1 = topology.side1.get(threat.pos);
 
             // Both exits are locally reachable without crossing the candidate cell: enemies can
             // flank this position in the near term, so it is not a real defensive choke.
@@ -578,27 +637,114 @@ final class CoHeroCombatPositioning {
             return false;
         }
 
-        int rear = pressure0 ? exits[1] : exits[0];
+        int rear = pressure0 ? topology.exit1 : topology.exit0;
         return owner.isKnown(rear)
                 && owner.isMovementSafe(rear)
                 && Actor.findChar(rear) == null;
     }
 
-    int[] localPathDistances(int start, int blockedCell, int maxDistance) {
-        int[] distance = new int[Dungeon.level.length()];
+    private ChokeTopology chokeTopology(int cell) {
+        if (!Dungeon.level.insideMap(cell)) {
+            return null;
+        }
+        if (chokeTopologyComputed[cell]) {
+            return chokeTopologyByCell[cell];
+        }
+
+        boolean profile = owner.timings().isEnabled();
+        long started = profile ? System.nanoTime() : 0L;
+        chokeTopologyComputed[cell] = true;
+        try {
+        int[] exits = new int[2];
+        int exitCount = 0;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent < 0
+                    || adjacent >= Dungeon.level.length()
+                    || Dungeon.level.distance(cell, adjacent) != 1
+                    || !Dungeon.level.passable[adjacent]) {
+                continue;
+            }
+            if (exitCount == exits.length) {
+                return null;
+            }
+            exits[exitCount++] = adjacent;
+        }
+        if (exitCount != 2) {
+            return null;
+        }
+
+        ensureChokeScratch();
+        int[] side0Distance =
+                localPathDistances(
+                        exits[0], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide0Distance);
+        int[] side1Distance =
+                localPathDistances(
+                        exits[1], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide1Distance);
+
+        BitSet side0 = new BitSet(Dungeon.level.length());
+        BitSet side1 = new BitSet(Dungeon.level.length());
+        for (int candidate = 0; candidate < Dungeon.level.length(); candidate++) {
+            if (side0Distance[candidate] >= 0) {
+                side0.set(candidate);
+            }
+            if (side1Distance[candidate] >= 0) {
+                side1.set(candidate);
+            }
+        }
+
+        ChokeTopology topology = new ChokeTopology(exits[0], exits[1], side0, side1);
+        chokeTopologyByCell[cell] = topology;
+        return topology;
+        } finally {
+            if (profile) {
+                owner.timings().recordElapsed(
+                        owner,
+                        CoHeroTimings.Action.ENCIRCLEMENT_TOPOLOGY_BUILD,
+                        System.nanoTime() - started);
+            }
+        }
+    }
+
+    private void ensureChokeTopologyCache() {
+        int length = Dungeon.level.length();
+        if (chokeTopologyLevel == Dungeon.level
+                && chokePassableSnapshot != null
+                && chokePassableSnapshot.length == length
+                && Arrays.equals(chokePassableSnapshot, Dungeon.level.passable)) {
+            return;
+        }
+
+        chokeTopologyLevel = Dungeon.level;
+        chokePassableSnapshot = Dungeon.level.passable.clone();
+        chokeTopologyByCell = new ChokeTopology[length];
+        chokeTopologyComputed = new boolean[length];
+    }
+
+    private void ensureChokeScratch() {
+        int length = Dungeon.level.length();
+        if (chokeSide0Distance.length == length) {
+            return;
+        }
+        chokeSide0Distance = new int[length];
+        chokeSide1Distance = new int[length];
+        chokeQueue = new int[length];
+    }
+
+    private int[] localPathDistances(
+            int start, int blockedCell, int maxDistance, int[] distance) {
         Arrays.fill(distance, -1);
         if (!Dungeon.level.insideMap(start) || start == blockedCell) {
             return distance;
         }
 
-        int[] queue = new int[Dungeon.level.length()];
         int head = 0;
         int tail = 0;
         distance[start] = 0;
-        queue[tail++] = start;
+        chokeQueue[tail++] = start;
 
         while (head < tail) {
-            int current = queue[head++];
+            int current = chokeQueue[head++];
             int nextDistance = distance[current] + 1;
             if (nextDistance > maxDistance) {
                 continue;
@@ -614,7 +760,7 @@ final class CoHeroCombatPositioning {
                     continue;
                 }
                 distance[next] = nextDistance;
-                queue[tail++] = next;
+                chokeQueue[tail++] = next;
             }
         }
 

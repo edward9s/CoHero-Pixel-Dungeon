@@ -22,6 +22,7 @@ import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 
 final class CoHeroCombatController {
 
@@ -29,6 +30,49 @@ final class CoHeroCombatController {
     private final CoHeroCombatTargeting targeting;
     private final CoHeroCombatPositioning positioning;
     private final CoHeroEnemyTactics enemyTactics;
+    private final IdentityHashMap<Mob, RangedTurnCache> rangedTurnCaches =
+            new IdentityHashMap<>();
+    private int rangedTurnSerial;
+    private Object rangedCacheLevel;
+    private int meleeDamageTurn = -1;
+    private float meleeDamage;
+    private CoHeroWardingPlanner.PlanningContext wardingPlanningContext;
+
+    private static final class RangedTurnCache {
+        int turn = -1;
+        boolean projectileLineEvaluated;
+        boolean projectileLine;
+        boolean highEvasionWandEvaluated;
+        Wand highEvasionWand;
+        boolean bestAverageDamageEvaluated;
+        float bestAverageDamage;
+        boolean preferRangedEvaluated;
+        boolean preferRanged;
+        boolean choiceEvaluated;
+        RangedChoice choice;
+        boolean bestDamageWandEvaluated;
+        Wand bestDamageWand;
+        float bestDamageWandDamage;
+        int bestDamageWandAimCell;
+        final IdentityHashMap<Wand, CoHeroWandAdapter.DamageEvaluation> wandDamageEvaluations =
+                new IdentityHashMap<>();
+
+        void reset(int turn) {
+            this.turn = turn;
+            projectileLineEvaluated = false;
+            highEvasionWandEvaluated = false;
+            bestAverageDamageEvaluated = false;
+            preferRangedEvaluated = false;
+            choiceEvaluated = false;
+            bestDamageWandEvaluated = false;
+            highEvasionWand = null;
+            choice = null;
+            bestDamageWand = null;
+            bestDamageWandDamage = Float.NEGATIVE_INFINITY;
+            bestDamageWandAimCell = -1;
+            wandDamageEvaluations.clear();
+        }
+    }
 
     CoHeroCombatController(CoHeroAlly owner) {
         this.owner = owner;
@@ -38,6 +82,75 @@ final class CoHeroCombatController {
     }
 
     private static final float RANGED_DAMAGE_PREFERENCE_MULTIPLIER = 1.5f;
+
+    void beginTurn() {
+        if (Dungeon.level == null) {
+            throw new IllegalStateException("CoHero combat turn started without a level");
+        }
+        if (rangedCacheLevel != Dungeon.level || rangedTurnSerial == Integer.MAX_VALUE) {
+            rangedTurnCaches.clear();
+            rangedCacheLevel = Dungeon.level;
+            rangedTurnSerial = 1;
+        } else {
+            rangedTurnSerial++;
+        }
+        meleeDamageTurn = -1;
+        wardingPlanningContext = null;
+    }
+
+    private CoHeroWardingPlanner.PlanningContext wardingPlanningContext() {
+        if (wardingPlanningContext == null) {
+            wardingPlanningContext = new CoHeroWardingPlanner.PlanningContext(owner);
+        }
+        return wardingPlanningContext;
+    }
+
+    private RangedTurnCache rangedTurnCache(Mob targetMob) {
+        if (targetMob == null
+                || rangedTurnSerial == 0
+                || rangedCacheLevel != Dungeon.level) {
+            throw new IllegalStateException(
+                    "CoHero ranged evaluation queried outside the current decision turn");
+        }
+
+        RangedTurnCache cache = rangedTurnCaches.get(targetMob);
+        if (cache == null) {
+            cache = new RangedTurnCache();
+            rangedTurnCaches.put(targetMob, cache);
+        }
+        if (cache.turn != rangedTurnSerial) {
+            cache.reset(rangedTurnSerial);
+        }
+        return cache;
+    }
+
+    CoHeroWandAdapter.DamageEvaluation usableDamageEvaluation(
+            Mob targetMob, Wand wand) {
+        if (targetMob == null || wand == null) {
+            return null;
+        }
+
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (!cache.wandDamageEvaluations.containsKey(wand)) {
+            cache.wandDamageEvaluations.put(
+                    wand,
+                    CoHeroWandAdapter.usableDamageEvaluation(
+                            wand, owner, targetMob, wardingPlanningContext()));
+        }
+        return cache.wandDamageEvaluations.get(wand);
+    }
+
+    private boolean hasProjectileLine(Mob targetMob) {
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (!cache.projectileLineEvaluated) {
+            cache.projectileLine =
+                    new Ballistica(
+                            owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
+                            == targetMob.pos;
+            cache.projectileLineEvaluated = true;
+        }
+        return cache.projectileLine;
+    }
 
     Mob nearestThreat(ArrayList<Mob> threats) {
         return targeting.nearestThreat(threats);
@@ -321,110 +434,163 @@ final class CoHeroCombatController {
         return step == -1 ? null : moveForRangedEngagement(step, "ranged_cover");
     }
 
+    private void evaluateBestDamageWand(Mob targetMob) {
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (cache.bestDamageWandEvaluated) {
+            return;
+        }
+
+        Wand best = null;
+        float bestDamage = Float.NEGATIVE_INFINITY;
+        int bestAimCell = -1;
+        for (Wand wand : owner.inventory().wands()) {
+            if (!CoHeroWandAdapter.supported(wand)
+                    || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
+                continue;
+            }
+
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    usableDamageEvaluation(targetMob, wand);
+            if (evaluation == null) {
+                continue;
+            }
+            if (best == null || evaluation.expectedDamage > bestDamage) {
+                best = wand;
+                bestDamage = evaluation.expectedDamage;
+                bestAimCell = evaluation.aimCell;
+            }
+        }
+
+        cache.bestDamageWand = best;
+        cache.bestDamageWandDamage = bestDamage;
+        cache.bestDamageWandAimCell = bestAimCell;
+        cache.bestDamageWandEvaluated = true;
+    }
+
+    private Wand bestUsableDamageWand(Mob targetMob) {
+        evaluateBestDamageWand(targetMob);
+        return rangedTurnCache(targetMob).bestDamageWand;
+    }
+
+    private float bestUsableDamageWandDamage(Mob targetMob) {
+        evaluateBestDamageWand(targetMob);
+        return rangedTurnCache(targetMob).bestDamageWandDamage;
+    }
+
+    private int bestUsableDamageWandAimCell(Mob targetMob) {
+        evaluateBestDamageWand(targetMob);
+        return rangedTurnCache(targetMob).bestDamageWandAimCell;
+    }
+
     private boolean shouldPreferRangedAttack(Mob targetMob) {
         if (targetMob == null || targetMob.properties().contains(Char.Property.BOSS)) {
             return false;
         }
 
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (cache.preferRangedEvaluated) {
+            return cache.preferRanged;
+        }
+
+        boolean result;
         if (preferredDamageWandForHighEvasion(targetMob) != null) {
-            return true;
-        }
-
-        float rangedDamage = bestRangedAverageDamage(targetMob);
-        if (rangedDamage <= 0f) {
-            return false;
-        }
-
-        float meleeDamage = averageMeleeDamage();
-        if (!owner.hasNonAdjacentAttackCapability(targetMob)) {
-            int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
-            if (distance > 1) {
-                // A gap is only a truly free ranged turn when the target cannot enter attack range
-                // before a normal CoHero action finishes. Fast melee enemies such as bats and crabs
-                // can consume several cells of distance inside that same time window.
-                if (!owner.canAttack(targetMob)) {
-                    boolean freeRangedWindow =
-                            owner.estimatedTimeToAttackCell(targetMob, owner.pos)
-                                    > Actor.TICK + 0.001f;
-                    if (freeRangedWindow || !owner.hasMeleeCombatCapability()) {
-                        return true;
+            result = true;
+        } else {
+            float rangedDamage = bestRangedAverageDamage(targetMob);
+            if (rangedDamage <= 0f) {
+                result = false;
+            } else {
+                float currentMeleeDamage = averageMeleeDamage();
+                if (!owner.hasNonAdjacentAttackCapability(targetMob)) {
+                    int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
+                    if (distance > 1) {
+                        if (!owner.canAttack(targetMob)) {
+                            boolean freeRangedWindow =
+                                    owner.estimatedTimeToAttackCell(targetMob, owner.pos)
+                                            > Actor.TICK + 0.001f;
+                            if (freeRangedWindow || !owner.hasMeleeCombatCapability()) {
+                                result = true;
+                            } else {
+                                result = rangedDamage
+                                        >= currentMeleeDamage
+                                            * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+                            }
+                        } else {
+                            result = rangedDamage > currentMeleeDamage;
+                        }
+                    } else {
+                        result = currentMeleeDamage
+                                < rangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
                     }
-
-                    // Shooting can still be the best currently legal action, but do not treat the
-                    // spacing itself as strategically valuable unless ranged damage is compelling.
-                    return rangedDamage
-                            >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+                } else {
+                    float enemyRangedDamage = owner.averageRangedThreatDamage(targetMob);
+                    boolean outdamagesEnemy = enemyRangedDamage >= 0f
+                            && rangedDamage
+                                >= enemyRangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+                    boolean outdamagesMelee =
+                            rangedDamage
+                                >= currentMeleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+                    result = outdamagesEnemy || outdamagesMelee;
                 }
-
-                // Extended melee already reaches the target, so neither option costs movement.
-                return rangedDamage > meleeDamage;
             }
-
-            // Once a pure-melee target has reached adjacency, reopening distance costs a turn.
-            // Only kite again unless the melee build is clearly stronger.
-            return meleeDamage < rangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
         }
 
-        float enemyRangedDamage = owner.averageRangedThreatDamage(targetMob);
-        boolean outdamagesEnemy = enemyRangedDamage >= 0f
-                && rangedDamage >= enemyRangedDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
-        boolean outdamagesMelee =
-                rangedDamage >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
-        return outdamagesEnemy || outdamagesMelee;
+        cache.preferRanged = result;
+        cache.preferRangedEvaluated = true;
+        return result;
     }
 
     private Wand preferredDamageWandForHighEvasion(Mob targetMob) {
-        if (targetMob == null || targetMob.buff(MagicImmune.class) != null) {
+        if (targetMob == null) {
             return null;
         }
 
-        int rawDefenseSkill = targetMob.defenseSkill(owner);
-        boolean infiniteEvasion = rawDefenseSkill >= Char.INFINITE_EVASION;
-        if (!infiniteEvasion && targetMob.coHeroSurprisedBy(owner)) {
-            return null;
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (cache.highEvasionWandEvaluated) {
+            return cache.highEvasionWand;
         }
 
-        ArrayList<Wand> damageWands = new ArrayList<>();
-        for (Wand wand : owner.inventory().wands()) {
-            if (CoHeroWandAdapter.supported(wand)
-                    && CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                damageWands.add(wand);
-            }
-        }
-        if (damageWands.isEmpty()) {
-            return null;
-        }
+        Wand result = null;
+        if (targetMob.buff(MagicImmune.class) == null) {
+            int rawDefenseSkill = targetMob.defenseSkill(owner);
+            boolean infiniteEvasion = rawDefenseSkill >= Char.INFINITE_EVASION;
+            if (infiniteEvasion || !targetMob.coHeroSurprisedBy(owner)) {
+                float accuracyMultiplier = owner.blessRollMultiplier(owner);
+                float bestPhysicalAccuracy = owner.hasMeleeCombatCapability()
+                        ? owner.attackSkill(targetMob) * accuracyMultiplier
+                        : 0f;
 
-        float accuracyMultiplier = owner.blessRollMultiplier(owner);
-        float bestPhysicalAccuracy = owner.hasMeleeCombatCapability()
-                ? owner.attackSkill(targetMob) * accuracyMultiplier
-                : 0f;
+                if (hasProjectileLine(targetMob)) {
+                    for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                        if (owner.inventory().canUse(missile)) {
+                            bestPhysicalAccuracy = Math.max(
+                                    bestPhysicalAccuracy,
+                                    owner.attackSkillWith(missile, targetMob)
+                                            * accuracyMultiplier);
+                        }
+                    }
 
-        Ballistica shot = new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE);
-        if (shot.collisionPos == targetMob.pos) {
-            for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-                if (owner.inventory().canUse(missile)) {
-                    bestPhysicalAccuracy = Math.max(
-                            bestPhysicalAccuracy,
-                            owner.attackSkillWith(missile, targetMob) * accuracyMultiplier);
+                    SpiritBow spiritBow = owner.inventory().spiritBow();
+                    if (owner.inventory().canUse(spiritBow)) {
+                        MissileWeapon arrow = spiritBow.knockArrow();
+                        bestPhysicalAccuracy = Math.max(
+                                bestPhysicalAccuracy,
+                                owner.attackSkillWith(arrow, targetMob)
+                                    * accuracyMultiplier);
+                    }
+                }
+
+                float targetEvasion =
+                        rawDefenseSkill * owner.blessRollMultiplier(targetMob);
+                if (targetEvasion > bestPhysicalAccuracy) {
+                    result = bestUsableDamageWand(targetMob);
                 }
             }
-
-            SpiritBow spiritBow = owner.inventory().spiritBow();
-            if (owner.inventory().canUse(spiritBow)) {
-                MissileWeapon arrow = spiritBow.knockArrow();
-                bestPhysicalAccuracy = Math.max(
-                        bestPhysicalAccuracy,
-                        owner.attackSkillWith(arrow, targetMob) * accuracyMultiplier);
-            }
         }
 
-        float targetEvasion =
-                rawDefenseSkill * owner.blessRollMultiplier(targetMob);
-        return targetEvasion > bestPhysicalAccuracy
-                ? bestDamageWand(damageWands, targetMob)
-                : null;
+        cache.highEvasionWand = result;
+        cache.highEvasionWandEvaluated = true;
+        return result;
     }
 
     float bestRangedAverageDamage(Mob targetMob) {
@@ -432,9 +598,13 @@ final class CoHeroCombatController {
             return 0f;
         }
 
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (cache.bestAverageDamageEvaluated) {
+            return cache.bestAverageDamage;
+        }
+
         float best = 0f;
-        Ballistica shot = new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE);
-        if (shot.collisionPos == targetMob.pos) {
+        if (hasProjectileLine(targetMob)) {
             for (MissileWeapon missile : owner.inventory().missileWeapons()) {
                 if (owner.inventory().canUse(missile)) {
                     best = Math.max(best, CoHeroMissileAdapter.expectedDamage(owner, missile));
@@ -448,24 +618,28 @@ final class CoHeroCombatController {
             }
         }
 
-        for (Wand wand : owner.inventory().wands()) {
-            if (CoHeroWandAdapter.supported(wand)
-                    && CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                best = Math.max(best, CoHeroWandAdapter.expectedDamage(wand, owner, targetMob));
-            }
-        }
+        best = Math.max(best, bestUsableDamageWandDamage(targetMob));
+
+        cache.bestAverageDamage = best;
+        cache.bestAverageDamageEvaluated = true;
         return best;
     }
 
     private float averageMeleeDamage() {
+        if (meleeDamageTurn == rangedTurnSerial) {
+            return meleeDamage;
+        }
+
         MeleeWeapon weapon = owner.weapon();
         if (weapon == null) {
             if (!owner.hasMeleeCombatCapability()) {
-                return 0f;
+                meleeDamage = 0f;
+            } else {
+                meleeDamage = (RingOfForce.coHeroUnarmedMinDamage(owner, owner.STR())
+                        + RingOfForce.coHeroUnarmedMaxDamage(owner, owner.STR())) / 2f;
             }
-            return (RingOfForce.coHeroUnarmedMinDamage(owner, owner.STR())
-                    + RingOfForce.coHeroUnarmedMaxDamage(owner, owner.STR())) / 2f;
+            meleeDamageTurn = rangedTurnSerial;
+            return meleeDamage;
         }
 
         int level = weapon.buffedLvl();
@@ -476,7 +650,9 @@ final class CoHeroCombatController {
         if (excessStrength > 0) {
             average += excessStrength / 2f;
         }
-        return average;
+        meleeDamage = average;
+        meleeDamageTurn = rangedTurnSerial;
+        return meleeDamage;
     }
 
     private boolean canOpenRangedSpacingAgainst(Mob targetMob) {
@@ -731,11 +907,14 @@ final class CoHeroCombatController {
 
         for (Wand wand : owner.inventory().wands()) {
             float dpt = owner.estimateDamageWandDpt(targetMob, wand);
-            int aimCell = dpt > 0f ? CoHeroWandAdapter.aimCell(wand, owner, targetMob) : -1;
-            if (aimCell >= 0 && dpt > bestDpt + 0.001f) {
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    dpt > 0f ? usableDamageEvaluation(targetMob, wand) : null;
+            if (evaluation != null
+                    && evaluation.aimCell >= 0
+                    && dpt > bestDpt + 0.001f) {
                 bestDpt = dpt;
                 meleeBest = false;
-                rangedBest = RangedChoice.wand(wand, aimCell);
+                rangedBest = RangedChoice.wand(wand, evaluation.aimCell);
             }
         }
 
@@ -815,93 +994,96 @@ final class CoHeroCombatController {
                 || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1) {
             return null;
         }
+
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (cache.choiceEvaluated) {
+            return cache.choice;
+        }
+
+        RangedChoice result = null;
         ArrayList<MissileWeapon> missiles = new ArrayList<>();
-        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            if (owner.inventory().canUse(missile)
-                    && new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
-                missiles.add(missile);
+        if (hasProjectileLine(targetMob)) {
+            for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                if (owner.inventory().canUse(missile)) {
+                    missiles.add(missile);
+                }
             }
         }
 
         SpiritBow spiritBow = owner.inventory().spiritBow();
-        MissileWeapon spiritArrow = null;
-        if (owner.inventory().canUse(spiritBow)
-                && new Ballistica(owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos == targetMob.pos) {
-            spiritArrow = spiritBow.knockArrow();
-        }
+        MissileWeapon spiritArrow = hasProjectileLine(targetMob)
+                && owner.inventory().canUse(spiritBow)
+                ? spiritBow.knockArrow()
+                : null;
 
         Wand guaranteedControl = null;
-        ArrayList<Wand> damageWands = new ArrayList<>();
         for (Wand wand : owner.inventory().wands()) {
             if (!CoHeroWandAdapter.supported(wand)) {
                 continue;
             }
-            if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
-                if (guaranteedControl == null || wand.buffedLvl() > guaranteedControl.buffedLvl()) {
-                    guaranteedControl = wand;
-                }
-            } else if (CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
-                damageWands.add(wand);
+            if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)
+                    && (guaranteedControl == null
+                        || wand.buffedLvl() > guaranteedControl.buffedLvl())) {
+                guaranteedControl = wand;
             }
         }
 
-        // A guaranteed corruption/doom conversion is treated as higher-value control than damage.
         if (guaranteedControl != null) {
-            return RangedChoice.wand(guaranteedControl, targetMob.pos);
-        }
+            result = RangedChoice.wand(guaranteedControl, targetMob.pos);
+        } else {
+            Wand highEvasionWand = preferredDamageWandForHighEvasion(targetMob);
+            if (highEvasionWand != null) {
+                result = RangedChoice.wand(
+                        highEvasionWand,
+                        bestUsableDamageWandAimCell(targetMob));
+            } else {
+                MissileWeapon bestMissile = null;
+                float bestMissileDamage = Float.NEGATIVE_INFINITY;
+                for (MissileWeapon missile : missiles) {
+                    float damage = CoHeroMissileAdapter.expectedDamage(owner, missile);
+                    if (bestMissile == null || damage > bestMissileDamage) {
+                        bestMissile = missile;
+                        bestMissileDamage = damage;
+                    }
+                }
 
-        Wand highEvasionWand = preferredDamageWandForHighEvasion(targetMob);
-        if (highEvasionWand != null) {
-            return RangedChoice.wand(
-                    highEvasionWand,
-                    CoHeroWandAdapter.aimCell(highEvasionWand, owner, targetMob));
-        }
+                float spiritBowDamage = spiritBow == null || spiritArrow == null
+                        ? Float.NEGATIVE_INFINITY
+                        : CoHeroMissileAdapter.expectedSpiritBowDamage(owner, spiritBow);
+                boolean spiritBowBestPhysical = spiritBowDamage > bestMissileDamage;
+                float bestPhysicalDamage =
+                        spiritBowBestPhysical ? spiritBowDamage : bestMissileDamage;
 
-        MissileWeapon bestMissile = null;
-        float bestMissileDamage = Float.NEGATIVE_INFINITY;
-        for (MissileWeapon missile : missiles) {
-            float damage = CoHeroMissileAdapter.expectedDamage(owner, missile);
-            if (bestMissile == null || damage > bestMissileDamage) {
-                bestMissile = missile;
-                bestMissileDamage = damage;
+                Wand bestWand = bestUsableDamageWand(targetMob);
+                float bestWandDamage = bestUsableDamageWandDamage(targetMob);
+
+                if (bestPhysicalDamage > Float.NEGATIVE_INFINITY
+                        && (bestWand == null || bestPhysicalDamage >= bestWandDamage)) {
+                    result = spiritBowBestPhysical
+                            ? RangedChoice.spiritBow(spiritBow)
+                            : RangedChoice.missile(bestMissile);
+                } else if (bestWand != null) {
+                    result = RangedChoice.wand(
+                            bestWand, bestUsableDamageWandAimCell(targetMob));
+                } else {
+                    Wand fallbackControl = null;
+                    for (Wand wand : owner.inventory().wands()) {
+                        if (CoHeroWandAdapter.fallbackControl(wand, owner, targetMob)
+                                && (fallbackControl == null
+                                    || wand.buffedLvl() > fallbackControl.buffedLvl())) {
+                            fallbackControl = wand;
+                        }
+                    }
+                    if (fallbackControl != null) {
+                        result = RangedChoice.wand(fallbackControl, targetMob.pos);
+                    }
+                }
             }
         }
 
-        float spiritBowDamage = spiritBow == null || spiritArrow == null
-                ? Float.NEGATIVE_INFINITY
-                : CoHeroMissileAdapter.expectedSpiritBowDamage(owner, spiritBow);
-        boolean spiritBowBestPhysical = spiritBowDamage > bestMissileDamage;
-        float bestPhysicalDamage = spiritBowBestPhysical ? spiritBowDamage : bestMissileDamage;
-
-        Wand bestWand = bestDamageWand(damageWands, targetMob);
-        float bestWandDamage = bestWand == null
-                ? Float.NEGATIVE_INFINITY
-                : CoHeroWandAdapter.expectedDamage(bestWand, owner, targetMob);
-
-        // Stable tie-break: preserve wand charges when physical expected damage is equal.
-        if (bestPhysicalDamage > Float.NEGATIVE_INFINITY
-                && (bestWand == null || bestPhysicalDamage >= bestWandDamage)) {
-            return spiritBowBestPhysical
-                    ? RangedChoice.spiritBow(spiritBow)
-                    : RangedChoice.missile(bestMissile);
-        }
-        if (bestWand != null) {
-            return RangedChoice.wand(
-                    bestWand, CoHeroWandAdapter.aimCell(bestWand, owner, targetMob));
-        }
-
-        // Control-only wands are fallbacks when no direct ranged damage is currently available.
-        Wand fallbackControl = null;
-        for (Wand wand : owner.inventory().wands()) {
-            if (CoHeroWandAdapter.fallbackControl(wand, owner, targetMob)
-                    && (fallbackControl == null || wand.buffedLvl() > fallbackControl.buffedLvl())) {
-                fallbackControl = wand;
-            }
-        }
-        return fallbackControl == null
-                ? null
-                : RangedChoice.wand(fallbackControl, targetMob.pos);
+        cache.choice = result;
+        cache.choiceEvaluated = true;
+        return result;
     }
 
     private Boolean tryWardRecall(Mob targetMob) {
@@ -922,7 +1104,10 @@ final class CoHeroCombatController {
 
             CoHeroWardingPlanner.RecallPlan plan =
                     CoHeroWardingPlanner.chooseRecall(
-                            (WandOfWarding) candidate, owner, targetMob);
+                            (WandOfWarding) candidate,
+                            owner,
+                            targetMob,
+                            wardingPlanningContext());
             if (plan != null && (best == null || plan.gain > best.gain)) {
                 best = plan;
             }
@@ -1012,19 +1197,6 @@ final class CoHeroCombatController {
         return bestCell;
     }
 
-    Wand bestDamageWand(ArrayList<Wand> wands, Mob targetMob) {
-        Wand best = null;
-        float bestDamage = Float.NEGATIVE_INFINITY;
-        for (Wand wand : wands) {
-            float damage = CoHeroWandAdapter.expectedDamage(wand, owner, targetMob);
-            if (best == null || damage > bestDamage) {
-                best = wand;
-                bestDamage = damage;
-            }
-        }
-        return best;
-    }
-
     private boolean hasUsableCombatCapability(Mob targetMob) {
         if (owner.hasMeleeCombatCapability()) {
             return true;
@@ -1094,9 +1266,7 @@ final class CoHeroCombatController {
                             || threat.isImmune(Paralysis.class)
                             || threat.buff(Paralysis.class) != null
                             || Dungeon.level.distance(owner.pos, threat.pos) <= 1
-                            || new Ballistica(
-                                    owner.pos, threat.pos, Ballistica.PROJECTILE).collisionPos
-                                    != threat.pos) {
+                            || !hasProjectileLine(threat)) {
                         continue;
                     }
                     float score = owner.estimatedThreatDamage(threat, owner.pos)

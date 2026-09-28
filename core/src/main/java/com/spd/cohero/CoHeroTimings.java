@@ -19,11 +19,57 @@ final class CoHeroTimings {
         REMOTE_VIEW("remote_view"),
         PREPARE("prepare"),
         COMBAT("combat"),
+        COMBAT_SETUP("combat_setup"),
+        COMBAT_SETUP_FILTER("combat_setup_filter"),
+        COMBAT_SETUP_INVULNERABLE("combat_setup_invulnerable"),
+        COMBAT_SETUP_CHARM("combat_setup_charm"),
+        COMBAT_SETUP_TARGET("combat_setup_target"),
+        COMBAT_SETUP_SURVIVAL_TARGET("combat_setup_survival_target"),
+        COMBAT_RISK("combat_risk"),
+        COMBAT_SURVIVAL("combat_survival"),
+        COMBAT_OBJECTIVE("combat_objective"),
+        COMBAT_TACTICS("combat_tactics"),
+        COMBAT_RANGED("combat_ranged"),
+        COMBAT_ACTION("combat_action"),
+        COMBAT_ESCAPE("combat_escape"),
         MELEE_POSITIONING("melee_positioning"),
+        ENCIRCLEMENT_SEARCH("encirclement_search"),
+        ENCIRCLEMENT_DISTANCE_MAP("encirclement_distance_map"),
+        ENCIRCLEMENT_FILTER("encirclement_filter"),
+        ENCIRCLEMENT_TOPOLOGY_BUILD("encirclement_topology_build"),
+        ENCIRCLEMENT_DYNAMIC("encirclement_dynamic"),
+        ENCIRCLEMENT_ESCAPE("encirclement_escape"),
         SUPPORT("support"),
         RECOVERY("recovery"),
+        RECOVERY_VALIDATE("recovery_validate"),
+        RECOVERY_MOVE("recovery_move"),
+        RECOVERY_ANIMATION("recovery_animation"),
+        MOVE_GUARD_CHECK("move_guard_check"),
+        MOVE_HAZARD_CHECK("move_hazard_check"),
+        MOVE_SLEEP_CHECK("move_sleep_check"),
+        MOVE_STOCK_PATH("move_stock_path"),
+        MOVE_SAFE_MASK("move_safe_mask"),
+        MOVE_POLICY_PATH("move_policy_path"),
+        MOVE_EXECUTE("move_execute"),
+        HAZARD_ESCAPE("hazard_escape"),
         GUARD("guard"),
         EXPLORE("explore"),
+        EXPLORE_VALIDATE("explore_validate"),
+        EXPLORE_SELECT("explore_select"),
+        EXPLORE_MOVE("explore_move"),
+        TTK_TOTAL("ttk_total"),
+        TTK_MELEE("ttk_melee"),
+        TTK_RANGED("ttk_ranged"),
+        TTK_MISSILE("ttk_missile"),
+        TTK_SPIRIT_BOW("ttk_spirit_bow"),
+        TTK_WAND("ttk_wand"),
+        TTK_WAND_WARDING("ttk_wand_warding"),
+        TTK_WAND_CORROSION("ttk_wand_corrosion"),
+        TTK_WAND_FIREBLAST("ttk_wand_fireblast"),
+        TTK_WAND_BLAST_WAVE("ttk_wand_blast_wave"),
+        TTK_WAND_LIGHTNING("ttk_wand_lightning"),
+        TTK_WAND_DISINTEGRATION("ttk_wand_disintegration"),
+        TTK_WAND_OTHER("ttk_wand_other"),
         VISION("vision"),
         ATTACK("attack"),
         ATTACK_KILL("attack_kill"),
@@ -205,17 +251,75 @@ final class CoHeroTimings {
         if (!enabled) {
             return;
         }
-        long elapsed = Math.max(0L, System.nanoTime() - started);
+        recordElapsedLocked(
+                owner, action, Math.max(0L, System.nanoTime() - started), detail);
+    }
+
+    synchronized void recordElapsed(CoHeroAlly owner, Action action, long elapsed) {
+        if (!enabled) {
+            return;
+        }
+        recordElapsedLocked(owner, action, Math.max(0L, elapsed), null);
+    }
+
+    private void recordElapsedLocked(
+            CoHeroAlly owner, Action action, long elapsed, String detail) {
         accumulate(action, elapsed);
 
         if ((action == Action.LOOT_SEARCH
                 || action == Action.PREPARE
                 || action == Action.COMBAT
+                || action == Action.COMBAT_SETUP
+                || action == Action.COMBAT_SETUP_FILTER
+                || action == Action.COMBAT_SETUP_INVULNERABLE
+                || action == Action.COMBAT_SETUP_CHARM
+                || action == Action.COMBAT_SETUP_TARGET
+                || action == Action.COMBAT_SETUP_SURVIVAL_TARGET
+                || action == Action.COMBAT_RISK
+                || action == Action.COMBAT_SURVIVAL
+                || action == Action.COMBAT_OBJECTIVE
+                || action == Action.COMBAT_TACTICS
+                || action == Action.COMBAT_RANGED
+                || action == Action.COMBAT_ACTION
+                || action == Action.COMBAT_ESCAPE
                 || action == Action.MELEE_POSITIONING
+                || action == Action.ENCIRCLEMENT_SEARCH
+                || action == Action.ENCIRCLEMENT_DISTANCE_MAP
+                || action == Action.ENCIRCLEMENT_FILTER
+                || action == Action.ENCIRCLEMENT_TOPOLOGY_BUILD
+                || action == Action.ENCIRCLEMENT_DYNAMIC
+                || action == Action.ENCIRCLEMENT_ESCAPE
                 || action == Action.SUPPORT
                 || action == Action.RECOVERY
+                || action == Action.RECOVERY_VALIDATE
+                || action == Action.RECOVERY_MOVE
+                || action == Action.RECOVERY_ANIMATION
+                || action == Action.MOVE_GUARD_CHECK
+                || action == Action.MOVE_HAZARD_CHECK
+                || action == Action.MOVE_SLEEP_CHECK
+                || action == Action.MOVE_STOCK_PATH
+                || action == Action.MOVE_SAFE_MASK
+                || action == Action.MOVE_POLICY_PATH
+                || action == Action.MOVE_EXECUTE
+                || action == Action.HAZARD_ESCAPE
                 || action == Action.GUARD
                 || action == Action.EXPLORE
+                || action == Action.EXPLORE_VALIDATE
+                || action == Action.EXPLORE_SELECT
+                || action == Action.EXPLORE_MOVE
+                || action == Action.TTK_TOTAL
+                || action == Action.TTK_MELEE
+                || action == Action.TTK_RANGED
+                || action == Action.TTK_MISSILE
+                || action == Action.TTK_SPIRIT_BOW
+                || action == Action.TTK_WAND
+                || action == Action.TTK_WAND_WARDING
+                || action == Action.TTK_WAND_CORROSION
+                || action == Action.TTK_WAND_FIREBLAST
+                || action == Action.TTK_WAND_BLAST_WAVE
+                || action == Action.TTK_WAND_LIGHTNING
+                || action == Action.TTK_WAND_DISINTEGRATION
+                || action == Action.TTK_WAND_OTHER
                 || action == Action.VISION)
                 && elapsed < SLOW_PHASE_NANOS) {
             return;

@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
@@ -19,6 +20,7 @@ import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,6 +34,10 @@ final class CoHeroLoot {
 
     private final CoHeroAlly owner;
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
+    private int recoveryTarget = -1;
+    private long unreachableCandidateSignature = Long.MIN_VALUE;
+    private int unreachableFromCell = -1;
+    private boolean[] unreachablePassableSnapshot;
 
     CoHeroLoot(CoHeroAlly owner) {
         this.owner = owner;
@@ -71,10 +77,14 @@ final class CoHeroLoot {
 
     void resetForLevel() {
         thrownOutstanding.clear();
+        recoveryTarget = -1;
+        clearUnreachableCache();
     }
 
     void markThrown(long setID, int amount) {
         thrownOutstanding.put(setID, thrownOutstanding.getOrDefault(setID, 0) + amount);
+        recoveryTarget = -1;
+        clearUnreachableCache();
     }
 
     void markRecovered(long setID, int amount) {
@@ -92,29 +102,59 @@ final class CoHeroLoot {
     }
 
     Boolean actRecovery() {
-        if (recoverPreferredLootAtCurrentCell()) {
-            owner.spendActionTime(Actor.TICK);
-            return true;
+        long validateStarted = System.nanoTime();
+        try {
+            if (recoverPreferredLootAtCurrentCell()) {
+                recoveryTarget = -1;
+                clearUnreachableCache();
+                owner.clearNavigationPath();
+                owner.spendActionTime(Actor.TICK);
+                return true;
+            }
+
+            if (recoveryTarget != -1 && preferredLootPriority(recoveryTarget) == 0) {
+                recoveryTarget = -1;
+                owner.clearNavigationPath();
+            }
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.RECOVERY_VALIDATE, validateStarted);
         }
 
-        long searchStarted = System.nanoTime();
-        int recoveryCell = nearestPreferredLootCell();
-        owner.timings().record(owner, CoHeroTimings.Action.LOOT_SEARCH, searchStarted);
-        if (recoveryCell == -1 || recoveryCell == owner.pos) {
-            return null;
+        if (recoveryTarget == -1) {
+            long searchStarted = System.nanoTime();
+            recoveryTarget = nearestPreferredLootCell();
+            owner.timings().record(owner, CoHeroTimings.Action.LOOT_SEARCH, searchStarted);
         }
-
-        int recoveryStep = lootRecoveryStep(recoveryCell);
-        if (recoveryStep == -1) {
+        if (recoveryTarget == -1 || recoveryTarget == owner.pos) {
+            recoveryTarget = -1;
             return null;
         }
 
         int oldPos = owner.pos;
         owner.allowAnyGuardMovement();
-        owner.setMovementDecision("loot_recovery", recoveryCell);
-        owner.move(recoveryStep, true);
+        owner.setMovementDecision("loot_recovery", recoveryTarget);
+
+        long moveStarted = System.nanoTime();
+        boolean moved;
+        try {
+            moved = owner.getCloser(recoveryTarget);
+        } finally {
+            owner.timings().record(owner, CoHeroTimings.Action.RECOVERY_MOVE, moveStarted);
+        }
+        if (!moved) {
+            return null;
+        }
+
         owner.spendActionTime(1 / owner.speed());
-        return owner.finishMovementAnimation(oldPos);
+
+        long animationStarted = System.nanoTime();
+        try {
+            return owner.finishMovementAnimation(oldPos);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.RECOVERY_ANIMATION, animationStarted);
+        }
     }
 
     private boolean recoverPreferredLootAtCurrentCell() {
@@ -215,89 +255,124 @@ final class CoHeroLoot {
     }
 
     private int nearestPreferredLootCell() {
-        int bestOwnedCell = -1;
-        int bestOwnedDistance = Integer.MAX_VALUE;
-        int bestLootCell = -1;
-        int bestLootDistance = Integer.MAX_VALUE;
-
         int[] heapCells = Dungeon.level.heaps.keyArray();
         if (heapCells.length == 0) {
+            clearUnreachableCache();
             return -1;
         }
 
-        ArrayList<Integer> ownedCells = new ArrayList<>();
-        ArrayList<Integer> lootCells = new ArrayList<>();
-
+        long candidateSignature = 0xcbf29ce484222325L;
+        boolean hasCandidate = false;
         for (int cell : heapCells) {
-            Heap heap = Dungeon.level.heaps.get(cell);
-            if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
+            int priority = preferredLootPriority(cell);
+            if (priority == 0) {
                 continue;
             }
-
-            if (Actor.findChar(cell) != null && Actor.findChar(cell) != owner) {
-                continue;
-            }
-
-            boolean ownedCandidate = false;
-            boolean lootCandidate = false;
-
-            for (Item item : heap.items) {
-                if (item instanceof MissileWeapon) {
-                    MissileWeapon missile = (MissileWeapon) item;
-                    Integer outstanding = thrownOutstanding.get(missile.setID);
-                    if (outstanding != null
-                            && outstanding > 0
-                            && CoHeroMissileAdapter.supported(missile)
-                            && owner.inventory().canAddToBackpack(missile)) {
-                        ownedCandidate = true;
-                        break;
-                    }
-                }
-
-                if (owner.isKnown(cell)
-                        && (item instanceof Gold || canAutoPickup(item))) {
-                    lootCandidate = true;
-                }
-            }
-
-            if (!ownedCandidate && !lootCandidate) {
-                continue;
-            }
-
-            if (ownedCandidate) {
-                ownedCells.add(cell);
-            } else {
-                lootCells.add(cell);
-            }
+            hasCandidate = true;
+            candidateSignature ^= ((long) cell << 2) ^ priority;
+            candidateSignature *= 0x100000001b3L;
         }
 
-        if (ownedCells.isEmpty() && lootCells.isEmpty()) {
+        if (!hasCandidate) {
+            clearUnreachableCache();
             return -1;
         }
 
         boolean[] safePassable = owner.ordinarySafePassable(false);
         boolean[] passable = Dungeon.findPassable(owner, safePassable, owner.fieldOfView, true);
         passable[owner.pos] = true;
+
+        if (candidateSignature == unreachableCandidateSignature
+                && unreachableFromCell == owner.pos
+                && unreachablePassableSnapshot != null
+                && Arrays.equals(unreachablePassableSnapshot, passable)) {
+            return -1;
+        }
+
         PathFinder.buildDistanceMap(owner.pos, passable);
 
-        for (int cell : ownedCells) {
-            int distance = PathFinder.distance[cell];
-            if (distance != Integer.MAX_VALUE && (distance < bestOwnedDistance
-                    || (distance == bestOwnedDistance && (bestOwnedCell == -1 || cell < bestOwnedCell)))) {
-                bestOwnedDistance = distance;
-                bestOwnedCell = cell;
+        int bestOwnedCell = -1;
+        int bestOwnedDistance = Integer.MAX_VALUE;
+        int bestLootCell = -1;
+        int bestLootDistance = Integer.MAX_VALUE;
+
+        for (int cell : heapCells) {
+            int priority = preferredLootPriority(cell);
+            if (priority == 0) {
+                continue;
             }
-        }
-        for (int cell : lootCells) {
+
             int distance = PathFinder.distance[cell];
-            if (distance != Integer.MAX_VALUE && (distance < bestLootDistance
-                    || (distance == bestLootDistance && (bestLootCell == -1 || cell < bestLootCell)))) {
+            if (distance == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            if (priority == 2) {
+                if (distance < bestOwnedDistance
+                        || (distance == bestOwnedDistance
+                            && (bestOwnedCell == -1 || cell < bestOwnedCell))) {
+                    bestOwnedDistance = distance;
+                    bestOwnedCell = cell;
+                }
+            } else if (distance < bestLootDistance
+                    || (distance == bestLootDistance
+                        && (bestLootCell == -1 || cell < bestLootCell))) {
                 bestLootDistance = distance;
                 bestLootCell = cell;
             }
         }
 
-        return bestOwnedCell != -1 ? bestOwnedCell : bestLootCell;
+        int result = bestOwnedCell != -1 ? bestOwnedCell : bestLootCell;
+        if (result == -1) {
+            unreachableCandidateSignature = candidateSignature;
+            unreachableFromCell = owner.pos;
+            unreachablePassableSnapshot = passable.clone();
+        } else {
+            clearUnreachableCache();
+        }
+        return result;
+    }
+
+    private int preferredLootPriority(int cell) {
+        if (!Dungeon.level.insideMap(cell)) {
+            return 0;
+        }
+
+        Heap heap = Dungeon.level.heaps.get(cell);
+        if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
+            return 0;
+        }
+
+        Char occupant = Actor.findChar(cell);
+        if (occupant != null && occupant != owner) {
+            return 0;
+        }
+
+        boolean known = owner.isKnown(cell);
+        boolean ordinaryCandidate = false;
+        for (Item item : heap.items) {
+            if (item instanceof MissileWeapon) {
+                MissileWeapon missile = (MissileWeapon) item;
+                Integer outstanding = thrownOutstanding.get(missile.setID);
+                if (outstanding != null
+                        && outstanding > 0
+                        && CoHeroMissileAdapter.supported(missile)
+                        && owner.inventory().canAddToBackpack(missile)) {
+                    return 2;
+                }
+            }
+
+            if (known && (item instanceof Gold || canAutoPickup(item))) {
+                ordinaryCandidate = true;
+            }
+        }
+        return ordinaryCandidate ? 1 : 0;
+    }
+
+    private void clearUnreachableCache() {
+        unreachableCandidateSignature = Long.MIN_VALUE;
+        unreachableFromCell = -1;
+        unreachablePassableSnapshot = null;
     }
 
     private boolean canAutoPickup(Item item) {
@@ -305,13 +380,5 @@ final class CoHeroLoot {
                 && owner.inventory().canAddToBackpack(item);
     }
 
-    private int lootRecoveryStep(int cell) {
-        if (owner.rooted || cell == owner.pos || !Dungeon.level.insideMap(cell)) {
-            return -1;
-        }
 
-        boolean[] safePassable = owner.ordinarySafePassable(false);
-        int step = Dungeon.findStep(owner, cell, safePassable, owner.fieldOfView, true);
-        return step != -1 && owner.isMovementSafe(step) ? step : -1;
-    }
 }

@@ -31,6 +31,7 @@ import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ConeAOE;
 import com.watabou.utils.PathFinder;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -125,14 +126,41 @@ public final class CoHeroHazards {
                     result[cell] = false;
                 }
             }
-            // Checking each cell also scans active actors for bombs and fire walls.
-            // Most turns have no environmental hazards at all.
-            if (hasEnvironmentalHazard(owner)) {
-                for (int cell = 0; cell < result.length; cell++) {
-                    if (result[cell] && isEnvironmentalDanger(owner, cell)) {
-                        result[cell] = false;
-                    }
-                }
+            maskEnvironmentalDanger(owner, result);
+        }
+        return result;
+    }
+
+    public static boolean[] dangerMask(Char owner) {
+        if (Dungeon.level == null) {
+            return new boolean[0];
+        }
+
+        boolean[] allCells = new boolean[Dungeon.level.length()];
+        Arrays.fill(allCells, true);
+        boolean[] safe = maskDangerous(owner, allCells);
+        for (int cell = 0; cell < safe.length; cell++) {
+            safe[cell] = !safe[cell];
+        }
+        return safe;
+    }
+
+    public static int nearbyDangerCount(boolean[] dangerMask, int cell) {
+        if (Dungeon.level == null
+                || dangerMask == null
+                || cell < 0
+                || cell >= dangerMask.length) {
+            return 0;
+        }
+
+        int result = dangerMask[cell] ? 1 : 0;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent >= 0
+                    && adjacent < dangerMask.length
+                    && Dungeon.level.distance(cell, adjacent) == 1
+                    && dangerMask[adjacent]) {
+                result++;
             }
         }
         return result;
@@ -269,6 +297,150 @@ public final class CoHeroHazards {
     private static boolean isLiveDelayedPitCell(int cell) {
         return Dungeon.level.insideMap(cell)
                 && (!Dungeon.level.solid[cell] || Dungeon.level.passable[cell]);
+    }
+
+    private static void maskEnvironmentalDanger(Char owner, boolean[] passable) {
+        if (owner == null || Dungeon.level == null) {
+            return;
+        }
+
+        maskBlobDanger(owner, passable, Fire.class, Fire.class);
+        maskBlobDanger(owner, passable, Web.class, Web.class);
+        maskBlobDanger(owner, passable, ToxicGas.class, ToxicGas.class);
+        maskBlobDanger(owner, passable, CorrosiveGas.class, CorrosiveGas.class);
+        maskBlobDanger(owner, passable, ParalyticGas.class, ParalyticGas.class);
+        maskBlobDanger(owner, passable, ConfusionGas.class, ConfusionGas.class);
+        maskBlobDanger(owner, passable, StenchGas.class, StenchGas.class);
+        maskBlobDanger(owner, passable, Electricity.class, Electricity.class);
+        maskBlobDanger(owner, passable, Freezing.class, Freezing.class);
+        maskBlobDanger(owner, passable, Inferno.class, Fire.class);
+        maskBlobDanger(owner, passable, Blizzard.class, Freezing.class);
+        maskBlobDanger(owner, passable, Tengu.FireAbility.FireBlob.class, Fire.class);
+        maskTenguBombDanger(passable);
+        maskVaultFlamesDanger(owner, passable);
+        maskEternalFireDanger(owner, passable);
+        maskVaultFireWallDanger(owner, passable);
+    }
+
+    private static void maskBlobDanger(
+            Char owner,
+            boolean[] passable,
+            Class<? extends Blob> blobType,
+            Class<?> immunityType) {
+        if (owner.isImmune(immunityType)) {
+            return;
+        }
+
+        Blob blob = Dungeon.level.blobs.get(blobType);
+        if (blob == null || blob.volume <= 0 || blob.cur == null) {
+            return;
+        }
+
+        int limit = Math.min(passable.length, blob.cur.length);
+        for (int cell = 0; cell < limit; cell++) {
+            if (passable[cell] && blob.cur[cell] > 0) {
+                passable[cell] = false;
+            }
+        }
+    }
+
+    private static void maskTenguBombDanger(boolean[] passable) {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Tengu)) {
+                continue;
+            }
+            for (Tengu.BombAbility bomb : ch.buffs(Tengu.BombAbility.class)) {
+                int bombPos = bomb.bombPos;
+                if (bombPos < 0 || bombPos >= passable.length) {
+                    continue;
+                }
+
+                passable[bombPos] = false;
+                for (int firstOffset : PathFinder.NEIGHBOURS8) {
+                    int first = bombPos + firstOffset;
+                    if (!validBombStep(bombPos, first)) {
+                        continue;
+                    }
+                    passable[first] = false;
+
+                    for (int secondOffset : PathFinder.NEIGHBOURS8) {
+                        int second = first + secondOffset;
+                        if (validBombStep(first, second)) {
+                            passable[second] = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void maskVaultFlamesDanger(Char owner, boolean[] passable) {
+        if (owner.isImmune(VaultFlameTraps.class) || owner.isImmune(Fire.class)) {
+            return;
+        }
+
+        Blob blob = Dungeon.level.blobs.get(VaultFlameTraps.class);
+        if (blob == null || blob.volume <= 0 || blob.cur == null) {
+            return;
+        }
+
+        int limit = Math.min(passable.length, blob.cur.length);
+        for (int cell = 0; cell < limit; cell++) {
+            if (passable[cell] && blob.cur[cell] > 0) {
+                passable[cell] = false;
+            }
+        }
+    }
+
+    private static void maskEternalFireDanger(Char owner, boolean[] passable) {
+        if (owner.isImmune(EternalFire.class)) {
+            return;
+        }
+
+        Blob fire = Dungeon.level.blobs.get(EternalFire.class);
+        if (fire == null || fire.volume <= 0 || fire.cur == null) {
+            return;
+        }
+
+        int limit = Math.min(passable.length, fire.cur.length);
+        for (int cell = 0; cell < limit; cell++) {
+            if (fire.cur[cell] <= 0) {
+                continue;
+            }
+
+            passable[cell] = false;
+            for (int offset : PathFinder.NEIGHBOURS4) {
+                int adjacent = cell + offset;
+                if (adjacent >= 0
+                        && adjacent < passable.length
+                        && Dungeon.level.distance(cell, adjacent) == 1) {
+                    passable[adjacent] = false;
+                }
+            }
+        }
+    }
+
+    private static void maskVaultFireWallDanger(Char owner, boolean[] passable) {
+        if (owner.isImmune(Burning.class)) {
+            return;
+        }
+
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof VaultBossElemental)) {
+                continue;
+            }
+
+            FireWall wall = ch.buff(FireWall.class);
+            if (wall == null) {
+                continue;
+            }
+
+            for (int cell = 0; cell < passable.length; cell++) {
+                if (passable[cell] && wall.coHeroDangerAt(cell)) {
+                    passable[cell] = false;
+                }
+            }
+        }
     }
 
     private static boolean hasEnvironmentalHazard(Char owner) {

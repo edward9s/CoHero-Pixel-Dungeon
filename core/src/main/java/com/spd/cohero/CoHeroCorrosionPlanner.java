@@ -34,6 +34,7 @@ final class CoHeroCorrosionPlanner {
             return null;
         }
 
+        SimulationContext simulation = new SimulationContext();
         Plan best = null;
         int gasAmount = 50 + 10 * wand.buffedLvl();
 
@@ -43,8 +44,7 @@ final class CoHeroCorrosionPlanner {
                 continue;
             }
 
-            int[] firstExposure = firstExposureByCell(aim, gasAmount);
-            int targetDelay = firstExposure[target.pos];
+            int targetDelay = simulation.simulate(aim, gasAmount, target);
             if (targetDelay < 0 || targetDelay > TARGET_WINDOW) {
                 continue;
             }
@@ -54,17 +54,13 @@ final class CoHeroCorrosionPlanner {
             int sleepingRisk = 0;
             boolean unsafe = false;
 
-            for (int cell = 0; cell < firstExposure.length; cell++) {
-                int delay = firstExposure[cell];
+            for (int i = 0; i < simulation.characters.length; i++) {
+                int delay = simulation.firstExposure[i];
                 if (delay < 0) {
                     continue;
                 }
 
-                Char ch = Actor.findChar(cell);
-                if (ch == null || ch.isImmune(CorrosiveGas.class)) {
-                    continue;
-                }
-
+                Char ch = simulation.characters[i];
                 if (ch.alignment != Char.Alignment.ENEMY) {
                     if (delay <= PROTECTED_WINDOW) {
                         unsafe = true;
@@ -107,45 +103,107 @@ final class CoHeroCorrosionPlanner {
                 && wand.coHeroBallistica(owner, aim).collisionPos == aim;
     }
 
-    private static int[] firstExposureByCell(int seedCell, int amount) {
-        int length = Dungeon.level.length();
-        int width = Dungeon.level.width();
-        int[] cur = new int[length];
+    private static final class SimulationContext {
+        final int length = Dungeon.level.length();
+        final int width = Dungeon.level.width();
+        final int[] baseGas = new int[length];
+        final int[] scratchA = new int[length];
+        final int[] scratchB = new int[length];
+        final Rect baseArea = new Rect();
+        final Char[] characters;
+        final int[] firstExposure;
 
-        CorrosiveGas existing = (CorrosiveGas) Dungeon.level.blobs.get(CorrosiveGas.class);
-        Rect area = new Rect();
-        if (existing != null && existing.volume > 0 && existing.cur != null) {
-            System.arraycopy(existing.cur, 0, cur, 0, Math.min(existing.cur.length, length));
-            area.set(existing.area);
-            if (area.isEmpty()) {
-                for (int cell = 0; cell < cur.length; cell++) {
-                    if (cur[cell] > 0) {
-                        area.union(cell % width, cell / width);
+        SimulationContext() {
+            CorrosiveGas existing =
+                    (CorrosiveGas) Dungeon.level.blobs.get(CorrosiveGas.class);
+            if (existing != null && existing.volume > 0 && existing.cur != null) {
+                System.arraycopy(
+                        existing.cur, 0, baseGas, 0,
+                        Math.min(existing.cur.length, length));
+                baseArea.set(existing.area);
+                if (baseArea.isEmpty()) {
+                    for (int cell = 0; cell < baseGas.length; cell++) {
+                        if (baseGas[cell] > 0) {
+                            baseArea.union(cell % width, cell / width);
+                        }
                     }
                 }
             }
+
+            Char[] byCell = new Char[length];
+            int count = 0;
+            for (int cell = 0; cell < length; cell++) {
+                Char ch = Actor.findChar(cell);
+                if (ch != null && !ch.isImmune(CorrosiveGas.class)) {
+                    byCell[count++] = ch;
+                }
+            }
+            characters = Arrays.copyOf(byCell, count);
+            firstExposure = new int[count];
         }
 
-        cur[seedCell] += amount;
-        area.union(seedCell % width, seedCell / width);
+        int simulate(int seedCell, int amount, Mob target) {
+            System.arraycopy(baseGas, 0, scratchA, 0, length);
+            Arrays.fill(firstExposure, -1);
 
-        int[] firstExposure = new int[length];
-        Arrays.fill(firstExposure, -1);
-        markExposure(cur, firstExposure, 0);
+            Rect area = new Rect();
+            area.set(baseArea);
+            scratchA[seedCell] += amount;
+            area.union(seedCell % width, seedCell / width);
 
-        for (int turn = 1; turn <= LOOKAHEAD; turn++) {
-            cur = evolve(cur, area, width);
-            markExposure(cur, firstExposure, turn);
+            int[] cur = scratchA;
+            int[] next = scratchB;
+            recordExposure(cur, 0);
+            int targetDelay = cur[target.pos] > 0 ? 0 : -1;
+
+            for (int turn = 1; turn <= TARGET_WINDOW; turn++) {
+                Arrays.fill(next, 0);
+                evolve(cur, next, area, width);
+                int[] swap = cur;
+                cur = next;
+                next = swap;
+
+                recordExposure(cur, turn);
+                if (targetDelay < 0 && cur[target.pos] > 0) {
+                    targetDelay = turn;
+                }
+            }
+
+            // Existing policy discards any aim that does not expose the intended target by turn 2.
+            // Do not simulate the remaining six turns for a candidate that can no longer win.
+            if (targetDelay < 0) {
+                return -1;
+            }
+
+            for (int turn = TARGET_WINDOW + 1; turn <= LOOKAHEAD; turn++) {
+                Arrays.fill(next, 0);
+                evolve(cur, next, area, width);
+                int[] swap = cur;
+                cur = next;
+                next = swap;
+                recordExposure(cur, turn);
+            }
+
+            return targetDelay;
         }
 
-        return firstExposure;
+        private void recordExposure(int[] gas, int turn) {
+            for (int i = 0; i < characters.length; i++) {
+                if (firstExposure[i] >= 0) {
+                    continue;
+                }
+                int cell = characters[i].pos;
+                if (cell >= 0 && cell < gas.length && gas[cell] > 0) {
+                    firstExposure[i] = turn;
+                }
+            }
+        }
     }
 
     /**
      * Mirrors Blob.evolve(): the area object deliberately expands while the loops are running.
      */
-    private static int[] evolve(int[] cur, Rect area, int width) {
-        int[] next = new int[cur.length];
+    private static void evolve(int[] cur, int[] next, Rect area, int width) {
         boolean[] blocking = Dungeon.level.solid;
 
         for (int y = area.top - 1; y <= area.bottom; y++) {
@@ -184,16 +242,6 @@ final class CoHeroCorrosionPlanner {
                 if (value > 0) {
                     area.union(x, y);
                 }
-            }
-        }
-
-        return next;
-    }
-
-    private static void markExposure(int[] gas, int[] firstExposure, int turn) {
-        for (int cell = 0; cell < gas.length; cell++) {
-            if (gas[cell] > 0 && firstExposure[cell] < 0) {
-                firstExposure[cell] = turn;
             }
         }
     }

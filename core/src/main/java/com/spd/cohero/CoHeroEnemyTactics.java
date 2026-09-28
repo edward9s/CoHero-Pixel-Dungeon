@@ -99,7 +99,9 @@ final class CoHeroEnemyTactics {
 
         Wand focusBypass = bestMonkFocusBypassWand(targetMob);
         if (focusBypass != null) {
-            int aim = CoHeroWandAdapter.aimCell(focusBypass, owner, targetMob);
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    combat.usableDamageEvaluation(targetMob, focusBypass);
+            int aim = evaluation == null ? -1 : evaluation.aimCell;
             if (aim >= 0) {
                 owner.logBossDecision("monk_focus_wand:" + targetMob.id(),
                         owner.targetDebug(targetMob) + " -> bypass Focus with "
@@ -189,22 +191,25 @@ final class CoHeroEnemyTactics {
     }
 
     private Wand bestMonkFocusBypassWand(Mob targetMob) {
-        ArrayList<Wand> candidates = new ArrayList<>();
+        Wand best = null;
+        float bestDamage = Float.NEGATIVE_INFINITY;
         for (Wand wand : owner.inventory().wands()) {
             if (wand instanceof WandOfWarding
                     || !CoHeroWandAdapter.supported(wand)
-                    || !CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
                     || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
                 continue;
             }
 
-            int aim = CoHeroWandAdapter.aimCell(wand, owner, targetMob);
-            float damage = CoHeroWandAdapter.expectedDamage(wand, owner, targetMob);
-            if (aim >= 0 && damage > 0f) {
-                candidates.add(wand);
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    combat.usableDamageEvaluation(targetMob, wand);
+            if (evaluation != null
+                    && evaluation.expectedDamage > 0f
+                    && (best == null || evaluation.expectedDamage > bestDamage)) {
+                best = wand;
+                bestDamage = evaluation.expectedDamage;
             }
         }
-        return combat.bestDamageWand(candidates, targetMob);
+        return best;
     }
 
     private MissileWeapon cheapestMonkFocusBreaker() {
@@ -295,19 +300,23 @@ final class CoHeroEnemyTactics {
             return null;
         }
 
-        Brute.BruteRage result = null;
+        Brute.BruteRage active = null;
         for (Brute.BruteRage rage : mob.buffs(Brute.BruteRage.class)) {
             if (rage.shielding() <= 0) {
                 continue;
             }
-            if (result != null) {
-                throw new IllegalStateException(
-                        "Brute has multiple active rage shields: "
-                                + mob.getClass().getSimpleName());
+
+            // SPD permits duplicate buffs in general, and Brute.isAlive() itself does not
+            // require BruteRage uniqueness. If both rage implementations are ever present,
+            // prefer the actual long-lived ArmoredRage behavior for tactical classification.
+            if (rage instanceof ArmoredBrute.ArmoredRage) {
+                return rage;
             }
-            result = rage;
+            if (active == null) {
+                active = rage;
+            }
         }
-        return result;
+        return active;
     }
 
     private Boolean tryShortBruteRageSurvival(

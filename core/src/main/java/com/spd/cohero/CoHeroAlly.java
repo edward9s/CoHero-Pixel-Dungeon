@@ -277,6 +277,7 @@ public class CoHeroAlly extends DirectableAlly {
         enemyID = -1;
         enemySeen = false;
         alerted = false;
+        path = null;
         defendingPos = -1;
         movingToDefendPos = false;
         inCombat = false;
@@ -607,6 +608,8 @@ public class CoHeroAlly extends DirectableAlly {
         long prepareStarted = System.nanoTime();
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
+        combat.beginTurn();
+        riskEstimator.beginTurn();
         resetInheritedDecisionState();
         guard.beginTurn();
 
@@ -667,13 +670,36 @@ public class CoHeroAlly extends DirectableAlly {
         if (!combatThreats.isEmpty()) {
             long combatStarted = System.nanoTime();
             try {
-                ArrayList<Mob> attackableThreats = combat.collectAttackableThreats(combatThreats);
-                ArrayList<Mob> charmingThreats = combat.collectCharmingThreats(combatThreats);
+                ArrayList<Mob> attackableThreats;
+                ArrayList<Mob> charmingThreats;
+                Mob combatTarget;
+                Mob survivalTarget;
+
+                long combatSetupStarted = System.nanoTime();
+                try {
+                long setupFilterStarted = System.nanoTime();
+                try {
+                    attackableThreats = combat.collectAttackableThreats(combatThreats);
+                    charmingThreats = combat.collectCharmingThreats(combatThreats);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP_FILTER, setupFilterStarted);
+                }
 
                 // Invulnerability does not end the fight. It only has tactical priority while an
                 // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
                 // ordinary combat against any damageable enemies resumes immediately.
-                Boolean invulnerableRetreat = combat.tryAvoidInvulnerableThreats(combatThreats);
+                long setupInvulnerableStarted = System.nanoTime();
+                Boolean invulnerableRetreat;
+                try {
+                    invulnerableRetreat =
+                            combat.tryAvoidInvulnerableThreats(combatThreats);
+                } finally {
+                    timings().record(
+                            this,
+                            CoHeroTimings.Action.COMBAT_SETUP_INVULNERABLE,
+                            setupInvulnerableStarted);
+                }
                 if (invulnerableRetreat != null) {
                     return invulnerableRetreat;
                 }
@@ -682,8 +708,15 @@ public class CoHeroAlly extends DirectableAlly {
                 // restriction from the live buff each turn, then first tries to leave the charmer's
                 // immediate pressure while preferring safer cells and, when otherwise equal, broken
                 // line of sight and greater distance.
-                Boolean charmRetreat =
-                        combat.tryAvoidCharmingThreats(charmingThreats, combatThreats);
+                long setupCharmStarted = System.nanoTime();
+                Boolean charmRetreat;
+                try {
+                    charmRetreat =
+                            combat.tryAvoidCharmingThreats(charmingThreats, combatThreats);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP_CHARM, setupCharmStarted);
+                }
                 if (charmRetreat != null) {
                     return charmRetreat;
                 }
@@ -716,10 +749,38 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
-                Mob combatTarget = combat.selectCombatTarget(attackableThreats);
-                Mob survivalTarget = combat.selectSurvivalTarget(attackableThreats);
-                CoHeroCombatRisk combatRisk = assessCombatRisk(survivalTarget, combatThreats);
+                long setupTargetStarted = System.nanoTime();
+                try {
+                    combatTarget = combat.selectCombatTarget(attackableThreats);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP_TARGET, setupTargetStarted);
+                }
 
+                long setupSurvivalTargetStarted = System.nanoTime();
+                try {
+                    survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                } finally {
+                    timings().record(
+                            this,
+                            CoHeroTimings.Action.COMBAT_SETUP_SURVIVAL_TARGET,
+                            setupSurvivalTargetStarted);
+                }
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP, combatSetupStarted);
+                }
+
+                long riskStarted = System.nanoTime();
+                CoHeroCombatRisk combatRisk;
+                try {
+                    combatRisk = assessCombatRisk(survivalTarget, combatThreats);
+                } finally {
+                    timings().record(this, CoHeroTimings.Action.COMBAT_RISK, riskStarted);
+                }
+
+                long combatSurvivalStarted = System.nanoTime();
+                try {
                 Boolean shortBruteRage = combat.tryShortBruteRageTactics(combatThreats);
                 if (shortBruteRage != null) {
                     logBossDecision("short_brute_rage",
@@ -758,22 +819,48 @@ public class CoHeroAlly extends DirectableAlly {
                 if (survival.tryAutoSurvivalPotion()) {
                     return true;
                 }
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SURVIVAL, combatSurvivalStarted);
+                }
 
+                long combatObjectiveStarted = System.nanoTime();
+                try {
+                Mob assessedSurvivalTarget = survivalTarget;
                 Boolean objectiveAction =
                         combatObjective.actBeforeOffense(attackableThreats, visibleThreats);
                 if (objectiveAction != null) {
                     return objectiveAction;
                 }
 
-                attackableThreats = combatObjective.offensiveThreats(attackableThreats);
-                if (attackableThreats.isEmpty()) {
+                ArrayList<Mob> objectiveThreats =
+                        combatObjective.offensiveThreats(attackableThreats);
+                if (objectiveThreats.isEmpty()) {
                     throw new IllegalStateException(
                             "Active CoHero combat objective produced no offensive target");
                 }
-                combatTarget = combat.selectCombatTarget(attackableThreats);
-                survivalTarget = combat.selectSurvivalTarget(attackableThreats);
-                combatRisk = assessCombatRisk(survivalTarget, combatThreats);
 
+                if (!objectiveThreats.equals(attackableThreats)) {
+                    attackableThreats = objectiveThreats;
+                    combatTarget = combat.selectCombatTarget(attackableThreats);
+                    survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                    if (survivalTarget != assessedSurvivalTarget) {
+                        long objectiveRiskStarted = System.nanoTime();
+                        try {
+                            combatRisk = assessCombatRisk(survivalTarget, combatThreats);
+                        } finally {
+                            timings().record(
+                                    this, CoHeroTimings.Action.COMBAT_RISK, objectiveRiskStarted);
+                        }
+                    }
+                }
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_OBJECTIVE, combatObjectiveStarted);
+                }
+
+                long combatTacticsStarted = System.nanoTime();
+                try {
                 Boolean armoredBruteRage = combat.tryArmoredBruteRageTactics(
                         combatTarget, combatThreats, combatRisk);
                 if (armoredBruteRage != null) {
@@ -810,7 +897,13 @@ public class CoHeroAlly extends DirectableAlly {
                             targetDebug(combatTarget) + " -> scorpio tactics");
                     return scorpioTactics;
                 }
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_TACTICS, combatTacticsStarted);
+                }
 
+                long combatRangedStarted = System.nanoTime();
+                try {
                 // Ranged enemies are normally closed to adjacency. Exception: sufficiently stronger
                 // ranged offense may keep spacing, or create it against an immobilized/slower target.
                 Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, combatThreats);
@@ -827,7 +920,13 @@ public class CoHeroAlly extends DirectableAlly {
                 if (directRanged != null) {
                     return directRanged;
                 }
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_RANGED, combatRangedStarted);
+                }
 
+                long combatActionStarted = System.nanoTime();
+                try {
                 // Non-emergency consumables and setup should not repeatedly steal turns from an
                 // immediately available ranged attack.
                 Boolean armorPlant = survival.tryKnownCombatArmorPlant(combatTarget, combatThreats);
@@ -867,7 +966,13 @@ public class CoHeroAlly extends DirectableAlly {
                 if (combatResult != null) {
                     return combatResult;
                 }
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_ACTION, combatActionStarted);
+                }
 
+                long combatEscapeStarted = System.nanoTime();
+                try {
                 Boolean escapeUtility = combat.tryEscapeUtility(combatRisk, combatThreats);
                 if (escapeUtility != null) {
                     return escapeUtility;
@@ -884,6 +989,10 @@ public class CoHeroAlly extends DirectableAlly {
                         revealVisibleCells();
                         return moveSprite(oldPos, pos);
                     }
+                }
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_ESCAPE, combatEscapeStarted);
                 }
 
                 logBossDecision("combat_idle:" + combatTarget.id(),
@@ -1122,12 +1231,12 @@ public class CoHeroAlly extends DirectableAlly {
 
     void resetNavigationAfterAnkhTeleport() {
         navigation.clearExplorationTarget();
+        clearNavigationPath();
         target = -1;
         enemy = null;
         enemyID = -1;
         enemySeen = false;
         alerted = false;
-        path = null;
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
@@ -1140,7 +1249,6 @@ public class CoHeroAlly extends DirectableAlly {
         enemyID = -1;
         enemySeen = false;
         alerted = false;
-        path = null;
         defendingPos = -1;
         movingToDefendPos = false;
         state = WANDERING;
@@ -1199,6 +1307,11 @@ public class CoHeroAlly extends DirectableAlly {
 
     float estimateSpiritBowDpt(Mob targetMob, SpiritBow bow) {
         return riskEstimator.estimateSpiritBowDpt(targetMob, bow);
+    }
+
+    CoHeroWandAdapter.DamageEvaluation usableDamageWandEvaluation(
+            Mob targetMob, Wand wand) {
+        return combat.usableDamageEvaluation(targetMob, wand);
     }
 
     float estimateDamageWandDpt(Mob targetMob, Wand wand) {
@@ -1304,6 +1417,10 @@ public class CoHeroAlly extends DirectableAlly {
         return navigation.isMovementSafe(cell);
     }
 
+    boolean[] movementSafeMask() {
+        return navigation.movementSafeMask();
+    }
+
 
 
 
@@ -1361,6 +1478,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     void clearNavigationPath() {
         path = null;
+        navigation.clearPolicyPath();
     }
 
     int defendingPosition() {
