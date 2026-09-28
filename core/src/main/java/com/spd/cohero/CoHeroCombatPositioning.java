@@ -505,6 +505,7 @@ final class CoHeroCombatPositioning {
             return -1;
         }
 
+        ensureChokeTopologyCache();
         PathFinder.buildDistanceMap(
                 owner.pos, Dungeon.level.passable, ENCIRCLEMENT_SEARCH_RADIUS);
 
@@ -562,6 +563,7 @@ final class CoHeroCombatPositioning {
             return false;
         }
 
+        ensureChokeTopologyCache();
         ChokeTopology topology = chokeTopology(cell);
         if (topology == null) {
             return false;
@@ -601,7 +603,6 @@ final class CoHeroCombatPositioning {
     }
 
     private ChokeTopology chokeTopology(int cell) {
-        ensureChokeTopologyCache();
         if (!Dungeon.level.insideMap(cell)) {
             return null;
         }
