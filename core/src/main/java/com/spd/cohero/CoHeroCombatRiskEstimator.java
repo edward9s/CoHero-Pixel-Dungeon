@@ -293,7 +293,9 @@ final class CoHeroCombatRiskEstimator {
     }
 
     private float estimateEffectiveTargetHp(Mob targetMob, float outgoingDpt) {
-        float result = targetMob == null ? 0f : targetMob.HP;
+        float result = targetMob == null
+                ? 0f
+                : Math.max(0, targetMob.HP) + Math.max(0, targetMob.shielding());
         if (!(targetMob instanceof Bat) || outgoingDpt <= 0.01f) {
             return result;
         }
@@ -318,8 +320,9 @@ final class CoHeroCombatRiskEstimator {
         float expectedAttacks =
                 Math.max(0f, baseTtk - firstAttackTime)
                         / Math.max(0.25f, targetMob.attackDelay());
+        float missingHp = Math.max(0f, targetMob.HT - Math.max(0, targetMob.HP));
         float projectedHealing = Math.min(
-                targetMob.HT,
+                missingHp,
                 expectedHealPerAttack * expectedAttacks);
         return result + projectedHealing;
     }
