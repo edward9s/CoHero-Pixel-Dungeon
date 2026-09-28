@@ -442,25 +442,36 @@ final class CoHeroCombatController {
         return null;
     }
 
-    Boolean tryBruteRageTactics(
-            Mob targetMob,
+    Boolean tryShortBruteRageTactics(
             ArrayList<Mob> allThreats,
             CoHeroCombatRisk risk) {
         if (allThreats == null || allThreats.isEmpty() || risk == null) {
             throw new IllegalArgumentException(
-                    "Brute rage tactics require current combat threats and risk");
+                    "Short Brute rage tactics require current combat threats and risk");
         }
 
         Mob shortRageThreat = nearestShortBruteRageThreat(allThreats);
-        if (shortRageThreat != null) {
-            return tryShortBruteRageSurvival(shortRageThreat, allThreats, risk);
+        return shortRageThreat == null
+                ? null
+                : tryShortBruteRageSurvival(shortRageThreat, allThreats);
+    }
+
+    Boolean tryArmoredBruteRageTactics(
+            Mob targetMob,
+            ArrayList<Mob> allThreats,
+            CoHeroCombatRisk risk) {
+        if (targetMob == null
+                || allThreats == null
+                || allThreats.isEmpty()
+                || risk == null) {
+            throw new IllegalArgumentException(
+                    "Armored Brute rage tactics require a target, threats, and risk");
         }
 
         Brute.BruteRage targetRage = activeBruteRage(targetMob);
         if (!(targetRage instanceof ArmoredBrute.ArmoredRage)) {
             return null;
         }
-
         return tryArmoredBruteRageCombat(targetMob, allThreats, risk);
     }
 
@@ -505,7 +516,7 @@ final class CoHeroCombatController {
     }
 
     private Boolean tryShortBruteRageSurvival(
-            Mob brute, ArrayList<Mob> allThreats, CoHeroCombatRisk risk) {
+            Mob brute, ArrayList<Mob> allThreats) {
         // Ordinary BruteRage is a short self-destruct phase. Spending health to break the shield
         // is usually worse than surviving until its automatic shield decay kills the Brute.
         if (owner.buff(Invisibility.class) != null) {
@@ -536,23 +547,8 @@ final class CoHeroCombatController {
             return true;
         }
 
-        // If the raging Brute can reach/attack now and movement cannot improve the situation, use
-        // reusable or severe-retreat control before accepting a direct exchange.
-        Boolean escapeUtility = tryEscapeUtility(risk, allThreats);
-        if (escapeUtility != null) {
-            return escapeUtility;
-        }
-
-        if (risk.retreat) {
-            if (owner.controlItems().tryEmergencyBlinkRunestone(allThreats)) {
-                return true;
-            }
-            if (owner.controlItems().tryEmergencyRunestone(risk, allThreats)) {
-                return true;
-            }
-        }
-
-        // Trapped with no useful escape/control: normal combat is safer than wasting the turn.
+        // Movement/waiting cannot safely solve the turn. Hand control back to the ordinary
+        // survival layer, which already owns consumable control, teleport, shielding, and healing.
         return null;
     }
 
