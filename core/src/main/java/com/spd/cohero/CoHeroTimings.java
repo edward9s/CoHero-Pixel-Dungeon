@@ -34,6 +34,10 @@ final class CoHeroTimings {
         COMBAT_ESCAPE("combat_escape"),
         MELEE_POSITIONING("melee_positioning"),
         ENCIRCLEMENT_SEARCH("encirclement_search"),
+        ENCIRCLEMENT_DISTANCE_MAP("encirclement_distance_map"),
+        ENCIRCLEMENT_FILTER("encirclement_filter"),
+        ENCIRCLEMENT_TOPOLOGY_BUILD("encirclement_topology_build"),
+        ENCIRCLEMENT_DYNAMIC("encirclement_dynamic"),
         ENCIRCLEMENT_ESCAPE("encirclement_escape"),
         SUPPORT("support"),
         RECOVERY("recovery"),
@@ -247,7 +251,19 @@ final class CoHeroTimings {
         if (!enabled) {
             return;
         }
-        long elapsed = Math.max(0L, System.nanoTime() - started);
+        recordElapsedLocked(
+                owner, action, Math.max(0L, System.nanoTime() - started), detail);
+    }
+
+    synchronized void recordElapsed(CoHeroAlly owner, Action action, long elapsed) {
+        if (!enabled) {
+            return;
+        }
+        recordElapsedLocked(owner, action, Math.max(0L, elapsed), null);
+    }
+
+    private void recordElapsedLocked(
+            CoHeroAlly owner, Action action, long elapsed, String detail) {
         accumulate(action, elapsed);
 
         if ((action == Action.LOOT_SEARCH
@@ -268,6 +284,10 @@ final class CoHeroTimings {
                 || action == Action.COMBAT_ESCAPE
                 || action == Action.MELEE_POSITIONING
                 || action == Action.ENCIRCLEMENT_SEARCH
+                || action == Action.ENCIRCLEMENT_DISTANCE_MAP
+                || action == Action.ENCIRCLEMENT_FILTER
+                || action == Action.ENCIRCLEMENT_TOPOLOGY_BUILD
+                || action == Action.ENCIRCLEMENT_DYNAMIC
                 || action == Action.ENCIRCLEMENT_ESCAPE
                 || action == Action.SUPPORT
                 || action == Action.RECOVERY
