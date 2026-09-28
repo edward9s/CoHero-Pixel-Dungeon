@@ -795,20 +795,25 @@ public class CoHeroAlly extends DirectableAlly {
                     return objectiveAction;
                 }
 
-                attackableThreats = combatObjective.offensiveThreats(attackableThreats);
-                if (attackableThreats.isEmpty()) {
+                ArrayList<Mob> objectiveThreats =
+                        combatObjective.offensiveThreats(attackableThreats);
+                if (objectiveThreats.isEmpty()) {
                     throw new IllegalStateException(
                             "Active CoHero combat objective produced no offensive target");
                 }
-                combatTarget = combat.selectCombatTarget(attackableThreats);
-                survivalTarget = combat.selectSurvivalTarget(attackableThreats);
-                if (survivalTarget != assessedSurvivalTarget) {
-                    long objectiveRiskStarted = System.nanoTime();
-                    try {
-                        combatRisk = assessCombatRisk(survivalTarget, combatThreats);
-                    } finally {
-                        timings().record(
-                                this, CoHeroTimings.Action.COMBAT_RISK, objectiveRiskStarted);
+
+                if (!objectiveThreats.equals(attackableThreats)) {
+                    attackableThreats = objectiveThreats;
+                    combatTarget = combat.selectCombatTarget(attackableThreats);
+                    survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                    if (survivalTarget != assessedSurvivalTarget) {
+                        long objectiveRiskStarted = System.nanoTime();
+                        try {
+                            combatRisk = assessCombatRisk(survivalTarget, combatThreats);
+                        } finally {
+                            timings().record(
+                                    this, CoHeroTimings.Action.COMBAT_RISK, objectiveRiskStarted);
+                        }
                     }
                 }
                 } finally {
