@@ -743,10 +743,25 @@ final class CoHeroCombatController {
         if (!owner.hasNonAdjacentAttackCapability(targetMob)) {
             int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
             if (distance > 1) {
-                // With an existing gap, take the free ranged turn unless extended melee already
-                // reaches the target. In that special case neither option costs movement, so use
-                // whichever has the higher average damage.
-                return !owner.canAttack(targetMob) || rangedDamage > meleeDamage;
+                // A gap is only a truly free ranged turn when the target cannot enter attack range
+                // before a normal CoHero action finishes. Fast melee enemies such as bats and crabs
+                // can consume several cells of distance inside that same time window.
+                if (!owner.canAttack(targetMob)) {
+                    boolean freeRangedWindow =
+                            owner.estimatedTimeToAttackCell(targetMob, owner.pos)
+                                    > Actor.TICK + 0.001f;
+                    if (freeRangedWindow || !owner.hasMeleeCombatCapability()) {
+                        return true;
+                    }
+
+                    // Shooting can still be the best currently legal action, but do not treat the
+                    // spacing itself as strategically valuable unless ranged damage is compelling.
+                    return rangedDamage
+                            >= meleeDamage * RANGED_DAMAGE_PREFERENCE_MULTIPLIER;
+                }
+
+                // Extended melee already reaches the target, so neither option costs movement.
+                return rangedDamage > meleeDamage;
             }
 
             // Once a pure-melee target has reached adjacency, reopening distance costs a turn.
@@ -1496,14 +1511,17 @@ final class CoHeroCombatController {
     }
 
     int chooseEscapeStep(ArrayList<Mob> threats) {
-        float currentIncoming = owner.estimatedIncomingDptAtCell(owner.pos, threats);
-        int currentAttackers = owner.countCurrentAttackersAtCell(owner.pos, threats);
-        int currentDistance = owner.nearestThreatDistance(owner.pos, threats);
+        float moveTime = Math.max(0.25f, 1f / owner.speed());
+        int currentNearTermAttackers =
+                owner.countThreatsAbleToAttackWithin(owner.pos, threats, moveTime);
+        float currentNearTermIncoming =
+                owner.estimatedIncomingDptAtCellWithin(owner.pos, threats, moveTime);
+        float currentAttackTime = owner.nearestThreatAttackTime(owner.pos, threats);
 
         int bestCell = -1;
-        float bestIncoming = currentIncoming;
-        int bestAttackers = currentAttackers;
-        int bestDistance = currentDistance;
+        int bestNearTermAttackers = currentNearTermAttackers;
+        float bestNearTermIncoming = currentNearTermIncoming;
+        float bestAttackTime = currentAttackTime;
 
         for (int offset : PathFinder.NEIGHBOURS8) {
             int cell = owner.pos + offset;
@@ -1516,21 +1534,31 @@ final class CoHeroCombatController {
                 continue;
             }
 
-            float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
-            int attackers = owner.countCurrentAttackersAtCell(cell, threats);
-            int distance = owner.nearestThreatDistance(cell, threats);
+            int nearTermAttackers =
+                    owner.countThreatsAbleToAttackWithin(cell, threats, moveTime);
+            float nearTermIncoming =
+                    owner.estimatedIncomingDptAtCellWithin(cell, threats, moveTime);
+            float attackTime = owner.nearestThreatAttackTime(cell, threats);
 
-            boolean better = attackers < bestAttackers
-                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
-                    || (attackers == bestAttackers
-                        && Math.abs(incoming - bestIncoming) <= 0.01f
-                        && distance > bestDistance);
+            boolean gainsBreathingRoom =
+                    bestAttackTime <= moveTime + 0.001f
+                    && attackTime > moveTime + 0.001f;
+            boolean extendsExistingWindow =
+                    bestAttackTime > moveTime + 0.001f
+                    && attackTime > bestAttackTime + 0.01f;
+
+            boolean better = nearTermAttackers < bestNearTermAttackers
+                    || (nearTermAttackers == bestNearTermAttackers
+                        && nearTermIncoming < bestNearTermIncoming - 0.01f)
+                    || (nearTermAttackers == bestNearTermAttackers
+                        && Math.abs(nearTermIncoming - bestNearTermIncoming) <= 0.01f
+                        && (gainsBreathingRoom || extendsExistingWindow));
 
             if (better) {
                 bestCell = cell;
-                bestIncoming = incoming;
-                bestAttackers = attackers;
-                bestDistance = distance;
+                bestNearTermAttackers = nearTermAttackers;
+                bestNearTermIncoming = nearTermIncoming;
+                bestAttackTime = attackTime;
             }
         }
 
