@@ -36,6 +36,7 @@ final class CoHeroLoot {
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
     private int recoveryTarget = -1;
     private long unreachableCandidateSignature = Long.MIN_VALUE;
+    private int unreachableFromCell = -1;
     private boolean[] unreachablePassableSnapshot;
 
     CoHeroLoot(CoHeroAlly owner) {
@@ -282,6 +283,7 @@ final class CoHeroLoot {
         passable[owner.pos] = true;
 
         if (candidateSignature == unreachableCandidateSignature
+                && unreachableFromCell == owner.pos
                 && unreachablePassableSnapshot != null
                 && Arrays.equals(unreachablePassableSnapshot, passable)) {
             return -1;
@@ -323,6 +325,7 @@ final class CoHeroLoot {
         int result = bestOwnedCell != -1 ? bestOwnedCell : bestLootCell;
         if (result == -1) {
             unreachableCandidateSignature = candidateSignature;
+            unreachableFromCell = owner.pos;
             unreachablePassableSnapshot = passable.clone();
         } else {
             clearUnreachableCache();
@@ -368,6 +371,7 @@ final class CoHeroLoot {
 
     private void clearUnreachableCache() {
         unreachableCandidateSignature = Long.MIN_VALUE;
+        unreachableFromCell = -1;
         unreachablePassableSnapshot = null;
     }
 
