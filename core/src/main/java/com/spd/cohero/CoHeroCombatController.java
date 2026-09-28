@@ -91,8 +91,8 @@ final class CoHeroCombatController {
     }
 
     Boolean tryEncirclementPositioning(
-            Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
-        return positioning.tryEncirclementPositioning(targetMob, threats, risk);
+            Mob targetMob, ArrayList<Mob> threats) {
+        return positioning.tryEncirclementPositioning(targetMob, threats);
     }
 
     int chooseEscapeStep(ArrayList<Mob> threats) {
