@@ -216,9 +216,12 @@ final class CoHeroCombatController {
     private int charmersSeeingCell(int cell, ArrayList<Mob> charmingThreats) {
         int result = 0;
         for (Mob charmer : charmingThreats) {
-            if (charmer.fieldOfView != null
-                    && charmer.fieldOfView.length == Dungeon.level.length()
-                    && charmer.fieldOfView[cell]) {
+            boolean[] fov = charmer.fieldOfView;
+            if (fov == null || fov.length != Dungeon.level.length()) {
+                fov = new boolean[Dungeon.level.length()];
+                Dungeon.level.updateFieldOfView(charmer, fov);
+            }
+            if (fov[cell]) {
                 result++;
             }
         }
