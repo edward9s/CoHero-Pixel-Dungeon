@@ -1309,6 +1309,11 @@ public class CoHeroAlly extends DirectableAlly {
         return riskEstimator.estimateSpiritBowDpt(targetMob, bow);
     }
 
+    CoHeroWandAdapter.DamageEvaluation usableDamageWandEvaluation(
+            Mob targetMob, Wand wand) {
+        return combat.usableDamageEvaluation(targetMob, wand);
+    }
+
     float estimateDamageWandDpt(Mob targetMob, Wand wand) {
         return riskEstimator.estimateDamageWandDpt(targetMob, wand);
     }
