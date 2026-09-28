@@ -310,7 +310,13 @@ final class CoHeroCombatRiskEstimator {
     }
 
     float estimateTargetTtk(Mob targetMob) {
-        return estimateTargetTtk(targetMob, estimateOutgoingDpt(targetMob));
+        if (targetMob == null) {
+            return Float.POSITIVE_INFINITY;
+        }
+        float fastestCurrentDpt = Math.max(
+                estimateMeleeDpt(targetMob),
+                estimateBestRangedDpt(targetMob));
+        return estimateTargetTtk(targetMob, fastestCurrentDpt);
     }
 
     private float estimateTargetTtk(Mob targetMob, float outgoingDpt) {
