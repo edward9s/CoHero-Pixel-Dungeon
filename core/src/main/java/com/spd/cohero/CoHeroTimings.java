@@ -22,6 +22,7 @@ final class CoHeroTimings {
         COMBAT_RISK("combat_risk"),
         COMBAT_SURVIVAL("combat_survival"),
         COMBAT_OBJECTIVE("combat_objective"),
+        COMBAT_TACTICS("combat_tactics"),
         COMBAT_RANGED("combat_ranged"),
         COMBAT_ACTION("combat_action"),
         COMBAT_ESCAPE("combat_escape"),
@@ -220,6 +221,7 @@ final class CoHeroTimings {
                 || action == Action.COMBAT_RISK
                 || action == Action.COMBAT_SURVIVAL
                 || action == Action.COMBAT_OBJECTIVE
+                || action == Action.COMBAT_TACTICS
                 || action == Action.COMBAT_RANGED
                 || action == Action.COMBAT_ACTION
                 || action == Action.COMBAT_ESCAPE
