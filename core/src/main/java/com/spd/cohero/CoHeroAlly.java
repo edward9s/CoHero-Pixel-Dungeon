@@ -717,6 +717,12 @@ public class CoHeroAlly extends DirectableAlly {
                     return shortBruteRage;
                 }
 
+                Boolean monkFocus = combat.tryMonkFocusTactics(
+                        combatTarget, combatThreats, combatRisk);
+                if (monkFocus != null) {
+                    return monkFocus;
+                }
+
                 Boolean survivalAction = combat.tryCombatSurvival(combatRisk, combatThreats);
                 if (survivalAction != null) {
                     if (debugLogEnabled) {
@@ -768,6 +774,12 @@ public class CoHeroAlly extends DirectableAlly {
                     logBossDecision("armored_brute_rage:" + combatTarget.id(),
                             targetDebug(combatTarget) + " -> ranged shield pressure");
                     return armoredBruteRage;
+                }
+
+                Boolean monkOpening = combat.tryMonkOpeningTactics(
+                        combatTarget, combatThreats);
+                if (monkOpening != null) {
+                    return monkOpening;
                 }
 
                 long encirclementStarted = System.nanoTime();
