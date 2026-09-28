@@ -95,8 +95,131 @@ final class CoHeroCombatController {
             if (threat != null
                     && threat.isAlive()
                     && !isTemporarilyInactiveThreat(threat)
-                    && !owner.isCombatInvulnerable(threat)) {
+                    && !owner.isCombatInvulnerable(threat)
+                    && !owner.isCharmedBy(threat)) {
                 result.add(threat);
+            }
+        }
+        return result;
+    }
+
+
+    ArrayList<Mob> collectCharmingThreats(ArrayList<Mob> threats) {
+        ArrayList<Mob> result = new ArrayList<>();
+        if (threats == null) {
+            return result;
+        }
+
+        for (Mob threat : threats) {
+            if (threat != null
+                    && threat.isAlive()
+                    && !isTemporarilyInactiveThreat(threat)
+                    && owner.isCharmedBy(threat)) {
+                result.add(threat);
+            }
+        }
+        return result;
+    }
+
+    Boolean tryAvoidCharmingThreats(
+            ArrayList<Mob> charmingThreats, ArrayList<Mob> allThreats) {
+        if (charmingThreats == null || charmingThreats.isEmpty()) {
+            return null;
+        }
+        if (allThreats == null || allThreats.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Charm avoidance requires the current visible threat set");
+        }
+
+        int escapeStep = owner.rooted
+                ? -1
+                : chooseCharmedEscapeStep(charmingThreats, allThreats);
+        if (escapeStep == -1) {
+            return null;
+        }
+
+        int oldPos = owner.pos;
+        owner.clearCombatTarget();
+        owner.allowAnyGuardMovement();
+        owner.setMovementDecision("charm_escape", escapeStep);
+        owner.move(escapeStep, true);
+        owner.spendActionTime(1 / owner.speed());
+        Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
+        owner.revealVisibleCells();
+        return owner.animateMoveFrom(oldPos);
+    }
+
+    private int chooseCharmedEscapeStep(
+            ArrayList<Mob> charmingThreats, ArrayList<Mob> allThreats) {
+        int bestCell = -1;
+        int bestCharmerAttackers =
+                owner.countCurrentAttackersAtCell(owner.pos, charmingThreats);
+        int bestAllAttackers =
+                owner.countCurrentAttackersAtCell(owner.pos, allThreats);
+        float bestAllIncoming =
+                owner.estimatedIncomingDptAtCell(owner.pos, allThreats);
+        int bestVisibleCharmers =
+                charmersSeeingCell(owner.pos, charmingThreats);
+        int bestDistance =
+                owner.nearestThreatDistance(owner.pos, charmingThreats);
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = owner.pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(owner.pos, cell) != 1
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || !owner.isMovementSafe(cell)) {
+                continue;
+            }
+
+            int charmerAttackers =
+                    owner.countCurrentAttackersAtCell(cell, charmingThreats);
+            int allAttackers =
+                    owner.countCurrentAttackersAtCell(cell, allThreats);
+            float allIncoming =
+                    owner.estimatedIncomingDptAtCell(cell, allThreats);
+            int visibleCharmers =
+                    charmersSeeingCell(cell, charmingThreats);
+            int distance =
+                    owner.nearestThreatDistance(cell, charmingThreats);
+
+            boolean better = charmerAttackers < bestCharmerAttackers
+                    || (charmerAttackers == bestCharmerAttackers
+                        && allAttackers < bestAllAttackers)
+                    || (charmerAttackers == bestCharmerAttackers
+                        && allAttackers == bestAllAttackers
+                        && allIncoming < bestAllIncoming - 0.01f)
+                    || (charmerAttackers == bestCharmerAttackers
+                        && allAttackers == bestAllAttackers
+                        && Math.abs(allIncoming - bestAllIncoming) <= 0.01f
+                        && visibleCharmers < bestVisibleCharmers)
+                    || (charmerAttackers == bestCharmerAttackers
+                        && allAttackers == bestAllAttackers
+                        && Math.abs(allIncoming - bestAllIncoming) <= 0.01f
+                        && visibleCharmers == bestVisibleCharmers
+                        && distance > bestDistance);
+
+            if (better) {
+                bestCell = cell;
+                bestCharmerAttackers = charmerAttackers;
+                bestAllAttackers = allAttackers;
+                bestAllIncoming = allIncoming;
+                bestVisibleCharmers = visibleCharmers;
+                bestDistance = distance;
+            }
+        }
+
+        return bestCell;
+    }
+
+    private int charmersSeeingCell(int cell, ArrayList<Mob> charmingThreats) {
+        int result = 0;
+        for (Mob charmer : charmingThreats) {
+            if (charmer.fieldOfView != null
+                    && charmer.fieldOfView.length == Dungeon.level.length()
+                    && charmer.fieldOfView[cell]) {
+                result++;
             }
         }
         return result;
