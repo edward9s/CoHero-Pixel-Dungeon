@@ -485,7 +485,7 @@ final class CoHeroCombatController {
     }
 
     private Brute.BruteRage activeBruteRage(Mob mob) {
-        if (!(mob instanceof Brute) || !mob.isAlive()) {
+        if (!(mob instanceof Brute)) {
             return null;
         }
 
@@ -525,9 +525,12 @@ final class CoHeroCombatController {
         }
 
         float attackTime = owner.estimatedTimeToAttackCell(brute, owner.pos);
-        if (attackTime > Actor.TICK + 0.001f) {
-            // Already safe enough for the next turn: wait for the rage shield to decay instead of
-            // spending ammunition, wand charges, or movement to re-engage.
+        CoHeroThreatTiming currentTiming =
+                owner.assessThreatTimingAtCell(owner.pos, allThreats, Actor.TICK);
+        if (attackTime > Actor.TICK + 0.001f
+                && currentTiming.attackersWithinHorizon == 0) {
+            // Already safe enough for the next turn from every visible threat: wait for the rage
+            // shield to decay instead of spending ammunition, wand charges, or movement to re-engage.
             owner.clearCombatTarget();
             owner.spendActionTime(Actor.TICK);
             return true;
