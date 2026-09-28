@@ -389,20 +389,18 @@ final class CoHeroCombatPositioning {
     }
 
     Boolean tryEncirclementPositioning(
-            Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
+            Mob targetMob, ArrayList<Mob> threats) {
         if (targetMob == null
                 || threats == null
-                || threats.isEmpty()
-                || risk == null) {
+                || threats.isEmpty()) {
             return null;
         }
 
-        // Swarm is the only single-enemy special case here. Convert melee DPT back to
-        // expected damage per swing before applying Swarm.defenseProc's HP >= damage + 2 split
-        // threshold. Ranged estimates are already expressed per offensive action.
+        // Swarm is the only single-enemy special case here. This estimate must be derived from
+        // the tactical target itself, not from the separate survival-race target.
         float expectedNextDamage = owner.canAttack(targetMob)
-                ? risk.outgoingDpt * Math.max(0.25f, owner.attackDelay())
-                : risk.outgoingDpt;
+                ? owner.estimateMeleeDpt(targetMob) * Math.max(0.25f, owner.attackDelay())
+                : owner.estimateBestRangedDpt(targetMob);
         boolean swarmSplitPressure =
                 targetMob instanceof Swarm && targetMob.HP >= expectedNextDamage + 2f;
         ArrayList<Mob> meleeThreats = collectEncirclementMeleeThreats(threats);
