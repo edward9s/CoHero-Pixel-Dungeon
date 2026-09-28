@@ -415,7 +415,14 @@ final class CoHeroCombatPositioning {
         // Ranged pressure does not disable anti-encirclement positioning. Melee threats define
         // whether a choke actually limits frontage; every threat still contributes to incoming
         // DPT when choosing between otherwise valid positions.
-        int tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
+        long searchStarted = System.nanoTime();
+        int tacticalCell;
+        try {
+            tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.ENCIRCLEMENT_SEARCH, searchStarted);
+        }
         if (tacticalCell != -1 && tacticalCell != owner.pos) {
             int oldPos = owner.pos;
             owner.allowAnyGuardMovement();
@@ -435,18 +442,24 @@ final class CoHeroCombatPositioning {
         // chooseEscapeStep refuses neutral/worse moves, so this does not make CoHero run forever
         // from a lone swarm in an open room.
         if (crowdedMelee && !owner.rooted) {
-            int escape = chooseEscapeStep(threats);
-            if (escape != -1) {
-                int oldPos = owner.pos;
-                owner.allowAnyGuardMovement();
-                owner.setMovementDecision("encirclement_escape", escape);
-                owner.move(escape, true);
-                if (owner.pos != oldPos) {
-                    owner.spendActionTime(1 / owner.speed());
-                    Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
-                    owner.revealVisibleCells();
-                    return owner.animateMoveFrom(oldPos);
+            long escapeStarted = System.nanoTime();
+            try {
+                int escape = chooseEscapeStep(threats);
+                if (escape != -1) {
+                    int oldPos = owner.pos;
+                    owner.allowAnyGuardMovement();
+                    owner.setMovementDecision("encirclement_escape", escape);
+                    owner.move(escape, true);
+                    if (owner.pos != oldPos) {
+                        owner.spendActionTime(1 / owner.speed());
+                        Dungeon.level.updateFieldOfView(owner, owner.fieldOfView);
+                        owner.revealVisibleCells();
+                        return owner.animateMoveFrom(oldPos);
+                    }
                 }
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.ENCIRCLEMENT_ESCAPE, escapeStarted);
             }
         }
 
