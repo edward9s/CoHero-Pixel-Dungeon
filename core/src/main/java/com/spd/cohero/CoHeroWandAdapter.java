@@ -144,6 +144,14 @@ final class CoHeroWandAdapter {
 
     static DamageEvaluation usableDamageEvaluation(
             Wand wand, CoHeroAlly owner, Mob target) {
+        return usableDamageEvaluation(wand, owner, target, null);
+    }
+
+    static DamageEvaluation usableDamageEvaluation(
+            Wand wand,
+            CoHeroAlly owner,
+            Mob target,
+            CoHeroWardingPlanner.PlanningContext wardingContext) {
         if (!hasOffensivePotential(wand, owner, target)
                 || !damagingCapability(wand, target)) {
             return null;
@@ -171,8 +179,10 @@ final class CoHeroWandAdapter {
                     : new DamageEvaluation(plan.expectedDamage, plan.aimCell);
         }
         if (wand instanceof WandOfWarding) {
-            CoHeroWardingPlanner.Plan plan =
-                    CoHeroWardingPlanner.choose((WandOfWarding) wand, owner, target);
+            CoHeroWardingPlanner.Plan plan = wardingContext == null
+                    ? CoHeroWardingPlanner.choose((WandOfWarding) wand, owner, target)
+                    : CoHeroWardingPlanner.choose(
+                            (WandOfWarding) wand, owner, target, wardingContext);
             return plan == null
                     ? null
                     : new DamageEvaluation(plan.expectedDamage, plan.aimCell);
