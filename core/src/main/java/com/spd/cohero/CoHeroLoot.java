@@ -101,17 +101,23 @@ final class CoHeroLoot {
     }
 
     Boolean actRecovery() {
-        if (recoverPreferredLootAtCurrentCell()) {
-            recoveryTarget = -1;
-            clearUnreachableCache();
-            owner.clearNavigationPath();
-            owner.spendActionTime(Actor.TICK);
-            return true;
-        }
+        long validateStarted = System.nanoTime();
+        try {
+            if (recoverPreferredLootAtCurrentCell()) {
+                recoveryTarget = -1;
+                clearUnreachableCache();
+                owner.clearNavigationPath();
+                owner.spendActionTime(Actor.TICK);
+                return true;
+            }
 
-        if (recoveryTarget != -1 && preferredLootPriority(recoveryTarget) == 0) {
-            recoveryTarget = -1;
-            owner.clearNavigationPath();
+            if (recoveryTarget != -1 && preferredLootPriority(recoveryTarget) == 0) {
+                recoveryTarget = -1;
+                owner.clearNavigationPath();
+            }
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.RECOVERY_VALIDATE, validateStarted);
         }
 
         if (recoveryTarget == -1) {
@@ -127,12 +133,27 @@ final class CoHeroLoot {
         int oldPos = owner.pos;
         owner.allowAnyGuardMovement();
         owner.setMovementDecision("loot_recovery", recoveryTarget);
-        if (!owner.getCloser(recoveryTarget)) {
+
+        long moveStarted = System.nanoTime();
+        boolean moved;
+        try {
+            moved = owner.getCloser(recoveryTarget);
+        } finally {
+            owner.timings().record(owner, CoHeroTimings.Action.RECOVERY_MOVE, moveStarted);
+        }
+        if (!moved) {
             return null;
         }
 
         owner.spendActionTime(1 / owner.speed());
-        return owner.finishMovementAnimation(oldPos);
+
+        long animationStarted = System.nanoTime();
+        try {
+            return owner.finishMovementAnimation(oldPos);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.RECOVERY_ANIMATION, animationStarted);
+        }
     }
 
     private boolean recoverPreferredLootAtCurrentCell() {
