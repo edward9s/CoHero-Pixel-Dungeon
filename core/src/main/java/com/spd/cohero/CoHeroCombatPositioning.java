@@ -529,7 +529,7 @@ final class CoHeroCombatPositioning {
             if (occupant != null && occupant != owner) {
                 continue;
             }
-            if (!isDefensibleChoke(cell, meleeThreats)) {
+            if (!isDefensibleChokeCached(cell, meleeThreats)) {
                 continue;
             }
 
@@ -559,11 +559,15 @@ final class CoHeroCombatPositioning {
     }
 
     boolean isDefensibleChoke(int cell, ArrayList<Mob> threats) {
+        ensureChokeTopologyCache();
+        return isDefensibleChokeCached(cell, threats);
+    }
+
+    private boolean isDefensibleChokeCached(int cell, ArrayList<Mob> threats) {
         if (threats == null || threats.isEmpty()) {
             return false;
         }
 
-        ensureChokeTopologyCache();
         ChokeTopology topology = chokeTopology(cell);
         if (topology == null) {
             return false;
