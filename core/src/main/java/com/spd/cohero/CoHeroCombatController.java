@@ -231,24 +231,6 @@ final class CoHeroCombatController {
 
 
 
-reate a genuinely better position; speed-aware escape planning rejects fake +1 spacing.
-        if (!owner.rooted) {
-            int escapeStep = chooseEscapeStep(allThreats);
-            if (escapeStep != -1) {
-                owner.allowAnyGuardMovement();
-                return moveForRangedEngagement(escapeStep, "armored_brute_rage_spacing");
-            }
-        }
-
-        // Renewable displacement/rooting is worthwhile here because it creates time to damage a
-        // long-lived rage shield from range. If none exists, fall through to ordinary combat.
-        Boolean escapeUtility = tryEscapeUtility(risk, allThreats);
-        if (escapeUtility != null) {
-            return escapeUtility;
-        }
-
-        return null;
-    }
 
 
 
