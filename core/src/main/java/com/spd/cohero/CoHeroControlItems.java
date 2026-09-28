@@ -30,6 +30,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfDeepSleep;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfShock;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
@@ -66,6 +67,14 @@ final class CoHeroControlItems {
         // ally/neutral/sleeping enemy or heap would be hit.
         int blastCell = chooseSafeBlastCell(threats);
         if (blastCell != -1 && useBlastStone(blastCell)) {
+            return true;
+        }
+
+        // Shock is also an offensive setup when CoHero can convert the stun/recharge into
+        // damaging wand pressure. A single target is enough when a damaging wand needs charge;
+        // otherwise require multi-target control so the runestone is not spent for trivial tempo.
+        int shockCell = chooseOffensiveShockCell(targetMob, threats);
+        if (shockCell != -1 && useShockStone(shockCell)) {
             return true;
         }
 
@@ -458,6 +467,96 @@ final class CoHeroControlItems {
         return Math.max(0f, Math.min(8f, after - before));
     }
 
+    private int chooseOffensiveShockCell(Mob targetMob, ArrayList<Mob> threats) {
+        if (!owner.inventory().hasCombatRunestone(StoneOfShock.class)
+                || !hasDamagingWandForShock(targetMob)) {
+            return -1;
+        }
+
+        boolean wandNeedsCharge = damagingWandNeedsCharge(targetMob);
+        int best = -1;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Mob candidate : threats) {
+            if (candidate == null || !candidate.isAlive() || !owner.fieldOfView[candidate.pos]) {
+                continue;
+            }
+
+            PathFinder.buildDistanceMap(
+                    candidate.pos, BArray.not(Dungeon.level.solid, null), 2);
+            if (PathFinder.distance[targetMob.pos] == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            int hits = 0;
+            int newlyParalysed = 0;
+            boolean unsafe = false;
+            for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+                if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                    continue;
+                }
+
+                Char ch = Actor.findChar(cell);
+                if (ch == null) {
+                    continue;
+                }
+                if (ch.alignment != Char.Alignment.ENEMY
+                        || (ch instanceof Mob && ((Mob) ch).state == ((Mob) ch).SLEEPING)) {
+                    unsafe = true;
+                    break;
+                }
+
+                hits++;
+                if (!ch.isImmune(Paralysis.class) && ch.buff(Paralysis.class) == null) {
+                    newlyParalysed++;
+                }
+            }
+
+            if (unsafe || hits == 0 || (!wandNeedsCharge && newlyParalysed < 2)) {
+                continue;
+            }
+
+            int score = hits * 100 + newlyParalysed * 50;
+            if (candidate.pos == targetMob.pos) {
+                score += 25;
+            }
+            if (best == -1 || score > bestScore) {
+                best = candidate.pos;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean hasDamagingWandForShock(Mob targetMob) {
+        if (targetMob == null || !targetMob.isAlive()) {
+            return false;
+        }
+        for (Wand wand : owner.inventory().wands()) {
+            if (CoHeroWandAdapter.supported(wand)
+                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)
+                    && !targetMob.isImmune(wand.getClass())
+                    && !targetMob.isInvulnerable(wand.getClass())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean damagingWandNeedsCharge(Mob targetMob) {
+        for (Wand wand : owner.inventory().wands()) {
+            if (CoHeroWandAdapter.supported(wand)
+                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)
+                    && !targetMob.isImmune(wand.getClass())
+                    && !targetMob.isInvulnerable(wand.getClass())
+                    && wand.curCharges < wand.maxCharges) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private int chooseEmergencyShockCell(ArrayList<Mob> threats) {
         if (!owner.inventory().hasCombatRunestone(StoneOfShock.class)) {
             return -1;
@@ -598,30 +697,28 @@ final class CoHeroControlItems {
         }
 
         PathFinder.buildDistanceMap(center, BArray.not(Dungeon.level.solid, null), 2);
-        int affected = 0;
+        int hits = 0;
         for (int cell = 0; cell < PathFinder.distance.length; cell++) {
             if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
                 continue;
             }
 
             Char ch = Actor.findChar(cell);
-            if (ch == null
-                    || ch.alignment != Char.Alignment.ENEMY
-                    || ch.isImmune(Paralysis.class)) {
+            if (ch == null || ch.alignment != Char.Alignment.ENEMY) {
                 continue;
             }
-            if (Buff.prolong(ch, Paralysis.class, 1f) != null) {
-                affected++;
-            }
+
+            Buff.prolong(ch, Paralysis.class, 1f);
+            hits++;
         }
 
-        if (affected == 0) {
+        if (hits == 0) {
             owner.inventory().addToBackpack(stone);
             return false;
         }
 
-        // Match StoneOfShock's stock recharge side effect for the inventory model CoHero owns.
-        owner.inventory().gainWandCharge(1f + affected);
+        // Stock StoneOfShock grants recharge for every target hit, even if Paralysis is immune.
+        owner.inventory().gainWandCharge(1f + hits);
         return finishRunestoneUse(stone, Assets.Sounds.LIGHTNING);
     }
 
