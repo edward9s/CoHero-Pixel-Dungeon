@@ -1153,19 +1153,6 @@ final class CoHeroCombatController {
         return bestCell;
     }
 
-    Wand bestDamageWand(ArrayList<Wand> wands, Mob targetMob) {
-        Wand best = null;
-        float bestDamage = Float.NEGATIVE_INFINITY;
-        for (Wand wand : wands) {
-            float damage = CoHeroWandAdapter.expectedDamage(wand, owner, targetMob);
-            if (best == null || damage > bestDamage) {
-                best = wand;
-                bestDamage = damage;
-            }
-        }
-        return best;
-    }
-
     private boolean hasUsableCombatCapability(Mob targetMob) {
         if (owner.hasMeleeCombatCapability()) {
             return true;
