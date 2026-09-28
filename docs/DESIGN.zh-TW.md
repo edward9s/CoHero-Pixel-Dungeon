@@ -392,7 +392,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 
 ### 7.1 消耗品
 
-CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存／逃生／戰鬥機動消耗品、六種 combat runestone 與 Ankh。
+CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存／逃生／戰鬥機動消耗品、七種 combat runestone 與 Ankh。
 
 - CoHero 背包允許存放所有正常物品；Potion 只是其中一類。未鑑定 Potion 不會因其隱藏真實種類改變「能不能放」或 capability 框線，避免透過 UI 洩漏身份。
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
@@ -410,9 +410,10 @@ CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明�
 - `ScrollOfTeleportation` 是 retreat 的最後直接脫離層：只有普通安全走位、wand escape utility 與可控 `StoneOfBlink` 都不可用時才消耗。它重用原版 `ScrollOfTeleportation.teleportChar(Char)`，所以可解除 Roots；若 teleport 失敗，卷軸會放回 CoHero 背包而不浪費。
 - `ScrollOfTerror` 只在 retreat 且無安全逃生步時使用；若能影響至少 2 名當前可見、清醒敵人，或單一可恐懼敵人已造成立即致命風險，優先於隱形藥。作用範圍使用 CoHero 自己的 FOV，不借用 `Dungeon.level.heroFOV`；失明或 `MagicImmune` 時不讀。效果沿用原版 `Terror.DURATION`，並將恐懼來源設為 CoHero。
 - `ScrollOfDread` 位於普通 Terror 之後，避免先消耗較稀有的高級卷軸。retreat 時至少有 2 名可見清醒威脅，且存在 2+ 當前攻擊者、立即致命風險或 TTD ≤ 2 回合時才用；可 Dread 的目標取得原版 Dread，免疫 Dread 但可 Terror 的目標退化成 Terror。上游 `Dread.act()` 原本把「離開視野且距離 ≥ 6 後消失」硬綁 `Dungeon.hero` / `heroFOV`；CoHero patch 改為依 Dread 保存的 caster `object` 找實際 `Char`，Hero 行為保持等價，CoHero cast 則使用 CoHero 自己的 FOV / 位置。
-- CoHero 目前只會主動使用六種明確定義的戰鬥符石：`StoneOfAggression`、`StoneOfBlast`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock`；其他 Runestone 仍可存放，但 AI 不會使用。Runestone 在 SPD 本來就永遠 identified，因此不存在用符石選擇洩漏未知身份的問題。
-- 原版 `Runestone.onThrow()` 仍以玩家 Hero 為中心，會讀 `Dungeon.hero`、`curUser` 與 Hero Talent hook；CoHero 不直接呼叫這個入口，而是在自身 AI 中重現六種已確認安全的效果，仍更新 `Catalog.countUse()`、消耗一枚符石、解除 CoHero 自身隱形並花費一回合。
+- CoHero 目前只會主動使用七種明確定義的戰鬥符石：`StoneOfAggression`、`StoneOfBlast`、`StoneOfShock`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock`；其他 Runestone 仍可存放，但 AI 不會使用。Runestone 在 SPD 本來就永遠 identified，因此不存在用符石選擇洩漏未知身份的問題。
+- 原版 `Runestone.onThrow()` 仍以玩家 Hero 為中心，會讀 `Dungeon.hero`、`curUser` 與 Hero Talent hook；CoHero 不直接呼叫這個入口，而是在自身 AI 中重現七種已確認安全的效果，仍更新 `Catalog.countUse()`、消耗一枚符石、解除 CoHero 自身隱形並花費一回合。
 - `StoneOfBlast` 只在爆炸半徑內至少能命中 2 名可見清醒敵人時使用；只要會炸到 Hero、CoHero、其他友軍／中立角色、睡眠敵人或任何地面 heap 就放棄。實際爆炸仍使用原版 `Bomb.ConjuredBomb.explode()`，因此傷害與地形破壞語意保持原版。
+- `StoneOfShock` 同時是進攻與撤退資源。進攻時必須有能傷害目前目標的法杖，且作用區不能碰到 Hero、CoHero、友軍／中立角色或睡眠敵人；若攻擊法杖缺充能，安全命中單體即可使用，否則至少要能新麻痺 2 名敵人才值得消耗。撤退時仍依實際降低下一回合攻擊者／預期傷害的程度決定是否使用。充能數量比照原版，按符石命中的目標數計算，即使目標免疫麻痺仍算命中。
 - `StoneOfAggression` 只在至少 3 名可見清醒威脅時使用，目標必須不是 Boss / Miniboss，並偏好附近還有其他敵人且 HP 較高者，讓敵群互相轉火；已存在 Aggression 的目標不重複浪費。
 - `StoneOfDeepSleep` 主要用於兩名高價值威脅的戰鬥（例如存在遠程壓制、Boss / Miniboss 戰），優先讓非當前近戰目標退出戰鬥；retreat 且無安全走位時也可作單體緊急控制。免疫 Sleep、已睡眠或已存在 `MagicalSleep` 的目標不使用。
 - `StoneOfFear` 定位為 retreat 單體控制：無安全走位後，若目前一輪接近致命、TTD ≤ 2.5 回合或有 2+ 當前攻擊者，優先對最危險且可恐懼的敵人使用；免疫 Terror 或已在 Terror 中的目標不浪費。
@@ -592,7 +593,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
 - CoHero 擊殺沿用原版流程增加共同 EXP。
 - 基礎自然回血，不處理 Hunger。
-- CoHero 可自動使用少數已鑑定生存／逃生／戰鬥機動消耗品（治療／護盾／隱形／Haste／Stamina／Cleansing／Earthen Armor，以及 Teleportation／Terror／Dread 卷軸），並支援敵意、震爆、恐懼、沉睡、閃現、羊群六種戰鬥符石；另會利用已知 Sungrass / Mageroyal / Earthroot / Fadeleaf 作免費場景生存資源，並可由自己背包中的 Ankh 在死亡時復活。
+- CoHero 可自動使用少數已鑑定生存／逃生／戰鬥機動消耗品（治療／護盾／隱形／Haste／Stamina／Cleansing／Earthen Armor，以及 Teleportation／Terror／Dread 卷軸），並支援敵意、震爆、電擊、恐懼、沉睡、閃現、羊群七種戰鬥符石；另會利用已知 Sungrass / Mageroyal / Earthroot / Fadeleaf 作免費場景生存資源，並可由自己背包中的 Ankh 在死亡時復活。
 - 完全由背包與裝備驅動的基本戰鬥行為。
 - 近戰武器可及時只使用近戰武器。
 - 高閃避目標優先法杖。
