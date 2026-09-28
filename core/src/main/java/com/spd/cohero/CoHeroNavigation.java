@@ -34,6 +34,7 @@ final class CoHeroNavigation {
 
     void clearExplorationTarget() {
         explorationTarget = -1;
+        owner.clearNavigationPath();
     }
 
     boolean actExplore() {
@@ -43,6 +44,7 @@ final class CoHeroNavigation {
                 || (Actor.findChar(explorationTarget) != null
                     && Actor.findChar(explorationTarget) != owner)
                 || !isMovementSafe(explorationTarget)) {
+            owner.clearNavigationPath();
             explorationTarget = chooseExplorationTarget();
         }
 
@@ -57,6 +59,7 @@ final class CoHeroNavigation {
             return owner.finishMovementAnimation(oldPos);
         }
 
+        owner.clearNavigationPath();
         explorationTarget = chooseExplorationTarget();
         owner.spendActionTime(Actor.TICK);
         return true;
@@ -246,16 +249,7 @@ final class CoHeroNavigation {
             return false;
         }
 
-        boolean[] passable = ordinarySafePassable(false);
-        int step = Dungeon.findStep(owner, target, passable, owner.fieldOfView, true);
-        if (step == -1 || !passable[step]) {
-            owner.clearNavigationPath();
-            return false;
-        }
-
-        owner.clearNavigationPath();
-        owner.move(step, true);
-        return true;
+        return getCloser(target);
     }
 
     private int chooseExplorationTarget() {
