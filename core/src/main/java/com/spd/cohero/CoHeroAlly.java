@@ -1136,18 +1136,9 @@ public class CoHeroAlly extends DirectableAlly {
         return riskEstimator.countCurrentAttackersAtCell(defenderCell, threats);
     }
 
-    int countThreatsAbleToAttackWithin(
+    CoHeroThreatTiming assessThreatTimingAtCell(
             int defenderCell, ArrayList<Mob> threats, float horizon) {
-        return riskEstimator.countThreatsAbleToAttackWithin(defenderCell, threats, horizon);
-    }
-
-    float estimatedIncomingDptAtCellWithin(
-            int defenderCell, ArrayList<Mob> threats, float horizon) {
-        return riskEstimator.estimatedIncomingDptAtCellWithin(defenderCell, threats, horizon);
-    }
-
-    float nearestThreatAttackTime(int defenderCell, ArrayList<Mob> threats) {
-        return riskEstimator.nearestThreatAttackTime(defenderCell, threats);
+        return riskEstimator.assessThreatTimingAtCell(defenderCell, threats, horizon);
     }
 
     float estimatedTimeToAttackCell(Mob threat, int defenderCell) {
