@@ -17,6 +17,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.StenchGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Web;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Eye;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.RipperDemon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Tengu;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultLaser;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultSentry;
@@ -73,6 +75,8 @@ public final class CoHeroHazards {
         return isWarned(cell)
                 || isKnownActiveTrap(cell)
                 || isDelayedPitDanger(owner, cell)
+                || isRipperLeapDanger(cell)
+                || isEyeDeathGazeDanger(cell)
                 || isVaultMechanismDanger(owner, cell)
                 || isEnvironmentalDanger(owner, cell);
     }
@@ -83,6 +87,8 @@ public final class CoHeroHazards {
         return !WARNED_UNTIL.isEmpty()
                 || hasKnownActiveTrap()
                 || hasDelayedPitHazard(owner)
+                || hasRipperLeapHazard()
+                || hasEyeDeathGazeHazard()
                 || hasVaultMechanismHazard(owner)
                 || hasEnvironmentalHazard(owner);
     }
@@ -109,6 +115,8 @@ public final class CoHeroHazards {
         }
 
         maskDelayedPitDanger(owner, result);
+        maskRipperLeaps(result);
+        maskEyeDeathGazes(result);
 
         if (owner != null) {
             ensureVaultMechanismDanger(owner);
@@ -368,6 +376,100 @@ public final class CoHeroHazards {
                 && to < Dungeon.level.length()
                 && Dungeon.level.distance(from, to) == 1
                 && !Dungeon.level.solid[to];
+    }
+
+
+    private static boolean hasRipperLeapHazard() {
+        for (Char ch : Actor.chars()) {
+            if (ch instanceof RipperDemon
+                    && ch.isAlive()
+                    && ripperLeapCollision((RipperDemon) ch) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRipperLeapDanger(int cell) {
+        for (Char ch : Actor.chars()) {
+            if (ch instanceof RipperDemon
+                    && ch.isAlive()
+                    && ripperLeapCollision((RipperDemon) ch) == cell) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void maskRipperLeaps(boolean[] passable) {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof RipperDemon) || !ch.isAlive()) {
+                continue;
+            }
+            int leapCollision = ripperLeapCollision((RipperDemon) ch);
+            if (leapCollision >= 0 && leapCollision < passable.length) {
+                passable[leapCollision] = false;
+            }
+        }
+    }
+
+    private static int ripperLeapCollision(RipperDemon ripper) {
+        int leapTarget = ripper.coHeroLeapTarget();
+        if (leapTarget < 0 || leapTarget >= Dungeon.level.length()) {
+            return -1;
+        }
+        return new Ballistica(
+                ripper.pos,
+                leapTarget,
+                Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos;
+    }
+
+    private static boolean hasEyeDeathGazeHazard() {
+        for (Char ch : Actor.chars()) {
+            if (ch instanceof Eye && ((Eye) ch).coHeroDeathGazeTarget() >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEyeDeathGazeDanger(int cell) {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Eye)) {
+                continue;
+            }
+            Eye eye = (Eye) ch;
+            int beamTarget = eye.coHeroDeathGazeTarget();
+            if (beamTarget < 0) {
+                continue;
+            }
+
+            Ballistica beam = new Ballistica(eye.pos, beamTarget, Ballistica.STOP_SOLID);
+            if (beam.subPath(1, beam.dist).contains(cell)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void maskEyeDeathGazes(boolean[] passable) {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Eye)) {
+                continue;
+            }
+            Eye eye = (Eye) ch;
+            int beamTarget = eye.coHeroDeathGazeTarget();
+            if (beamTarget < 0) {
+                continue;
+            }
+
+            Ballistica beam = new Ballistica(eye.pos, beamTarget, Ballistica.STOP_SOLID);
+            for (int cell : beam.subPath(1, beam.dist)) {
+                if (cell >= 0 && cell < passable.length) {
+                    passable[cell] = false;
+                }
+            }
+        }
     }
 
     private static boolean hasVaultMechanismHazard(Char owner) {
