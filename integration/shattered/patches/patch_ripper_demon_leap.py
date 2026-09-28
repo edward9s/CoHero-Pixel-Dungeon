@@ -11,7 +11,7 @@ text = path.read_text(encoding="utf-8")
 anchor = "\tprivate int leapPos = -1;\n\tprivate float leapCooldown = 0;\n"
 addition = (
     "\n\tpublic int coHeroLeapTarget() {\n"
-    "\t\treturn rooted ? -1 : leapPos;\n"
+    "\t\treturn rooted || state != HUNTING ? -1 : leapPos;\n"
     "\t}\n"
 )
 
