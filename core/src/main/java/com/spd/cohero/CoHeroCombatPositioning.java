@@ -41,6 +41,9 @@ final class CoHeroCombatPositioning {
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
 
     private final CoHeroAlly owner;
+    private int[] chokeSide0Distance = new int[0];
+    private int[] chokeSide1Distance = new int[0];
+    private int[] chokeQueue = new int[0];
 
     CoHeroCombatPositioning(CoHeroAlly owner) {
 
@@ -551,10 +554,13 @@ final class CoHeroCombatPositioning {
             return false;
         }
 
+        ensureChokeScratch();
         int[] side0Distance =
-                localPathDistances(exits[0], cell, CHOKE_REAR_SCAN_RADIUS);
+                localPathDistances(
+                        exits[0], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide0Distance);
         int[] side1Distance =
-                localPathDistances(exits[1], cell, CHOKE_REAR_SCAN_RADIUS);
+                localPathDistances(
+                        exits[1], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide1Distance);
 
         boolean pressure0 = false;
         boolean pressure1 = false;
@@ -584,21 +590,30 @@ final class CoHeroCombatPositioning {
                 && Actor.findChar(rear) == null;
     }
 
-    int[] localPathDistances(int start, int blockedCell, int maxDistance) {
-        int[] distance = new int[Dungeon.level.length()];
+    private void ensureChokeScratch() {
+        int length = Dungeon.level.length();
+        if (chokeSide0Distance.length == length) {
+            return;
+        }
+        chokeSide0Distance = new int[length];
+        chokeSide1Distance = new int[length];
+        chokeQueue = new int[length];
+    }
+
+    private int[] localPathDistances(
+            int start, int blockedCell, int maxDistance, int[] distance) {
         Arrays.fill(distance, -1);
         if (!Dungeon.level.insideMap(start) || start == blockedCell) {
             return distance;
         }
 
-        int[] queue = new int[Dungeon.level.length()];
         int head = 0;
         int tail = 0;
         distance[start] = 0;
-        queue[tail++] = start;
+        chokeQueue[tail++] = start;
 
         while (head < tail) {
-            int current = queue[head++];
+            int current = chokeQueue[head++];
             int nextDistance = distance[current] + 1;
             if (nextDistance > maxDistance) {
                 continue;
@@ -614,7 +629,7 @@ final class CoHeroCombatPositioning {
                     continue;
                 }
                 distance[next] = nextDistance;
-                queue[tail++] = next;
+                chokeQueue[tail++] = next;
             }
         }
 
