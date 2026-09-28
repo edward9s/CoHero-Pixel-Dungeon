@@ -6,6 +6,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Paralysis;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.ArmoredBrute;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Brute;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
@@ -440,6 +442,147 @@ final class CoHeroCombatController {
         return null;
     }
 
+    Boolean tryBruteRageTactics(
+            Mob targetMob,
+            ArrayList<Mob> allThreats,
+            CoHeroCombatRisk risk) {
+        if (allThreats == null || allThreats.isEmpty() || risk == null) {
+            throw new IllegalArgumentException(
+                    "Brute rage tactics require current combat threats and risk");
+        }
+
+        Mob shortRageThreat = nearestShortBruteRageThreat(allThreats);
+        if (shortRageThreat != null) {
+            return tryShortBruteRageSurvival(shortRageThreat, allThreats, risk);
+        }
+
+        Brute.BruteRage targetRage = activeBruteRage(targetMob);
+        if (!(targetRage instanceof ArmoredBrute.ArmoredRage)) {
+            return null;
+        }
+
+        return tryArmoredBruteRageCombat(targetMob, allThreats, risk);
+    }
+
+    private Mob nearestShortBruteRageThreat(ArrayList<Mob> threats) {
+        Mob best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for (Mob threat : threats) {
+            Brute.BruteRage rage = activeBruteRage(threat);
+            if (rage == null || rage instanceof ArmoredBrute.ArmoredRage) {
+                continue;
+            }
+
+            int distance = Dungeon.level.distance(owner.pos, threat.pos);
+            if (best == null
+                    || distance < bestDistance
+                    || (distance == bestDistance && threat.id() < best.id())) {
+                best = threat;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private Brute.BruteRage activeBruteRage(Mob mob) {
+        if (!(mob instanceof Brute) || !mob.isAlive()) {
+            return null;
+        }
+
+        Brute.BruteRage result = null;
+        for (Brute.BruteRage rage : mob.buffs(Brute.BruteRage.class)) {
+            if (rage.shielding() <= 0) {
+                continue;
+            }
+            if (result != null) {
+                throw new IllegalStateException(
+                        "Brute has multiple active rage shields: "
+                                + mob.getClass().getSimpleName());
+            }
+            result = rage;
+        }
+        return result;
+    }
+
+    private Boolean tryShortBruteRageSurvival(
+            Mob brute, ArrayList<Mob> allThreats, CoHeroCombatRisk risk) {
+        // Ordinary BruteRage is a short self-destruct phase. Spending health to break the shield
+        // is usually worse than surviving until its automatic shield decay kills the Brute.
+        if (owner.buff(Invisibility.class) != null) {
+            int invisibleStep = owner.rooted ? -1 : chooseEscapeStep(allThreats);
+            if (invisibleStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(invisibleStep, "brute_rage_invisible_escape");
+            }
+            owner.spendActionTime(Actor.TICK);
+            return true;
+        }
+
+        int escapeStep = owner.rooted ? -1 : chooseEscapeStep(allThreats);
+        if (escapeStep != -1) {
+            owner.allowAnyGuardMovement();
+            return moveForRangedEngagement(escapeStep, "brute_rage_escape");
+        }
+
+        float attackTime = owner.estimatedTimeToAttackCell(brute, owner.pos);
+        if (attackTime > Actor.TICK + 0.001f) {
+            // Already safe enough for the next turn: wait for the rage shield to decay instead of
+            // spending ammunition, wand charges, or movement to re-engage.
+            owner.clearCombatTarget();
+            owner.spendActionTime(Actor.TICK);
+            return true;
+        }
+
+        // If the raging Brute can reach/attack now and movement cannot improve the situation, use
+        // reusable or severe-retreat control before accepting a direct exchange.
+        Boolean escapeUtility = tryEscapeUtility(risk, allThreats);
+        if (escapeUtility != null) {
+            return escapeUtility;
+        }
+
+        if (risk.retreat) {
+            if (owner.controlItems().tryEmergencyBlinkRunestone(allThreats)) {
+                return true;
+            }
+            if (owner.controlItems().tryEmergencyRunestone(risk, allThreats)) {
+                return true;
+            }
+        }
+
+        // Trapped with no useful escape/control: normal combat is safer than wasting the turn.
+        return null;
+    }
+
+    private Boolean tryArmoredBruteRageCombat(
+            Mob brute, ArrayList<Mob> allThreats, CoHeroCombatRisk risk) {
+        if (Dungeon.level.distance(owner.pos, brute.pos) > 1) {
+            RangedChoice ranged = chooseRangedAttack(brute);
+            if (ranged != null) {
+                return performRangedChoice(brute, ranged);
+            }
+            return null;
+        }
+
+        // ArmoredRage lasts far too long to wait out. When already in melee range, first try to
+        // create a genuinely better position; speed-aware escape planning rejects fake +1 spacing.
+        if (!owner.rooted) {
+            int escapeStep = chooseEscapeStep(allThreats);
+            if (escapeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(escapeStep, "armored_brute_rage_spacing");
+            }
+        }
+
+        // Renewable displacement/rooting is worthwhile here because it creates time to damage a
+        // long-lived rage shield from range. If none exists, fall through to ordinary combat.
+        Boolean escapeUtility = tryEscapeUtility(risk, allThreats);
+        if (escapeUtility != null) {
+            return escapeUtility;
+        }
+
+        return null;
+    }
+
     Boolean tryScorpioTactics(
             Mob targetMob,
             ArrayList<Mob> allThreats,
@@ -679,7 +822,7 @@ final class CoHeroCombatController {
         }
 
         // Never spend turns closing on a pure melee target merely because melee damage is higher.
-        // Any current gap is free damage: keep it and let the direct ranged phase fire first.
+        // Keep an existing gap; speed-aware ranged preference decides whether it is truly a free shot.
         if (!rangedAttacker && Dungeon.level.distance(owner.pos, targetMob.pos) > 1) {
             return null;
         }
