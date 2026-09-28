@@ -99,7 +99,9 @@ final class CoHeroEnemyTactics {
 
         Wand focusBypass = bestMonkFocusBypassWand(targetMob);
         if (focusBypass != null) {
-            int aim = CoHeroWandAdapter.aimCell(focusBypass, owner, targetMob);
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    combat.usableDamageEvaluation(targetMob, focusBypass);
+            int aim = evaluation == null ? -1 : evaluation.aimCell;
             if (aim >= 0) {
                 owner.logBossDecision("monk_focus_wand:" + targetMob.id(),
                         owner.targetDebug(targetMob) + " -> bypass Focus with "
@@ -198,11 +200,13 @@ final class CoHeroEnemyTactics {
                 continue;
             }
 
-            float damage =
-                    CoHeroWandAdapter.expectedUsableDamage(wand, owner, targetMob);
-            if (damage > 0f && (best == null || damage > bestDamage)) {
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    combat.usableDamageEvaluation(targetMob, wand);
+            if (evaluation != null
+                    && evaluation.expectedDamage > 0f
+                    && (best == null || evaluation.expectedDamage > bestDamage)) {
                 best = wand;
-                bestDamage = damage;
+                bestDamage = evaluation.expectedDamage;
             }
         }
         return best;
