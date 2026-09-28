@@ -260,7 +260,7 @@ final class CoHeroCombatController {
         // If melee is the only answer and one safe step establishes adjacency, close now rather
         // than retreating because the generic TTK sees Focus as infinite evasion.
         if (owner.hasMeleeCombatCapability() && !owner.rooted) {
-            int closeStep = chooseOneStepMeleeApproach(targetMob, allThreats);
+            int closeStep = positioning.chooseOneStepMeleeApproach(targetMob, allThreats);
             if (closeStep != -1) {
                 owner.allowAnyGuardMovement();
                 return moveForRangedEngagement(closeStep, "monk_focus_close");
@@ -298,7 +298,7 @@ final class CoHeroCombatController {
         }
 
         if (owner.hasMeleeCombatCapability() && !owner.rooted) {
-            int closeStep = chooseOneStepMeleeApproach(targetMob, allThreats);
+            int closeStep = positioning.chooseOneStepMeleeApproach(targetMob, allThreats);
             if (closeStep != -1) {
                 owner.allowAnyGuardMovement();
                 return moveForRangedEngagement(closeStep, "monk_opening_close");
@@ -538,7 +538,7 @@ final class CoHeroCombatController {
 
             canSustainChase = canSustainScorpioChase(scorpio);
             if (canSustainChase) {
-                int closeStep = chooseRangedTargetClosingStep(scorpio, allThreats);
+                int closeStep = positioning.chooseRangedTargetClosingStep(scorpio, allThreats);
                 if (closeStep != -1) {
                     owner.allowAnyGuardMovement();
                     return moveForRangedEngagement(closeStep, "scorpio_chase");
@@ -584,7 +584,7 @@ final class CoHeroCombatController {
         // No ranged answer and no useful cover/control remain. Chasing is the least-bad fallback;
         // terrain may still eventually deny the Scorpio another retreat step.
         if (meleeCapable && !owner.rooted) {
-            int closeStep = chooseRangedTargetClosingStep(scorpio, allThreats);
+            int closeStep = positioning.chooseRangedTargetClosingStep(scorpio, allThreats);
             if (closeStep != -1) {
                 owner.allowAnyGuardMovement();
                 return moveForRangedEngagement(closeStep, "scorpio_forced_close");
@@ -730,7 +730,7 @@ final class CoHeroCombatController {
         }
 
         if (rangedPressure && !Dungeon.level.adjacent(owner.pos, targetMob.pos)) {
-            int closeStep = chooseRangedTargetClosingStep(targetMob, threats);
+            int closeStep = positioning.chooseRangedTargetClosingStep(targetMob, threats);
             if (closeStep != -1) {
                 return moveForRangedEngagement(closeStep, "ranged_close");
             }
@@ -745,7 +745,7 @@ final class CoHeroCombatController {
             return null;
         }
 
-        int chargeStep = chooseOneStepMeleeApproach(targetMob, threats);
+        int chargeStep = positioning.chooseOneStepMeleeApproach(targetMob, threats);
         if (chargeStep != -1) {
             return moveForRangedEngagement(chargeStep, "ranged_charge");
         }
@@ -967,103 +967,9 @@ final class CoHeroCombatController {
         return best;
     }
 
-    private int chooseRangedTargetClosingStep(Mob targetMob, ArrayList<Mob> threats) {
-        if (owner.rooted || targetMob == null) {
-            return -1;
-        }
 
-        boolean[] passable = rangedLurePassable();
-        int bestStep = -1;
-        int bestScore = Integer.MAX_VALUE;
 
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int destination = targetMob.pos + offset;
-            if (!Dungeon.level.insideMap(destination)
-                    || Dungeon.level.distance(destination, targetMob.pos) != 1
-                    || !passable[destination]
-                    || !owner.isMovementSafe(destination)) {
-                continue;
-            }
 
-            Char occupant = Actor.findChar(destination);
-            if (occupant != null && occupant != owner) {
-                continue;
-            }
-
-            PathFinder.Path route =
-                    Dungeon.findPath(owner, destination, passable, owner.fieldOfView, true);
-            if (route == null || route.isEmpty()) {
-                continue;
-            }
-
-            int exposedSteps = 0;
-            if (targetMob.fieldOfView != null
-                    && targetMob.fieldOfView.length == Dungeon.level.length()) {
-                for (int routeCell : route) {
-                    if (targetMob.fieldOfView[routeCell]) {
-                        exposedSteps++;
-                    }
-                }
-            }
-
-            int attackers = owner.countCurrentAttackersAtCell(destination, threats);
-            int score = route.size() * 24
-                    + exposedSteps * 18
-                    + attackers * 90;
-
-            int firstStep = route.getFirst();
-            if (bestStep == -1
-                    || score < bestScore
-                    || (score == bestScore && firstStep < bestStep)) {
-                bestStep = firstStep;
-                bestScore = score;
-            }
-        }
-
-        return bestStep;
-    }
-
-    private int chooseOneStepMeleeApproach(Mob targetMob, ArrayList<Mob> threats) {
-        if (owner.rooted || targetMob == null) {
-            return -1;
-        }
-
-        int best = -1;
-        int bestAttackers = Integer.MAX_VALUE;
-        float bestIncoming = Float.POSITIVE_INFINITY;
-        int bestDistance = Integer.MAX_VALUE;
-
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int cell = owner.pos + offset;
-            if (!Dungeon.level.insideMap(cell)
-                    || Dungeon.level.distance(owner.pos, cell) != 1
-                    || !Dungeon.level.passable[cell]
-                    || !owner.isMovementSafe(cell)
-                    || (!owner.fieldOfView[cell] && !owner.isKnown(cell))
-                    || Actor.findChar(cell) != null
-                    || !Dungeon.level.adjacent(cell, targetMob.pos)) {
-                continue;
-            }
-
-            int attackers = owner.countCurrentAttackersAtCell(cell, threats);
-            float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
-            int distance = Dungeon.level.distance(cell, targetMob.pos);
-
-            if (best == -1
-                    || attackers < bestAttackers
-                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
-                    || (attackers == bestAttackers
-                        && Math.abs(incoming - bestIncoming) <= 0.01f
-                        && distance < bestDistance)) {
-                best = cell;
-                bestAttackers = attackers;
-                bestIncoming = incoming;
-                bestDistance = distance;
-            }
-        }
-
-        return best;
-    }
 
 
 
