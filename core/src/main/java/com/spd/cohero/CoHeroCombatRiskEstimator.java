@@ -15,9 +15,9 @@ import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 
 /**
  * Pure combat-risk estimation for CoHero.
@@ -30,9 +30,68 @@ final class CoHeroCombatRiskEstimator {
     private static final int THREAT_APPROACH_SEARCH_STEPS = 8;
 
     private final CoHeroAlly owner;
+    private final IdentityHashMap<Mob, ThreatTurnCache> threatTurnCaches =
+            new IdentityHashMap<>();
+    private int turnSerial;
+    private int levelLength = -1;
+    private int[] blockedSteps = new int[0];
+    private int[] blockedQueue = new int[0];
+
+    private static final class ThreatTurnCache {
+        final int[] attackTimeStamp;
+        final float[] attackTime;
+        final int[] attackNowStamp;
+        final boolean[] attackNow;
+        final int[] reachabilitySteps;
+        final int[] reachabilityQueue;
+        int reachabilityTurn = -1;
+        int reachabilitySource = -1;
+        int reachableCount;
+
+        ThreatTurnCache(int levelLength) {
+            attackTimeStamp = new int[levelLength];
+            attackTime = new float[levelLength];
+            attackNowStamp = new int[levelLength];
+            attackNow = new boolean[levelLength];
+            reachabilitySteps = new int[levelLength];
+            reachabilityQueue = new int[levelLength];
+        }
+    }
 
     CoHeroCombatRiskEstimator(CoHeroAlly owner) {
         this.owner = owner;
+    }
+
+    void beginTurn() {
+        if (Dungeon.level == null) {
+            throw new IllegalStateException("CoHero combat risk turn started without a level");
+        }
+
+        int currentLevelLength = Dungeon.level.length();
+        if (currentLevelLength != levelLength || turnSerial == Integer.MAX_VALUE) {
+            threatTurnCaches.clear();
+            levelLength = currentLevelLength;
+            blockedSteps = new int[levelLength];
+            blockedQueue = new int[levelLength];
+            turnSerial = 1;
+            return;
+        }
+
+        turnSerial++;
+    }
+
+    private ThreatTurnCache threatTurnCache(Mob threat) {
+        if (turnSerial == 0 || levelLength != Dungeon.level.length()) {
+            throw new IllegalStateException(
+                    "CoHero combat risk queried outside the current decision turn");
+        }
+
+        ThreatTurnCache cache = threatTurnCaches.get(threat);
+        if (cache == null) {
+            cache = new ThreatTurnCache(levelLength);
+            threatTurnCaches.put(threat, cache);
+        }
+        return cache;
     }
 
     CoHeroCombatRisk assess(
@@ -174,6 +233,23 @@ final class CoHeroCombatRiskEstimator {
             return Float.POSITIVE_INFINITY;
         }
 
+        if (blocked == null) {
+            ThreatTurnCache cache = threatTurnCache(threat);
+            if (cache.attackTimeStamp[defenderCell] == turnSerial) {
+                return cache.attackTime[defenderCell];
+            }
+
+            float result = calculateTimeToAttackCell(threat, defenderCell, null, cache);
+            cache.attackTime[defenderCell] = result;
+            cache.attackTimeStamp[defenderCell] = turnSerial;
+            return result;
+        }
+
+        return calculateTimeToAttackCell(threat, defenderCell, blocked, null);
+    }
+
+    private float calculateTimeToAttackCell(
+            Mob threat, int defenderCell, boolean[] blocked, ThreatTurnCache cache) {
         if (canThreatAttackCell(threat, defenderCell)) {
             return 0f;
         }
@@ -186,25 +262,78 @@ final class CoHeroCombatRiskEstimator {
             return Float.POSITIVE_INFINITY;
         }
 
-        int steps = minimumMovementStepsToAttack(threat, defenderCell, blocked);
+        int steps = blocked == null
+                ? minimumMovementStepsToAttack(threat, defenderCell, cache)
+                : minimumMovementStepsToAttackWithBlockedCells(
+                        threat, defenderCell, blocked);
         return steps == Integer.MAX_VALUE
                 ? Float.POSITIVE_INFINITY
                 : steps / speed;
     }
 
     private int minimumMovementStepsToAttack(
+            Mob threat, int defenderCell, ThreatTurnCache cache) {
+        prepareThreatReachability(threat, cache);
+
+        // reachabilityQueue is BFS ordered, so the first source cell that can attack is the
+        // minimum number of movement steps needed. Index 0 is threat.pos, already tested above.
+        for (int i = 1; i < cache.reachableCount; i++) {
+            int sourceCell = cache.reachabilityQueue[i];
+            if (canThreatAttackFromTo(threat, sourceCell, defenderCell)) {
+                return cache.reachabilitySteps[sourceCell];
+            }
+        }
+        return Integer.MAX_VALUE;
+    }
+
+    private void prepareThreatReachability(Mob threat, ThreatTurnCache cache) {
+        if (cache.reachabilityTurn == turnSerial
+                && cache.reachabilitySource == threat.pos) {
+            return;
+        }
+
+        Arrays.fill(cache.reachabilitySteps, -1);
+        int head = 0;
+        int tail = 0;
+        cache.reachabilitySteps[threat.pos] = 0;
+        cache.reachabilityQueue[tail++] = threat.pos;
+
+        while (head < tail) {
+            int cell = cache.reachabilityQueue[head++];
+            int stepCount = cache.reachabilitySteps[cell];
+            if (stepCount >= THREAT_APPROACH_SEARCH_STEPS) {
+                continue;
+            }
+
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int next = cell + offset;
+                if (!Dungeon.level.insideMap(next)
+                        || Dungeon.level.distance(cell, next) != 1
+                        || cache.reachabilitySteps[next] != -1
+                        || !enemyCanEnterForRisk(threat, next)) {
+                    continue;
+                }
+                cache.reachabilitySteps[next] = stepCount + 1;
+                cache.reachabilityQueue[tail++] = next;
+            }
+        }
+
+        cache.reachabilityTurn = turnSerial;
+        cache.reachabilitySource = threat.pos;
+        cache.reachableCount = tail;
+    }
+
+    private int minimumMovementStepsToAttackWithBlockedCells(
             Mob threat, int defenderCell, boolean[] blocked) {
-        int length = Dungeon.level.length();
-        int[] steps = new int[length];
-        Arrays.fill(steps, -1);
+        Arrays.fill(blockedSteps, -1);
+        int head = 0;
+        int tail = 0;
+        blockedSteps[threat.pos] = 0;
+        blockedQueue[tail++] = threat.pos;
 
-        ArrayDeque<Integer> queue = new ArrayDeque<>();
-        steps[threat.pos] = 0;
-        queue.add(threat.pos);
-
-        while (!queue.isEmpty()) {
-            int cell = queue.removeFirst();
-            int stepCount = steps[cell];
+        while (head < tail) {
+            int cell = blockedQueue[head++];
+            int stepCount = blockedSteps[cell];
 
             if (cell != threat.pos && canThreatAttackFromTo(threat, cell, defenderCell)) {
                 return stepCount;
@@ -217,13 +346,13 @@ final class CoHeroCombatRiskEstimator {
                 int next = cell + offset;
                 if (!Dungeon.level.insideMap(next)
                         || Dungeon.level.distance(cell, next) != 1
-                        || steps[next] != -1
-                        || (blocked != null && blocked[next] && next != defenderCell)
+                        || blockedSteps[next] != -1
+                        || (blocked[next] && next != defenderCell)
                         || !enemyCanEnterForRisk(threat, next)) {
                     continue;
                 }
-                steps[next] = stepCount + 1;
-                queue.addLast(next);
+                blockedSteps[next] = stepCount + 1;
+                blockedQueue[tail++] = next;
             }
         }
 
@@ -527,7 +656,19 @@ final class CoHeroCombatRiskEstimator {
     }
 
     private boolean canThreatAttackCell(Mob threat, int defenderCell) {
-        return canThreatAttackFromTo(threat, threat.pos, defenderCell);
+        if (threat == null || !Dungeon.level.insideMap(defenderCell)) {
+            return false;
+        }
+
+        ThreatTurnCache cache = threatTurnCache(threat);
+        if (cache.attackNowStamp[defenderCell] == turnSerial) {
+            return cache.attackNow[defenderCell];
+        }
+
+        boolean result = canThreatAttackFromTo(threat, threat.pos, defenderCell);
+        cache.attackNow[defenderCell] = result;
+        cache.attackNowStamp[defenderCell] = turnSerial;
+        return result;
     }
 
     boolean hasNonAdjacentAttackCapability(Mob threat, Char target) {
