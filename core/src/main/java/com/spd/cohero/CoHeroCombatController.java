@@ -443,15 +443,12 @@ final class CoHeroCombatController {
     Boolean tryScorpioTactics(
             Mob targetMob,
             ArrayList<Mob> allThreats,
-            ArrayList<Mob> attackableThreats,
             CoHeroCombatRisk risk) {
         if (!(targetMob instanceof Scorpio)) {
             return null;
         }
         if (allThreats == null
                 || allThreats.isEmpty()
-                || attackableThreats == null
-                || attackableThreats.isEmpty()
                 || risk == null) {
             throw new IllegalArgumentException(
                     "Scorpio tactics require current combat threats and risk");
