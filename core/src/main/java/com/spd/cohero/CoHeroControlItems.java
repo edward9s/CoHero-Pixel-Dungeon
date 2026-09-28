@@ -469,11 +469,10 @@ final class CoHeroControlItems {
 
     private int chooseOffensiveShockCell(Mob targetMob, ArrayList<Mob> threats) {
         if (!owner.inventory().hasCombatRunestone(StoneOfShock.class)
-                || !hasDamagingWandForShock(targetMob)) {
+                || !allRelevantDamagingWandsLowCharge(targetMob)) {
             return -1;
         }
 
-        boolean wandNeedsCharge = damagingWandNeedsCharge(targetMob);
         int best = -1;
         int bestScore = Integer.MIN_VALUE;
 
@@ -512,7 +511,9 @@ final class CoHeroControlItems {
                 }
             }
 
-            if (unsafe || hits == 0 || (!wandNeedsCharge && newlyParalysed < 2)) {
+            // Offensive Shock should buy both wand charge and actual tempo. Pure recharge against
+            // only paralysis-immune targets is not enough reason to spend the runestone.
+            if (unsafe || hits == 0 || newlyParalysed == 0) {
                 continue;
             }
 
@@ -529,32 +530,39 @@ final class CoHeroControlItems {
         return best;
     }
 
-    private boolean hasDamagingWandForShock(Mob targetMob) {
+    private boolean allRelevantDamagingWandsLowCharge(Mob targetMob) {
         if (targetMob == null || !targetMob.isAlive()) {
             return false;
         }
-        for (Wand wand : owner.inventory().wands()) {
-            if (CoHeroWandAdapter.supported(wand)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)
-                    && !targetMob.isImmune(wand.getClass())
-                    && !targetMob.isInvulnerable(wand.getClass())) {
-                return true;
-            }
-        }
-        return false;
-    }
 
-    private boolean damagingWandNeedsCharge(Mob targetMob) {
+        boolean foundRelevantWand = false;
         for (Wand wand : owner.inventory().wands()) {
-            if (CoHeroWandAdapter.supported(wand)
-                    && CoHeroWandAdapter.damagingCapability(wand, targetMob)
-                    && !targetMob.isImmune(wand.getClass())
-                    && !targetMob.isInvulnerable(wand.getClass())
-                    && wand.curCharges < wand.maxCharges) {
-                return true;
+            if (!CoHeroWandAdapter.supported(wand)
+                    || !CoHeroWandAdapter.damagingCapability(wand, targetMob)
+                    || targetMob.isImmune(wand.getClass())
+                    || targetMob.isInvulnerable(wand.getClass())) {
+                continue;
+            }
+
+            if (wand.curCharges == 0) {
+                // An empty damaging wand is exactly the resource Shock is meant to recover.
+                foundRelevantWand = true;
+                continue;
+            }
+
+            // With charge available, reuse the normal attack legality/safety decision. A full wand
+            // that cannot currently hit this target safely must not block Shock use.
+            if (!CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)) {
+                continue;
+            }
+
+            foundRelevantWand = true;
+            if (wand.curCharges > 1) {
+                return false;
             }
         }
-        return false;
+
+        return foundRelevantWand;
     }
 
     private int chooseEmergencyShockCell(ArrayList<Mob> threats) {
