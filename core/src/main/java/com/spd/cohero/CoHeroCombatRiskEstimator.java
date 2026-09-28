@@ -107,53 +107,48 @@ final class CoHeroCombatRiskEstimator {
                 ttk);
     }
 
-    int countThreatsAbleToAttackWithin(
+    CoHeroThreatTiming assessThreatTimingAtCell(
             int defenderCell, ArrayList<Mob> threats, float horizon) {
-        if (threats == null || threats.isEmpty() || horizon < 0f) {
-            return 0;
+        if (horizon < 0f) {
+            throw new IllegalArgumentException("Threat timing horizon must be non-negative");
         }
 
-        int result = 0;
-        for (Mob threat : threats) {
-            if (estimatedTimeToAttackCell(threat, defenderCell) <= horizon + 0.001f) {
-                result++;
-            }
-        }
-        return result;
-    }
+        int attackersWithinHorizon = 0;
+        float incomingDptWithinHorizon = Math.max(0, owner.incomingDOT()) * 0.20f;
+        float nearestAttackTime = Float.POSITIVE_INFINITY;
 
-    float estimatedIncomingDptAtCellWithin(
-            int defenderCell, ArrayList<Mob> threats, float horizon) {
         if (threats == null || threats.isEmpty()) {
-            return Math.max(0, owner.incomingDOT()) * 0.20f;
+            return new CoHeroThreatTiming(
+                    attackersWithinHorizon,
+                    incomingDptWithinHorizon,
+                    nearestAttackTime);
         }
 
-        float result = 0f;
         for (Mob threat : threats) {
             float timeToAttack = estimatedTimeToAttackCell(threat, defenderCell);
+            nearestAttackTime = Math.min(nearestAttackTime, timeToAttack);
+
+            if (timeToAttack <= horizon + 0.001f) {
+                attackersWithinHorizon++;
+            }
+
             float opportunity = timeToAttack <= horizon + 0.001f
                     ? 1f
-                    : threatOpportunity(threat, defenderCell);
+                    : threatOpportunityForTime(timeToAttack);
             if (opportunity <= 0f) {
                 continue;
             }
-            result += estimatedThreatDamage(threat, defenderCell)
+
+            incomingDptWithinHorizon += estimatedThreatDamage(threat, defenderCell)
                     * estimatedHitChance(threat, defenderCell)
                     * opportunity
                     / Math.max(0.25f, threat.attackDelay());
         }
-        return result + Math.max(0, owner.incomingDOT()) * 0.20f;
-    }
 
-    float nearestThreatAttackTime(int defenderCell, ArrayList<Mob> threats) {
-        float nearest = Float.POSITIVE_INFINITY;
-        if (threats == null) {
-            return nearest;
-        }
-        for (Mob threat : threats) {
-            nearest = Math.min(nearest, estimatedTimeToAttackCell(threat, defenderCell));
-        }
-        return nearest;
+        return new CoHeroThreatTiming(
+                attackersWithinHorizon,
+                incomingDptWithinHorizon,
+                nearestAttackTime);
     }
 
     float estimatedTimeToAttackCell(Mob threat, int defenderCell) {
@@ -457,11 +452,12 @@ final class CoHeroCombatRiskEstimator {
 
     private float threatOpportunity(
             Mob threat, int defenderCell, boolean attacksNow) {
-        if (attacksNow) {
-            return 1f;
-        }
+        return attacksNow
+                ? 1f
+                : threatOpportunityForTime(estimatedTimeToAttackCell(threat, defenderCell));
+    }
 
-        float timeToAttack = estimatedTimeToAttackCell(threat, defenderCell);
+    private float threatOpportunityForTime(float timeToAttack) {
         if (timeToAttack <= 0.50f) {
             return 0.75f;
         }
