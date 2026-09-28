@@ -33,8 +33,12 @@ final class CoHeroWardingPlanner {
         final ArrayList<Mob> sleepingEnemies = new ArrayList<>();
         final IdentityHashMap<Mob, ArrayList<Integer>> reachableByEnemy =
                 new IdentityHashMap<>();
+        final IdentityHashMap<Mob, TargetAnalysis> analysisByTarget =
+                new IdentityHashMap<>();
+        final boolean[] dangerMask;
 
         PlanningContext(CoHeroAlly owner) {
+            dangerMask = CoHeroHazards.dangerMask(owner);
             for (Char ch : Actor.chars()) {
                 if (!(ch instanceof Mob) || ch.alignment != Char.Alignment.ENEMY) {
                     continue;
@@ -64,26 +68,58 @@ final class CoHeroWardingPlanner {
             }
             return result;
         }
-    }
 
-    static Plan choose(WandOfWarding wand, CoHeroAlly owner, Mob target) {
-        return choose(wand, owner, target, new PlanningContext(owner));
-    }
-
-    static Plan choose(
-            WandOfWarding wand,
-            CoHeroAlly owner,
-            Mob target,
-            PlanningContext context) {
-        if (wand == null
-                || owner == null
-                || target == null
-                || context == null
-                || !wand.coHeroCanZap(owner)) {
-            return null;
+        TargetAnalysis analysis(CoHeroAlly owner, Mob target) {
+            TargetAnalysis result = analysisByTarget.get(target);
+            if (result == null) {
+                result = buildTargetAnalysis(owner, target, this);
+                analysisByTarget.put(target, result);
+            }
+            return result;
         }
+    }
 
-        Plan best = null;
+    private static final class TargetAnalysis {
+        final ArrayList<CandidateGeometry> existing = new ArrayList<>();
+        final ArrayList<CandidateGeometry> fresh = new ArrayList<>();
+    }
+
+    private static final class CandidateGeometry {
+        final Ward ward;
+        final int cell;
+        final int existingTier;
+        final int movementCoverage;
+        final int preFireThreats;
+        final int nearbyDanger;
+        final int targetDistance;
+        final int ownerDistance;
+        final float detectionChance;
+
+        CandidateGeometry(
+                Ward ward,
+                int cell,
+                int existingTier,
+                int movementCoverage,
+                int preFireThreats,
+                int nearbyDanger,
+                int targetDistance,
+                int ownerDistance,
+                float detectionChance) {
+            this.ward = ward;
+            this.cell = cell;
+            this.existingTier = existingTier;
+            this.movementCoverage = movementCoverage;
+            this.preFireThreats = preFireThreats;
+            this.nearbyDanger = nearbyDanger;
+            this.targetDistance = targetDistance;
+            this.ownerDistance = ownerDistance;
+            this.detectionChance = detectionChance;
+        }
+    }
+
+    private static TargetAnalysis buildTargetAnalysis(
+            CoHeroAlly owner, Mob target, PlanningContext context) {
+        TargetAnalysis analysis = new TargetAnalysis();
 
         for (Char ch : Actor.chars()) {
             if (!(ch instanceof Ward)) {
@@ -93,44 +129,39 @@ final class CoHeroWardingPlanner {
             Ward ward = (Ward) ch;
             if (!ward.coHeroOwned()
                     || owner.fieldOfView == null
+                    || ward.pos < 0
+                    || ward.pos >= owner.fieldOfView.length
                     || !owner.fieldOfView[ward.pos]
-                    || CoHeroHazards.isDangerous(owner, ward.pos)
-                    || wand.coHeroBallistica(owner, ward.pos).collisionPos != ward.pos
-                    || !wand.coHeroWouldIncreaseWardEnergy(owner, ward.pos)) {
+                    || context.dangerMask[ward.pos]) {
                 continue;
             }
 
             int projectedTier = Math.min(6, ward.tier + 1);
             int projectedViewDistance = ward.viewDistance + (ward.tier < 6 ? 1 : 0);
-            int coverage = movementCoverage(ward.pos, projectedViewDistance, target, context);
+            int coverage = movementCoverage(
+                    ward.pos, projectedViewDistance, target, context);
             if (coverage == 0
-                    || wouldWakeSleepingEnemy(ward.pos, projectedViewDistance, target, context)) {
+                    || wouldWakeSleepingEnemy(
+                            ward.pos, projectedViewDistance, target, context)) {
                 continue;
             }
 
-            int preFireThreats = preFirstActionThreats(owner, ward.pos, projectedTier, context);
+            int preFireThreats =
+                    preFirstActionThreats(owner, ward.pos, projectedTier, context);
             if (projectedTier <= 3 && preFireThreats > 0) {
                 continue;
             }
 
-            float expectedDamage = expectedNextZapDamage(wand)
-                    * upgradeValue(ward.tier)
-                    / (1f + 0.35f * preFireThreats);
-
-            Plan candidate = new Plan(
+            analysis.existing.add(new CandidateGeometry(
+                    ward,
                     ward.pos,
-                    expectedDamage,
-                    true,
                     ward.tier,
                     coverage,
                     preFireThreats,
-                    CoHeroHazards.nearbyDangerCount(owner, ward.pos),
+                    CoHeroHazards.nearbyDangerCount(context.dangerMask, ward.pos),
                     Dungeon.level.distance(ward.pos, target.pos),
                     Dungeon.level.distance(owner.pos, ward.pos),
-                    1f);
-            if (best == null || candidate.betterThan(best)) {
-                best = candidate;
-            }
+                    1f));
         }
 
         // Fresh wards are tier 1, have one HP, and do not act until one time unit after placement.
@@ -139,10 +170,8 @@ final class CoHeroWardingPlanner {
                     || !owner.fieldOfView[cell]
                     || !Dungeon.level.passable[cell]
                     || Actor.findChar(cell) != null
-                    || CoHeroHazards.isDangerous(owner, cell)
+                    || context.dangerMask[cell]
                     || Dungeon.level.distance(cell, target.pos) > 4
-                    || wand.coHeroBallistica(owner, cell).collisionPos != cell
-                    || !wand.coHeroWouldIncreaseWardEnergy(owner, cell)
                     || !canEngage(cell, 4, target)
                     || wouldWakeSleepingEnemy(cell, 4, target, context)) {
                 continue;
@@ -163,24 +192,86 @@ final class CoHeroWardingPlanner {
                 continue;
             }
 
-            float expectedDamage = expectedNextZapDamage(wand) * 0.70f * detectionChance;
-            Plan candidate = new Plan(
+            analysis.fresh.add(new CandidateGeometry(
+                    null,
                     cell,
-                    expectedDamage,
-                    false,
                     0,
                     coverage,
                     0,
-                    CoHeroHazards.nearbyDangerCount(owner, cell),
+                    CoHeroHazards.nearbyDangerCount(context.dangerMask, cell),
                     Dungeon.level.distance(cell, target.pos),
                     Dungeon.level.distance(owner.pos, cell),
-                    detectionChance);
+                    detectionChance));
+        }
+
+        return analysis;
+    }
+
+    static Plan choose(WandOfWarding wand, CoHeroAlly owner, Mob target) {
+        return choose(wand, owner, target, new PlanningContext(owner));
+    }
+
+    static Plan choose(
+            WandOfWarding wand,
+            CoHeroAlly owner,
+            Mob target,
+            PlanningContext context) {
+        if (wand == null
+                || owner == null
+                || target == null
+                || context == null
+                || !wand.coHeroCanZap(owner)) {
+            return null;
+        }
+
+        TargetAnalysis analysis = context.analysis(owner, target);
+        Plan best = null;
+
+        for (CandidateGeometry geometry : analysis.existing) {
+            if (wand.coHeroBallistica(owner, geometry.cell).collisionPos != geometry.cell
+                    || !wand.coHeroWouldIncreaseWardEnergy(owner, geometry.cell)) {
+                continue;
+            }
+
+            float expectedDamage = expectedNextZapDamage(wand)
+                    * upgradeValue(geometry.existingTier)
+                    / (1f + 0.35f * geometry.preFireThreats);
+            Plan candidate = planFromGeometry(geometry, expectedDamage);
+            if (best == null || candidate.betterThan(best)) {
+                best = candidate;
+            }
+        }
+
+        for (CandidateGeometry geometry : analysis.fresh) {
+            if (wand.coHeroBallistica(owner, geometry.cell).collisionPos != geometry.cell
+                    || !wand.coHeroWouldIncreaseWardEnergy(owner, geometry.cell)) {
+                continue;
+            }
+
+            float expectedDamage =
+                    expectedNextZapDamage(wand) * 0.70f * geometry.detectionChance;
+            Plan candidate = planFromGeometry(geometry, expectedDamage);
             if (best == null || candidate.betterThan(best)) {
                 best = candidate;
             }
         }
 
         return best;
+    }
+
+    private static Plan planFromGeometry(
+            CandidateGeometry geometry, float expectedDamage) {
+        return new Plan(
+                geometry.cell,
+                expectedDamage,
+                geometry.ward != null,
+                geometry.existingTier,
+                geometry.movementCoverage,
+                geometry.preFireThreats,
+                geometry.nearbyDanger,
+                geometry.targetDistance,
+                geometry.ownerDistance,
+                geometry.detectionChance);
     }
 
     static RecallPlan chooseRecall(WandOfWarding wand, CoHeroAlly owner, Mob target) {
@@ -230,7 +321,8 @@ final class CoHeroWardingPlanner {
             }
 
             int coverage = wardBattlefieldCoverage(owner, ward, context);
-            float retainedValue = retainedWardValue(wand, owner, ward, coverage);
+            float retainedValue =
+                    retainedWardValue(wand, owner, ward, coverage, context);
             int travelDistance = Dungeon.level.distance(owner.pos, ward.pos);
             float gain = replacementValue - retainedValue - 3f * travelDistance;
 
@@ -263,47 +355,16 @@ final class CoHeroWardingPlanner {
             Mob target,
             PlanningContext context) {
         Plan best = null;
+        TargetAnalysis analysis = context.analysis(owner, target);
 
-        for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            if (owner.fieldOfView == null
-                    || !owner.fieldOfView[cell]
-                    || !Dungeon.level.passable[cell]
-                    || Actor.findChar(cell) != null
-                    || CoHeroHazards.isDangerous(owner, cell)
-                    || Dungeon.level.distance(cell, target.pos) > 4
-                    || wand.coHeroBallistica(owner, cell).collisionPos != cell
-                    || !canEngage(cell, 4, target)
-                    || wouldWakeSleepingEnemy(cell, 4, target, context)) {
+        for (CandidateGeometry geometry : analysis.fresh) {
+            if (wand.coHeroBallistica(owner, geometry.cell).collisionPos != geometry.cell) {
                 continue;
             }
 
-            int preFireThreats = preFirstActionThreats(owner, cell, 1, context);
-            if (preFireThreats > 0) {
-                continue;
-            }
-
-            float detectionChance = initialDetectionChance(cell, target);
-            if (detectionChance < MIN_INITIAL_DETECTION_CHANCE) {
-                continue;
-            }
-
-            int coverage = movementCoverage(cell, 4, target, context);
-            if (coverage == 0) {
-                continue;
-            }
-
-            float expectedDamage = expectedNextZapDamage(wand) * 0.70f * detectionChance;
-            Plan candidate = new Plan(
-                    cell,
-                    expectedDamage,
-                    false,
-                    0,
-                    coverage,
-                    0,
-                    CoHeroHazards.nearbyDangerCount(owner, cell),
-                    Dungeon.level.distance(cell, target.pos),
-                    Dungeon.level.distance(owner.pos, cell),
-                    detectionChance);
+            float expectedDamage =
+                    expectedNextZapDamage(wand) * 0.70f * geometry.detectionChance;
+            Plan candidate = planFromGeometry(geometry, expectedDamage);
             if (best == null || candidate.betterThan(best)) {
                 best = candidate;
             }
@@ -329,19 +390,10 @@ final class CoHeroWardingPlanner {
         return coverage;
     }
 
-    private static int wardEngagedEnemyCount(CoHeroAlly owner, Ward ward) {
+    private static int wardEngagedEnemyCount(
+            Ward ward, PlanningContext context) {
         int count = 0;
-        for (Char ch : Actor.chars()) {
-            if (!(ch instanceof Mob)
-                    || ch.alignment != Char.Alignment.ENEMY
-                    || owner.fieldOfView == null
-                    || !owner.fieldOfView[ch.pos]) {
-                continue;
-            }
-            Mob enemy = (Mob) ch;
-            if (enemy.state == enemy.SLEEPING || enemy.state == enemy.PASSIVE) {
-                continue;
-            }
+        for (Mob enemy : context.visibleAwakeEnemies) {
             if (canEngage(ward.pos, ward.viewDistance, enemy)) {
                 count++;
             }
@@ -350,9 +402,14 @@ final class CoHeroWardingPlanner {
     }
 
     private static float retainedWardValue(
-            WandOfWarding wand, CoHeroAlly owner, Ward ward, int coverage) {
+            WandOfWarding wand,
+            CoHeroAlly owner,
+            Ward ward,
+            int coverage,
+            PlanningContext context) {
         float value = coverage * 20f;
-        value += wardEngagedEnemyCount(owner, ward) * expectedNextZapDamage(wand) * 3f;
+        value += wardEngagedEnemyCount(ward, context)
+                * expectedNextZapDamage(wand) * 3f;
 
         switch (ward.tier) {
             case 1:
@@ -375,7 +432,9 @@ final class CoHeroWardingPlanner {
                 break;
         }
 
-        if (CoHeroHazards.isDangerous(owner, ward.pos)) {
+        if (ward.pos >= 0
+                && ward.pos < context.dangerMask.length
+                && context.dangerMask[ward.pos]) {
             value *= 0.75f;
         }
         return value;
