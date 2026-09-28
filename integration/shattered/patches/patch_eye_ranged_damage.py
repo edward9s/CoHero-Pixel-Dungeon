@@ -15,12 +15,42 @@ addition = (
     "\t\tint damage = Random.NormalIntRange(30, 50);\n"
     "\t\treturn Math.round(damage * AscensionChallenge.statModifier(this));\n"
     "\t}\n"
+    "\n\t@Override\n"
+    "\tpublic boolean coHeroCanAttackFrom(int sourcePos, Char enemy) {\n"
+    "\t\tif (enemy == null || !Dungeon.level.insideMap(sourcePos)) {\n"
+    "\t\t\treturn false;\n"
+    "\t\t}\n"
+    "\n"
+    "\t\tint livePos = pos;\n"
+    "\t\ttry {\n"
+    "\t\t\tpos = sourcePos;\n"
+    "\t\t\tif (beamCooldown != 0) {\n"
+    "\t\t\t\treturn super.canAttack(enemy);\n"
+    "\t\t\t}\n"
+    "\n"
+    "\t\t\tboolean[] probeFov = new boolean[Dungeon.level.length()];\n"
+    "\t\t\tDungeon.level.updateFieldOfView(this, probeFov);\n"
+    "\t\t\tBallistica aim = new Ballistica(pos, enemy.pos, Ballistica.STOP_SOLID);\n"
+    "\t\t\tif (enemy.invisible == 0\n"
+    "\t\t\t\t\t&& !isCharmedBy(enemy)\n"
+    "\t\t\t\t\t&& probeFov[enemy.pos]\n"
+    "\t\t\t\t\t&& (super.canAttack(enemy)\n"
+    "\t\t\t\t\t\t|| aim.subPath(1, aim.dist).contains(enemy.pos))) {\n"
+    "\t\t\t\treturn true;\n"
+    "\t\t\t}\n"
+    "\t\t\treturn beamCharged;\n"
+    "\t\t} finally {\n"
+    "\t\t\tpos = livePos;\n"
+    "\t\t}\n"
+    "\t}\n"
     "\n\tpublic int coHeroDeathGazeTarget() {\n"
     "\t\treturn beamCharged && beamCooldown == 0 ? beamTarget : -1;\n"
     "\t}\n"
 )
 
-if "coHeroRangedDamageRoll" in text or "coHeroDeathGazeTarget" in text:
+if ("coHeroRangedDamageRoll" in text
+        or "coHeroCanAttackFrom" in text
+        or "coHeroDeathGazeTarget" in text):
     raise SystemExit("CoHero Eye hooks are already present")
 if text.count(anchor) != 1:
     raise SystemExit(
