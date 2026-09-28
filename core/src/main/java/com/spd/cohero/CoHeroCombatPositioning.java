@@ -17,6 +17,7 @@ import com.watabou.utils.PathFinder;
 import java.util.ArrayList;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 /**
 
@@ -44,6 +45,24 @@ final class CoHeroCombatPositioning {
     private int[] chokeSide0Distance = new int[0];
     private int[] chokeSide1Distance = new int[0];
     private int[] chokeQueue = new int[0];
+    private Object chokeTopologyLevel;
+    private boolean[] chokePassableSnapshot;
+    private ChokeTopology[] chokeTopologyByCell = new ChokeTopology[0];
+    private boolean[] chokeTopologyComputed = new boolean[0];
+
+    private static final class ChokeTopology {
+        final int exit0;
+        final int exit1;
+        final BitSet side0;
+        final BitSet side1;
+
+        ChokeTopology(int exit0, int exit1, BitSet side0, BitSet side1) {
+            this.exit0 = exit0;
+            this.exit1 = exit1;
+            this.side0 = side0;
+            this.side1 = side1;
+        }
+    }
 
     CoHeroCombatPositioning(CoHeroAlly owner) {
 
@@ -543,22 +562,8 @@ final class CoHeroCombatPositioning {
             return false;
         }
 
-        int[] exits = new int[2];
-        int exitCount = 0;
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int adjacent = cell + offset;
-            if (adjacent < 0
-                    || adjacent >= Dungeon.level.length()
-                    || Dungeon.level.distance(cell, adjacent) != 1
-                    || !Dungeon.level.passable[adjacent]) {
-                continue;
-            }
-            if (exitCount == exits.length) {
-                return false;
-            }
-            exits[exitCount++] = adjacent;
-        }
-        if (exitCount != 2) {
+        ChokeTopology topology = chokeTopology(cell);
+        if (topology == null) {
             return false;
         }
 
@@ -567,22 +572,14 @@ final class CoHeroCombatPositioning {
             return false;
         }
 
-        ensureChokeScratch();
-        int[] side0Distance =
-                localPathDistances(
-                        exits[0], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide0Distance);
-        int[] side1Distance =
-                localPathDistances(
-                        exits[1], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide1Distance);
-
         boolean pressure0 = false;
         boolean pressure1 = false;
         for (Mob threat : threats) {
             if (!Dungeon.level.insideMap(threat.pos)) {
                 continue;
             }
-            boolean side0 = side0Distance[threat.pos] >= 0;
-            boolean side1 = side1Distance[threat.pos] >= 0;
+            boolean side0 = topology.side0.get(threat.pos);
+            boolean side1 = topology.side1.get(threat.pos);
 
             // Both exits are locally reachable without crossing the candidate cell: enemies can
             // flank this position in the near term, so it is not a real defensive choke.
@@ -597,10 +594,78 @@ final class CoHeroCombatPositioning {
             return false;
         }
 
-        int rear = pressure0 ? exits[1] : exits[0];
+        int rear = pressure0 ? topology.exit1 : topology.exit0;
         return owner.isKnown(rear)
                 && owner.isMovementSafe(rear)
                 && Actor.findChar(rear) == null;
+    }
+
+    private ChokeTopology chokeTopology(int cell) {
+        ensureChokeTopologyCache();
+        if (!Dungeon.level.insideMap(cell)) {
+            return null;
+        }
+        if (chokeTopologyComputed[cell]) {
+            return chokeTopologyByCell[cell];
+        }
+        chokeTopologyComputed[cell] = true;
+
+        int[] exits = new int[2];
+        int exitCount = 0;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent < 0
+                    || adjacent >= Dungeon.level.length()
+                    || Dungeon.level.distance(cell, adjacent) != 1
+                    || !Dungeon.level.passable[adjacent]) {
+                continue;
+            }
+            if (exitCount == exits.length) {
+                return null;
+            }
+            exits[exitCount++] = adjacent;
+        }
+        if (exitCount != 2) {
+            return null;
+        }
+
+        ensureChokeScratch();
+        int[] side0Distance =
+                localPathDistances(
+                        exits[0], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide0Distance);
+        int[] side1Distance =
+                localPathDistances(
+                        exits[1], cell, CHOKE_REAR_SCAN_RADIUS, chokeSide1Distance);
+
+        BitSet side0 = new BitSet(Dungeon.level.length());
+        BitSet side1 = new BitSet(Dungeon.level.length());
+        for (int candidate = 0; candidate < Dungeon.level.length(); candidate++) {
+            if (side0Distance[candidate] >= 0) {
+                side0.set(candidate);
+            }
+            if (side1Distance[candidate] >= 0) {
+                side1.set(candidate);
+            }
+        }
+
+        ChokeTopology topology = new ChokeTopology(exits[0], exits[1], side0, side1);
+        chokeTopologyByCell[cell] = topology;
+        return topology;
+    }
+
+    private void ensureChokeTopologyCache() {
+        int length = Dungeon.level.length();
+        if (chokeTopologyLevel == Dungeon.level
+                && chokePassableSnapshot != null
+                && chokePassableSnapshot.length == length
+                && Arrays.equals(chokePassableSnapshot, Dungeon.level.passable)) {
+            return;
+        }
+
+        chokeTopologyLevel = Dungeon.level;
+        chokePassableSnapshot = Dungeon.level.passable.clone();
+        chokeTopologyByCell = new ChokeTopology[length];
+        chokeTopologyComputed = new boolean[length];
     }
 
     private void ensureChokeScratch() {
