@@ -200,7 +200,6 @@ final class CoHeroGuardController {
 
     void clearDirective() {
         owner.clearDefensingPos();
-        owner.clearNavigationPath();
     }
 
     void restrictPassable(boolean[] safePassable) {
