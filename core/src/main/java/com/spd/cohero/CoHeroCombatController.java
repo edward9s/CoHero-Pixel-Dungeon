@@ -558,6 +558,12 @@ final class CoHeroCombatController {
 
     private Boolean tryArmoredBruteRageCombat(
             Mob brute, ArrayList<Mob> allThreats, CoHeroCombatRisk risk) {
+        // With no damaging ranged option, creating distance only forces a melee-only CoHero to
+        // close it again later. In that case leave the fight to the normal melee/risk logic.
+        if (bestRangedAverageDamage(brute) <= 0f) {
+            return null;
+        }
+
         if (Dungeon.level.distance(owner.pos, brute.pos) > 1) {
             RangedChoice ranged = chooseRangedAttack(brute);
             if (ranged != null) {
@@ -774,7 +780,8 @@ final class CoHeroCombatController {
             return false;
         }
 
-        float turnsToKill = Math.max(0.25f, scorpio.HP / rangedDpt);
+        float scorpioEffectiveHp = Math.max(0, scorpio.HP) + Math.max(0, scorpio.shielding());
+        float turnsToKill = Math.max(0.25f, scorpioEffectiveHp / rangedDpt);
         float projectedLoss = incomingDpt * turnsToKill;
         float effectiveHp = owner.HP + owner.shielding();
         float projectedRemaining = effectiveHp - projectedLoss;
