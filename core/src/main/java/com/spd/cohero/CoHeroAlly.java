@@ -677,13 +677,29 @@ public class CoHeroAlly extends DirectableAlly {
 
                 long combatSetupStarted = System.nanoTime();
                 try {
-                attackableThreats = combat.collectAttackableThreats(combatThreats);
-                charmingThreats = combat.collectCharmingThreats(combatThreats);
+                long setupFilterStarted = System.nanoTime();
+                try {
+                    attackableThreats = combat.collectAttackableThreats(combatThreats);
+                    charmingThreats = combat.collectCharmingThreats(combatThreats);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP_FILTER, setupFilterStarted);
+                }
 
                 // Invulnerability does not end the fight. It only has tactical priority while an
                 // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
                 // ordinary combat against any damageable enemies resumes immediately.
-                Boolean invulnerableRetreat = combat.tryAvoidInvulnerableThreats(combatThreats);
+                long setupInvulnerableStarted = System.nanoTime();
+                Boolean invulnerableRetreat;
+                try {
+                    invulnerableRetreat =
+                            combat.tryAvoidInvulnerableThreats(combatThreats);
+                } finally {
+                    timings().record(
+                            this,
+                            CoHeroTimings.Action.COMBAT_SETUP_INVULNERABLE,
+                            setupInvulnerableStarted);
+                }
                 if (invulnerableRetreat != null) {
                     return invulnerableRetreat;
                 }
@@ -692,8 +708,15 @@ public class CoHeroAlly extends DirectableAlly {
                 // restriction from the live buff each turn, then first tries to leave the charmer's
                 // immediate pressure while preferring safer cells and, when otherwise equal, broken
                 // line of sight and greater distance.
-                Boolean charmRetreat =
-                        combat.tryAvoidCharmingThreats(charmingThreats, combatThreats);
+                long setupCharmStarted = System.nanoTime();
+                Boolean charmRetreat;
+                try {
+                    charmRetreat =
+                            combat.tryAvoidCharmingThreats(charmingThreats, combatThreats);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP_CHARM, setupCharmStarted);
+                }
                 if (charmRetreat != null) {
                     return charmRetreat;
                 }
@@ -726,8 +749,23 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
-                combatTarget = combat.selectCombatTarget(attackableThreats);
-                survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                long setupTargetStarted = System.nanoTime();
+                try {
+                    combatTarget = combat.selectCombatTarget(attackableThreats);
+                } finally {
+                    timings().record(
+                            this, CoHeroTimings.Action.COMBAT_SETUP_TARGET, setupTargetStarted);
+                }
+
+                long setupSurvivalTargetStarted = System.nanoTime();
+                try {
+                    survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                } finally {
+                    timings().record(
+                            this,
+                            CoHeroTimings.Action.COMBAT_SETUP_SURVIVAL_TARGET,
+                            setupSurvivalTargetStarted);
+                }
                 } finally {
                     timings().record(
                             this, CoHeroTimings.Action.COMBAT_SETUP, combatSetupStarted);
