@@ -777,7 +777,7 @@ public class CoHeroAlly extends DirectableAlly {
                 Boolean encirclementPositioning;
                 try {
                     encirclementPositioning = combat.tryEncirclementPositioning(
-                            combatTarget, combatThreats, combatRisk);
+                            combatTarget, combatThreats);
                 } finally {
                     timings().record(
                             this, CoHeroTimings.Action.MELEE_POSITIONING, encirclementStarted);
