@@ -44,21 +44,47 @@ final class CoHeroNavigation {
     }
 
     boolean actExplore() {
-        if (explorationTarget == -1
-                || explorationTarget == owner.pos
-                || !Dungeon.level.passable[explorationTarget]
-                || (Actor.findChar(explorationTarget) != null
-                    && Actor.findChar(explorationTarget) != owner)
-                || !isMovementSafe(explorationTarget)) {
+        long validateStarted = System.nanoTime();
+        boolean targetInvalid;
+        try {
+            targetInvalid = explorationTarget == -1
+                    || explorationTarget == owner.pos
+                    || !Dungeon.level.passable[explorationTarget]
+                    || (Actor.findChar(explorationTarget) != null
+                        && Actor.findChar(explorationTarget) != owner)
+                    || !isMovementSafe(explorationTarget);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.EXPLORE_VALIDATE, validateStarted);
+        }
+
+        if (targetInvalid) {
             owner.clearNavigationPath();
-            explorationTarget = chooseExplorationTarget();
+            long selectStarted = System.nanoTime();
+            try {
+                explorationTarget = chooseExplorationTarget();
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.EXPLORE_SELECT, selectStarted);
+            }
         }
 
         int oldPos = owner.pos;
         if (explorationTarget != -1) {
             owner.setMovementDecision("explore", explorationTarget);
         }
-        if (explorationTarget != -1 && moveTowardExplorationTarget(explorationTarget)) {
+
+        boolean moved = false;
+        if (explorationTarget != -1) {
+            long moveStarted = System.nanoTime();
+            try {
+                moved = moveTowardExplorationTarget(explorationTarget);
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.EXPLORE_MOVE, moveStarted);
+            }
+        }
+        if (moved) {
             owner.spendActionTime(1 / owner.speed());
             owner.refreshOwnFieldOfView();
             owner.passiveSearch();
@@ -66,7 +92,13 @@ final class CoHeroNavigation {
         }
 
         owner.clearNavigationPath();
-        explorationTarget = chooseExplorationTarget();
+        long selectStarted = System.nanoTime();
+        try {
+            explorationTarget = chooseExplorationTarget();
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.EXPLORE_SELECT, selectStarted);
+        }
         owner.spendActionTime(Actor.TICK);
         return true;
     }
@@ -187,27 +219,82 @@ final class CoHeroNavigation {
         return result;
     }
     boolean getCloser(int target) {
-        if (!owner.isGuardMovementRestricted()
-                && !CoHeroHazards.hasActiveHazards(owner)
-                && !hasVisibleSleepingEnemy()) {
+        long guardStarted = System.nanoTime();
+        boolean guardRestricted;
+        try {
+            guardRestricted = owner.isGuardMovementRestricted();
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_GUARD_CHECK, guardStarted);
+        }
+
+        boolean activeHazards = false;
+        if (!guardRestricted) {
+            long hazardStarted = System.nanoTime();
+            try {
+                activeHazards = CoHeroHazards.hasActiveHazards(owner);
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.MOVE_HAZARD_CHECK, hazardStarted);
+            }
+        }
+
+        boolean sleepingEnemy = false;
+        if (!guardRestricted && !activeHazards) {
+            long sleepStarted = System.nanoTime();
+            try {
+                sleepingEnemy = hasVisibleSleepingEnemy();
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.MOVE_SLEEP_CHECK, sleepStarted);
+            }
+        }
+
+        if (!guardRestricted && !activeHazards && !sleepingEnemy) {
             clearPolicyPath();
-            return owner.getCloserWithoutCoHeroPolicy(target);
+            long stockPathStarted = System.nanoTime();
+            try {
+                return owner.getCloserWithoutCoHeroPolicy(target);
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.MOVE_STOCK_PATH, stockPathStarted);
+            }
         }
         if (owner.rooted || target == owner.pos || !Dungeon.level.insideMap(target)) {
             return false;
         }
 
-        boolean[] safePassable = ordinarySafePassable(false);
-        owner.restrictGuardPassable(safePassable);
-        safePassable[owner.pos] = true;
+        boolean[] safePassable;
+        long safeMaskStarted = System.nanoTime();
+        try {
+            safePassable = ordinarySafePassable(false);
+            owner.restrictGuardPassable(safePassable);
+            safePassable[owner.pos] = true;
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_SAFE_MASK, safeMaskStarted);
+        }
 
-        int step = nextPolicyStep(target, safePassable);
+        int step;
+        long policyPathStarted = System.nanoTime();
+        try {
+            step = nextPolicyStep(target, safePassable);
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_POLICY_PATH, policyPathStarted);
+        }
         if (step == -1) {
             return false;
         }
 
-        owner.move(step);
-        return owner.pos == step;
+        long executeStarted = System.nanoTime();
+        try {
+            owner.move(step);
+            return owner.pos == step;
+        } finally {
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.MOVE_EXECUTE, executeStarted);
+        }
     }
 
     private int nextPolicyStep(int target, boolean[] safePassable) {
