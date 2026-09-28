@@ -305,15 +305,13 @@ final class CoHeroCombatRiskEstimator {
 
         float baseTtk = Math.max(0.25f, targetMob.HP / outgoingDpt);
         float firstAttackTime = estimatedTimeToAttackCell(targetMob, owner.pos);
-        if (firstAttackTime == Float.POSITIVE_INFINITY || firstAttackTime >= baseTtk) {
+        if (Float.isInfinite(firstAttackTime) || firstAttackTime >= baseTtk) {
             return result;
         }
 
-        float expectedHealPerAttack = Math.max(
-                0f,
-                estimatedThreatDamage(targetMob, owner.pos)
-                        * estimatedHitChance(targetMob, owner.pos)
-                        - 4f);
+        float expectedHealPerAttack =
+                Math.max(0f, estimatedThreatDamage(targetMob, owner.pos) - 4f)
+                        * estimatedHitChance(targetMob, owner.pos);
         if (expectedHealPerAttack <= 0.01f) {
             return result;
         }
@@ -481,11 +479,14 @@ final class CoHeroCombatRiskEstimator {
 
     private boolean enemyCanEnterForRisk(Mob threat, int cell) {
         if (!Dungeon.level.passable[cell]) {
-            if (!threat.flying || Dungeon.level.avoid[cell]) {
+            // Match Mob.cellIsPathable(): flying mobs may cross avoid cells such as chasms,
+            // but cannot treat arbitrary solid terrain as traversable.
+            if (!threat.flying || !Dungeon.level.avoid[cell]) {
                 return false;
             }
         }
-        return !Char.hasProp(threat, Char.Property.LARGE) || Dungeon.level.openSpace[cell];
+        return !Char.hasProp(threat, Char.Property.IMMOVABLE)
+                && (!Char.hasProp(threat, Char.Property.LARGE) || Dungeon.level.openSpace[cell]);
     }
 
     private boolean canThreatAttackCell(Mob threat, int defenderCell) {
