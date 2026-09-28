@@ -8,6 +8,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Scorpio;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
@@ -38,6 +39,8 @@ final class CoHeroCombatController {
     private static final int GREAT_CRAB_TACTICAL_SEARCH_RADIUS = 5;
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
     private static final float RANGED_DAMAGE_PREFERENCE_MULTIPLIER = 1.5f;
+    private static final float SCORPIO_MAX_RANGED_HEALTH_LOSS = 0.40f;
+    private static final float SCORPIO_MIN_POST_FIGHT_HEALTH = 0.50f;
 
     Mob nearestThreat(ArrayList<Mob> threats) {
         Mob result = null;
@@ -432,6 +435,170 @@ final class CoHeroCombatController {
 
         // Trapped with no survival action: fall through to combat rather than waste the turn.
         return null;
+    }
+
+    Boolean tryScorpioTactics(
+            Mob targetMob,
+            ArrayList<Mob> allThreats,
+            ArrayList<Mob> attackableThreats,
+            CoHeroCombatRisk risk) {
+        if (!(targetMob instanceof Scorpio)) {
+            return null;
+        }
+        if (allThreats == null
+                || allThreats.isEmpty()
+                || attackableThreats == null
+                || attackableThreats.isEmpty()
+                || risk == null) {
+            throw new IllegalArgumentException(
+                    "Scorpio tactics require current combat threats and risk");
+        }
+
+        Scorpio scorpio = (Scorpio) targetMob;
+        boolean meleeCapable = owner.hasMeleeCombatCapability();
+
+        // Adjacency is the actual safe range against a Scorpio. Extended-reach melee at distance
+        // two still leaves CoHero exposed to the Scorpio's ranged attack.
+        if (meleeCapable
+                && Dungeon.level.adjacent(owner.pos, scorpio.pos)
+                && owner.canAttack(scorpio)) {
+            return performMeleeAttack(scorpio);
+        }
+
+        if (meleeCapable && !owner.rooted) {
+            int captureStep = chooseImmediateScorpioCaptureStep(scorpio, allThreats);
+            if (captureStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(captureStep, "scorpio_capture");
+            }
+
+            if (canSustainScorpioChase(scorpio)) {
+                int closeStep = chooseRangedTargetClosingStep(scorpio, allThreats);
+                if (closeStep != -1) {
+                    owner.allowAnyGuardMovement();
+                    return moveForRangedEngagement(closeStep, "scorpio_chase");
+                }
+            }
+        }
+
+        float rangedDpt = owner.estimateBestRangedDpt(scorpio);
+        boolean costlyExchange = isCostlyScorpioRangedExchange(scorpio, allThreats, rangedDpt);
+
+        // If CoHero cannot realistically catch the Scorpio, do not stand in the open and pay a
+        // large health bill just because the TTD calculation says the duel is technically winnable.
+        if (costlyExchange || rangedDpt <= 0.01f) {
+            int coverCell = chooseRangedCoverCell(scorpio, allThreats);
+            if (coverCell != -1) {
+                int coverStep = rangedLureStep(coverCell);
+                if (coverStep != -1) {
+                    owner.allowAnyGuardMovement();
+                    return moveForRangedEngagement(coverStep, "scorpio_cover");
+                }
+            }
+
+            // Existing combat utility already knows how to box in a lone ranged enemy with flock
+            // and how to handle larger threat groups. Use it before accepting an expensive duel.
+            if (owner.controlItems().tryUseCombatRunestone(
+                    scorpio, attackableThreats, risk)) {
+                return true;
+            }
+        }
+
+        // A reasonable ranged exchange is better than an equal-speed chase that never closes.
+        RangedChoice ranged = chooseRangedAttack(scorpio);
+        if (ranged != null) {
+            return performRangedChoice(scorpio, ranged);
+        }
+
+        // No ranged answer and no useful cover/control remain. Chasing is the least-bad fallback;
+        // terrain may still eventually deny the Scorpio another retreat step.
+        if (meleeCapable && !owner.rooted) {
+            int closeStep = chooseRangedTargetClosingStep(scorpio, allThreats);
+            if (closeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(closeStep, "scorpio_forced_close");
+            }
+        }
+
+        return null;
+    }
+
+    private int chooseImmediateScorpioCaptureStep(
+            Scorpio scorpio, ArrayList<Mob> threats) {
+        int best = -1;
+        int bestAttackers = Integer.MAX_VALUE;
+        float bestIncoming = Float.POSITIVE_INFINITY;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = owner.pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(owner.pos, cell) != 1
+                    || !Dungeon.level.adjacent(cell, scorpio.pos)
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || !owner.isMovementSafe(cell)) {
+                continue;
+            }
+
+            int attackers = owner.countCurrentAttackersAtCell(cell, threats);
+            float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
+            if (best == -1
+                    || attackers < bestAttackers
+                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
+                    || (attackers == bestAttackers
+                        && Math.abs(incoming - bestIncoming) <= 0.01f
+                        && cell < best)) {
+                best = cell;
+                bestAttackers = attackers;
+                bestIncoming = incoming;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean canSustainScorpioChase(Scorpio scorpio) {
+        if (scorpio.rooted || scorpio.paralysed > 0) {
+            return true;
+        }
+        if (owner.speed() > scorpio.speed() + 0.001f) {
+            return true;
+        }
+
+        boolean[] scorpioFov = scorpio.fieldOfView;
+        if (scorpioFov == null || scorpioFov.length != Dungeon.level.length()) {
+            scorpioFov = new boolean[Dungeon.level.length()];
+            Dungeon.level.updateFieldOfView(scorpio, scorpioFov);
+        }
+
+        // Scorpio.getCloser() delegates to Dungeon.flee() while hunting. If that same flee planner
+        // has no legal retreat step, terrain has actually denied the Scorpio room to kite.
+        return Dungeon.flee(
+                scorpio,
+                owner.pos,
+                Dungeon.level.passable,
+                scorpioFov,
+                true) == -1;
+    }
+
+    private boolean isCostlyScorpioRangedExchange(
+            Scorpio scorpio, ArrayList<Mob> threats, float rangedDpt) {
+        if (rangedDpt <= 0.01f) {
+            return true;
+        }
+
+        float incomingDpt = owner.estimatedIncomingDptAtCell(owner.pos, threats);
+        if (incomingDpt <= 0.01f) {
+            return false;
+        }
+
+        float turnsToKill = Math.max(0.25f, scorpio.HP / rangedDpt);
+        float projectedLoss = incomingDpt * turnsToKill;
+        float effectiveHp = owner.HP + owner.shielding();
+        float projectedRemaining = effectiveHp - projectedLoss;
+
+        return projectedLoss >= effectiveHp * SCORPIO_MAX_RANGED_HEALTH_LOSS
+                || projectedRemaining <= owner.HT * SCORPIO_MIN_POST_FIGHT_HEALTH;
     }
 
     Boolean tryRangedEngagement(Mob targetMob, ArrayList<Mob> threats) {
