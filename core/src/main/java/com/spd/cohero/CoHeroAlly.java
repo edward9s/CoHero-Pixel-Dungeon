@@ -708,7 +708,8 @@ public class CoHeroAlly extends DirectableAlly {
                 }
 
                 Mob combatTarget = combat.selectCombatTarget(attackableThreats);
-                CoHeroCombatRisk combatRisk = assessCombatRisk(combatTarget, combatThreats);
+                Mob survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                CoHeroCombatRisk combatRisk = assessCombatRisk(survivalTarget, combatThreats);
 
                 Boolean shortBruteRage = combat.tryShortBruteRageTactics(combatThreats);
                 if (shortBruteRage != null) {
@@ -760,13 +761,9 @@ public class CoHeroAlly extends DirectableAlly {
                     throw new IllegalStateException(
                             "Active CoHero combat objective produced no offensive target");
                 }
-                Mob offensiveTarget = combat.selectCombatTarget(attackableThreats);
-                if (offensiveTarget != combatTarget) {
-                    combatTarget = offensiveTarget;
-                    combatRisk = assessCombatRisk(combatTarget, combatThreats);
-                } else {
-                    combatTarget = offensiveTarget;
-                }
+                combatTarget = combat.selectCombatTarget(attackableThreats);
+                survivalTarget = combat.selectSurvivalTarget(attackableThreats);
+                combatRisk = assessCombatRisk(survivalTarget, combatThreats);
 
                 Boolean armoredBruteRage = combat.tryArmoredBruteRageTactics(
                         combatTarget, combatThreats, combatRisk);
@@ -774,12 +771,6 @@ public class CoHeroAlly extends DirectableAlly {
                     logBossDecision("armored_brute_rage:" + combatTarget.id(),
                             targetDebug(combatTarget) + " -> ranged shield pressure");
                     return armoredBruteRage;
-                }
-
-                Boolean monkOpening = combat.tryMonkOpeningTactics(
-                        combatTarget, combatThreats);
-                if (monkOpening != null) {
-                    return monkOpening;
                 }
 
                 long encirclementStarted = System.nanoTime();
@@ -795,6 +786,12 @@ public class CoHeroAlly extends DirectableAlly {
                     logBossDecision("encirclement_positioning:" + combatTarget.id(),
                             targetDebug(combatTarget) + " -> encirclement positioning");
                     return encirclementPositioning;
+                }
+
+                Boolean monkOpening = combat.tryMonkOpeningTactics(
+                        combatTarget, combatThreats);
+                if (monkOpening != null) {
+                    return monkOpening;
                 }
 
                 Boolean scorpioTactics = combat.tryScorpioTactics(
@@ -862,7 +859,7 @@ public class CoHeroAlly extends DirectableAlly {
                     return combatResult;
                 }
 
-                Boolean escapeUtility = combat.tryEscapeUtility(combatThreats);
+                Boolean escapeUtility = combat.tryEscapeUtility(combatRisk, combatThreats);
                 if (escapeUtility != null) {
                     return escapeUtility;
                 }
@@ -1195,6 +1192,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     float estimateBestRangedDpt(Mob targetMob) {
         return riskEstimator.estimateBestRangedDpt(targetMob);
+    }
+
+    float estimateTargetTtk(Mob targetMob) {
+        return riskEstimator.estimateTargetTtk(targetMob);
     }
 
     float threatOpportunity(Mob threat, int defenderCell) {
