@@ -132,6 +132,42 @@ final class CoHeroWandAdapter {
         return wand.coHeroBallistica(owner, target.pos).collisionPos == target.pos;
     }
 
+    static float expectedUsableDamage(
+            Wand wand, CoHeroAlly owner, Mob target) {
+        if (!hasOffensivePotential(wand, owner, target)
+                || !damagingCapability(wand, target)) {
+            return Float.NEGATIVE_INFINITY;
+        }
+
+        // These planners already answer both "can affect safely" and expected damage.
+        // Calling canAffectEnemy() and expectedDamage() separately would run the same planner twice.
+        if (wand instanceof WandOfBlastWave) {
+            CoHeroBlastWavePlanner.Plan plan =
+                    CoHeroBlastWavePlanner.choose((WandOfBlastWave) wand, owner, target);
+            return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
+        }
+        if (wand instanceof WandOfCorrosion) {
+            CoHeroCorrosionPlanner.Plan plan =
+                    CoHeroCorrosionPlanner.choose((WandOfCorrosion) wand, owner, target);
+            return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
+        }
+        if (wand instanceof WandOfFireblast) {
+            CoHeroFireblastPlanner.Plan plan =
+                    CoHeroFireblastPlanner.choose((WandOfFireblast) wand, owner, target);
+            return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
+        }
+        if (wand instanceof WandOfWarding) {
+            CoHeroWardingPlanner.Plan plan =
+                    CoHeroWardingPlanner.choose((WandOfWarding) wand, owner, target);
+            return plan == null ? Float.NEGATIVE_INFINITY : plan.expectedDamage;
+        }
+
+        if (!canAffectEnemy(wand, owner, target)) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        return expectedDamage(wand, owner, target);
+    }
+
     static boolean damagingPotential(Wand wand, Mob target) {
         if (wand == null
                 || target == null
