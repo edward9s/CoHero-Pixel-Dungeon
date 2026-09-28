@@ -18,6 +18,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.VaultFlameTraps;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Web;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Eye;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.RipperDemon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Tengu;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultLaser;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.VaultSentry;
@@ -74,6 +75,7 @@ public final class CoHeroHazards {
         return isWarned(cell)
                 || isKnownActiveTrap(cell)
                 || isDelayedPitDanger(owner, cell)
+                || isRipperLeapDanger(cell)
                 || isEyeDeathGazeDanger(cell)
                 || isVaultMechanismDanger(owner, cell)
                 || isEnvironmentalDanger(owner, cell);
@@ -85,6 +87,7 @@ public final class CoHeroHazards {
         return !WARNED_UNTIL.isEmpty()
                 || hasKnownActiveTrap()
                 || hasDelayedPitHazard(owner)
+                || hasRipperLeapHazard()
                 || hasEyeDeathGazeHazard()
                 || hasVaultMechanismHazard(owner)
                 || hasEnvironmentalHazard(owner);
@@ -112,6 +115,7 @@ public final class CoHeroHazards {
         }
 
         maskDelayedPitDanger(owner, result);
+        maskRipperLeaps(result);
         maskEyeDeathGazes(result);
 
         if (owner != null) {
@@ -374,6 +378,40 @@ public final class CoHeroHazards {
                 && !Dungeon.level.solid[to];
     }
 
+
+    private static boolean hasRipperLeapHazard() {
+        for (Char ch : Actor.chars()) {
+            if (ch instanceof RipperDemon
+                    && ch.isAlive()
+                    && ((RipperDemon) ch).coHeroLeapTarget() >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isRipperLeapDanger(int cell) {
+        for (Char ch : Actor.chars()) {
+            if (ch instanceof RipperDemon
+                    && ch.isAlive()
+                    && ((RipperDemon) ch).coHeroLeapTarget() == cell) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void maskRipperLeaps(boolean[] passable) {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof RipperDemon) || !ch.isAlive()) {
+                continue;
+            }
+            int leapTarget = ((RipperDemon) ch).coHeroLeapTarget();
+            if (leapTarget >= 0 && leapTarget < passable.length) {
+                passable[leapTarget] = false;
+            }
+        }
+    }
 
     private static boolean hasEyeDeathGazeHazard() {
         for (Char ch : Actor.chars()) {
