@@ -20,6 +20,11 @@ final class CoHeroTimings {
         PREPARE("prepare"),
         COMBAT("combat"),
         COMBAT_SETUP("combat_setup"),
+        COMBAT_SETUP_FILTER("combat_setup_filter"),
+        COMBAT_SETUP_INVULNERABLE("combat_setup_invulnerable"),
+        COMBAT_SETUP_CHARM("combat_setup_charm"),
+        COMBAT_SETUP_TARGET("combat_setup_target"),
+        COMBAT_SETUP_SURVIVAL_TARGET("combat_setup_survival_target"),
         COMBAT_RISK("combat_risk"),
         COMBAT_SURVIVAL("combat_survival"),
         COMBAT_OBJECTIVE("combat_objective"),
@@ -28,8 +33,13 @@ final class CoHeroTimings {
         COMBAT_ACTION("combat_action"),
         COMBAT_ESCAPE("combat_escape"),
         MELEE_POSITIONING("melee_positioning"),
+        ENCIRCLEMENT_SEARCH("encirclement_search"),
+        ENCIRCLEMENT_ESCAPE("encirclement_escape"),
         SUPPORT("support"),
         RECOVERY("recovery"),
+        RECOVERY_VALIDATE("recovery_validate"),
+        RECOVERY_MOVE("recovery_move"),
+        RECOVERY_ANIMATION("recovery_animation"),
         GUARD("guard"),
         EXPLORE("explore"),
         VISION("vision"),
@@ -220,6 +230,11 @@ final class CoHeroTimings {
                 || action == Action.PREPARE
                 || action == Action.COMBAT
                 || action == Action.COMBAT_SETUP
+                || action == Action.COMBAT_SETUP_FILTER
+                || action == Action.COMBAT_SETUP_INVULNERABLE
+                || action == Action.COMBAT_SETUP_CHARM
+                || action == Action.COMBAT_SETUP_TARGET
+                || action == Action.COMBAT_SETUP_SURVIVAL_TARGET
                 || action == Action.COMBAT_RISK
                 || action == Action.COMBAT_SURVIVAL
                 || action == Action.COMBAT_OBJECTIVE
@@ -228,8 +243,13 @@ final class CoHeroTimings {
                 || action == Action.COMBAT_ACTION
                 || action == Action.COMBAT_ESCAPE
                 || action == Action.MELEE_POSITIONING
+                || action == Action.ENCIRCLEMENT_SEARCH
+                || action == Action.ENCIRCLEMENT_ESCAPE
                 || action == Action.SUPPORT
                 || action == Action.RECOVERY
+                || action == Action.RECOVERY_VALIDATE
+                || action == Action.RECOVERY_MOVE
+                || action == Action.RECOVERY_ANIMATION
                 || action == Action.GUARD
                 || action == Action.EXPLORE
                 || action == Action.VISION)
