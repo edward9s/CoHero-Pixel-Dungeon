@@ -35,9 +35,11 @@ import java.util.Arrays;
 final class CoHeroCombatController {
 
     private final CoHeroAlly owner;
+    private final CoHeroCombatTargeting targeting;
 
     CoHeroCombatController(CoHeroAlly owner) {
         this.owner = owner;
+        this.targeting = new CoHeroCombatTargeting(owner);
     }
 
     private static final int ENCIRCLEMENT_SEARCH_RADIUS = 5;
@@ -49,178 +51,31 @@ final class CoHeroCombatController {
     private static final float SCORPIO_MIN_POST_FIGHT_HEALTH = 0.50f;
 
     Mob nearestThreat(ArrayList<Mob> threats) {
-        Mob result = null;
-        int bestDistance = Integer.MAX_VALUE;
-        for (Mob threat : threats) {
-            int distance = Dungeon.level.distance(owner.pos, threat.pos);
-            if (result == null || distance < bestDistance) {
-                result = threat;
-                bestDistance = distance;
-            }
-        }
-        return result;
+        return targeting.nearestThreat(threats);
     }
 
     Mob selectCombatTarget(ArrayList<Mob> threats) {
-        if (threats == null || threats.isEmpty()) {
-            return null;
-        }
-
-        ArrayList<Ghoul> ghouls = new ArrayList<>();
-        Ghoul linkedHost = null;
-        int linkedHostLinks = 0;
-        for (Mob threat : threats) {
-            if (!(threat instanceof Ghoul)) {
-                continue;
-            }
-
-            Ghoul ghoul = (Ghoul) threat;
-            ghouls.add(ghoul);
-
-            int links = ghoul.buffs(Ghoul.GhoulLifeLink.class).size();
-            if (links > 0
-                    && (linkedHost == null
-                        || betterLinkedGhoulHost(
-                                ghoul, links, linkedHost, linkedHostLinks))) {
-                linkedHost = ghoul;
-                linkedHostLinks = links;
-            }
-        }
-
-        // A life-link host is the resurrection core. Killing it either transfers the links to
-        // another visible Ghoul (which is re-evaluated next turn) or permanently kills the downed
-        // Ghouls if no valid host remains.
-        if (linkedHost != null) {
-            return linkedHost;
-        }
-
-        // A Ghoul that has just revived returns at about 10% HP. Remove it before it can become a
-        // fresh host again. This condition is derived from current HP only; no revive history is kept.
-        Ghoul lowHealthGhoul = null;
-        for (Ghoul ghoul : ghouls) {
-            int reviveHp = Math.round(ghoul.HT / 10f);
-            if (ghoul.HP > reviveHp) {
-                continue;
-            }
-            if (lowHealthGhoul == null || betterGhoulFocusTarget(ghoul, lowHealthGhoul)) {
-                lowHealthGhoul = ghoul;
-            }
-        }
-        if (lowHealthGhoul != null) {
-            return lowHealthGhoul;
-        }
-
-        // Before the first knockdown, focus one visible Ghoul instead of allowing nearest-target
-        // changes to spread damage across the pack. Once one becomes wounded it remains the best
-        // target until it goes down, naturally feeding into the life-link-host rule above.
-        if (ghouls.size() >= 2) {
-            Ghoul best = null;
-            for (Ghoul ghoul : ghouls) {
-                if (best == null || betterGhoulFocusTarget(ghoul, best)) {
-                    best = ghoul;
-                }
-            }
-            return best;
-        }
-
-        return nearestThreat(threats);
+        return targeting.selectCombatTarget(threats);
     }
 
-    private boolean betterLinkedGhoulHost(
-            Ghoul candidate, int candidateLinks, Ghoul current, int currentLinks) {
-        if (candidateLinks != currentLinks) {
-            return candidateLinks > currentLinks;
-        }
-        return betterGhoulFocusTarget(candidate, current);
-    }
-
-    private boolean betterGhoulFocusTarget(Ghoul candidate, Ghoul current) {
-        int candidateHp = ghoulEffectiveHp(candidate);
-        int currentHp = ghoulEffectiveHp(current);
-        if (candidateHp != currentHp) {
-            return candidateHp < currentHp;
-        }
-
-        int candidateDistance = Dungeon.level.distance(owner.pos, candidate.pos);
-        int currentDistance = Dungeon.level.distance(owner.pos, current.pos);
-        if (candidateDistance != currentDistance) {
-            return candidateDistance < currentDistance;
-        }
-
-        return candidate.id() < current.id();
-    }
-
-    private int ghoulEffectiveHp(Ghoul ghoul) {
-        return Math.max(0, ghoul.HP) + Math.max(0, ghoul.shielding());
+    Mob selectSurvivalTarget(ArrayList<Mob> threats) {
+        return targeting.selectSurvivalTarget(threats);
     }
 
     ArrayList<Mob> collectActiveThreats(ArrayList<Mob> threats) {
-        ArrayList<Mob> result = new ArrayList<>();
-        if (threats == null) {
-            return result;
-        }
-
-        for (Mob threat : threats) {
-            if (threat != null
-                    && threat.isAlive()
-                    && !isTemporarilyInactiveThreat(threat)) {
-                result.add(threat);
-            }
-        }
-        return result;
+        return targeting.collectActiveThreats(threats);
     }
 
     boolean hasRecoveringCrystalGuardian(ArrayList<Mob> threats) {
-        if (threats == null) {
-            return false;
-        }
-        for (Mob threat : threats) {
-            if (isTemporarilyInactiveThreat(threat)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isTemporarilyInactiveThreat(Mob threat) {
-        return threat instanceof CrystalGuardian
-                && ((CrystalGuardian) threat).recovering();
+        return targeting.hasRecoveringCrystalGuardian(threats);
     }
 
     ArrayList<Mob> collectAttackableThreats(ArrayList<Mob> threats) {
-        ArrayList<Mob> result = new ArrayList<>();
-        if (threats == null) {
-            return result;
-        }
-
-        for (Mob threat : threats) {
-            if (threat != null
-                    && threat.isAlive()
-                    && !isTemporarilyInactiveThreat(threat)
-                    && !owner.isCombatInvulnerable(threat)
-                    && !owner.isCharmedBy(threat)) {
-                result.add(threat);
-            }
-        }
-        return result;
+        return targeting.collectAttackableThreats(threats);
     }
 
-
     ArrayList<Mob> collectCharmingThreats(ArrayList<Mob> threats) {
-        ArrayList<Mob> result = new ArrayList<>();
-        if (threats == null) {
-            return result;
-        }
-
-        for (Mob threat : threats) {
-            if (threat != null
-                    && threat.isAlive()
-                    && !isTemporarilyInactiveThreat(threat)
-                    && owner.isCharmedBy(threat)) {
-                result.add(threat);
-            }
-        }
-        return result;
+        return targeting.collectCharmingThreats(threats);
     }
 
     Boolean tryAvoidCharmingThreats(
