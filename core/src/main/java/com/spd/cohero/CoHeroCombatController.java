@@ -1512,16 +1512,11 @@ final class CoHeroCombatController {
 
     int chooseEscapeStep(ArrayList<Mob> threats) {
         float moveTime = Math.max(0.25f, 1f / owner.speed());
-        int currentNearTermAttackers =
-                owner.countThreatsAbleToAttackWithin(owner.pos, threats, moveTime);
-        float currentNearTermIncoming =
-                owner.estimatedIncomingDptAtCellWithin(owner.pos, threats, moveTime);
-        float currentAttackTime = owner.nearestThreatAttackTime(owner.pos, threats);
+        CoHeroThreatTiming current =
+                owner.assessThreatTimingAtCell(owner.pos, threats, moveTime);
 
         int bestCell = -1;
-        int bestNearTermAttackers = currentNearTermAttackers;
-        float bestNearTermIncoming = currentNearTermIncoming;
-        float bestAttackTime = currentAttackTime;
+        CoHeroThreatTiming best = current;
 
         for (int offset : PathFinder.NEIGHBOURS8) {
             int cell = owner.pos + offset;
@@ -1534,31 +1529,30 @@ final class CoHeroCombatController {
                 continue;
             }
 
-            int nearTermAttackers =
-                    owner.countThreatsAbleToAttackWithin(cell, threats, moveTime);
-            float nearTermIncoming =
-                    owner.estimatedIncomingDptAtCellWithin(cell, threats, moveTime);
-            float attackTime = owner.nearestThreatAttackTime(cell, threats);
+            CoHeroThreatTiming candidate =
+                    owner.assessThreatTimingAtCell(cell, threats, moveTime);
 
             boolean gainsBreathingRoom =
-                    bestAttackTime <= moveTime + 0.001f
-                    && attackTime > moveTime + 0.001f;
+                    best.nearestAttackTime <= moveTime + 0.001f
+                    && candidate.nearestAttackTime > moveTime + 0.001f;
             boolean extendsExistingWindow =
-                    bestAttackTime > moveTime + 0.001f
-                    && attackTime > bestAttackTime + 0.01f;
+                    best.nearestAttackTime > moveTime + 0.001f
+                    && candidate.nearestAttackTime > best.nearestAttackTime + 0.01f;
 
-            boolean better = nearTermAttackers < bestNearTermAttackers
-                    || (nearTermAttackers == bestNearTermAttackers
-                        && nearTermIncoming < bestNearTermIncoming - 0.01f)
-                    || (nearTermAttackers == bestNearTermAttackers
-                        && Math.abs(nearTermIncoming - bestNearTermIncoming) <= 0.01f
+            boolean better =
+                    candidate.attackersWithinHorizon < best.attackersWithinHorizon
+                    || (candidate.attackersWithinHorizon == best.attackersWithinHorizon
+                        && candidate.incomingDptWithinHorizon
+                                < best.incomingDptWithinHorizon - 0.01f)
+                    || (candidate.attackersWithinHorizon == best.attackersWithinHorizon
+                        && Math.abs(
+                                candidate.incomingDptWithinHorizon
+                                        - best.incomingDptWithinHorizon) <= 0.01f
                         && (gainsBreathingRoom || extendsExistingWindow));
 
             if (better) {
                 bestCell = cell;
-                bestNearTermAttackers = nearTermAttackers;
-                bestNearTermIncoming = nearTermIncoming;
-                bestAttackTime = attackTime;
+                best = candidate;
             }
         }
 
