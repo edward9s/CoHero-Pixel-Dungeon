@@ -31,6 +31,7 @@ import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.ConeAOE;
 import com.watabou.utils.PathFinder;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -126,6 +127,41 @@ public final class CoHeroHazards {
                 }
             }
             maskEnvironmentalDanger(owner, result);
+        }
+        return result;
+    }
+
+    public static boolean[] dangerMask(Char owner) {
+        if (Dungeon.level == null) {
+            return new boolean[0];
+        }
+
+        boolean[] allCells = new boolean[Dungeon.level.length()];
+        Arrays.fill(allCells, true);
+        boolean[] safe = maskDangerous(owner, allCells);
+        for (int cell = 0; cell < safe.length; cell++) {
+            safe[cell] = !safe[cell];
+        }
+        return safe;
+    }
+
+    public static int nearbyDangerCount(boolean[] dangerMask, int cell) {
+        if (Dungeon.level == null
+                || dangerMask == null
+                || cell < 0
+                || cell >= dangerMask.length) {
+            return 0;
+        }
+
+        int result = dangerMask[cell] ? 1 : 0;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent >= 0
+                    && adjacent < dangerMask.length
+                    && Dungeon.level.distance(cell, adjacent) == 1
+                    && dangerMask[adjacent]) {
+                result++;
+            }
         }
         return result;
     }
