@@ -506,13 +506,18 @@ final class CoHeroCombatRiskEstimator {
             return cache.targetTtk;
         }
 
-        float fastestCurrentDpt = Math.max(
-                estimateMeleeDpt(targetMob),
-                estimateBestRangedDpt(targetMob));
-        float result = estimateTargetTtk(targetMob, fastestCurrentDpt);
-        cache.targetTtk = result;
-        cache.targetTtkTurn = turnSerial;
-        return result;
+        long ttkStarted = System.nanoTime();
+        try {
+            float fastestCurrentDpt = Math.max(
+                    estimateMeleeDpt(targetMob),
+                    estimateBestRangedDpt(targetMob));
+            float result = estimateTargetTtk(targetMob, fastestCurrentDpt);
+            cache.targetTtk = result;
+            cache.targetTtkTurn = turnSerial;
+            return result;
+        } finally {
+            owner.timings().record(owner, CoHeroTimings.Action.TTK_TOTAL, ttkStarted);
+        }
     }
 
     private float estimateTargetTtk(Mob targetMob, float outgoingDpt) {
@@ -576,28 +581,52 @@ final class CoHeroCombatRiskEstimator {
             return cache.bestRangedDpt;
         }
 
-        float best = 0f;
-        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
-            best = Math.max(best, estimateMissileDpt(targetMob, missile));
-        }
+        long rangedStarted = System.nanoTime();
+        try {
+            float best = 0f;
 
-        SpiritBow bow = owner.inventory().spiritBow();
-        best = Math.max(best, estimateSpiritBowDpt(targetMob, bow));
-
-        for (Wand wand : owner.inventory().wands()) {
-            if (!CoHeroWandAdapter.supported(wand)) {
-                continue;
+            long missileStarted = System.nanoTime();
+            try {
+                for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                    best = Math.max(best, estimateMissileDpt(targetMob, missile));
+                }
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.TTK_MISSILE, missileStarted);
             }
-            if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
-                best = Math.max(best, targetMob.HP);
-                break;
-            }
-            best = Math.max(best, estimateDamageWandDpt(targetMob, wand));
-        }
 
-        cache.bestRangedDpt = best;
-        cache.bestRangedDptTurn = turnSerial;
-        return best;
+            long bowStarted = System.nanoTime();
+            try {
+                SpiritBow bow = owner.inventory().spiritBow();
+                best = Math.max(best, estimateSpiritBowDpt(targetMob, bow));
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.TTK_SPIRIT_BOW, bowStarted);
+            }
+
+            long wandStarted = System.nanoTime();
+            try {
+                for (Wand wand : owner.inventory().wands()) {
+                    if (!CoHeroWandAdapter.supported(wand)) {
+                        continue;
+                    }
+                    if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
+                        best = Math.max(best, targetMob.HP);
+                        break;
+                    }
+                    best = Math.max(best, estimateDamageWandDpt(targetMob, wand));
+                }
+            } finally {
+                owner.timings().record(
+                        owner, CoHeroTimings.Action.TTK_WAND, wandStarted);
+            }
+
+            cache.bestRangedDpt = best;
+            cache.bestRangedDptTurn = turnSerial;
+            return best;
+        } finally {
+            owner.timings().record(owner, CoHeroTimings.Action.TTK_RANGED, rangedStarted);
+        }
     }
 
     float estimateMeleeDpt(Mob targetMob) {
@@ -610,22 +639,27 @@ final class CoHeroCombatRiskEstimator {
             return cache.meleeDpt;
         }
 
-        float result = 0f;
-        if (owner.canAttack(targetMob)
-                && (!(targetMob instanceof GreatCrab) || targetMob.coHeroSurprisedBy(owner))) {
-            float raw = sampledDamageRoll(owner, targetMob.id());
-            float dr = targetDr(targetMob);
-            float effective = Math.max(0.5f, raw - dr);
-            float hitChance = targetMob.coHeroSurprisedBy(owner)
-                    ? 1f
-                    : estimatedPhysicalHitChance(
-                            owner.attackSkill(targetMob), targetMob, owner);
-            result = effective * hitChance / Math.max(0.25f, owner.attackDelay());
-        }
+        long meleeStarted = System.nanoTime();
+        try {
+            float result = 0f;
+            if (owner.canAttack(targetMob)
+                    && (!(targetMob instanceof GreatCrab) || targetMob.coHeroSurprisedBy(owner))) {
+                float raw = sampledDamageRoll(owner, targetMob.id());
+                float dr = targetDr(targetMob);
+                float effective = Math.max(0.5f, raw - dr);
+                float hitChance = targetMob.coHeroSurprisedBy(owner)
+                        ? 1f
+                        : estimatedPhysicalHitChance(
+                                owner.attackSkill(targetMob), targetMob, owner);
+                result = effective * hitChance / Math.max(0.25f, owner.attackDelay());
+            }
 
-        cache.meleeDpt = result;
-        cache.meleeDptTurn = turnSerial;
-        return result;
+            cache.meleeDpt = result;
+            cache.meleeDptTurn = turnSerial;
+            return result;
+        } finally {
+            owner.timings().record(owner, CoHeroTimings.Action.TTK_MELEE, meleeStarted);
+        }
     }
 
     private boolean hasProjectileLine(Mob targetMob) {
