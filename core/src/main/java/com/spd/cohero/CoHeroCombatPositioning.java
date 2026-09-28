@@ -1,7 +1,5 @@
 package com.spd.cohero;
 
-
-
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
@@ -10,17 +8,15 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Scorpio;
+
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 
 import com.watabou.utils.PathFinder;
 
-
-
 import java.util.ArrayList;
 
 import java.util.Arrays;
-
-
 
 /**
 
@@ -36,8 +32,6 @@ import java.util.Arrays;
 
 final class CoHeroCombatPositioning {
 
-
-
     private static final int ENCIRCLEMENT_SEARCH_RADIUS = 5;
 
     private static final int CHOKE_REAR_SCAN_RADIUS = 6;
@@ -46,19 +40,13 @@ final class CoHeroCombatPositioning {
 
     private static final int RANGED_COVER_SEARCH_RADIUS = 6;
 
-
-
     private final CoHeroAlly owner;
-
-
 
     CoHeroCombatPositioning(CoHeroAlly owner) {
 
         this.owner = owner;
 
     }
-
-
 
     Boolean tryAvoidCharmingThreats(
             ArrayList<Mob> charmingThreats, ArrayList<Mob> allThreats) {
@@ -718,6 +706,20 @@ final class CoHeroCombatPositioning {
         return best;
     }
 
+    private int meleeFrontage(int cell) {
+        int result = 0;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int adjacent = cell + offset;
+            if (adjacent >= 0
+                    && adjacent < Dungeon.level.length()
+                    && Dungeon.level.distance(cell, adjacent) == 1
+                    && Dungeon.level.passable[adjacent]) {
+                result++;
+            }
+        }
+        return result;
+    }
+
     int chooseGreatCrabTacticalCell(Mob targetMob) {
         PathFinder.buildDistanceMap(
                 owner.pos, Dungeon.level.passable, GREAT_CRAB_TACTICAL_SEARCH_RADIUS);
@@ -766,8 +768,6 @@ final class CoHeroCombatPositioning {
 
         return best;
     }
-
-
 
     int chooseRangedTargetClosingStep(Mob targetMob, ArrayList<Mob> threats) {
         if (owner.rooted || targetMob == null) {
