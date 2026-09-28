@@ -80,18 +80,8 @@ final class CoHeroCombatController {
             int links = ghoul.buffs(Ghoul.GhoulLifeLink.class).size();
             if (links > 0
                     && (linkedHost == null
-                        || links > linkedHostLinks
-                        || (links == linkedHostLinks
-                            && ghoulEffectiveHp(ghoul) < ghoulEffectiveHp(linkedHost))
-                        || (links == linkedHostLinks
-                            && ghoulEffectiveHp(ghoul) == ghoulEffectiveHp(linkedHost)
-                            && Dungeon.level.distance(owner.pos, ghoul.pos)
-                                < Dungeon.level.distance(owner.pos, linkedHost.pos))
-                        || (links == linkedHostLinks
-                            && ghoulEffectiveHp(ghoul) == ghoulEffectiveHp(linkedHost)
-                            && Dungeon.level.distance(owner.pos, ghoul.pos)
-                                == Dungeon.level.distance(owner.pos, linkedHost.pos)
-                            && ghoul.id() < linkedHost.id()))) {
+                        || betterLinkedGhoulHost(
+                                ghoul, links, linkedHost, linkedHostLinks))) {
                 linkedHost = ghoul;
                 linkedHostLinks = links;
             }
@@ -134,6 +124,14 @@ final class CoHeroCombatController {
         }
 
         return nearestThreat(threats);
+    }
+
+    private boolean betterLinkedGhoulHost(
+            Ghoul candidate, int candidateLinks, Ghoul current, int currentLinks) {
+        if (candidateLinks != currentLinks) {
+            return candidateLinks > currentLinks;
+        }
+        return betterGhoulFocusTarget(candidate, current);
     }
 
     private boolean betterGhoulFocusTarget(Ghoul candidate, Ghoul current) {
