@@ -52,6 +52,9 @@ final class CoHeroCombatController {
         boolean bestDamageWandEvaluated;
         Wand bestDamageWand;
         float bestDamageWandDamage;
+        int bestDamageWandAimCell;
+        final IdentityHashMap<Wand, CoHeroWandAdapter.DamageEvaluation> wandDamageEvaluations =
+                new IdentityHashMap<>();
 
         void reset(int turn) {
             this.turn = turn;
@@ -65,6 +68,8 @@ final class CoHeroCombatController {
             choice = null;
             bestDamageWand = null;
             bestDamageWandDamage = Float.NEGATIVE_INFINITY;
+            bestDamageWandAimCell = -1;
+            wandDamageEvaluations.clear();
         }
     }
 
@@ -108,6 +113,21 @@ final class CoHeroCombatController {
             cache.reset(rangedTurnSerial);
         }
         return cache;
+    }
+
+    CoHeroWandAdapter.DamageEvaluation usableDamageEvaluation(
+            Mob targetMob, Wand wand) {
+        if (targetMob == null || wand == null) {
+            return null;
+        }
+
+        RangedTurnCache cache = rangedTurnCache(targetMob);
+        if (!cache.wandDamageEvaluations.containsKey(wand)) {
+            cache.wandDamageEvaluations.put(
+                    wand,
+                    CoHeroWandAdapter.usableDamageEvaluation(wand, owner, targetMob));
+        }
+        return cache.wandDamageEvaluations.get(wand);
     }
 
     private boolean hasProjectileLine(Mob targetMob) {
@@ -412,25 +432,28 @@ final class CoHeroCombatController {
 
         Wand best = null;
         float bestDamage = Float.NEGATIVE_INFINITY;
+        int bestAimCell = -1;
         for (Wand wand : owner.inventory().wands()) {
             if (!CoHeroWandAdapter.supported(wand)
                     || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
                 continue;
             }
 
-            float damage =
-                    CoHeroWandAdapter.expectedUsableDamage(wand, owner, targetMob);
-            if (damage == Float.NEGATIVE_INFINITY) {
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    usableDamageEvaluation(targetMob, wand);
+            if (evaluation == null) {
                 continue;
             }
-            if (best == null || damage > bestDamage) {
+            if (best == null || evaluation.expectedDamage > bestDamage) {
                 best = wand;
-                bestDamage = damage;
+                bestDamage = evaluation.expectedDamage;
+                bestAimCell = evaluation.aimCell;
             }
         }
 
         cache.bestDamageWand = best;
         cache.bestDamageWandDamage = bestDamage;
+        cache.bestDamageWandAimCell = bestAimCell;
         cache.bestDamageWandEvaluated = true;
     }
 
@@ -442,6 +465,11 @@ final class CoHeroCombatController {
     private float bestUsableDamageWandDamage(Mob targetMob) {
         evaluateBestDamageWand(targetMob);
         return rangedTurnCache(targetMob).bestDamageWandDamage;
+    }
+
+    private int bestUsableDamageWandAimCell(Mob targetMob) {
+        evaluateBestDamageWand(targetMob);
+        return rangedTurnCache(targetMob).bestDamageWandAimCell;
     }
 
     private boolean shouldPreferRangedAttack(Mob targetMob) {
@@ -869,11 +897,14 @@ final class CoHeroCombatController {
 
         for (Wand wand : owner.inventory().wands()) {
             float dpt = owner.estimateDamageWandDpt(targetMob, wand);
-            int aimCell = dpt > 0f ? CoHeroWandAdapter.aimCell(wand, owner, targetMob) : -1;
-            if (aimCell >= 0 && dpt > bestDpt + 0.001f) {
+            CoHeroWandAdapter.DamageEvaluation evaluation =
+                    dpt > 0f ? usableDamageEvaluation(targetMob, wand) : null;
+            if (evaluation != null
+                    && evaluation.aimCell >= 0
+                    && dpt > bestDpt + 0.001f) {
                 bestDpt = dpt;
                 meleeBest = false;
-                rangedBest = RangedChoice.wand(wand, aimCell);
+                rangedBest = RangedChoice.wand(wand, evaluation.aimCell);
             }
         }
 
@@ -994,7 +1025,7 @@ final class CoHeroCombatController {
             if (highEvasionWand != null) {
                 result = RangedChoice.wand(
                         highEvasionWand,
-                        CoHeroWandAdapter.aimCell(highEvasionWand, owner, targetMob));
+                        bestUsableDamageWandAimCell(targetMob));
             } else {
                 MissileWeapon bestMissile = null;
                 float bestMissileDamage = Float.NEGATIVE_INFINITY;
@@ -1023,7 +1054,7 @@ final class CoHeroCombatController {
                             : RangedChoice.missile(bestMissile);
                 } else if (bestWand != null) {
                     result = RangedChoice.wand(
-                            bestWand, CoHeroWandAdapter.aimCell(bestWand, owner, targetMob));
+                            bestWand, bestUsableDamageWandAimCell(targetMob));
                 } else {
                     Wand fallbackControl = null;
                     for (Wand wand : owner.inventory().wands()) {
