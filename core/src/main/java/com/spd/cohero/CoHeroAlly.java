@@ -771,7 +771,7 @@ public class CoHeroAlly extends DirectableAlly {
                 }
 
                 Boolean scorpioTactics = combat.tryScorpioTactics(
-                        combatTarget, combatThreats, attackableThreats, combatRisk);
+                        combatTarget, combatThreats, combatRisk);
                 if (scorpioTactics != null) {
                     logBossDecision("scorpio_tactics:" + combatTarget.id(),
                             targetDebug(combatTarget) + " -> scorpio tactics");
