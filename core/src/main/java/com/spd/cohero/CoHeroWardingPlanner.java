@@ -28,7 +28,7 @@ final class CoHeroWardingPlanner {
     private CoHeroWardingPlanner() {
     }
 
-    private static final class PlanningContext {
+    static final class PlanningContext {
         final ArrayList<Mob> visibleAwakeEnemies = new ArrayList<>();
         final ArrayList<Mob> sleepingEnemies = new ArrayList<>();
         final IdentityHashMap<Mob, ArrayList<Integer>> reachableByEnemy =
@@ -67,12 +67,23 @@ final class CoHeroWardingPlanner {
     }
 
     static Plan choose(WandOfWarding wand, CoHeroAlly owner, Mob target) {
-        if (wand == null || owner == null || target == null || !wand.coHeroCanZap(owner)) {
+        return choose(wand, owner, target, new PlanningContext(owner));
+    }
+
+    static Plan choose(
+            WandOfWarding wand,
+            CoHeroAlly owner,
+            Mob target,
+            PlanningContext context) {
+        if (wand == null
+                || owner == null
+                || target == null
+                || context == null
+                || !wand.coHeroCanZap(owner)) {
             return null;
         }
 
         Plan best = null;
-        PlanningContext context = new PlanningContext(owner);
 
         for (Char ch : Actor.chars()) {
             if (!(ch instanceof Ward)) {
@@ -173,7 +184,19 @@ final class CoHeroWardingPlanner {
     }
 
     static RecallPlan chooseRecall(WandOfWarding wand, CoHeroAlly owner, Mob target) {
-        if (wand == null || owner == null || target == null || !wand.coHeroCanZap(owner)) {
+        return chooseRecall(wand, owner, target, new PlanningContext(owner));
+    }
+
+    static RecallPlan chooseRecall(
+            WandOfWarding wand,
+            CoHeroAlly owner,
+            Mob target,
+            PlanningContext context) {
+        if (wand == null
+                || owner == null
+                || target == null
+                || context == null
+                || !wand.coHeroCanZap(owner)) {
             return null;
         }
 
@@ -185,19 +208,17 @@ final class CoHeroWardingPlanner {
 
         // Only recall when the wand actually has a useful fresh placement that is blocked by
         // energy. If an ordinary placement/upgrade is already legal, dismantling is unnecessary.
-        if (choose(wand, owner, target) != null) {
+        if (choose(wand, owner, target, context) != null) {
             return null;
         }
 
-        Plan replacement = chooseFreshIgnoringBudget(wand, owner, target);
+        Plan replacement = chooseFreshIgnoringBudget(wand, owner, target, context);
         if (replacement == null) {
             return null;
         }
 
         float replacementValue = replacementValue(replacement);
         RecallPlan best = null;
-        PlanningContext context = new PlanningContext(owner);
-
         for (Char ch : Actor.chars()) {
             if (!(ch instanceof Ward)) {
                 continue;
@@ -237,9 +258,11 @@ final class CoHeroWardingPlanner {
     }
 
     private static Plan chooseFreshIgnoringBudget(
-            WandOfWarding wand, CoHeroAlly owner, Mob target) {
+            WandOfWarding wand,
+            CoHeroAlly owner,
+            Mob target,
+            PlanningContext context) {
         Plan best = null;
-        PlanningContext context = new PlanningContext(owner);
 
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (owner.fieldOfView == null
