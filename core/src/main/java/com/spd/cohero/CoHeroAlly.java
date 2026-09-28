@@ -659,6 +659,7 @@ public class CoHeroAlly extends DirectableAlly {
             long combatStarted = System.nanoTime();
             try {
                 ArrayList<Mob> attackableThreats = combat.collectAttackableThreats(combatThreats);
+                ArrayList<Mob> charmingThreats = combat.collectCharmingThreats(combatThreats);
 
                 // Invulnerability does not end the fight. It only has tactical priority while an
                 // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
@@ -668,7 +669,38 @@ public class CoHeroAlly extends DirectableAlly {
                     return invulnerableRetreat;
                 }
 
+                // Charm blocks offense against its source in stock Mob AI. CoHero derives the same
+                // restriction from the live buff each turn, then first tries to leave the charmer's
+                // immediate pressure while preferring safer cells and, when otherwise equal, broken
+                // line of sight and greater distance.
+                Boolean charmRetreat =
+                        combat.tryAvoidCharmingThreats(charmingThreats, combatThreats);
+                if (charmRetreat != null) {
+                    return charmRetreat;
+                }
+
                 if (attackableThreats.isEmpty()) {
+                    if (!charmingThreats.isEmpty()) {
+                        // A lone ordinary Charm is intentionally not enough to spend cleansing
+                        // resources. The existing serious-negative rule still allows cleansing when
+                        // low health, rooted, or carrying multiple negative effects.
+                        Boolean cleansingPlant = survival.tryKnownCleansingPlant();
+                        if (cleansingPlant != null) {
+                            return cleansingPlant;
+                        }
+                        if (survival.tryUseCleansingPotion(null)) {
+                            return true;
+                        }
+                        if (survival.tryAutoSurvivalPotion()) {
+                            return true;
+                        }
+
+                        logBossDecision("charmed_hold",
+                                "all visible offensive targets are charm sources; no safer step -> hold");
+                        spend(TICK);
+                        return true;
+                    }
+
                     logBossDecision("invulnerable_out_of_range",
                             "no damageable visible enemy; invulnerable threats cannot attack -> hold");
                     spend(TICK);
@@ -1247,6 +1279,12 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     boolean attackTarget(Char target) {
+        if (target != null && isCharmedBy(target)) {
+            throw new IllegalStateException(
+                    "CoHero attempted to attack its current charm source: "
+                            + target.getClass().getSimpleName());
+        }
+
         long started = System.nanoTime();
         boolean hit = attack(target);
         timings().record(this, target.isAlive()
