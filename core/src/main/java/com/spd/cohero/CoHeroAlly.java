@@ -1417,6 +1417,10 @@ public class CoHeroAlly extends DirectableAlly {
         return navigation.isMovementSafe(cell);
     }
 
+    boolean[] movementSafeMask() {
+        return navigation.movementSafeMask();
+    }
+
 
 
 
