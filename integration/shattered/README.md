@@ -9,7 +9,7 @@ This profile currently patches 53 upstream Java files, plus `build.gradle`, `And
 Get these working first. They establish the companion lifecycle and saved-game contract.
 
 - `Dungeon.java` — CoHero store/restore, save preview, and one-shot failure submission.
-- `Level.java` — saves CoHero with the level mob set.
+- `Level.java` — saves CoHero with the level mob set and keeps CoHero-owned ward vision out of Hero gameplay FOV.
 - `Hero.java` — transition interception and shared identification progress.
 - `HeroSelectScene.java` — companion class selection.
 - `GameScene.java` — restores/starts CoHero after the scene is ready. This file also contains presentation hooks, so it is a high-churn integration point.
