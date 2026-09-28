@@ -12,6 +12,8 @@ COMPANION_DEATH_FAILURE_FLOW = """            CoHero.markCompanionDeathGameOver(
 """
 HERO_FINAL_DEATH_ANKH_GATE = "if (!com.spd.cohero.CoHero.companionDeathEndedRun()) {"
 FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
+COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
+COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
 
 
 def main() -> int:
@@ -67,6 +69,24 @@ def main() -> int:
     if dungeon_patch.count(FAILURE_CLAIM_HOOK) != 1:
         print(
             "Dungeon.fail integration must claim CoHero run-failure submission exactly once.",
+            file=sys.stderr,
+        )
+        return 1
+
+    level_patch = (
+        root / "integration" / "shattered" / "patches" / "patch_level_mobs.py"
+    ).read_text(encoding="utf-8")
+    if level_patch.count(COHERO_WARD_HERO_FOV_EXCLUSION) != 1:
+        print(
+            "Level integration must exclude CoHero-owned wards from Hero gameplay FOV.",
+            file=sys.stderr,
+        )
+        return 1
+
+    vision_source = (package_root / "CoHeroVision.java").read_text(encoding="utf-8")
+    if vision_source.count(COHERO_WARD_VISION_MERGE) != 1:
+        print(
+            "CoHeroVision must merge CoHero-owned ward vision into CoHero FOV.",
             file=sys.stderr,
         )
         return 1
