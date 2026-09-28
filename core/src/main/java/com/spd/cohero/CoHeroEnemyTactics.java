@@ -189,22 +189,23 @@ final class CoHeroEnemyTactics {
     }
 
     private Wand bestMonkFocusBypassWand(Mob targetMob) {
-        ArrayList<Wand> candidates = new ArrayList<>();
+        Wand best = null;
+        float bestDamage = Float.NEGATIVE_INFINITY;
         for (Wand wand : owner.inventory().wands()) {
             if (wand instanceof WandOfWarding
                     || !CoHeroWandAdapter.supported(wand)
-                    || !CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
                     || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
                 continue;
             }
 
-            int aim = CoHeroWandAdapter.aimCell(wand, owner, targetMob);
-            float damage = CoHeroWandAdapter.expectedDamage(wand, owner, targetMob);
-            if (aim >= 0 && damage > 0f) {
-                candidates.add(wand);
+            float damage =
+                    CoHeroWandAdapter.expectedUsableDamage(wand, owner, targetMob);
+            if (damage > 0f && (best == null || damage > bestDamage)) {
+                best = wand;
+                bestDamage = damage;
             }
         }
-        return combat.bestDamageWand(candidates, targetMob);
+        return best;
     }
 
     private MissileWeapon cheapestMonkFocusBreaker() {
