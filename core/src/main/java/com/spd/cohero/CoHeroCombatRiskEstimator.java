@@ -516,7 +516,11 @@ final class CoHeroCombatRiskEstimator {
             cache.targetTtkTurn = turnSerial;
             return result;
         } finally {
-            owner.timings().record(owner, CoHeroTimings.Action.TTK_TOTAL, ttkStarted);
+            String detail = owner.timings().isEnabled()
+                    ? targetMob.getClass().getSimpleName() + ":" + targetMob.id()
+                    : null;
+            owner.timings().record(
+                    owner, CoHeroTimings.Action.TTK_TOTAL, ttkStarted, detail);
         }
     }
 
