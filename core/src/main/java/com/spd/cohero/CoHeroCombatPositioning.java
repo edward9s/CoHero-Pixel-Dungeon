@@ -510,6 +510,7 @@ final class CoHeroCombatPositioning {
         long dynamicNanos = 0L;
 
         long phaseStarted = profile ? System.nanoTime() : 0L;
+        boolean[] movementSafe = owner.movementSafeMask();
         ensureChokeTopologyCache();
         if (profile) {
             filterNanos += System.nanoTime() - phaseStarted;
@@ -538,7 +539,7 @@ final class CoHeroCombatPositioning {
                     && owner.fieldOfView[cell]
                     && owner.isKnown(cell)
                     && Dungeon.level.passable[cell]
-                    && owner.isMovementSafe(cell);
+                    && movementSafe[cell];
             if (candidate) {
                 Char occupant = Actor.findChar(cell);
                 candidate = occupant == null || occupant == owner;
