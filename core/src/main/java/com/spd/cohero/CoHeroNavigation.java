@@ -33,6 +33,9 @@ final class CoHeroNavigation {
     }
 
     void clearExplorationTarget() {
+        if (explorationTarget == -1) {
+            return;
+        }
         explorationTarget = -1;
         owner.clearNavigationPath();
     }
