@@ -29,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfBlink;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfDeepSleep;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFear;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfFlock;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.StoneOfShock;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MagesStaff;
@@ -866,7 +867,8 @@ public final class CompanionInventory {
                 || item instanceof StoneOfFear
                 || item instanceof StoneOfDeepSleep
                 || item instanceof StoneOfBlink
-                || item instanceof StoneOfFlock;
+                || item instanceof StoneOfFlock
+                || item instanceof StoneOfShock;
     }
 
     private static boolean knownUncursed(Item item) {
