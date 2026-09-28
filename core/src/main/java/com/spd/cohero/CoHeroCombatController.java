@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Paralysis;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
@@ -17,6 +18,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding.Ward;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.melee.MeleeWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
+import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.darts.ParalyticDart;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.MissileSprite;
@@ -378,7 +380,7 @@ final class CoHeroCombatController {
             return true;
         }
 
-        Boolean escapeUtility = tryEscapeUtility(threats);
+        Boolean escapeUtility = tryEscapeUtility(risk, threats);
         if (escapeUtility != null) {
             return escapeUtility;
         }
@@ -409,17 +411,18 @@ final class CoHeroCombatController {
             return owner.animateMoveFrom(oldPos);
         }
 
-        // No safe movement remains. Controlled Blink is preferred to random teleportation.
+        // No safe movement remains. Controlled Blink is the cleanest displacement option.
         if (owner.controlItems().tryEmergencyBlinkRunestone(threats)) {
             return true;
         }
 
-        if (owner.controlItems().tryUseTeleportationScroll()) {
+        // Physical blocking/paralysis/fear are deterministic tactical escape tools and should be
+        // tried before giving up position to a random teleport.
+        if (owner.controlItems().tryEmergencyRunestone(risk, threats)) {
             return true;
         }
 
-        // Other control runestones remain ahead of consumable fear/invisibility resources.
-        if (owner.controlItems().tryEmergencyRunestone(risk, threats)) {
+        if (owner.controlItems().tryUseTeleportationScroll()) {
             return true;
         }
 
@@ -465,6 +468,7 @@ final class CoHeroCombatController {
             return performMeleeAttack(scorpio);
         }
 
+        boolean canSustainChase = false;
         if (meleeCapable && !owner.rooted) {
             int captureStep = chooseImmediateScorpioCaptureStep(scorpio, allThreats);
             if (captureStep != -1) {
@@ -472,7 +476,8 @@ final class CoHeroCombatController {
                 return moveForRangedEngagement(captureStep, "scorpio_capture");
             }
 
-            if (canSustainScorpioChase(scorpio)) {
+            canSustainChase = canSustainScorpioChase(scorpio);
+            if (canSustainChase) {
                 int closeStep = chooseRangedTargetClosingStep(scorpio, allThreats);
                 if (closeStep != -1) {
                     owner.allowAnyGuardMovement();
@@ -484,8 +489,21 @@ final class CoHeroCombatController {
         float rangedDpt = owner.estimateBestRangedDpt(scorpio);
         boolean costlyExchange = isCostlyScorpioRangedExchange(scorpio, allThreats, rangedDpt);
 
-        // If CoHero cannot realistically catch the Scorpio, do not stand in the open and pay a
-        // large health bill just because the TTD calculation says the duel is technically winnable.
+        // When an ordinary chase cannot gain ground and a ranged duel is expensive, first try a
+        // renewable pursuit control. Regrowth roots the Scorpio in place; Frost slows it enough
+        // to turn an equal-speed chase into a real closing opportunity.
+        if (meleeCapable
+                && !owner.rooted
+                && !canSustainChase
+                && (costlyExchange || rangedDpt <= 0.01f)) {
+            Boolean pursuitControl = tryPursuitControl(scorpio, allThreats);
+            if (pursuitControl != null) {
+                return pursuitControl;
+            }
+        }
+
+        // If CoHero still cannot realistically catch the Scorpio, do not stand in the open and pay
+        // a large health bill just because the TTD calculation says the duel is technically winnable.
         if (costlyExchange || rangedDpt <= 0.01f) {
             int coverCell = chooseRangedCoverCell(scorpio, allThreats);
             if (coverCell != -1) {
@@ -494,13 +512,6 @@ final class CoHeroCombatController {
                     owner.allowAnyGuardMovement();
                     return moveForRangedEngagement(coverStep, "scorpio_cover");
                 }
-            }
-
-            // Existing combat utility already knows how to box in a lone ranged enemy with flock
-            // and how to handle larger threat groups. Use it before accepting an expensive duel.
-            if (owner.controlItems().tryUseCombatRunestone(
-                    scorpio, attackableThreats, risk)) {
-                return true;
             }
         }
 
@@ -517,6 +528,34 @@ final class CoHeroCombatController {
             if (closeStep != -1) {
                 owner.allowAnyGuardMovement();
                 return moveForRangedEngagement(closeStep, "scorpio_forced_close");
+            }
+        }
+
+        return null;
+    }
+
+    private Boolean tryPursuitControl(Mob targetMob, ArrayList<Mob> visibleThreats) {
+        if (targetMob == null
+                || !targetMob.isAlive()
+                || targetMob.rooted
+                || targetMob.paralysed > 0) {
+            return null;
+        }
+
+        // Rooting is preferred: it keeps the target awake and in combat while removing its ability
+        // to kite. The shared adapter rejects casts that would root Hero/CoHero/neutral actors.
+        for (Wand wand : owner.inventory().wands()) {
+            if (CoHeroWandAdapter.regrowthCanSafelyRoot(
+                    wand, owner, targetMob, visibleThreats)) {
+                return performWandCast(targetMob.pos, wand);
+            }
+        }
+
+        // Frost remains a normal damaging wand, but here its speed reduction has tactical value.
+        // Only spend the charge when the target is currently too fast to gain on.
+        for (Wand wand : owner.inventory().wands()) {
+            if (CoHeroWandAdapter.frostUsefulForPursuit(wand, owner, targetMob)) {
+                return performWandCast(targetMob.pos, wand);
             }
         }
 
@@ -1961,7 +2000,11 @@ final class CoHeroCombatController {
         return false;
     }
 
-    Boolean tryEscapeUtility(ArrayList<Mob> visibleThreats) {
+    Boolean tryEscapeUtility(CoHeroCombatRisk risk, ArrayList<Mob> visibleThreats) {
+        if (risk == null || visibleThreats == null || visibleThreats.isEmpty()) {
+            throw new IllegalArgumentException("Escape utility requires current risk and threats");
+        }
+
         // Blast Wave is a survival tool when a safe blast reduces next-turn attackers,
         // even when another wand would deal more raw damage.
         for (Wand wand : owner.inventory().wands()) {
@@ -1971,13 +2014,58 @@ final class CoHeroCombatController {
             }
         }
 
+        // Regrowth is reusable control: rooting a pursuer is valuable for both pursuit and escape.
         for (Mob threat : visibleThreats) {
             for (Wand wand : owner.inventory().wands()) {
-                if (CoHeroWandAdapter.regrowthUsefulForEscape(wand, owner, threat, visibleThreats)) {
+                if (CoHeroWandAdapter.regrowthCanSafelyRoot(
+                        wand, owner, threat, visibleThreats)) {
                     return performWandCast(threat.pos, wand);
                 }
             }
         }
+
+        // Paralytic darts are finite and can miss, so reserve them for severe retreats rather than
+        // ordinary ranged damage. A hit grants several turns in which CoHero can disengage.
+        boolean severeRetreat =
+                risk.immediateIncoming * 1.35f >= owner.HP + owner.shielding()
+                || risk.ttd <= 3f
+                || risk.attackersNow >= 2;
+        if (severeRetreat) {
+            ParalyticDart dart = null;
+            for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                if (missile instanceof ParalyticDart && owner.inventory().canUse(missile)) {
+                    dart = (ParalyticDart) missile;
+                    break;
+                }
+            }
+
+            if (dart != null) {
+                Mob best = null;
+                float bestThreat = Float.NEGATIVE_INFINITY;
+                for (Mob threat : visibleThreats) {
+                    if (threat == null
+                            || !threat.isAlive()
+                            || threat.isImmune(Paralysis.class)
+                            || threat.buff(Paralysis.class) != null
+                            || Dungeon.level.distance(owner.pos, threat.pos) <= 1
+                            || new Ballistica(
+                                    owner.pos, threat.pos, Ballistica.PROJECTILE).collisionPos
+                                    != threat.pos) {
+                        continue;
+                    }
+                    float score = owner.estimatedThreatDamage(threat, owner.pos)
+                            * Math.max(0.1f, owner.threatOpportunity(threat, owner.pos));
+                    if (best == null || score > bestThreat) {
+                        best = threat;
+                        bestThreat = score;
+                    }
+                }
+                if (best != null) {
+                    return performMissileAttack(best, dart);
+                }
+            }
+        }
+
         return null;
     }
 
