@@ -383,7 +383,7 @@ public final class CoHeroHazards {
         for (Char ch : Actor.chars()) {
             if (ch instanceof RipperDemon
                     && ch.isAlive()
-                    && ((RipperDemon) ch).coHeroLeapTarget() >= 0) {
+                    && ripperLeapCollision((RipperDemon) ch) >= 0) {
                 return true;
             }
         }
@@ -394,7 +394,7 @@ public final class CoHeroHazards {
         for (Char ch : Actor.chars()) {
             if (ch instanceof RipperDemon
                     && ch.isAlive()
-                    && ((RipperDemon) ch).coHeroLeapTarget() == cell) {
+                    && ripperLeapCollision((RipperDemon) ch) == cell) {
                 return true;
             }
         }
@@ -406,11 +406,22 @@ public final class CoHeroHazards {
             if (!(ch instanceof RipperDemon) || !ch.isAlive()) {
                 continue;
             }
-            int leapTarget = ((RipperDemon) ch).coHeroLeapTarget();
-            if (leapTarget >= 0 && leapTarget < passable.length) {
-                passable[leapTarget] = false;
+            int leapCollision = ripperLeapCollision((RipperDemon) ch);
+            if (leapCollision >= 0 && leapCollision < passable.length) {
+                passable[leapCollision] = false;
             }
         }
+    }
+
+    private static int ripperLeapCollision(RipperDemon ripper) {
+        int leapTarget = ripper.coHeroLeapTarget();
+        if (leapTarget < 0 || leapTarget >= Dungeon.level.length()) {
+            return -1;
+        }
+        return new Ballistica(
+                ripper.pos,
+                leapTarget,
+                Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos;
     }
 
     private static boolean hasEyeDeathGazeHazard() {
