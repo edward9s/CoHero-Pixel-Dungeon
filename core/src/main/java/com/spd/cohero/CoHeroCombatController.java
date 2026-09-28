@@ -1212,9 +1212,7 @@ final class CoHeroCombatController {
                             || threat.isImmune(Paralysis.class)
                             || threat.buff(Paralysis.class) != null
                             || Dungeon.level.distance(owner.pos, threat.pos) <= 1
-                            || new Ballistica(
-                                    owner.pos, threat.pos, Ballistica.PROJECTILE).collisionPos
-                                    != threat.pos) {
+                            || !hasProjectileLine(threat)) {
                         continue;
                     }
                     float score = owner.estimatedThreatDamage(threat, owner.pos)
