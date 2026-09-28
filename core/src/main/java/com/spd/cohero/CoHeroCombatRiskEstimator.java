@@ -53,6 +53,14 @@ final class CoHeroCombatRiskEstimator {
         boolean ownerNonAdjacent;
         int heroNonAdjacentTurn = -1;
         boolean heroNonAdjacent;
+        int targetTtkTurn = -1;
+        float targetTtk;
+        int meleeDptTurn = -1;
+        float meleeDpt;
+        int bestRangedDptTurn = -1;
+        float bestRangedDpt;
+        int projectileLineTurn = -1;
+        boolean projectileLine;
         final int[] reachabilitySteps;
         final int[] reachabilityQueue;
         int reachabilityTurn = -1;
@@ -490,10 +498,19 @@ final class CoHeroCombatRiskEstimator {
         if (targetMob == null) {
             return Float.POSITIVE_INFINITY;
         }
+
+        ThreatTurnCache cache = threatTurnCache(targetMob);
+        if (cache.targetTtkTurn == turnSerial) {
+            return cache.targetTtk;
+        }
+
         float fastestCurrentDpt = Math.max(
                 estimateMeleeDpt(targetMob),
                 estimateBestRangedDpt(targetMob));
-        return estimateTargetTtk(targetMob, fastestCurrentDpt);
+        float result = estimateTargetTtk(targetMob, fastestCurrentDpt);
+        cache.targetTtk = result;
+        cache.targetTtkTurn = turnSerial;
+        return result;
     }
 
     private float estimateTargetTtk(Mob targetMob, float outgoingDpt) {
@@ -552,6 +569,11 @@ final class CoHeroCombatRiskEstimator {
             return 0f;
         }
 
+        ThreatTurnCache cache = threatTurnCache(targetMob);
+        if (cache.bestRangedDptTurn == turnSerial) {
+            return cache.bestRangedDpt;
+        }
+
         float best = 0f;
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
             best = Math.max(best, estimateMissileDpt(targetMob, missile));
@@ -565,30 +587,55 @@ final class CoHeroCombatRiskEstimator {
                 continue;
             }
             if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
-                return Math.max(best, targetMob.HP);
+                best = Math.max(best, targetMob.HP);
+                break;
             }
             best = Math.max(best, estimateDamageWandDpt(targetMob, wand));
         }
 
+        cache.bestRangedDpt = best;
+        cache.bestRangedDptTurn = turnSerial;
         return best;
     }
 
     float estimateMeleeDpt(Mob targetMob) {
-        if (targetMob == null || !owner.canAttack(targetMob)) {
-            return 0f;
-        }
-        if (targetMob instanceof GreatCrab && !targetMob.coHeroSurprisedBy(owner)) {
+        if (targetMob == null) {
             return 0f;
         }
 
-        float raw = sampledDamageRoll(owner, targetMob.id());
-        float dr = sampledDrRoll(targetMob, owner.id());
-        float effective = Math.max(0.5f, raw - dr);
-        float hitChance = targetMob.coHeroSurprisedBy(owner)
-                ? 1f
-                : estimatedPhysicalHitChance(
-                        owner.attackSkill(targetMob), targetMob, owner);
-        return effective * hitChance / Math.max(0.25f, owner.attackDelay());
+        ThreatTurnCache cache = threatTurnCache(targetMob);
+        if (cache.meleeDptTurn == turnSerial) {
+            return cache.meleeDpt;
+        }
+
+        float result = 0f;
+        if (owner.canAttack(targetMob)
+                && (!(targetMob instanceof GreatCrab) || targetMob.coHeroSurprisedBy(owner))) {
+            float raw = sampledDamageRoll(owner, targetMob.id());
+            float dr = sampledDrRoll(targetMob, owner.id());
+            float effective = Math.max(0.5f, raw - dr);
+            float hitChance = targetMob.coHeroSurprisedBy(owner)
+                    ? 1f
+                    : estimatedPhysicalHitChance(
+                            owner.attackSkill(targetMob), targetMob, owner);
+            result = effective * hitChance / Math.max(0.25f, owner.attackDelay());
+        }
+
+        cache.meleeDpt = result;
+        cache.meleeDptTurn = turnSerial;
+        return result;
+    }
+
+    private boolean hasProjectileLine(Mob targetMob) {
+        ThreatTurnCache cache = threatTurnCache(targetMob);
+        if (cache.projectileLineTurn != turnSerial) {
+            cache.projectileLine =
+                    new Ballistica(
+                            owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
+                            == targetMob.pos;
+            cache.projectileLineTurn = turnSerial;
+        }
+        return cache.projectileLine;
     }
 
     float estimateMissileDpt(Mob targetMob, MissileWeapon missile) {
@@ -596,9 +643,7 @@ final class CoHeroCombatRiskEstimator {
                 || missile == null
                 || !owner.inventory().canUse(missile)
                 || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1
-                || new Ballistica(
-                        owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
-                        != targetMob.pos) {
+                || !hasProjectileLine(targetMob)) {
             return 0f;
         }
 
@@ -615,9 +660,7 @@ final class CoHeroCombatRiskEstimator {
         if (targetMob == null
                 || !owner.inventory().canUse(bow)
                 || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1
-                || new Ballistica(
-                        owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
-                        != targetMob.pos) {
+                || !hasProjectileLine(targetMob)) {
             return 0f;
         }
 
