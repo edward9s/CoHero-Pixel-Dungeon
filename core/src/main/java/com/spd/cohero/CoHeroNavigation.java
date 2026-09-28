@@ -238,7 +238,7 @@ final class CoHeroNavigation {
         return step;
     }
 
-    private void clearPolicyPath() {
+    void clearPolicyPath() {
         policyPath = null;
         policyPathTarget = -1;
     }
