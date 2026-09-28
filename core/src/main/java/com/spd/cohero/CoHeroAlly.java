@@ -1279,6 +1279,12 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     boolean attackTarget(Char target) {
+        if (target != null && isCharmedBy(target)) {
+            throw new IllegalStateException(
+                    "CoHero attempted to attack its current charm source: "
+                            + target.getClass().getSimpleName());
+        }
+
         long started = System.nanoTime();
         boolean hit = attack(target);
         timings().record(this, target.isAlive()
