@@ -527,6 +527,7 @@ final class CoHeroCombatController {
 
     private MissileWeapon cheapestMonkFocusBreaker() {
         MissileWeapon cheapest = null;
+        int cheapestValue = Integer.MAX_VALUE;
         float cheapestDamage = Float.POSITIVE_INFINITY;
         for (MissileWeapon missile : owner.inventory().missileWeapons()) {
             if (!CoHeroMissileAdapter.supported(missile)
@@ -534,13 +535,22 @@ final class CoHeroCombatController {
                 continue;
             }
 
+            // Focus will force this throw to miss, so preserve upgraded/enchanted/high-tier
+            // projectiles before comparing their otherwise irrelevant expected damage.
+            int preservationValue = Math.max(0, missile.trueLevel()) * 100
+                    + (missile.hasGoodEnchant() ? 50 : 0)
+                    + missile.tier * 10;
             float damage = CoHeroMissileAdapter.expectedDamage(owner, missile);
             if (cheapest == null
-                    || damage < cheapestDamage - 0.001f
-                    || (Math.abs(damage - cheapestDamage) <= 0.001f
+                    || preservationValue < cheapestValue
+                    || (preservationValue == cheapestValue
+                        && damage < cheapestDamage - 0.001f)
+                    || (preservationValue == cheapestValue
+                        && Math.abs(damage - cheapestDamage) <= 0.001f
                         && missile.getClass().getName()
                                 .compareTo(cheapest.getClass().getName()) < 0)) {
                 cheapest = missile;
+                cheapestValue = preservationValue;
                 cheapestDamage = damage;
             }
         }
@@ -855,8 +865,10 @@ final class CoHeroCombatController {
         boolean[] scorpioFov = scorpio.fieldOfView;
         if (scorpioFov == null || scorpioFov.length != Dungeon.level.length()) {
             scorpioFov = new boolean[Dungeon.level.length()];
-            Dungeon.level.updateFieldOfView(scorpio, scorpioFov);
         }
+        // This is a predictive query made between Scorpio turns, so its cached FOV may describe
+        // CoHero's previous position. Refresh it before asking the same flee planner Scorpio uses.
+        Dungeon.level.updateFieldOfView(scorpio, scorpioFov);
 
         // Scorpio.getCloser() delegates to Dungeon.flee() while hunting. If that same flee planner
         // has no legal retreat step, terrain has actually denied the Scorpio room to kite.
