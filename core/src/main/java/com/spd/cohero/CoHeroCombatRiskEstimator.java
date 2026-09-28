@@ -304,8 +304,12 @@ final class CoHeroCombatRiskEstimator {
             return result;
         }
 
+        float postArmorDamage = Math.max(
+                0f,
+                averageThreatDamage(targetMob, owner.pos)
+                        - sampledDrRoll(owner, targetMob.id()));
         float expectedHealPerAttack =
-                Math.max(0f, estimatedThreatDamage(targetMob, owner.pos) - 4f)
+                Math.max(0f, postArmorDamage - 4f)
                         * estimatedHitChance(targetMob, owner.pos);
         if (expectedHealPerAttack <= 0.01f) {
             return result;
