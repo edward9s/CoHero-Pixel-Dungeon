@@ -6,15 +6,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Paralysis;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.ArmoredBrute;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Brute;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Ghoul;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Monk;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Scorpio;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
@@ -30,7 +22,6 @@ import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 final class CoHeroCombatController {
 
@@ -383,11 +374,13 @@ final class CoHeroCombatController {
     }
 
     private Wand preferredDamageWandForHighEvasion(Mob targetMob) {
-        boolean focusedMonk =
-                targetMob instanceof Monk && targetMob.buff(Monk.Focus.class) != null;
-        if (targetMob == null
-                || targetMob.buff(MagicImmune.class) != null
-                || (!focusedMonk && targetMob.coHeroSurprisedBy(owner))) {
+        if (targetMob == null || targetMob.buff(MagicImmune.class) != null) {
+            return null;
+        }
+
+        int rawDefenseSkill = targetMob.defenseSkill(owner);
+        boolean infiniteEvasion = rawDefenseSkill >= Char.INFINITE_EVASION;
+        if (!infiniteEvasion && targetMob.coHeroSurprisedBy(owner)) {
             return null;
         }
 
@@ -428,7 +421,7 @@ final class CoHeroCombatController {
         }
 
         float targetEvasion =
-                targetMob.defenseSkill(owner) * owner.blessRollMultiplier(targetMob);
+                rawDefenseSkill * owner.blessRollMultiplier(targetMob);
         return targetEvasion > bestPhysicalAccuracy
                 ? bestDamageWand(damageWands, targetMob)
                 : null;
