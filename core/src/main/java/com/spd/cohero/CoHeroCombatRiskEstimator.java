@@ -70,14 +70,11 @@ final class CoHeroCombatRiskEstimator {
         float effectiveHp = owner.HP + owner.shielding();
         float reserve = estimatedNearTermSurvivalReserve(attackersNow);
         float outgoingDpt = estimateOutgoingDpt(targetMob);
-        float effectiveTargetHp = estimateEffectiveTargetHp(targetMob, outgoingDpt);
 
         float ttd = incomingDpt <= 0.01f
                 ? Float.POSITIVE_INFINITY
                 : (effectiveHp + reserve) / incomingDpt;
-        float ttk = outgoingDpt <= 0.01f
-                ? Float.POSITIVE_INFINITY
-                : Math.max(0.25f, effectiveTargetHp / outgoingDpt);
+        float ttk = estimateTargetTtk(targetMob, outgoingDpt);
 
         boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
         boolean overwhelmed = attackersNow >= 3;
@@ -109,6 +106,19 @@ final class CoHeroCombatRiskEstimator {
 
     CoHeroThreatTiming assessThreatTimingAtCell(
             int defenderCell, ArrayList<Mob> threats, float horizon) {
+        return assessThreatTimingAtCell(defenderCell, threats, horizon, null);
+    }
+
+    CoHeroThreatTiming assessThreatTimingAtCellWithBlockedCells(
+            int defenderCell, ArrayList<Mob> threats, float horizon, boolean[] blocked) {
+        if (blocked == null || blocked.length != Dungeon.level.length()) {
+            throw new IllegalArgumentException("Blocked-cell projection must match level size");
+        }
+        return assessThreatTimingAtCell(defenderCell, threats, horizon, blocked);
+    }
+
+    private CoHeroThreatTiming assessThreatTimingAtCell(
+            int defenderCell, ArrayList<Mob> threats, float horizon, boolean[] blocked) {
         if (horizon < 0f) {
             throw new IllegalArgumentException("Threat timing horizon must be non-negative");
         }
@@ -125,7 +135,7 @@ final class CoHeroCombatRiskEstimator {
         }
 
         for (Mob threat : threats) {
-            float timeToAttack = estimatedTimeToAttackCell(threat, defenderCell);
+            float timeToAttack = estimatedTimeToAttackCell(threat, defenderCell, blocked);
             nearestAttackTime = Math.min(nearestAttackTime, timeToAttack);
 
             if (timeToAttack <= horizon + 0.001f) {
@@ -152,6 +162,11 @@ final class CoHeroCombatRiskEstimator {
     }
 
     float estimatedTimeToAttackCell(Mob threat, int defenderCell) {
+        return estimatedTimeToAttackCell(threat, defenderCell, null);
+    }
+
+    private float estimatedTimeToAttackCell(
+            Mob threat, int defenderCell, boolean[] blocked) {
         if (threat == null
                 || !threat.isAlive()
                 || !Dungeon.level.insideMap(defenderCell)
@@ -171,13 +186,14 @@ final class CoHeroCombatRiskEstimator {
             return Float.POSITIVE_INFINITY;
         }
 
-        int steps = minimumMovementStepsToAttack(threat, defenderCell);
+        int steps = minimumMovementStepsToAttack(threat, defenderCell, blocked);
         return steps == Integer.MAX_VALUE
                 ? Float.POSITIVE_INFINITY
                 : steps / speed;
     }
 
-    private int minimumMovementStepsToAttack(Mob threat, int defenderCell) {
+    private int minimumMovementStepsToAttack(
+            Mob threat, int defenderCell, boolean[] blocked) {
         int length = Dungeon.level.length();
         int[] steps = new int[length];
         Arrays.fill(steps, -1);
@@ -202,6 +218,7 @@ final class CoHeroCombatRiskEstimator {
                 if (!Dungeon.level.insideMap(next)
                         || Dungeon.level.distance(cell, next) != 1
                         || steps[next] != -1
+                        || (blocked != null && blocked[next] && next != defenderCell)
                         || !enemyCanEnterForRisk(threat, next)) {
                     continue;
                 }
@@ -290,6 +307,23 @@ final class CoHeroCombatRiskEstimator {
         } finally {
             owner.pos = livePos;
         }
+    }
+
+    float estimateTargetTtk(Mob targetMob) {
+        if (targetMob == null) {
+            return Float.POSITIVE_INFINITY;
+        }
+        float fastestCurrentDpt = Math.max(
+                estimateMeleeDpt(targetMob),
+                estimateBestRangedDpt(targetMob));
+        return estimateTargetTtk(targetMob, fastestCurrentDpt);
+    }
+
+    private float estimateTargetTtk(Mob targetMob, float outgoingDpt) {
+        if (outgoingDpt <= 0.01f) {
+            return Float.POSITIVE_INFINITY;
+        }
+        return Math.max(0.25f, estimateEffectiveTargetHp(targetMob, outgoingDpt) / outgoingDpt);
     }
 
     private float estimateEffectiveTargetHp(Mob targetMob, float outgoingDpt) {

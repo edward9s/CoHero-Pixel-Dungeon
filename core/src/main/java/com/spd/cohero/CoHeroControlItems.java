@@ -374,27 +374,88 @@ final class CoHeroControlItems {
             return -1;
         }
 
+        float horizon = Math.max(Actor.TICK, 1f / owner.speed());
+        CoHeroThreatTiming before =
+                owner.assessThreatTimingAtCell(owner.pos, threats, horizon);
+
         int best = -1;
-        int bestNearbyThreats = 0;
+        float bestScore = 0f;
         for (Mob mob : threats) {
             if (mob == null || !mob.isAlive() || !canUseFlockAt(mob.pos)) {
                 continue;
             }
 
-            int nearby = 0;
-            for (Mob other : threats) {
-                if (other != null
-                        && other.isAlive()
-                        && Dungeon.level.distance(other.pos, mob.pos) <= 2) {
-                    nearby++;
-                }
+            boolean[] blocked = predictedFlockCells(mob.pos);
+            if (!hasPostFlockMovementOption(blocked)) {
+                continue;
             }
-            if (best == -1 || nearby > bestNearbyThreats) {
+
+            CoHeroThreatTiming after =
+                    owner.assessThreatTimingAtCellWithBlockedCells(
+                            owner.pos, threats, horizon, blocked);
+
+            int attackersReduced =
+                    before.attackersWithinHorizon - after.attackersWithinHorizon;
+            float incomingReduced =
+                    before.incomingDptWithinHorizon - after.incomingDptWithinHorizon;
+            float timeGained =
+                    finiteTimeGain(before.nearestAttackTime, after.nearestAttackTime);
+
+            if (attackersReduced <= 0
+                    && incomingReduced <= 0.01f
+                    && timeGained <= 0.25f) {
+                continue;
+            }
+
+            float score = attackersReduced * 1000f
+                    + Math.max(0f, incomingReduced) * 20f
+                    + timeGained * 100f;
+            if (best == -1 || score > bestScore) {
                 best = mob.pos;
-                bestNearbyThreats = nearby;
+                bestScore = score;
             }
         }
         return best;
+    }
+
+    private boolean[] predictedFlockCells(int center) {
+        boolean[] blocked = new boolean[Dungeon.level.length()];
+        boolean[] open = BArray.not(Dungeon.level.solid, null);
+        PathFinder.buildDistanceMap(center, open, 2);
+        for (int cell = 0; cell < PathFinder.distance.length; cell++) {
+            if (PathFinder.distance[cell] != Integer.MAX_VALUE
+                    && Dungeon.level.insideMap(cell)
+                    && Actor.findChar(cell) == null
+                    && !Dungeon.level.pit[cell]) {
+                blocked[cell] = true;
+            }
+        }
+        return blocked;
+    }
+
+    private boolean hasPostFlockMovementOption(boolean[] blocked) {
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = owner.pos + offset;
+            if (Dungeon.level.insideMap(cell)
+                    && Dungeon.level.distance(owner.pos, cell) == 1
+                    && Dungeon.level.passable[cell]
+                    && !blocked[cell]
+                    && Actor.findChar(cell) == null
+                    && owner.isMovementSafe(cell)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private float finiteTimeGain(float before, float after) {
+        if (Float.isInfinite(after)) {
+            return Float.isInfinite(before) ? 0f : 8f;
+        }
+        if (Float.isInfinite(before)) {
+            return 0f;
+        }
+        return Math.max(0f, Math.min(8f, after - before));
     }
 
     private int chooseEmergencyShockCell(ArrayList<Mob> threats) {
@@ -402,8 +463,12 @@ final class CoHeroControlItems {
             return -1;
         }
 
+        float horizon = Math.max(Actor.TICK, 1f / owner.speed());
+        CoHeroThreatTiming before =
+                owner.assessThreatTimingAtCell(owner.pos, threats, horizon);
+
         int best = -1;
-        int bestControllable = 0;
+        float bestScore = 0f;
         for (Mob candidate : threats) {
             if (candidate == null || !candidate.isAlive() || !owner.fieldOfView[candidate.pos]) {
                 continue;
@@ -411,30 +476,53 @@ final class CoHeroControlItems {
 
             PathFinder.buildDistanceMap(
                     candidate.pos, BArray.not(Dungeon.level.solid, null), 2);
-            int controllable = 0;
+            ArrayList<Mob> remaining = new ArrayList<>();
             boolean unsafe = false;
+            for (Mob threat : threats) {
+                if (threat == null || !threat.isAlive()) {
+                    continue;
+                }
+
+                boolean inArea = PathFinder.distance[threat.pos] != Integer.MAX_VALUE;
+                if (!inArea
+                        || threat.isImmune(Paralysis.class)
+                        || threat.buff(Paralysis.class) != null) {
+                    remaining.add(threat);
+                }
+            }
+
             for (int cell = 0; cell < PathFinder.distance.length; cell++) {
                 if (PathFinder.distance[cell] == Integer.MAX_VALUE) {
                     continue;
                 }
-
                 Char ch = Actor.findChar(cell);
-                if (ch == null) {
-                    continue;
-                }
-                if (ch.alignment != Char.Alignment.ENEMY
-                        || (ch instanceof Mob && ((Mob) ch).state == ((Mob) ch).SLEEPING)) {
+                if (ch != null
+                        && (ch.alignment != Char.Alignment.ENEMY
+                            || (ch instanceof Mob && ((Mob) ch).state == ((Mob) ch).SLEEPING))) {
                     unsafe = true;
                     break;
                 }
-                if (!ch.isImmune(Paralysis.class) && ch.buff(Paralysis.class) == null) {
-                    controllable++;
-                }
+            }
+            if (unsafe || remaining.size() == threats.size()) {
+                continue;
             }
 
-            if (!unsafe && controllable > bestControllable) {
+            CoHeroThreatTiming after =
+                    owner.assessThreatTimingAtCell(owner.pos, remaining, horizon);
+            int attackersReduced =
+                    before.attackersWithinHorizon - after.attackersWithinHorizon;
+            float incomingReduced =
+                    before.incomingDptWithinHorizon - after.incomingDptWithinHorizon;
+
+            if (attackersReduced <= 0 && incomingReduced <= 0.01f) {
+                continue;
+            }
+
+            float score = attackersReduced * 1000f
+                    + Math.max(0f, incomingReduced) * 20f;
+            if (best == -1 || score > bestScore) {
                 best = candidate.pos;
-                bestControllable = controllable;
+                bestScore = score;
             }
         }
         return best;
@@ -532,6 +620,8 @@ final class CoHeroControlItems {
             return false;
         }
 
+        // Match StoneOfShock's stock recharge side effect for the inventory model CoHero owns.
+        owner.inventory().gainWandCharge(1f + affected);
         return finishRunestoneUse(stone, Assets.Sounds.LIGHTNING);
     }
 

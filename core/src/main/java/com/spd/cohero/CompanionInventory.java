@@ -107,6 +107,15 @@ public final class CompanionInventory {
         return Collections.unmodifiableList(result);
     }
 
+    void gainWandCharge(float amount) {
+        if (amount <= 0f) {
+            return;
+        }
+        for (Wand wand : wands()) {
+            wand.gainCharge(amount);
+        }
+    }
+
     public List<Wand> wands() {
         ArrayList<Wand> result = new ArrayList<>();
         for (Item item : backpack) {
