@@ -607,6 +607,7 @@ public class CoHeroAlly extends DirectableAlly {
         long prepareStarted = System.nanoTime();
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
+        riskEstimator.beginTurn();
         resetInheritedDecisionState();
         guard.beginTurn();
 
@@ -759,6 +760,7 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
+                Mob assessedSurvivalTarget = survivalTarget;
                 Boolean objectiveAction =
                         combatObjective.actBeforeOffense(attackableThreats, visibleThreats);
                 if (objectiveAction != null) {
@@ -772,7 +774,9 @@ public class CoHeroAlly extends DirectableAlly {
                 }
                 combatTarget = combat.selectCombatTarget(attackableThreats);
                 survivalTarget = combat.selectSurvivalTarget(attackableThreats);
-                combatRisk = assessCombatRisk(survivalTarget, combatThreats);
+                if (survivalTarget != assessedSurvivalTarget) {
+                    combatRisk = assessCombatRisk(survivalTarget, combatThreats);
+                }
 
                 Boolean armoredBruteRage = combat.tryArmoredBruteRageTactics(
                         combatTarget, combatThreats, combatRisk);
