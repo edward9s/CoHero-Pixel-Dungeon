@@ -9,6 +9,12 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Bat;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfBlastWave;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfCorrosion;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfDisintegration;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfFireblast;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLightning;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.SpiritBow;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
@@ -614,11 +620,18 @@ final class CoHeroCombatRiskEstimator {
                     if (!CoHeroWandAdapter.supported(wand)) {
                         continue;
                     }
-                    if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
-                        best = Math.max(best, targetMob.HP);
-                        break;
+
+                    long perWandStarted = System.nanoTime();
+                    try {
+                        if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
+                            best = Math.max(best, targetMob.HP);
+                            break;
+                        }
+                        best = Math.max(best, estimateDamageWandDpt(targetMob, wand));
+                    } finally {
+                        owner.timings().record(
+                                owner, wandTimingAction(wand), perWandStarted);
                     }
-                    best = Math.max(best, estimateDamageWandDpt(targetMob, wand));
                 }
             } finally {
                 owner.timings().record(
@@ -631,6 +644,28 @@ final class CoHeroCombatRiskEstimator {
         } finally {
             owner.timings().record(owner, CoHeroTimings.Action.TTK_RANGED, rangedStarted);
         }
+    }
+
+    private CoHeroTimings.Action wandTimingAction(Wand wand) {
+        if (wand instanceof WandOfWarding) {
+            return CoHeroTimings.Action.TTK_WAND_WARDING;
+        }
+        if (wand instanceof WandOfCorrosion) {
+            return CoHeroTimings.Action.TTK_WAND_CORROSION;
+        }
+        if (wand instanceof WandOfFireblast) {
+            return CoHeroTimings.Action.TTK_WAND_FIREBLAST;
+        }
+        if (wand instanceof WandOfBlastWave) {
+            return CoHeroTimings.Action.TTK_WAND_BLAST_WAVE;
+        }
+        if (wand instanceof WandOfLightning) {
+            return CoHeroTimings.Action.TTK_WAND_LIGHTNING;
+        }
+        if (wand instanceof WandOfDisintegration) {
+            return CoHeroTimings.Action.TTK_WAND_DISINTEGRATION;
+        }
+        return CoHeroTimings.Action.TTK_WAND_OTHER;
     }
 
     float estimateMeleeDpt(Mob targetMob) {
