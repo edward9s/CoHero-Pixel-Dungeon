@@ -250,11 +250,11 @@ final class CoHeroWardingPlanner {
                     || Dungeon.level.distance(cell, target.pos) > 4
                     || wand.coHeroBallistica(owner, cell).collisionPos != cell
                     || !canEngage(cell, 4, target)
-                    || wouldWakeSleepingEnemy(cell, 4, target)) {
+                    || wouldWakeSleepingEnemy(cell, 4, target, context)) {
                 continue;
             }
 
-            int preFireThreats = preFirstActionThreats(owner, cell, 1);
+            int preFireThreats = preFirstActionThreats(owner, cell, 1, context);
             if (preFireThreats > 0) {
                 continue;
             }
@@ -264,7 +264,7 @@ final class CoHeroWardingPlanner {
                 continue;
             }
 
-            int coverage = movementCoverage(cell, 4, target);
+            int coverage = movementCoverage(cell, 4, target, context);
             if (coverage == 0) {
                 continue;
             }
