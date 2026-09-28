@@ -19,6 +19,7 @@ final class CoHeroTimings {
         REMOTE_VIEW("remote_view"),
         PREPARE("prepare"),
         COMBAT("combat"),
+        COMBAT_SETUP("combat_setup"),
         COMBAT_RISK("combat_risk"),
         COMBAT_SURVIVAL("combat_survival"),
         COMBAT_OBJECTIVE("combat_objective"),
@@ -218,6 +219,7 @@ final class CoHeroTimings {
         if ((action == Action.LOOT_SEARCH
                 || action == Action.PREPARE
                 || action == Action.COMBAT
+                || action == Action.COMBAT_SETUP
                 || action == Action.COMBAT_RISK
                 || action == Action.COMBAT_SURVIVAL
                 || action == Action.COMBAT_OBJECTIVE
