@@ -47,6 +47,7 @@ final class CoHeroTimings {
         MOVE_SAFE_MASK("move_safe_mask"),
         MOVE_POLICY_PATH("move_policy_path"),
         MOVE_EXECUTE("move_execute"),
+        HAZARD_ESCAPE("hazard_escape"),
         GUARD("guard"),
         EXPLORE("explore"),
         EXPLORE_VALIDATE("explore_validate"),
@@ -280,6 +281,7 @@ final class CoHeroTimings {
                 || action == Action.MOVE_SAFE_MASK
                 || action == Action.MOVE_POLICY_PATH
                 || action == Action.MOVE_EXECUTE
+                || action == Action.HAZARD_ESCAPE
                 || action == Action.GUARD
                 || action == Action.EXPLORE
                 || action == Action.EXPLORE_VALIDATE
