@@ -770,6 +770,14 @@ public class CoHeroAlly extends DirectableAlly {
                     return encirclementPositioning;
                 }
 
+                Boolean scorpioTactics = combat.tryScorpioTactics(
+                        combatTarget, combatThreats, attackableThreats, combatRisk);
+                if (scorpioTactics != null) {
+                    logBossDecision("scorpio_tactics:" + combatTarget.id(),
+                            targetDebug(combatTarget) + " -> scorpio tactics");
+                    return scorpioTactics;
+                }
+
                 // Ranged enemies are normally closed to adjacency. Exception: sufficiently stronger
                 // ranged offense may keep spacing, or create it against an immobilized/slower target.
                 Boolean rangedEngagement = combat.tryRangedEngagement(combatTarget, combatThreats);
@@ -1149,6 +1157,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     float estimateDamageWandDpt(Mob targetMob, Wand wand) {
         return riskEstimator.estimateDamageWandDpt(targetMob, wand);
+    }
+
+    float estimateBestRangedDpt(Mob targetMob) {
+        return riskEstimator.estimateBestRangedDpt(targetMob);
     }
 
     float threatOpportunity(Mob threat, int defenderCell) {
