@@ -442,12 +442,10 @@ final class CoHeroCombatController {
         return null;
     }
 
-    Boolean tryShortBruteRageTactics(
-            ArrayList<Mob> allThreats,
-            CoHeroCombatRisk risk) {
-        if (allThreats == null || allThreats.isEmpty() || risk == null) {
+    Boolean tryShortBruteRageTactics(ArrayList<Mob> allThreats) {
+        if (allThreats == null || allThreats.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Short Brute rage tactics require current combat threats and risk");
+                    "Short Brute rage tactics require current combat threats");
         }
 
         Mob shortRageThreat = nearestShortBruteRageThreat(allThreats);
