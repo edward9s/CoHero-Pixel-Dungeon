@@ -61,6 +61,8 @@ final class CoHeroCombatRiskEstimator {
         float bestRangedDpt;
         int projectileLineTurn = -1;
         boolean projectileLine;
+        int targetDrTurn = -1;
+        float targetDr;
         final int[] reachabilitySteps;
         final int[] reachabilityQueue;
         int reachabilityTurn = -1;
@@ -612,7 +614,7 @@ final class CoHeroCombatRiskEstimator {
         if (owner.canAttack(targetMob)
                 && (!(targetMob instanceof GreatCrab) || targetMob.coHeroSurprisedBy(owner))) {
             float raw = sampledDamageRoll(owner, targetMob.id());
-            float dr = sampledDrRoll(targetMob, owner.id());
+            float dr = targetDr(targetMob);
             float effective = Math.max(0.5f, raw - dr);
             float hitChance = targetMob.coHeroSurprisedBy(owner)
                     ? 1f
@@ -647,7 +649,7 @@ final class CoHeroCombatRiskEstimator {
             return 0f;
         }
 
-        float targetDr = sampledDrRoll(targetMob, owner.id());
+        float targetDr = targetDr(targetMob);
         float hitChance = estimatedPhysicalHitChance(
                 owner.attackSkillWith(missile, targetMob), targetMob, owner);
         float effective = Math.max(
@@ -665,7 +667,7 @@ final class CoHeroCombatRiskEstimator {
         }
 
         MissileWeapon arrow = bow.knockArrow();
-        float targetDr = sampledDrRoll(targetMob, owner.id());
+        float targetDr = targetDr(targetMob);
         float hitChance = estimatedPhysicalHitChance(
                 owner.attackSkillWith(arrow, targetMob), targetMob, owner);
         float effective = Math.max(
@@ -678,11 +680,20 @@ final class CoHeroCombatRiskEstimator {
         if (targetMob == null
                 || wand == null
                 || !owner.inventory().canUse(wand)
-                || !CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
                 || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
             return 0f;
         }
-        return Math.max(0f, CoHeroWandAdapter.expectedDamage(wand, owner, targetMob));
+        return Math.max(
+                0f, CoHeroWandAdapter.expectedUsableDamage(wand, owner, targetMob));
+    }
+
+    private float targetDr(Mob targetMob) {
+        ThreatTurnCache cache = threatTurnCache(targetMob);
+        if (cache.targetDrTurn != turnSerial) {
+            cache.targetDr = sampledDrRoll(targetMob, owner.id());
+            cache.targetDrTurn = turnSerial;
+        }
+        return cache.targetDr;
     }
 
     private float estimatedNearTermSurvivalReserve(int attackersNow) {
