@@ -22,6 +22,8 @@ case "$phase" in
       "$upstream/android/src/main/AndroidManifest.xml"
     python "$patches/patch_gamescene.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/GameScene.java"
+    python "$patches/patch_attack_indicator.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/AttackIndicator.java"
     python "$patches/patch_cohero_visual_fov.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java"
     python "$patches/patch_cohero_class_traits.py" \
