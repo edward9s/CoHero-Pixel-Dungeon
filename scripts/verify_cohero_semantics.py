@@ -12,6 +12,8 @@ COMPANION_DEATH_FAILURE_FLOW = """            CoHero.markCompanionDeathGameOver(
 """
 HERO_FINAL_DEATH_ANKH_GATE = "if (!com.spd.cohero.CoHero.companionDeathEndedRun()) {"
 FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
+ATTACK_INDICATOR_FOV_GATE = "if (!com.spd.cohero.CoHero.heroCanSee(target.pos)) {"
+ATTACK_INDICATOR_PATCH_CALL = '"$patches/patch_attack_indicator.py"'
 
 
 def main() -> int:
@@ -67,6 +69,26 @@ def main() -> int:
     if dungeon_patch.count(FAILURE_CLAIM_HOOK) != 1:
         print(
             "Dungeon.fail integration must claim CoHero run-failure submission exactly once.",
+            file=sys.stderr,
+        )
+        return 1
+
+    attack_indicator_patch = (
+        root / "integration" / "shattered" / "patches" / "patch_attack_indicator.py"
+    ).read_text(encoding="utf-8")
+    if attack_indicator_patch.count(ATTACK_INDICATOR_FOV_GATE) != 1:
+        print(
+            "AttackIndicator must reject targets outside Hero gameplay FOV.",
+            file=sys.stderr,
+        )
+        return 1
+
+    apply_script = (
+        root / "integration" / "shattered" / "apply.sh"
+    ).read_text(encoding="utf-8")
+    if apply_script.count(ATTACK_INDICATOR_PATCH_CALL) != 1:
+        print(
+            "Shattered integration must apply the AttackIndicator visibility patch exactly once.",
             file=sys.stderr,
         )
         return 1
