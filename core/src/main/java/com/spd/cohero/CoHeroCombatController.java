@@ -11,6 +11,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Brute;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.CrystalGuardian;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.GreatCrab;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Monk;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Scorpio;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
@@ -440,6 +441,161 @@ final class CoHeroCombatController {
 
         // Trapped with no survival action: fall through to combat rather than waste the turn.
         return null;
+    }
+
+    Boolean tryMonkFocusTactics(
+            Mob targetMob,
+            ArrayList<Mob> allThreats,
+            CoHeroCombatRisk risk) {
+        if (!(targetMob instanceof Monk)
+                || targetMob.buff(Monk.Focus.class) == null) {
+            return null;
+        }
+        if (allThreats == null || allThreats.isEmpty() || risk == null) {
+            throw new IllegalArgumentException(
+                    "Monk Focus tactics require current combat threats and risk");
+        }
+
+        float effectiveHp = owner.HP + owner.shielding();
+        boolean emergency =
+                risk.immediateIncoming * 1.35f >= effectiveHp
+                || risk.ttd <= 3f
+                || risk.attackersNow >= 2;
+        if (emergency) {
+            // Do not let the one-shot Focus mechanic override genuine survival pressure.
+            return null;
+        }
+
+        Wand focusBypass = bestMonkFocusBypassWand(targetMob);
+        if (focusBypass != null) {
+            int aim = CoHeroWandAdapter.aimCell(focusBypass, owner, targetMob);
+            if (aim >= 0) {
+                owner.logBossDecision("monk_focus_wand:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> bypass Focus with "
+                                + focusBypass.getClass().getSimpleName());
+                return performWandCast(aim, focusBypass);
+            }
+        }
+
+        // Focus is a one-use physical parry. Prefer a free attack to consume it before spending
+        // ammunition: current melee/reach first, then the reusable Spirit Bow.
+        if (owner.canAttack(targetMob)) {
+            owner.logBossDecision("monk_focus_melee_break:" + targetMob.id(),
+                    owner.targetDebug(targetMob) + " -> consume Focus with melee");
+            return performMeleeAttack(targetMob);
+        }
+
+        int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
+        if (distance > 1
+                && new Ballistica(
+                        owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
+                        == targetMob.pos) {
+            SpiritBow bow = owner.inventory().spiritBow();
+            if (owner.inventory().canUse(bow)) {
+                owner.logBossDecision("monk_focus_bow_break:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> consume Focus with Spirit Bow");
+                return performSpiritBowAttack(targetMob, bow);
+            }
+
+            MissileWeapon cheapest = cheapestMonkFocusBreaker();
+            if (cheapest != null) {
+                owner.logBossDecision("monk_focus_missile_break:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> consume Focus with "
+                                + cheapest.getClass().getSimpleName());
+                return performMissileAttack(targetMob, cheapest);
+            }
+        }
+
+        // If melee is the only answer and one safe step establishes adjacency, close now rather
+        // than retreating because the generic TTK sees Focus as infinite evasion.
+        if (owner.hasMeleeCombatCapability() && !owner.rooted) {
+            int closeStep = chooseOneStepMeleeApproach(targetMob, allThreats);
+            if (closeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(closeStep, "monk_focus_close");
+            }
+        }
+
+        return null;
+    }
+
+    Boolean tryMonkOpeningTactics(Mob targetMob, ArrayList<Mob> allThreats) {
+        if (!(targetMob instanceof Monk)
+                || targetMob.buff(Monk.Focus.class) != null) {
+            return null;
+        }
+        if (allThreats == null || allThreats.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Monk opening tactics require current combat threats");
+        }
+
+        // Once Focus is gone, movement helps a Monk rebuild it; Senior rebuilds it especially fast.
+        // Use the live opening immediately instead of ordinary spacing/encirclement positioning.
+        if (owner.canAttack(targetMob)) {
+            owner.logBossDecision("monk_opening_melee:" + targetMob.id(),
+                    owner.targetDebug(targetMob) + " -> exploit Focus cooldown");
+            return performMeleeAttack(targetMob);
+        }
+
+        if (Dungeon.level.distance(owner.pos, targetMob.pos) > 1) {
+            RangedChoice ranged = chooseRangedAttack(targetMob);
+            if (ranged != null) {
+                owner.logBossDecision("monk_opening_ranged:" + targetMob.id(),
+                        owner.targetDebug(targetMob) + " -> exploit Focus cooldown at range");
+                return performRangedChoice(targetMob, ranged);
+            }
+        }
+
+        if (owner.hasMeleeCombatCapability() && !owner.rooted) {
+            int closeStep = chooseOneStepMeleeApproach(targetMob, allThreats);
+            if (closeStep != -1) {
+                owner.allowAnyGuardMovement();
+                return moveForRangedEngagement(closeStep, "monk_opening_close");
+            }
+        }
+
+        return null;
+    }
+
+    private Wand bestMonkFocusBypassWand(Mob targetMob) {
+        ArrayList<Wand> candidates = new ArrayList<>();
+        for (Wand wand : owner.inventory().wands()) {
+            if (wand instanceof WandOfWarding
+                    || !CoHeroWandAdapter.supported(wand)
+                    || !CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)
+                    || !CoHeroWandAdapter.damagingCapability(wand, targetMob)) {
+                continue;
+            }
+
+            int aim = CoHeroWandAdapter.aimCell(wand, owner, targetMob);
+            float damage = CoHeroWandAdapter.expectedDamage(wand, owner, targetMob);
+            if (aim >= 0 && damage > 0f) {
+                candidates.add(wand);
+            }
+        }
+        return bestDamageWand(candidates, targetMob);
+    }
+
+    private MissileWeapon cheapestMonkFocusBreaker() {
+        MissileWeapon cheapest = null;
+        float cheapestDamage = Float.POSITIVE_INFINITY;
+        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+            if (!CoHeroMissileAdapter.supported(missile)
+                    || !owner.inventory().canUse(missile)) {
+                continue;
+            }
+
+            float damage = CoHeroMissileAdapter.expectedDamage(owner, missile);
+            if (cheapest == null
+                    || damage < cheapestDamage - 0.001f
+                    || (Math.abs(damage - cheapestDamage) <= 0.001f
+                        && missile.getClass().getName()
+                                .compareTo(cheapest.getClass().getName()) < 0)) {
+                cheapest = missile;
+                cheapestDamage = damage;
+            }
+        }
+        return cheapest;
     }
 
     Boolean tryShortBruteRageTactics(ArrayList<Mob> allThreats) {
@@ -925,9 +1081,11 @@ final class CoHeroCombatController {
     }
 
     private Wand preferredDamageWandForHighEvasion(Mob targetMob) {
+        boolean focusedMonk =
+                targetMob instanceof Monk && targetMob.buff(Monk.Focus.class) != null;
         if (targetMob == null
                 || targetMob.buff(MagicImmune.class) != null
-                || targetMob.coHeroSurprisedBy(owner)) {
+                || (!focusedMonk && targetMob.coHeroSurprisedBy(owner))) {
             return null;
         }
 
