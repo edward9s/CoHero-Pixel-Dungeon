@@ -577,19 +577,7 @@ final class CoHeroCombatController {
 
 
 
-    private int meleeFrontage(int cell) {
-        int result = 0;
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int adjacent = cell + offset;
-            if (adjacent >= 0
-                    && adjacent < Dungeon.level.length()
-                    && Dungeon.level.distance(cell, adjacent) == 1
-                    && Dungeon.level.passable[adjacent]) {
-                result++;
-            }
-        }
-        return result;
-    }
+
 
 
 
