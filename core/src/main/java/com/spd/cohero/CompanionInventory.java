@@ -681,7 +681,7 @@ public final class CompanionInventory {
         averageDamage += RingOfForce.armedDamageBonus(owner);
         int excessStrength = Math.max(0, owner.STR() - strengthRequirement);
         averageDamage += excessStrength / 2f;
-        return averageDamage / Math.max(0.01f, value.delayFactor(owner));
+        return averageDamage / Math.max(0.01f, owner.meleeAttackDelay(value));
     }
 
     private float forceUnarmedPower() {
@@ -691,7 +691,7 @@ public final class CompanionInventory {
         float averageDamage =
                 (RingOfForce.coHeroUnarmedMinDamage(owner, owner.STR())
                 + RingOfForce.coHeroUnarmedMaxDamage(owner, owner.STR())) / 2f;
-        return averageDamage / Math.max(0.01f, owner.attackDelay());
+        return averageDamage / Math.max(0.01f, owner.meleeAttackDelay(null));
     }
 
     private float armorProtection(Armor value) {
