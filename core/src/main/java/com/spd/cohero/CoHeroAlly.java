@@ -1412,6 +1412,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     void clearNavigationPath() {
         path = null;
+        navigation.clearPolicyPath();
     }
 
     int defendingPosition() {
