@@ -8,6 +8,7 @@ import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Owns ordinary CoHero navigation state and exploration.
@@ -103,9 +104,20 @@ final class CoHeroNavigation {
         return true;
     }
 
-    boolean[] ordinarySafePassable(boolean knownOnly) {
-        boolean[] result = CoHeroHazards.maskDangerous(owner, Dungeon.level.passable);
+    boolean[] movementSafeMask() {
+        boolean[] allCells = new boolean[Dungeon.level.length()];
+        Arrays.fill(allCells, true);
+        return applyMovementSafety(allCells);
+    }
+
+    private boolean[] applyMovementSafety(boolean[] passable) {
+        boolean[] result = CoHeroHazards.maskDangerous(owner, passable);
         maskSleepingEnemyWakeRisk(result);
+        return result;
+    }
+
+    boolean[] ordinarySafePassable(boolean knownOnly) {
+        boolean[] result = applyMovementSafety(Dungeon.level.passable);
 
         if (knownOnly) {
             for (int cell = 0; cell < result.length; cell++) {
