@@ -12,6 +12,7 @@ import com.watabou.utils.PathFinder;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 
 /**
  * Tactical placement planner for CoHero-owned wards.
@@ -27,12 +28,51 @@ final class CoHeroWardingPlanner {
     private CoHeroWardingPlanner() {
     }
 
+    private static final class PlanningContext {
+        final ArrayList<Mob> visibleAwakeEnemies = new ArrayList<>();
+        final ArrayList<Mob> sleepingEnemies = new ArrayList<>();
+        final IdentityHashMap<Mob, ArrayList<Integer>> reachableByEnemy =
+                new IdentityHashMap<>();
+
+        PlanningContext(CoHeroAlly owner) {
+            for (Char ch : Actor.chars()) {
+                if (!(ch instanceof Mob) || ch.alignment != Char.Alignment.ENEMY) {
+                    continue;
+                }
+
+                Mob enemy = (Mob) ch;
+                if (enemy.state == enemy.SLEEPING) {
+                    sleepingEnemies.add(enemy);
+                    continue;
+                }
+                if (enemy.state == enemy.PASSIVE
+                        || owner.fieldOfView == null
+                        || enemy.pos < 0
+                        || enemy.pos >= owner.fieldOfView.length
+                        || !owner.fieldOfView[enemy.pos]) {
+                    continue;
+                }
+                visibleAwakeEnemies.add(enemy);
+            }
+        }
+
+        ArrayList<Integer> reachable(Mob enemy) {
+            ArrayList<Integer> result = reachableByEnemy.get(enemy);
+            if (result == null) {
+                result = reachableBeforeWardActs(enemy);
+                reachableByEnemy.put(enemy, result);
+            }
+            return result;
+        }
+    }
+
     static Plan choose(WandOfWarding wand, CoHeroAlly owner, Mob target) {
         if (wand == null || owner == null || target == null || !wand.coHeroCanZap(owner)) {
             return null;
         }
 
         Plan best = null;
+        PlanningContext context = new PlanningContext(owner);
 
         for (Char ch : Actor.chars()) {
             if (!(ch instanceof Ward)) {
@@ -51,13 +91,13 @@ final class CoHeroWardingPlanner {
 
             int projectedTier = Math.min(6, ward.tier + 1);
             int projectedViewDistance = ward.viewDistance + (ward.tier < 6 ? 1 : 0);
-            int coverage = movementCoverage(ward.pos, projectedViewDistance, target);
+            int coverage = movementCoverage(ward.pos, projectedViewDistance, target, context);
             if (coverage == 0
-                    || wouldWakeSleepingEnemy(ward.pos, projectedViewDistance, target)) {
+                    || wouldWakeSleepingEnemy(ward.pos, projectedViewDistance, target, context)) {
                 continue;
             }
 
-            int preFireThreats = preFirstActionThreats(owner, ward.pos, projectedTier);
+            int preFireThreats = preFirstActionThreats(owner, ward.pos, projectedTier, context);
             if (projectedTier <= 3 && preFireThreats > 0) {
                 continue;
             }
@@ -93,11 +133,11 @@ final class CoHeroWardingPlanner {
                     || wand.coHeroBallistica(owner, cell).collisionPos != cell
                     || !wand.coHeroWouldIncreaseWardEnergy(owner, cell)
                     || !canEngage(cell, 4, target)
-                    || wouldWakeSleepingEnemy(cell, 4, target)) {
+                    || wouldWakeSleepingEnemy(cell, 4, target, context)) {
                 continue;
             }
 
-            int preFireThreats = preFirstActionThreats(owner, cell, 1);
+            int preFireThreats = preFirstActionThreats(owner, cell, 1, context);
             if (preFireThreats > 0) {
                 continue;
             }
@@ -107,7 +147,7 @@ final class CoHeroWardingPlanner {
                 continue;
             }
 
-            int coverage = movementCoverage(cell, 4, target);
+            int coverage = movementCoverage(cell, 4, target, context);
             if (coverage == 0) {
                 continue;
             }
@@ -156,6 +196,7 @@ final class CoHeroWardingPlanner {
 
         float replacementValue = replacementValue(replacement);
         RecallPlan best = null;
+        PlanningContext context = new PlanningContext(owner);
 
         for (Char ch : Actor.chars()) {
             if (!(ch instanceof Ward)) {
@@ -167,7 +208,7 @@ final class CoHeroWardingPlanner {
                 continue;
             }
 
-            int coverage = wardBattlefieldCoverage(owner, ward);
+            int coverage = wardBattlefieldCoverage(owner, ward, context);
             float retainedValue = retainedWardValue(wand, owner, ward, coverage);
             int travelDistance = Dungeon.level.distance(owner.pos, ward.pos);
             float gain = replacementValue - retainedValue - 3f * travelDistance;
@@ -198,6 +239,7 @@ final class CoHeroWardingPlanner {
     private static Plan chooseFreshIgnoringBudget(
             WandOfWarding wand, CoHeroAlly owner, Mob target) {
         Plan best = null;
+        PlanningContext context = new PlanningContext(owner);
 
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (owner.fieldOfView == null
@@ -254,20 +296,12 @@ final class CoHeroWardingPlanner {
                 - replacement.nearbyDanger * 8f;
     }
 
-    private static int wardBattlefieldCoverage(CoHeroAlly owner, Ward ward) {
+    private static int wardBattlefieldCoverage(
+            CoHeroAlly owner, Ward ward, PlanningContext context) {
         int coverage = 0;
-        for (Char ch : Actor.chars()) {
-            if (!(ch instanceof Mob)
-                    || ch.alignment != Char.Alignment.ENEMY
-                    || owner.fieldOfView == null
-                    || !owner.fieldOfView[ch.pos]) {
-                continue;
-            }
-            Mob enemy = (Mob) ch;
-            if (enemy.state == enemy.SLEEPING || enemy.state == enemy.PASSIVE) {
-                continue;
-            }
-            coverage += movementCoverage(ward.pos, ward.viewDistance, enemy);
+        for (Mob enemy : context.visibleAwakeEnemies) {
+            coverage += movementCoverage(
+                    ward.pos, ward.viewDistance, enemy, context);
         }
         return coverage;
     }
@@ -369,27 +403,19 @@ final class CoHeroWardingPlanner {
         }
     }
 
-    private static int preFirstActionThreats(CoHeroAlly owner, int wardCell, int projectedTier) {
+    private static int preFirstActionThreats(
+            CoHeroAlly owner,
+            int wardCell,
+            int projectedTier,
+            PlanningContext context) {
         Ward probe = new Ward();
         probe.pos = wardCell;
         probe.tier = projectedTier;
 
         int threats = 0;
-        for (Char ch : Actor.chars()) {
-            if (!(ch instanceof Mob)
-                    || ch.alignment != Char.Alignment.ENEMY
-                    || owner.fieldOfView == null
-                    || !owner.fieldOfView[ch.pos]) {
-                continue;
-            }
-
-            Mob enemy = (Mob) ch;
-            if (enemy.state == enemy.SLEEPING || enemy.state == enemy.PASSIVE) {
-                continue;
-            }
-
+        for (Mob enemy : context.visibleAwakeEnemies) {
             boolean threatens = false;
-            for (int source : reachableBeforeWardActs(enemy)) {
+            for (int source : context.reachable(enemy)) {
                 if (enemy.coHeroCanAttackFrom(source, probe)) {
                     threatens = true;
                     break;
@@ -454,11 +480,16 @@ final class CoHeroWardingPlanner {
         return !Char.hasProp(enemy, Char.Property.LARGE) || Dungeon.level.openSpace[cell];
     }
 
-    private static int movementCoverage(int wardCell, int viewDistance, Mob target) {
+    private static int movementCoverage(
+            int wardCell,
+            int viewDistance,
+            Mob target,
+            PlanningContext context) {
         int covered = 0;
-        for (int future : reachableBeforeWardActs(target)) {
+        for (int future : context.reachable(target)) {
             if (Dungeon.level.distance(wardCell, future) <= viewDistance
-                    && new Ballistica(wardCell, future, Ballistica.MAGIC_BOLT).collisionPos == future) {
+                    && new Ballistica(
+                            wardCell, future, Ballistica.MAGIC_BOLT).collisionPos == future) {
                 covered++;
             }
         }
@@ -475,19 +506,19 @@ final class CoHeroWardingPlanner {
                 && new Ballistica(wardCell, target.pos, Ballistica.MAGIC_BOLT).collisionPos == target.pos;
     }
 
-    private static boolean wouldWakeSleepingEnemy(int wardCell, int viewDistance, Mob intendedTarget) {
-        for (Char ch : Actor.chars()) {
-            if (!(ch instanceof Mob) || ch == intendedTarget || ch.alignment != Char.Alignment.ENEMY) {
-                continue;
-            }
-
-            Mob mob = (Mob) ch;
-            if (mob.state != mob.SLEEPING
+    private static boolean wouldWakeSleepingEnemy(
+            int wardCell,
+            int viewDistance,
+            Mob intendedTarget,
+            PlanningContext context) {
+        for (Mob mob : context.sleepingEnemies) {
+            if (mob == intendedTarget
                     || Dungeon.level.distance(wardCell, mob.pos) > viewDistance) {
                 continue;
             }
 
-            if (new Ballistica(wardCell, mob.pos, Ballistica.MAGIC_BOLT).collisionPos == mob.pos) {
+            if (new Ballistica(
+                    wardCell, mob.pos, Ballistica.MAGIC_BOLT).collisionPos == mob.pos) {
                 return true;
             }
         }
