@@ -939,6 +939,11 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
+                if (controlItems.tryUseCombatFrostPotion(
+                        combatTarget, attackableThreats, combatRisk)) {
+                    return true;
+                }
+
                 if (survival.tryUseCombatEarthenArmor(
                         combatTarget, combatThreats, combatRisk)) {
                     return true;
