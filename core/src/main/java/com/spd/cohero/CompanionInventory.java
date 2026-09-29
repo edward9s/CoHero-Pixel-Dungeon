@@ -12,6 +12,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfFrost;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfPurity;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.elixirs.ElixirOfHoneyedHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
@@ -208,6 +209,10 @@ public final class CompanionInventory {
 
     Potion takeOneAutoFrostPotion() {
         return takeOneKnownPotion(PotionOfFrost.class);
+    }
+
+    Potion takeOneAutoPurityPotion() {
+        return takeOneKnownPotion(PotionOfPurity.class);
     }
 
     Potion takeOneAutoShieldingPotion() {
@@ -856,6 +861,7 @@ public final class CompanionInventory {
                     && (potion instanceof PotionOfHealing
                     || potion instanceof ElixirOfHoneyedHealing
                     || potion instanceof PotionOfFrost
+                    || potion instanceof PotionOfPurity
                     || potion instanceof PotionOfShielding
                     || potion instanceof PotionOfInvisibility
                     || potion instanceof PotionOfHaste
