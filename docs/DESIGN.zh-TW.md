@@ -169,7 +169,7 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 
 > `CoHeroAlly` 維持 `DirectableAlly` / ally actor，另外擁有自己需要的 Hero-like progression、背包與裝備資料。
 
-`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤、`CoHeroCombatRiskEstimator` 專責純戰鬥風險估算、`CoHeroSurvivalController` 專責治療／淨化／生存資源、`CoHeroControlItems` 專責符石與恐懼／傳送等控制資源決策；`CoHeroRemoteView` 則只管理 Hero FOV 外的 render-only proxy 與 thread-safe presentation event queue。它不擁有 gameplay actor、不回寫 `actor.sprite`、不保存戰術或 gameplay 狀態，也不控制 Hero ready。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。戰鬥與戰術走位不保存跨回合 plan：遠程接敵不記 enemy id／cover cell／wait counter，特殊近戰走位不記 tactical target／cell，retreat 也不保存 hysteresis flag；每回合都從目前 FOV、敵人位置、地形與風險重新推導。CoHero 每回合開始與讀檔完成後都清除繼承自 `Mob/DirectableAlly` 的 `HUNTING/enemy/target/path` 等 decision state；只有需要呼叫原版 `followHero()` 的當回合才暫時使用原版 state machine。Hero FOV 內的 CoHero 戰鬥重新使用原版式 callback 同步；Hero FOV 外則立即結算 gameplay，並只向 `CoHeroRemoteView` 排入觀戰用 presentation event。保留的跨回合 AI 連續性只限於有明確語意者：`GuardSession`（Hero 尚未離開原房）、低血量 rally 的 35%/60% hysteresis，以及經每回合安全性驗證的 exploration target。
+`CoHeroAlly` 本體負責 actor 生命週期與高階回合調度；具有獨立狀態或單一責任的子系統不再堆回主 class：`CoHeroNavigation` 擁有探索與一般移動政策、`CoHeroGuardController` 擁有 `GuardSession` 與把風邊界、`CoHeroSupportController` 擁有 Hero 支援與低血量 rally、`CoHeroVision` 擁有 CoHero-local FOV／火把、`CoHeroLoot` 擁有 loot recovery 與投擲物回收追蹤、`CoHeroCombatRiskEstimator` 專責純戰鬥風險估算、`CoHeroCombatController` 專責一般戰鬥流程與攻擊執行、`CoHeroCombatTargeting` 專責目標選擇、`CoHeroCombatPositioning` 專責戰術站位與逃生格、`CoHeroEnemyTactics` 專責少數敵人特有機制、`CoHeroSurvivalController` 專責治療／淨化／生存資源、`CoHeroControlItems` 專責符石與恐懼／傳送等控制資源決策；`CoHeroRemoteView` 則只管理 Hero FOV 外的 render-only proxy 與 thread-safe presentation event queue。它不擁有 gameplay actor、不回寫 `actor.sprite`、不保存戰術或 gameplay 狀態，也不控制 Hero ready。Controller 間需要合作時由 `CoHeroAlly` 提供窄介面，不共享或複製彼此的狀態。戰鬥與戰術走位不保存跨回合 plan：遠程接敵不記 enemy id／cover cell／wait counter，特殊近戰走位不記 tactical target／cell，retreat 也不保存 hysteresis flag；每回合都從目前 FOV、敵人位置、地形與風險重新推導。CoHero 每回合開始與讀檔完成後都清除繼承自 `Mob/DirectableAlly` 的 `HUNTING/enemy/target/path` 等 decision state；只有需要呼叫原版 `followHero()` 的當回合才暫時使用原版 state machine。Hero FOV 內的 CoHero 戰鬥重新使用原版式 callback 同步；Hero FOV 外則立即結算 gameplay，並只向 `CoHeroRemoteView` 排入觀戰用 presentation event。保留的跨回合 AI 連續性只限於有明確語意者：`GuardSession`（Hero 尚未離開原房）、低血量 rally 的 35%/60% hysteresis，以及經每回合安全性驗證的 exploration target。
 
 不把 SPD 全面改造成 multi-Hero 架構，也不透過切換 `Dungeon.hero` 來讓原版系統誤以為 CoHero 是玩家 Hero。
 
@@ -204,7 +204,7 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - 已觸發的 `PitfallTrap.DelayedPit` 直接視為 live hazard：CoHero 讀取原版 buff 的 `positions`、`depth`、`branch` 與 `ignoreAllies`，不複製倒數或另存 warning。若 CoHero 位於即將塌陷的範圍，下一個可行動回合優先用既有 `hazard_escape` 離開；普通尋路也不會走進該範圍。飛行中的 CoHero 或原版 `ignoreAllies` 生效時不視為危險。因判定直接來自原版 buff，存讀檔後只要 `DelayedPit` 仍存在就自然恢復，不需要額外持久化狀態。
 - 天狗第二階段的定時炸彈直接掃描目前 `Tengu.BombAbility`：以原版爆炸規則的 2 格可達範圍視為危險，炸彈 buff 消失後危險區立即消失。`Tengu.FireAbility.FireBlob` 則依原版火焰免疫規則納入環境危險，因此 CoHero 會避開火牆目前已覆蓋、即將引燃的格子。
 - `DelayedRockFall` 在存檔載入重建特效時，會按 buff 剩餘 `cooldown()` 重新登記危險格，因此地動法師／DM-300 已預告但尚未落下的岩石不會因讀檔而被 CoHero 忘記。
-- 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石、Ripper Demon 跳躍等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯；Vault Laser / Vault Sentry 則由上述寶庫機關判定處理，避免 `giveWarning = false` 時漏判。Eye 的蓄力光線不是走這個 API，目前不在此泛用層內。
+- 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯；Vault Laser / Vault Sentry 則由上述寶庫機關判定處理，避免 `giveWarning = false` 時漏判。`RipperDemon` 的跳躍另外直接讀取目前 pending leap target，依原版跳躍彈道只把實際碰撞／落點格視為危險；`Eye` 的 Death Gaze 也直接讀取目前鎖定的 beam target，以原版 `Ballistica.STOP_SOLID` 重建蓄力光線。兩者都不依賴 Hero FOV 或畫面上的 targeted-cell 特效，因此視野外戰鬥與讀檔後仍能依 live actor 狀態避讓。
 - 若 CoHero 被定身、麻痺，或所有相鄰合法格本身都危險／不可通行，AI 不會假裝能躲開，會繼續執行其他可行生存或戰鬥行為。
 
 ### CoHero 職業固有能力
@@ -264,10 +264,10 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 戰鬥前先做生存風險判斷，優先級高於任何伏擊／狹口站位：
 
-- 每回合先估算目前所有可見、清醒敵人的總 incoming DPT。已能直接攻擊 CoHero 的敵人權重最高；下一步即可進入合法攻擊位置者也納入風險。命中率用攻防值近似，傷害估算使用獨立 RNG stack 取樣，不消耗正式戰鬥 RNG。
+- 每回合先估算目前所有可見、清醒敵人的總 incoming DPT。已能直接攻擊 CoHero 的敵人權重最高；尚未進入攻擊距離的敵人則依其實際移速與目前可通行地形估算 time-to-attack，不再用單純格數假設下一回合一定能靠近。命中率用攻防值近似，傷害估算使用獨立 RNG stack 取樣，不消耗正式戰鬥 RNG。
 - TTD（time to death）以目前 `HP + shield` 為核心；正在進行的 Healing 與「下一瓶」已鑑定生存藥只提供保守的近程緩衝，不能把整個背包藥量當作額外血條。Ankh 完全不計入可揮霍戰力。
 - Chasm 的「換層」與「落地懲罰」分開處理：任一 Hero 跌落都只觸發一次原版 `Chasm.heroFall(pos)` party transition，但 Cripple、Bleeding 與掉血只作用於實際跌落的角色。CoHero 跌落時使用 CoHero 的實際跌落格判定 WeakFloorRoom 等落點，換層後由既有 companion state 在目的樓層重建，再套用與 Hero 共用的落地傷害公式；Hero 不代替 CoHero 受傷。Hero 的 Feather Fall 仍只保護 Hero，不會替 CoHero 免除落地懲罰。若 Hero 與 CoHero 同時被 `PitfallTrap` 波及，只進行一次樓層 transition，但兩人各自結算落地效果；實際 Hero 的位置優先作為共享 transition 的落點判定。CoHero 不因『掉進 chasm』本身直接走 Mob 死亡或消耗 Ankh，但若落地傷害造成死亡，仍走一般 CoHero 死亡／Ankh 流程。
-- TTK（time to kill）依 CoHero 實際當前攻擊規則估算；已建立正確近戰距離時仍以近戰為主，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
+- TTK（time to kill）依 CoHero 實際當前攻擊規則估算；目標目前的 shielding 會算進有效 HP，蝙蝠等具有實際吸血機制的敵人也會把可預期的續航納入 race。已建立正確近戰距離時仍以近戰為主，否則比較可用投擲武器、Spirit Bow 與法杖的預期輸出。
 - 臨戰優先序分成「安全／必要狀態處理 → 防圍毆站位 → anti-ranged 貼身 → 直接遠程輸出 → 非緊急戰鬥消耗品／buff → `GreatCrab` 特殊近戰走位 → 普通近戰／接近」。只要目前沒有建立應有的近戰距離，而且存在合法射線，投擲武器、Spirit Bow 或法杖會被視為正常攻擊手段，而不是等所有走位與 setup 都失敗後才使用。若目前首要威脅沒有合法遠程攻擊線，才會在其他可見威脅中選最近的合法遠程目標；但首要威脅已進入正確近戰距離時不會轉頭射遠處敵人。
 - 三名以上敵人目前同時能攻擊 CoHero 時直接視為 overwhelmed，優先撤退；即使未滿三隻，只要預估一輪傷害接近致死、目前 `HP + shield` 在既有 incoming DPT 下只剩約 3 回合可活，或 TTD 明顯不優於 TTK，也進入撤退。這個「約 3 回合」的危急 TTD 不把尚未使用的治療／護盾資源先算進血量，因此 Boss 戰也不能因 Boss HP 很高就讓低血量 CoHero 繼續硬打。Boss 只排除「CoHero 個人 TTD ≤ 打完整個 Boss 所需 TTK」這個 race 判斷；立即致命、危急 TTD 與多人壓制仍照常生效。
 - 無敵敵人不納入可攻擊目標：真正的戰鬥無敵仍沿用 SPD 的 `mob.isInvulnerable(CoHeroAlly.class)` 語意；但 `Challenge.SpectatorFreeze` 明確排除，因為它同時用於 Duelist Challenge 的旁觀者凍結與存檔載入期間的暫時 freeze，不代表應觸發逃跑。被 `SpectatorFreeze` 的角色直接不算當前臨戰威脅。無敵不代表退出整場戰鬥：只要任一真正無敵敵人目前能從其所在格攻擊 CoHero，脫離該敵人的有效攻擊範圍會取得臨戰優先權；移動選格先降低無敵敵人的可攻擊者數量與 incoming DPT，再避免把自己送進其他敵人的火力。離開無敵敵人的射程後，若仍有可傷害敵人，CoHero 立即恢復原本的近戰／投擲／Spirit Bow／法杖決策；若只剩無敵敵人且它們已打不到 CoHero，則原地保持安全距離，不主動靠近。一般移動無法改善無敵火力時，依序嘗試 Blink、Teleportation、Invisibility，最後才用立即生存資源撐住。
@@ -285,6 +285,16 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 對目前能從非相鄰距離攻擊 CoHero 的遠程型敵人，若 CoHero 有近戰能力，預設仍啟用 anti-ranged engagement，而且理想距離明確定義為「與敵人相鄰」，不以武器 `canAttack()` 射程代替。只有兩種明確的高遠攻收益例外：CoHero 當前最佳合法遠攻的平均傷害 ≥ 該敵人平均遠攻傷害的 1.5 倍，或 ≥ CoHero 自己平均近戰傷害的 1.5 倍。敵人的遠攻若是無法合理換算成直接傷害的特殊效果，第一條不成立，只能由第二條觸發。符合任一條件時才保留距離遠攻。對純近戰敵人則反過來利用其無法遠距反擊的弱點：只要目前仍隔著至少一格且存在合法遠攻，就不會為了更高的近戰傷害主動浪費回合貼上去，而是先利用現有距離攻擊。唯一例外是長矛、長鞭等延伸近戰已經能在當前位置直接打到目標；此時近戰與遠攻都不需要額外移動，便直接比較兩者平均傷害，哪個高就用哪個。敵人真正貼身後，再用 1.5 倍門檻判斷是否值得花回合重新拉開距離：若近戰平均傷害已達最佳遠攻的 1.5 倍，就留在原地近戰；否則只有在敵人被定身／麻痺或速度較慢、且存在不增加戰鬥風險的合法安全格時才拉開再射。若找不到這種格子，當回合直接接戰，不再交給後續近戰選位額外移動。若目標的實際閃避高於 CoHero 當前最佳物理命中能力、不是正在被 surprise hit，且至少有一把傷害法杖能實際作用於該敵人（包含自然免疫／`MagicImmune` 檢查），則優先法杖並覆寫上述物理傷害比。普通 combat 的 `isCurrentRangedPressure` 只描述敵人此刻是否正在遠距施壓；祭火等 objective 則使用獨立的 `hasNonAdjacentAttackCapability` 判斷敵人是否具備遠程能力，避免貼身後 capability 因距離變成 1 而消失。只要當回合存在 active ranged pressure，anti-ranged movement 會暫時解除 `GuardSession` 的 movement scope；guard 不能在路徑規劃完成後再把貼近或 LOS cover 的第一步擋掉。若實際 `move()` 最後仍未移動，該次戰術走位不消耗回合，普通 combat 會繼續嘗試其他合法行動。Debug movement decision 會區分 `ranged_close`、`ranged_charge`、`ranged_cover` 與 `ranged_spacing`。遠攻仍要求雙方至少隔一格；若已貼身，只有敵人被定身／麻痺，或敵人實際速度低於 CoHero 時，CoHero 才會先找不增加戰鬥風險的安全格拉開到非相鄰距離，下一回合再遠攻。若無法安全拉開，仍回退近戰。長鞭、長矛等延伸近戰即使在 2–3 格已可攻擊，也不會自行取消上述規則。
 - anti-ranged cover 不保存跨回合 plan。每回合若目標目前仍可見且正在施加非相鄰遠程壓力，就重新比較直接貼身、一步近身與目前可用 LOS cover；選到 cover 時只執行當回合的一步移動。下一回合若目標已離開視野，就不再記住舊 enemy id、舊 cover cell，也不原地等待固定回合數；普通 perception／support／guard 重新接手。
 - Boss 不使用這套 ranged lure／LOS cover 誘敵流程。Boss 常有 scripted movement、teleport 或階段機制，若要求它先追進掩體可能讓戰鬥停滯。Boss 若在目前位置已有合法攻擊，會以同一套風險估算來源比較近戰、投擲武器、Spirit Bow 與直接傷害法杖的預期 DPT，選擇最高者；比較包含物理命中率、目標 DR 與實際 attack/cast delay。這個規則不會為了提高輸出額外走位，若目前沒有可直接執行的攻擊才回到一般接近／戰鬥流程。
+
+#### 特殊敵人即時戰術
+
+以下規則都只從目前 buff、HP、位置、速度、FOV 與可攻擊狀態推導，不保存 enemy-specific cooldown、追擊目標或跨回合戰術 plan：
+
+- **Charm / Succubus 類來源**：目前正在魅惑 CoHero 的來源直接排除出 offensive target。若魅惑來源仍施加壓力，優先選一步能降低 charmer 即時攻擊者數量的位置，再比較總 incoming DPT、是否切斷 LOS 與距離；若所有可見攻擊目標都是目前 charm source 且沒有更安全的一步，就原地等待。底層 `attackTarget()` 對誤攻目前 charm source 直接 fail fast。
+- **Ghoul 群**：可見 Ghoul 若帶有 `GhoulLifeLink`，優先攻擊目前承擔 life-link 的存活 host；多個 host 先比較 link 數，再比較較低 effective HP。Ghoul 復活到約 10% HP 後，在沒有更高優先 link host 時會優先收掉；pack / link 條件消失後立即回到一般目標選擇，不保存「上一隻 Ghoul」。
+- **Monk / Senior Focus**：生存與防圍毆仍優先。`Monk.Focus` 存在且當前局勢允許進攻時，先找能安全繞過 physical infinite evasion 的傷害法杖；沒有時依序用目前可直接命中的近戰／延伸近戰、可重複使用的 Spirit Bow，再到最低預期傷害的支援投擲武器消耗 Focus。Focus 消失後直接攻擊或接近，不另外保存 Focus cooldown 狀態。
+- **Brute rage**：普通短時間 `BruteRage` 偏向脫離並等待其原版自我毀滅，不為了打掉短命 rage 無謂換血；`ArmoredRage` 不套用相同等待策略，較偏向以遠程壓低 shield。只有近戰手段時不會為了 ArmoredRage 人為製造沒有收益的 spacing。
+- **Scorpio**：相鄰才視為真正壓制其遠程攻擊的安全距離；若一步即可安全貼身就優先 capture。只有 CoHero 確實更快、Scorpio 已被定身／麻痺，或原版逃跑判定顯示地形已無退路時才持續追擊；否則保留合理遠程交換，預估失血過高時改找控制／掩體方案。
 
 1. **沒有任何可用攻擊能力時**
    - 同伴不主動攻擊。
@@ -326,36 +336,15 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
    - 不要求 AI 做完整的長期 charge 規劃。
    - 未知或無法安全判斷用途的 Wand 不應由 AI 猜測使用方式。
 
-### 6.2 遠程攻擊選擇
+### 6.2 目標與遠程攻擊選擇
 
-戰鬥目標目前取 CoHero 視野內最近的可見、清醒敵人；睡眠中的敵人不列入主動攻擊目標。
+戰鬥目標不再等同「最近的敵人」。一般情況仍從 CoHero 自己視野內可見、清醒、目前有效的威脅中選擇，但會先套用 combat objective、Charm 排除與 Ghoul life-link 等 live-state 規則。戰術上的主要目標與生存 TTK 使用的比較目標刻意分開：前者決定這回合應處理誰，後者只用來估算「目前最快能消除哪個有效威脅」與生存 race，避免高優先戰術目標扭曲撤退判斷。
 
-遠程選擇不應依職業決定，而應依目標與當前可用裝備決定。
+遠程候選只依目前能否合法執行來建立：支援的投擲武器、Spirit Bow 與支援法杖各自檢查距離、射線、charge、詛咒／免疫、友軍與睡眠敵人安全。已建立理想近戰距離時通常直接近戰；高閃避且存在有效傷害法杖、Boss 的當回合最大 DPT 選擇，以及 6.1 已明定的 anti-ranged / spacing 條件可改變這個結果。對純近戰敵人若仍有距離而合法遠攻可直接出手，會先利用現有距離，不為了較高近戰面板傷害主動浪費一回合貼近。
 
-規則如下：
+候選之間比較的是目前狀態下的有效輸出，而不是角色職業名稱。物理攻擊納入命中率、目標 DR 與 attack delay；法杖納入實際 cast delay、charge、目標免疫與各 wand adapter 的效果估算。比較候選不得提前消耗正式戰鬥 RNG；Hero-only Talent、Clover、WandEmpower 或其他玩家專屬加成也不得洩漏到 CoHero。
 
-1. **近戰武器可及時只用近戰武器。**
-   - 不使用法杖或投擲武器取代合法的近戰攻擊。
-
-2. **魔法免疫目標不使用法杖。**
-   - 對具有魔法免疫或其他明確免疫法杖攻擊的目標，法杖直接排除出候選。
-
-3. **高閃避目標優先考慮法杖。**
-   - 第一版將「高閃避」定義為：目標 `defenseSkill` 高於目前可用投擲武器中最高的物理 `attackSkill`。
-   - 若符合此條件且存在合法法杖候選，優先從法杖中選擇。
-
-4. **最重要的通則：在當前距離下，傷害能力使用可用選項中預估傷害最高者。**
-   - 比較的是當前距離下實際可使用的候選。
-   - 距離限制、魔法免疫與高閃避等條件先決定候選與優先資格，再由傷害決定實際使用哪個攻擊。
-   - 不應因為角色職業名稱而強制固定武器類型。
-   - AI 評分不得為了比較候選而提前消耗真正攻擊用的亂數；第一版使用 min/max 的算術平均作穩定傷害估算，投擲武器再加上平均剩餘力量加成。
-   - 相同估算傷害時優先投擲武器，避免無必要消耗 wand charge。
-   - CoHero 自己裝備的 `RingOfSharpshooting` 會影響其投擲武器傷害與耐久；玩家 Hero 的 Sharpshooting、Talent 或其他 Hero-only 投擲加成不得洩漏到 CoHero。
-   - CoHero 法杖傷害使用自己的普通 RNG，不繼承玩家 Hero 的 Clover 類 RNG、`WandEmpower` 或其他 Hero-only cast 效果。
-   - 腐化屬控制能力：若依原版 resistance 計算本次能直接跨過腐化門檻，優先於一般遠程傷害；否則只在沒有直接傷害候選時作為 fallback debuff/control。
-   - 注魂對不死敵人視為直接傷害；對活敵視為 fallback Charm/control，不拿 0 傷害去和普通武器比較。
-   - 再生屬逃生 utility，不進入傷害排名。第一版只在 CoHero 原本就要逃跑時使用，且 cone 必須至少能定身一名尚未 Root 的追兵，並且不能波及友軍或睡眠敵人。
-   - 注魂支援第一版只用於玩家 Hero：脫離戰鬥時，Hero 低於 50% HP、CoHero 至少 75% HP，且 5% HT 的自傷後 CoHero 仍高於 50% HP 才允許血量轉移。
+控制型法杖維持各自語意：腐化只有在能直接跨過目前 resistance 門檻時可壓過普通傷害，否則只是 fallback control；注魂對不死敵人可視為直接傷害，對活敵只是 Charm/control；再生屬逃生 utility，不進普通傷害排名。詳細接敵、拉距、LOS cover、1.5× 遠近傷害門檻與 Boss 例外以 6.1 的單一規則為準，不再在本節複製第二套可能漂移的判斷。
 
 ### 6.3 背包就是控制介面
 
@@ -479,7 +468,7 @@ CoHero 的基礎回血比照 Hero，但目前不處理飢餓值。
 - CoHero 已裝備但尚未完全鑑定的近戰武器、護甲與戒指，沿用 SPD 原版被動鑑定進度：武器／護甲需要實際使用並搭配正常戰鬥 EXP 解鎖後續鑑定次數，戒指則依裝備期間取得的正常 EXP 推進。CoHero 不套用 Hero 的 item-ID Talent 加速，倍率固定 1.0；進度仍保存於物品本身，因此 Hero 與 CoHero 之間轉交同一件物品不會重置。Potion of Experience 不推進此被動鑑定。
 - CoHero 背包的「可存放」與「可由 CoHero 使用」是兩個獨立概念：任何正常 `Item` 都可交給 CoHero 保存，包括目前沒有 AI 語意的 Artifact、Trinket、食物、種子、未支援符石與第三方物品；storage-only 物品不會被 CoHero 主動使用，但可隨時交還 Hero。Wand 也遵守同一條規則：只有 `CoHeroWandAdapter.supported()` 的法杖在放入 CoHero 背包後會接上 CoHero 的 wand charge 流程；純 storage-only 的未知／未支援法杖不會因為只是存放在 CoHero 背包裡就被動充能。
 - CoHero 背包 UI 以框線標示已有明確 CoHero 使用／裝備語意的物品。框線代表已實作 capability，不代表此刻一定能成功使用；裝備仍可能受詛咒或 STR 限制。未鑑定 Potion / Scroll 不依隱藏真實類型顯示 capability，避免從 UI 洩漏鑑定資訊。
-- Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility`、`PotionOfHaste`、`PotionOfStamina`、`PotionOfCleansing`、`PotionOfPurity`、`PotionOfEarthenArmor`、`PotionOfFrost` 具有自動使用語意；Scroll 目前只有已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意。Runestone 只有 `StoneOfAggression`、`StoneOfBlast`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock` 具有 CoHero 戰鬥使用語意；其他符石只作為 storage-only 物品。`Ankh` 具有死亡時自動復活語意。
+- Potion 目前只有已鑑定的 `PotionOfHealing`、`ElixirOfHoneyedHealing`、`PotionOfShielding`、`PotionOfInvisibility`、`PotionOfHaste`、`PotionOfStamina`、`PotionOfCleansing`、`PotionOfPurity`、`PotionOfEarthenArmor`、`PotionOfFrost` 具有自動使用語意；Scroll 目前只有已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意。Runestone 只有 `StoneOfAggression`、`StoneOfBlast`、`StoneOfShock`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock` 具有 CoHero 戰鬥使用語意；其他符石只作為 storage-only 物品。`Ankh` 具有死亡時自動復活語意。
 - `BrokenSeal.WarriorShield` 是 stock SPD 的 Hero-only 被動（會直接 cast `Hero` 並讀取 Hero Talent / Combo 狀態），因此 CoHero 不啟用 Broken Seal 護盾；新建 Warrior CoHero 的起始 Cloth Armor 也不附帶 Broken Seal。
 - 未知物品或效果不得猜測相容；沒有明確 CoHero semantics 時就不允許 AI 使用。
 - Wand 目前需要額外 integration seam，因為 SPD 的使用入口與不少個別 Wand 效果仍依賴 `Hero` / `curUser` / `Dungeon.hero`；這是上游 API 的 owner 假設，不代表 AI 設計上應以法杖類別硬編行為。
