@@ -74,18 +74,32 @@ final class CoHeroSurvivalController {
                 || (negatives > 0 && owner.HT > 0 && owner.HP * 100 < owner.HT * 50);
     }
 
-    private boolean hasMageroyalCurableNegative() {
-        // Keep this list identical to stock PotionOfHealing.cure(Char), which is what
-        // Mageroyal.activate(Char) actually calls. Do not substitute the broader Cleansing rules.
-        return owner.buff(Poison.class) != null
-                || owner.buff(Cripple.class) != null
-                || owner.buff(Weakness.class) != null
-                || owner.buff(Vulnerable.class) != null
-                || owner.buff(Bleeding.class) != null
-                || owner.buff(Blindness.class) != null
-                || owner.buff(Drowsy.class) != null
-                || owner.buff(Slow.class) != null
-                || owner.buff(Vertigo.class) != null;
+    private boolean hasSeriousMageroyalCurableNegative() {
+        int curable = 0;
+        for (Buff active : owner.buffs()) {
+            // Keep this list identical to stock PotionOfHealing.cure(Char), which is what
+            // Mageroyal.activate(Char) actually calls. Do not substitute broader Cleansing rules.
+            boolean mageroyalCurable = active instanceof Poison
+                    || active instanceof Cripple
+                    || active instanceof Weakness
+                    || active instanceof Vulnerable
+                    || active instanceof Bleeding
+                    || active instanceof Blindness
+                    || active instanceof Drowsy
+                    || active instanceof Slow
+                    || active instanceof Vertigo;
+            if (!mageroyalCurable) {
+                continue;
+            }
+
+            curable++;
+            if (active instanceof Buff.DOTbuff) {
+                return true;
+            }
+        }
+
+        return curable >= 2
+                || (curable > 0 && owner.HT > 0 && owner.HP * 100 < owner.HT * 50);
     }
 
     boolean tryUseCombatStamina(
@@ -181,7 +195,7 @@ final class CoHeroSurvivalController {
             return true;
         }
 
-        if (hasMageroyalCurableNegative()) {
+        if (hasSeriousMageroyalCurableNegative()) {
             int mageroyal = nearestKnownPlantCell(Mageroyal.class, 4);
             if (mageroyal != -1) {
                 return moveTowardKnownPlant(mageroyal);
@@ -201,7 +215,7 @@ final class CoHeroSurvivalController {
     }
 
     Boolean tryKnownMageroyalCurePlant() {
-        if (owner.rooted || !hasMageroyalCurableNegative()) {
+        if (owner.rooted || !hasSeriousMageroyalCurableNegative()) {
             return null;
         }
 
@@ -240,7 +254,7 @@ final class CoHeroSurvivalController {
             }
         }
 
-        if (hasMageroyalCurableNegative()
+        if (hasSeriousMageroyalCurableNegative()
                 && risk.immediateIncoming * 1.35f < owner.HP + owner.shielding()) {
             int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
             if (mageroyal != -1) {
