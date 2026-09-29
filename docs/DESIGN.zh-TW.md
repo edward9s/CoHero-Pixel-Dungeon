@@ -370,7 +370,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
-- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存／逃生／戰鬥機動藥劑。一般低血量流程仍在 HP 低於 35% 時優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`，治療正在進行或沒有治療藥時才用 `PotionOfShielding`；但若戰鬥風險模型已判定必須撤退、又完全沒有合法逃生格，緊急流程會反過來優先使用立即生效的 `PotionOfShielding`。有安全逃生步但正常速度仍會持續受到追擊壓力時，可使用 `PotionOfHaste` 作為短效逃跑資源；高威脅戰鬥則可使用 `PotionOfStamina` 作長效機動資源。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
+- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存／逃生／戰鬥機動／控制藥劑。一般低血量流程仍在 HP 低於 35% 時優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`，治療正在進行或沒有治療藥時才用 `PotionOfShielding`；但若戰鬥風險模型已判定必須撤退、又完全沒有合法逃生格，緊急流程會反過來優先使用立即生效的 `PotionOfShielding`。有安全逃生步但正常速度仍會持續受到追擊壓力時，可使用 `PotionOfHaste` 作為短效逃跑資源；高威脅戰鬥則可使用 `PotionOfStamina` 作長效機動資源。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
 - CoHero 背包可持有 `Ankh`。CoHero 死亡時優先消耗祝福 Ankh：回滿 HP 並獲得 15 回合 `Invulnerability`；未祝福 Ankh 則回滿 HP 並隨機傳送到本層一個合法、非秘密、無角色占用的可走格。Ankh 成功觸發時不進入 CoHero Game Over 流程。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
@@ -392,7 +392,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 
 ### 7.1 消耗品
 
-CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存／逃生／戰鬥機動消耗品、七種 combat runestone 與 Ankh。
+CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明確定義的生存／逃生／戰鬥機動／控制消耗品、七種 combat runestone 與 Ankh。
 
 - CoHero 背包允許存放所有正常物品；Potion 只是其中一類。未鑑定 Potion 不會因其隱藏真實種類改變「能不能放」或 capability 框線，避免透過 UI 洩漏身份。
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
