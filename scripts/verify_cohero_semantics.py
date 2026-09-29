@@ -8,8 +8,11 @@ OWNER_DECLARATION = "private final CoHeroAlly owner;"
 UNLINKED_SPRITE_FACTORY = re.compile(r"\bowner\s*\.\s*sprite\s*\(")
 COMPANION_DEATH_FAILURE_FLOW = """            CoHero.markCompanionDeathGameOver();
             Dungeon.hero.die(cause);
-            Dungeon.fail(cause);
+            Dungeon.fail(rankingCause);
 """
+COMPANION_RANKING_CAUSE_RESOLUTION = "Object rankingCause = rankingCause(cause);"
+COMPANION_NULL_DEATH_CAUSE_FAILURE = 'throw new IllegalStateException("CoHero final death has no cause");'
+COMPANION_MOB_CAUSE_UNWRAP = "Mob.class.isAssignableFrom(enclosing)"
 HERO_FINAL_DEATH_ANKH_GATE = "if (!com.spd.cohero.CoHero.companionDeathEndedRun()) {"
 FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
 COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
@@ -48,7 +51,28 @@ def main() -> int:
     if ally_source.count(COMPANION_DEATH_FAILURE_FLOW) != 1:
         print(
             "CoHeroAlly final death must mark the shared run over, kill the Hero through "
-            "Hero.die(), then submit Dungeon.fail exactly once through the guarded path.",
+            "Hero.die(), then submit the normalized ranking cause through Dungeon.fail exactly once.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if ally_source.count(COMPANION_RANKING_CAUSE_RESOLUTION) != 1:
+        print(
+            "CoHeroAlly must resolve the ranking cause before revival/final-death handling.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if ally_source.count(COMPANION_NULL_DEATH_CAUSE_FAILURE) != 1:
+        print(
+            "CoHeroAlly must fail immediately when a death arrives without a cause.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if ally_source.count(COMPANION_MOB_CAUSE_UNWRAP) != 1:
+        print(
+            "CoHeroAlly must map nested mob damage-source classes back to their enclosing mob.",
             file=sys.stderr,
         )
         return 1

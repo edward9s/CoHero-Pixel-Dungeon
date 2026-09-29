@@ -1214,8 +1214,34 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
+    private static Object rankingCause(Object cause) {
+        if (cause == null) {
+            throw new IllegalStateException("CoHero final death has no cause");
+        }
+
+        Class<?> causeClass = cause instanceof Class
+                ? (Class<?>) cause
+                : cause.getClass();
+
+        if (Mob.class.isAssignableFrom(causeClass)) {
+            return cause;
+        }
+
+        for (Class<?> enclosing = causeClass.getEnclosingClass();
+                enclosing != null;
+                enclosing = enclosing.getEnclosingClass()) {
+            if (Mob.class.isAssignableFrom(enclosing)) {
+                return enclosing;
+            }
+        }
+
+        return cause;
+    }
+
     @Override
     public void die(Object cause) {
+        Object rankingCause = rankingCause(cause);
+
         if (revival.tryRevive()) {
             return;
         }
@@ -1225,7 +1251,7 @@ public class CoHeroAlly extends DirectableAlly {
             GLog.n(revival.deathMessage(cause));
             CoHero.markCompanionDeathGameOver();
             Dungeon.hero.die(cause);
-            Dungeon.fail(cause);
+            Dungeon.fail(rankingCause);
         }
     }
 
