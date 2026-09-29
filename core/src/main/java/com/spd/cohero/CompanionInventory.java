@@ -48,8 +48,8 @@ import java.util.List;
  *
  * The companion has a normal 20-slot backpack plus explicit equipment slots. Supported combat
  * equipment is weapon, armor, rings and wands. Potions and scrolls may be stored so unidentified
- * identities are never leaked by the transfer UI, but only explicitly supported survival
- * consumables are used autonomously. Artifacts, trinkets, bags and unknown items are rejected.
+ * identities are never leaked by the transfer UI, but only explicitly supported consumables
+ * are used autonomously. Artifacts, trinkets, bags and unknown items are rejected.
  * This intentionally does not reuse Hero/Belongings, whose owner is hard-wired to Hero.
  */
 public final class CompanionInventory {
