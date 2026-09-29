@@ -4,9 +4,12 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Freezing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Chill;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Dread;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Frost;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
@@ -18,6 +21,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Sheep;
 import com.shatteredpixel.shatteredpixeldungeon.items.bombs.Bomb;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfFrost;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTerror;
@@ -35,6 +40,7 @@ import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.BArray;
@@ -48,6 +54,185 @@ final class CoHeroControlItems {
 
     CoHeroControlItems(CoHeroAlly owner) {
         this.owner = owner;
+    }
+
+
+    boolean tryUseCombatFrostPotion(
+            Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
+        if (risk == null) {
+            throw new IllegalArgumentException("Combat frost potion use requires current combat risk");
+        }
+        if (targetMob == null
+                || threats == null
+                || threats.isEmpty()
+                || risk.retreat
+                || !owner.inventory().hasAutoFrostPotion()) {
+            return false;
+        }
+
+        boolean pressured = risk.attackersNow >= 2
+                || threats.size() >= 3
+                || risk.ttd <= 6f;
+        boolean dangerousSingleBoss =
+                (Char.hasProp(targetMob, Char.Property.BOSS)
+                        || Char.hasProp(targetMob, Char.Property.MINIBOSS))
+                && risk.ttd <= 6f;
+
+        if (!pressured && !dangerousSingleBoss) {
+            return false;
+        }
+
+        int frostCell = chooseSafeFrostCell(threats, dangerousSingleBoss ? 1 : 2);
+        return frostCell != -1 && useFrostPotion(frostCell);
+    }
+
+    boolean tryUseRetreatFrostPotion(
+            CoHeroCombatRisk risk, ArrayList<Mob> threats) {
+        if (risk == null) {
+            throw new IllegalArgumentException("Retreat frost potion use requires current combat risk");
+        }
+        if (!risk.retreat
+                || threats == null
+                || threats.isEmpty()
+                || risk.attackersNow != 0
+                || !owner.inventory().hasAutoFrostPotion()) {
+            return false;
+        }
+
+        // Frost is delayed control. Never spend the current escape turn on it when the incoming
+        // volley is already lethal; immediate movement/control remains the correct response.
+        if (risk.immediateIncoming * 1.35f >= owner.HP + owner.shielding()) {
+            return false;
+        }
+
+        int minTargets = threats.size() >= 2 ? 2 : 1;
+        if (minTargets == 1 && risk.ttd > 5f) {
+            return false;
+        }
+
+        int frostCell = chooseSafeFrostCell(threats, minTargets);
+        return frostCell != -1 && useFrostPotion(frostCell);
+    }
+
+    private int chooseSafeFrostCell(ArrayList<Mob> threats, int minTargets) {
+        if (owner.fieldOfView == null || minTargets <= 0) {
+            return -1;
+        }
+
+        int bestCell = -1;
+        int bestTargets = minTargets - 1;
+        float bestThreatScore = Float.NEGATIVE_INFINITY;
+
+        for (Mob anchor : threats) {
+            if (anchor == null
+                    || !anchor.isAlive()
+                    || anchor.state == anchor.SLEEPING
+                    || !owner.fieldOfView[anchor.pos]) {
+                continue;
+            }
+
+            for (int offset : PathFinder.NEIGHBOURS9) {
+                int candidate = anchor.pos + offset;
+                if (!Dungeon.level.insideMap(candidate)
+                        || Dungeon.level.distance(anchor.pos, candidate) > 1
+                        || !owner.fieldOfView[candidate]
+                        || !owner.isKnown(candidate)
+                        || !Dungeon.level.passable[candidate]
+                        || Dungeon.level.pit[candidate]
+                        || Dungeon.level.secret[candidate]
+                        || Dungeon.level.map[candidate] == Terrain.WELL) {
+                    continue;
+                }
+
+                Ballistica shot = new Ballistica(owner.pos, candidate, Ballistica.PROJECTILE);
+                if (shot.collisionPos != candidate) {
+                    continue;
+                }
+
+                int affected = 0;
+                float threatScore = 0f;
+                boolean unsafe = false;
+
+                for (int areaOffset : PathFinder.NEIGHBOURS9) {
+                    int cell = candidate + areaOffset;
+                    if (!Dungeon.level.insideMap(cell)
+                            || Dungeon.level.distance(candidate, cell) > 1
+                            || Dungeon.level.solid[cell]) {
+                        continue;
+                    }
+
+                    // Freezing a heap can shatter potions or otherwise mutate its contents.
+                    if (Dungeon.level.heaps.get(cell) != null) {
+                        unsafe = true;
+                        break;
+                    }
+
+                    Char ch = Actor.findChar(cell);
+                    if (ch == null) {
+                        continue;
+                    }
+
+                    if (ch.alignment != Char.Alignment.ENEMY) {
+                        if (!ch.isImmune(Freezing.class)) {
+                            unsafe = true;
+                            break;
+                        }
+                        continue;
+                    }
+
+                    if (!(ch instanceof Mob)) {
+                        unsafe = true;
+                        break;
+                    }
+
+                    Mob mob = (Mob) ch;
+                    if (mob.state == mob.SLEEPING || !threats.contains(mob)) {
+                        unsafe = true;
+                        break;
+                    }
+
+                    if (mob.isImmune(Freezing.class)
+                            || mob.isImmune(Chill.class)
+                            || mob.buff(Frost.class) != null
+                            || mob.buff(Chill.class) != null) {
+                        continue;
+                    }
+
+                    affected++;
+                    threatScore += owner.estimatedThreatDamage(mob, owner.pos)
+                            * owner.estimatedHitChance(mob, owner.pos)
+                            * Math.max(0.1f, owner.threatOpportunity(mob, owner.pos));
+                }
+
+                if (unsafe || affected < minTargets) {
+                    continue;
+                }
+
+                if (affected > bestTargets
+                        || (affected == bestTargets && threatScore > bestThreatScore)) {
+                    bestCell = candidate;
+                    bestTargets = affected;
+                    bestThreatScore = threatScore;
+                }
+            }
+        }
+
+        return bestCell;
+    }
+
+    private boolean useFrostPotion(int cell) {
+        Potion potion = owner.inventory().takeOneAutoFrostPotion();
+        if (!(potion instanceof PotionOfFrost)) {
+            return false;
+        }
+
+        // Match stock thrown-potion gameplay semantics without routing through Hero-only Item.cast().
+        Dungeon.level.pressCell(cell);
+        ((PotionOfFrost) potion).shatter(cell);
+        Catalog.countUse(PotionOfFrost.class);
+        Invisibility.dispel(owner);
+        owner.spendActionTime(Actor.TICK);
+        return true;
     }
 
     boolean tryUseCombatRunestone(
