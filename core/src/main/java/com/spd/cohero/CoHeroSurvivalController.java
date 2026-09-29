@@ -7,18 +7,29 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AllyBuff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barkskin;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Bleeding;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.BlobImmunity;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Cripple;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Drowsy;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Haste;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Healing;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.LostInventory;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Poison;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Slow;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Stamina;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vertigo;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vulnerable;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Weakness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfPurity;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
@@ -61,6 +72,20 @@ final class CoHeroSurvivalController {
         return owner.rooted
                 || negatives >= 2
                 || (negatives > 0 && owner.HT > 0 && owner.HP * 100 < owner.HT * 50);
+    }
+
+    private boolean hasMageroyalCurableNegative() {
+        // Keep this list identical to stock PotionOfHealing.cure(Char), which is what
+        // Mageroyal.activate(Char) actually calls. Do not substitute the broader Cleansing rules.
+        return owner.buff(Poison.class) != null
+                || owner.buff(Cripple.class) != null
+                || owner.buff(Weakness.class) != null
+                || owner.buff(Vulnerable.class) != null
+                || owner.buff(Bleeding.class) != null
+                || owner.buff(Blindness.class) != null
+                || owner.buff(Drowsy.class) != null
+                || owner.buff(Slow.class) != null
+                || owner.buff(Vertigo.class) != null;
     }
 
     boolean tryUseCombatStamina(
@@ -107,6 +132,25 @@ final class CoHeroSurvivalController {
         return true;
     }
 
+    boolean tryUsePurityPotion() {
+        if (!CoHeroHazards.isPurityBlobDanger(owner, owner.pos)
+                || owner.buff(BlobImmunity.class) != null) {
+            return false;
+        }
+
+        Potion potion = owner.inventory().takeOneAutoPurityPotion();
+        if (!(potion instanceof PotionOfPurity)) {
+            return false;
+        }
+
+        Buff.prolong(owner, BlobImmunity.class, BlobImmunity.DURATION);
+        Catalog.countUse(PotionOfPurity.class);
+        SpellSprite.show(owner, SpellSprite.PURITY);
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        owner.spendActionTime(Actor.TICK);
+        return true;
+    }
+
     boolean tryUseCleansingPotion(CoHeroCombatRisk risk) {
         if (!hasSeriousCleansableNegative()) {
             return false;
@@ -137,7 +181,7 @@ final class CoHeroSurvivalController {
             return true;
         }
 
-        if (hasSeriousCleansableNegative()) {
+        if (hasMageroyalCurableNegative()) {
             int mageroyal = nearestKnownPlantCell(Mageroyal.class, 4);
             if (mageroyal != -1) {
                 return moveTowardKnownPlant(mageroyal);
@@ -156,8 +200,8 @@ final class CoHeroSurvivalController {
         return null;
     }
 
-    Boolean tryKnownCleansingPlant() {
-        if (owner.rooted || !hasSeriousCleansableNegative()) {
+    Boolean tryKnownMageroyalCurePlant() {
+        if (owner.rooted || !hasMageroyalCurableNegative()) {
             return null;
         }
 
@@ -196,7 +240,7 @@ final class CoHeroSurvivalController {
             }
         }
 
-        if (hasSeriousCleansableNegative()
+        if (hasMageroyalCurableNegative()
                 && risk.immediateIncoming * 1.35f < owner.HP + owner.shielding()) {
             int mageroyal = adjacentKnownPlantCell(Mageroyal.class);
             if (mageroyal != -1) {
