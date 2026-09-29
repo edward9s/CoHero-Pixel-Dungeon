@@ -82,6 +82,16 @@ public final class CoHeroHazards {
                 || isEnvironmentalDanger(owner, cell);
     }
 
+    public static boolean isPurityBlobDanger(Char owner, int cell) {
+        if (owner == null
+                || Dungeon.level == null
+                || cell < 0
+                || cell >= Dungeon.level.length()) {
+            return false;
+        }
+        return isPurityEnvironmentalBlobDanger(owner, cell);
+    }
+
     public static boolean hasActiveHazards(Char owner) {
         syncLevel();
         pruneExpired();
@@ -467,6 +477,12 @@ public final class CoHeroHazards {
     }
 
     private static boolean isEnvironmentalDanger(Char owner, int cell) {
+        return isPurityEnvironmentalBlobDanger(owner, cell)
+                || isTenguBombDanger(cell)
+                || presentVaultFireWallFor(owner, cell);
+    }
+
+    private static boolean isPurityEnvironmentalBlobDanger(Char owner, int cell) {
         return presentFor(owner, cell, Fire.class, Fire.class)
                 || presentFor(owner, cell, Web.class, Web.class)
                 || presentFor(owner, cell, ToxicGas.class, ToxicGas.class)
@@ -479,10 +495,8 @@ public final class CoHeroHazards {
                 || presentFor(owner, cell, Inferno.class, Fire.class)
                 || presentFor(owner, cell, Blizzard.class, Freezing.class)
                 || presentFor(owner, cell, Tengu.FireAbility.FireBlob.class, Fire.class)
-                || isTenguBombDanger(cell)
                 || presentVaultFlamesFor(owner, cell)
-                || presentEternalFireFor(owner, cell)
-                || presentVaultFireWallFor(owner, cell);
+                || presentEternalFireFor(owner, cell);
     }
 
     private static boolean hasTenguBombHazard() {

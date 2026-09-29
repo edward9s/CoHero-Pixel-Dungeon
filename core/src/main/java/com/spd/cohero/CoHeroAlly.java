@@ -645,6 +645,10 @@ public class CoHeroAlly extends DirectableAlly {
             logBossDecision("avoid_hazard", "avoiding hazard");
             return hazardAvoidance;
         }
+        if (survival.tryUsePurityPotion()) {
+            logBossDecision("purity_hazard", "used purity against environmental blob");
+            return true;
+        }
 
         Mob guardSupportThreat =
                 guard.isActive() ? support.heroSupportThreat() : null;
@@ -726,9 +730,9 @@ public class CoHeroAlly extends DirectableAlly {
                         // A lone ordinary Charm is intentionally not enough to spend cleansing
                         // resources. The existing serious-negative rule still allows cleansing when
                         // low health, rooted, or carrying multiple negative effects.
-                        Boolean cleansingPlant = survival.tryKnownCleansingPlant();
-                        if (cleansingPlant != null) {
-                            return cleansingPlant;
+                        Boolean mageroyalCure = survival.tryKnownMageroyalCurePlant();
+                        if (mageroyalCure != null) {
+                            return mageroyalCure;
                         }
                         if (survival.tryUseCleansingPotion(null)) {
                             return true;
@@ -807,9 +811,9 @@ public class CoHeroAlly extends DirectableAlly {
                     return survivalAction;
                 }
 
-                Boolean cleansingPlant = survival.tryKnownCleansingPlant();
-                if (cleansingPlant != null) {
-                    return cleansingPlant;
+                Boolean mageroyalCure = survival.tryKnownMageroyalCurePlant();
+                if (mageroyalCure != null) {
+                    return mageroyalCure;
                 }
 
                 if (survival.tryUseCleansingPotion(combatRisk)) {
