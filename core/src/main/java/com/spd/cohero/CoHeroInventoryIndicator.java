@@ -112,7 +112,7 @@ public class CoHeroInventoryIndicator extends Tag {
         companionHealth.setRect(
                 companionBadge.x,
                 companionBadge.y - 2,
-                companionBadge.width() * COMPANION_BADGE_SCALE + 2,
+                companionBadge.width() * COMPANION_BADGE_SCALE + 4,
                 1);
     }
 }
