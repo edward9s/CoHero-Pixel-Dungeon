@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
+import com.shatteredpixel.shatteredpixeldungeon.ui.HealthBar;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Tag;
 import com.watabou.noosa.Image;
 
@@ -16,6 +17,7 @@ public class CoHeroInventoryIndicator extends Tag {
 
     private final Image backpack;
     private final Image companionBadge;
+    private final HealthBar companionHealth;
 
     public CoHeroInventoryIndicator() {
         super(TOOLBAR_NEUTRAL);
@@ -40,6 +42,9 @@ public class CoHeroInventoryIndicator extends Tag {
         companionBadge.scale.set(COMPANION_BADGE_SCALE);
         add(companionBadge);
 
+        companionHealth = new HealthBar();
+        add(companionHealth);
+
         setSize(SIZE, SIZE);
     }
 
@@ -55,6 +60,9 @@ public class CoHeroInventoryIndicator extends Tag {
             flash();
         }
         visible = shouldShow;
+        if (companion != null) {
+            companionHealth.level(companion);
+        }
 
         boolean available = shouldShow && Dungeon.hero.ready;
         float iconAlpha = available ? 1f : 0.4f;
@@ -100,5 +108,11 @@ public class CoHeroInventoryIndicator extends Tag {
         companionBadge.x = backpack.x + backpack.width() - companionBadge.width();
         companionBadge.y = backpack.y + backpack.height() - companionBadge.height();
         PixelScene.align(companionBadge);
+
+        companionHealth.setRect(
+                companionBadge.x,
+                companionBadge.y - 2,
+                companionBadge.width() * COMPANION_BADGE_SCALE,
+                1);
     }
 }
