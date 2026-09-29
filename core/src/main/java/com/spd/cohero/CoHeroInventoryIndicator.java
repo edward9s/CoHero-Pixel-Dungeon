@@ -56,6 +56,11 @@ public class CoHeroInventoryIndicator extends Tag {
         }
         visible = shouldShow;
 
+        boolean available = shouldShow && Dungeon.hero.ready;
+        float iconAlpha = available ? 1f : 0.4f;
+        backpack.alpha(iconAlpha);
+        companionBadge.alpha(iconAlpha);
+
         super.update();
     }
 
