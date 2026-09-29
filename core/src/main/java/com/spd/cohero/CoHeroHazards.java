@@ -3,7 +3,6 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.BlobImmunity;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blizzard;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
@@ -34,7 +33,6 @@ import com.watabou.utils.PathFinder;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -47,7 +45,6 @@ import java.util.Map;
 public final class CoHeroHazards {
 
     private static final HashMap<Integer, Float> WARNED_UNTIL = new HashMap<>();
-    private static final HashSet<Class> PURITY_BLOB_EFFECTS = new BlobImmunity().immunities();
     private static Object trackedLevel;
 
     private static boolean[] vaultMechanismDanger;
@@ -89,27 +86,10 @@ public final class CoHeroHazards {
         if (owner == null
                 || Dungeon.level == null
                 || cell < 0
-                || cell >= Dungeon.level.length()
-                || !isEnvironmentalDanger(owner, cell)) {
+                || cell >= Dungeon.level.length()) {
             return false;
         }
-
-        // Purity only solves active blob danger. Telegraphs, traps, Tengu bombs and other
-        // non-blob hazards remain movement problems even when the current cell is dangerous.
-        for (Class effect : PURITY_BLOB_EFFECTS) {
-            if (owner.isImmune(effect)) {
-                continue;
-            }
-            Blob blob = Dungeon.level.blobs.get(effect);
-            if (blob != null
-                    && blob.volume > 0
-                    && blob.cur != null
-                    && cell < blob.cur.length
-                    && blob.cur[cell] > 0) {
-                return true;
-            }
-        }
-        return false;
+        return isPurityEnvironmentalBlobDanger(owner, cell);
     }
 
     public static boolean hasActiveHazards(Char owner) {
@@ -497,6 +477,12 @@ public final class CoHeroHazards {
     }
 
     private static boolean isEnvironmentalDanger(Char owner, int cell) {
+        return isPurityEnvironmentalBlobDanger(owner, cell)
+                || isTenguBombDanger(cell)
+                || presentVaultFireWallFor(owner, cell);
+    }
+
+    private static boolean isPurityEnvironmentalBlobDanger(Char owner, int cell) {
         return presentFor(owner, cell, Fire.class, Fire.class)
                 || presentFor(owner, cell, Web.class, Web.class)
                 || presentFor(owner, cell, ToxicGas.class, ToxicGas.class)
@@ -509,10 +495,8 @@ public final class CoHeroHazards {
                 || presentFor(owner, cell, Inferno.class, Fire.class)
                 || presentFor(owner, cell, Blizzard.class, Freezing.class)
                 || presentFor(owner, cell, Tengu.FireAbility.FireBlob.class, Fire.class)
-                || isTenguBombDanger(cell)
                 || presentVaultFlamesFor(owner, cell)
-                || presentEternalFireFor(owner, cell)
-                || presentVaultFireWallFor(owner, cell);
+                || presentEternalFireFor(owner, cell);
     }
 
     private static boolean hasTenguBombHazard() {
