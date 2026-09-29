@@ -8,6 +8,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfFrost;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
@@ -47,8 +48,8 @@ import java.util.List;
  *
  * The companion has a normal 20-slot backpack plus explicit equipment slots. Supported combat
  * equipment is weapon, armor, rings and wands. Potions and scrolls may be stored so unidentified
- * identities are never leaked by the transfer UI, but only explicitly supported survival
- * consumables are used autonomously. Artifacts, trinkets, bags and unknown items are rejected.
+ * identities are never leaked by the transfer UI, but only explicitly supported consumables
+ * are used autonomously. Artifacts, trinkets, bags and unknown items are rejected.
  * This intentionally does not reuse Hero/Belongings, whose owner is hard-wired to Hero.
  */
 public final class CompanionInventory {
@@ -199,6 +200,14 @@ public final class CompanionInventory {
 
     Potion takeOneAutoHealingPotion() {
         return takeOneKnownPotion(PotionOfHealing.class, ElixirOfHoneyedHealing.class);
+    }
+
+    boolean hasAutoFrostPotion() {
+        return countKnownPotions(PotionOfFrost.class) > 0;
+    }
+
+    Potion takeOneAutoFrostPotion() {
+        return takeOneKnownPotion(PotionOfFrost.class);
     }
 
     Potion takeOneAutoShieldingPotion() {
@@ -846,6 +855,7 @@ public final class CompanionInventory {
             return potion.isKnown()
                     && (potion instanceof PotionOfHealing
                     || potion instanceof ElixirOfHoneyedHealing
+                    || potion instanceof PotionOfFrost
                     || potion instanceof PotionOfShielding
                     || potion instanceof PotionOfInvisibility
                     || potion instanceof PotionOfHaste

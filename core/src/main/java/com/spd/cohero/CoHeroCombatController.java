@@ -286,6 +286,10 @@ final class CoHeroCombatController {
                 return true;
             }
 
+            if (owner.controlItems().tryUseRetreatFrostPotion(risk, threats)) {
+                return true;
+            }
+
             int oldPos = owner.pos;
             owner.allowAnyGuardMovement();
             owner.setMovementDecision("combat_survival_escape", escapeStep);
