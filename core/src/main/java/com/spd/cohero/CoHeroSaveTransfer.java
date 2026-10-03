@@ -15,8 +15,8 @@ import java.io.IOException;
  * Save-file transfer for CoHero builds.
  *
  * <p>Android mirrors SMM's full-snapshot behavior without depending on SMM.
- * Desktop uses a native folder chooser; the selected directory is the complete
- * snapshot source or destination.</p>
+ * Android and Desktop store snapshots under Documents/spd_saves using the
+ * current build's stable application name.</p>
  */
 public final class CoHeroSaveTransfer {
 
