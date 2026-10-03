@@ -10,8 +10,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 
 /**
  * Save-file transfer for CoHero builds.
@@ -24,10 +22,6 @@ public final class CoHeroSaveTransfer {
 
     private static final String LOG_PREFIX = "CoHero save transfer: ";
 
-    private static final String PREF_EXPORT_DIRECTORY =
-            "desktop_export_directory";
-    private static final String PREF_IMPORT_DIRECTORY =
-            "desktop_import_directory";
 
     private CoHeroSaveTransfer() {
     }
@@ -141,46 +135,32 @@ public final class CoHeroSaveTransfer {
 
     private static boolean exportDesktopSnapshot() throws Exception {
         File sourceDir = desktopSaveDirectory();
-        File targetDir = chooseDesktopDirectory(
-                CoHeroMessages.get("save_transfer.export"),
-                PREF_EXPORT_DIRECTORY);
-        if (targetDir == null) {
-            return false;
-        }
+        File targetDir = desktopTransferDirectory();
 
         if (directoriesOverlap(sourceDir, targetDir)) {
             throw new IOException(
-                    "Selected export directory overlaps the active save directory");
+                    "Desktop transfer directory overlaps the active save directory");
         }
 
-        if (!hasAnyContent(targetDir)) {
-            // Empty directories are always safe export targets.
-        } else if (!looksLikeSpdSaveDirectory(targetDir)) {
+        if (hasAnyContent(targetDir)
+                && !looksLikeSpdSaveDirectory(targetDir)) {
             throw new IOException(
-                    "Selected export directory does not look like SPD save data: "
+                    "Desktop transfer directory does not look like SPD save data: "
                             + targetDir.getAbsolutePath());
         }
 
-        // Desktop export is a complete replacement snapshot, but only after
-        // the existing non-empty target has been identified as SPD save data.
         Dungeon.saveAll();
-        deleteContents(targetDir);
-        copyRecursively(sourceDir, targetDir, false);
+        replaceSnapshot(sourceDir, targetDir, false);
         return true;
     }
 
     private static void importDesktopSnapshot() throws Exception {
-        File sourceDir = chooseDesktopDirectory(
-                CoHeroMessages.get("save_transfer.import"),
-                PREF_IMPORT_DIRECTORY);
-        if (sourceDir == null) {
-            return;
-        }
-
+        File sourceDir = desktopTransferDirectory();
         File targetDir = desktopSaveDirectory();
+
         if (directoriesOverlap(sourceDir, targetDir)) {
             throw new IOException(
-                    "Selected import directory overlaps the active save directory");
+                    "Desktop transfer directory overlaps the active save directory");
         }
 
         if (!hasAnyContent(sourceDir)) {
@@ -197,6 +177,45 @@ public final class CoHeroSaveTransfer {
         System.exit(0);
     }
 
+    private static File desktopTransferDirectory() throws IOException {
+        String appName = desktopAppName();
+        File documents = new File(System.getProperty("user.home"), "Documents");
+        return new File(new File(documents, "spd_saves"), appName)
+                .getCanonicalFile();
+    }
+
+    private static String desktopAppName() throws IOException {
+        Package packageInfo = CoHeroSaveTransfer.class.getPackage();
+        String appName = packageInfo == null
+                ? null
+                : packageInfo.getSpecificationTitle();
+        if (appName == null || appName.trim().isEmpty()) {
+            appName = System.getProperty("Specification-Title");
+        }
+        return validateAppName(appName);
+    }
+
+    private static String validateAppName(String appName) throws IOException {
+        if (appName == null || appName.isEmpty()) {
+            throw new IOException("Application name is unavailable");
+        }
+        if (!appName.equals(appName.trim())
+                || ".".equals(appName)
+                || "..".equals(appName)
+                || appName.endsWith(".")) {
+            throw new IOException("Invalid application name: " + appName);
+        }
+
+        String invalid = "<>:\"/\\|?*";
+        for (int i = 0; i < appName.length(); i++) {
+            char c = appName.charAt(i);
+            if (c < 32 || invalid.indexOf(c) >= 0) {
+                throw new IOException("Invalid application name: " + appName);
+            }
+        }
+        return appName;
+    }
+
     private static File desktopSaveDirectory() throws IOException {
         File directory = FileUtils.getFileHandle("").file().getCanonicalFile();
         if (!directory.exists() || !directory.isDirectory()) {
@@ -205,90 +224,6 @@ public final class CoHeroSaveTransfer {
                             + directory.getAbsolutePath());
         }
         return directory;
-    }
-
-    private static File chooseDesktopDirectory(
-            String title,
-            String preferenceKey) throws Exception {
-
-        String defaultPath = desktopPreferenceGet(
-                preferenceKey,
-                System.getProperty("user.home", "."));
-        File defaultDirectory = new File(defaultPath);
-        if (!defaultDirectory.exists() || !defaultDirectory.isDirectory()) {
-            defaultDirectory = new File(System.getProperty("user.home", "."));
-        }
-
-        Class<?> dialogs = Class.forName("org.lwjgl.util.tinyfd.TinyFileDialogs");
-        Object selected = dialogs
-                .getMethod(
-                        "tinyfd_selectFolderDialog",
-                        CharSequence.class,
-                        CharSequence.class)
-                .invoke(
-                        null,
-                        title,
-                        defaultDirectory.getAbsolutePath());
-
-        if (selected == null || selected.toString().isEmpty()) {
-            return null;
-        }
-
-        File directory = new File(selected.toString()).getCanonicalFile();
-        if (!directory.exists() || !directory.isDirectory()) {
-            throw new IOException(
-                    "Selected path is not a directory: "
-                            + directory.getAbsolutePath());
-        }
-
-        desktopPreferencePut(preferenceKey, directory.getAbsolutePath());
-        return directory;
-    }
-
-    private static String desktopPreferenceGet(
-            String key,
-            String defaultValue) throws Exception {
-
-        Class<?> preferencesClass =
-                Class.forName("java.util.prefs.Preferences");
-        Object preferences = desktopPreferences(preferencesClass);
-        return (String) preferencesClass
-                .getMethod("get", String.class, String.class)
-                .invoke(
-                        preferences,
-                        desktopPreferenceKey(key),
-                        defaultValue);
-    }
-
-    private static void desktopPreferencePut(String key, String value)
-            throws Exception {
-
-        Class<?> preferencesClass =
-                Class.forName("java.util.prefs.Preferences");
-        Object preferences = desktopPreferences(preferencesClass);
-        preferencesClass
-                .getMethod("put", String.class, String.class)
-                .invoke(preferences, desktopPreferenceKey(key), value);
-        preferencesClass
-                .getMethod("flush")
-                .invoke(preferences);
-    }
-
-    private static Object desktopPreferences(Class<?> preferencesClass)
-            throws Exception {
-
-        return preferencesClass
-                .getMethod("userNodeForPackage", Class.class)
-                .invoke(null, CoHeroSaveTransfer.class);
-    }
-
-    private static String desktopPreferenceKey(String key)
-            throws IOException {
-
-        String savePath = desktopSaveDirectory().getAbsolutePath();
-        String identity = UUID.nameUUIDFromBytes(
-                savePath.getBytes(StandardCharsets.UTF_8)).toString();
-        return key + "." + identity;
     }
 
     private static void replaceSnapshot(
@@ -315,10 +250,25 @@ public final class CoHeroSaveTransfer {
     private static File androidExternalSaveDirectory(Object context)
             throws Exception {
 
-        String packageName = (String) context.getClass()
-                .getMethod("getPackageName")
+        return new File(
+                "/sdcard/Documents/spd_saves/",
+                androidAppName(context));
+    }
+
+    private static String androidAppName(Object context) throws Exception {
+        Object applicationInfo = context.getClass()
+                .getMethod("getApplicationInfo")
                 .invoke(context);
-        return new File("/sdcard/Download/" + packageName);
+        Object packageManager = context.getClass()
+                .getMethod("getPackageManager")
+                .invoke(context);
+        Class<?> packageManagerClass =
+                Class.forName("android.content.pm.PackageManager");
+        Object label = applicationInfo.getClass()
+                .getMethod("loadLabel", packageManagerClass)
+                .invoke(applicationInfo, packageManager);
+
+        return validateAppName(label == null ? null : label.toString());
     }
 
     private static Object androidContext() throws Exception {
