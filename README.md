@@ -24,6 +24,8 @@ The core game is playable, but AI behaviour and balance are still being tuned. B
 
 Use the CoHero backpack tag to open its inventory.
 
+Save export/import uses `Documents/spd_saves/<app name>/` on Android and Desktop. CoHero and CoHero + SMM have different app names and therefore keep separate snapshots.
+
 ## Downloads
 
 Each release provides four files:
