@@ -18,6 +18,7 @@ jobs:
       spd_tag: ${{ steps.versions.outputs.spd_tag }}
       cohero_ver: ${{ steps.versions.outputs.cohero_ver }}
       smm_ver: ${{ steps.versions.outputs.smm_ver }}
+      smm_tag: ${{ steps.versions.outputs.smm_tag }}
       release_tag: ${{ steps.versions.outputs.release_tag }}
       prev_tag: ${{ steps.previous.outputs.prev_tag }}
 
@@ -26,12 +27,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: cohero
-
-      - name: Checkout Shattered Master Mode
-        uses: actions/checkout@v4
-        with:
-          repository: edward9s/Shattered-Master-Mode
-          path: mod
 
       - name: Resolve versions
         id: versions
@@ -47,6 +42,24 @@ jobs:
             exit 1
           fi
 
+          SPD_BUILD_GRADLE=$(gh api \
+            -H "Accept: application/vnd.github.raw" \
+            "repos/00-Evan/shattered-pixel-dungeon/contents/build.gradle?ref=$SPD_TAG")
+          SPD_SOURCE_VERSION=$(printf '%s\n' "$SPD_BUILD_GRADLE" \
+            | sed -nE "s/^[[:space:]]*appVersionName[[:space:]]*=[[:space:]]*'([^']+)'.*/\1/p" \
+            | head -n 1)
+          if [ -z "$SPD_SOURCE_VERSION" ]; then
+            echo "::error::Unable to resolve SPD source version from build.gradle at $SPD_TAG."
+            exit 1
+          fi
+
+          SPD_TAG_VERSION="${SPD_TAG#v}"
+          if [ "$SPD_SOURCE_VERSION" != "$SPD_TAG_VERSION" ]; then
+            echo "::error::SPD release tag $SPD_TAG does not match public source version $SPD_SOURCE_VERSION."
+            exit 1
+          fi
+          echo "Verified SPD source version $SPD_SOURCE_VERSION against release tag $SPD_TAG."
+
           COHERO_VER=$(python cohero/scripts/extract_version.py \
             cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
           if [ -z "$COHERO_VER" ]; then
@@ -54,18 +67,23 @@ jobs:
             exit 1
           fi
 
-          SMM_VER=$(python mod/scripts/extract_version.py \
-            mod/core/src/main/java/com/spd/mod/ModGame.java)
-          if [ -z "$SMM_VER" ]; then
-            echo "::error::Unable to resolve the SMM version."
+          SMM_TAG=$(gh api repos/edward9s/Shattered-Master-Mode/releases/latest --jq '.tag_name // empty')
+          if [ -z "$SMM_TAG" ]; then
+            echo "::error::Unable to resolve the latest SMM release tag."
             exit 1
           fi
+          if [[ ! "$SMM_TAG" =~ -m([0-9]+(\.[0-9]+)*)$ ]]; then
+            echo "::error::Unexpected SMM release tag format: $SMM_TAG"
+            exit 1
+          fi
+          SMM_VER="${BASH_REMATCH[1]}"
 
           RELEASE_TAG="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}"
 
           echo "spd_tag=$SPD_TAG" >> "$GITHUB_OUTPUT"
           echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
           echo "smm_ver=$SMM_VER" >> "$GITHUB_OUTPUT"
+          echo "smm_tag=$SMM_TAG" >> "$GITHUB_OUTPUT"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Check release status
@@ -266,6 +284,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: edward9s/Shattered-Master-Mode
+          ref: ${{ needs.prepare.outputs.smm_tag }}
           path: mod
 
       - name: Checkout Shattered Pixel Dungeon
