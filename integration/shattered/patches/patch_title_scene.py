@@ -37,7 +37,8 @@ title_layout_new = """\t\ttitle = BannerSprites.get( landscape() ? BannerSprites
 \t\tcoHeroTitle.measure();
 \t\tadd(coHeroTitle);
 \t\t
-\t\tfloat brandOverlap = landscape() ? 0 : 8;\n\t\tfloat brandHeight = coHeroTitle.height() - brandOverlap;
+\t\tfloat brandOverlap = landscape() ? 0 : 8;
+\t\tfloat brandHeight = coHeroTitle.height() - brandOverlap;
 \t\tfloat topRegion = Math.max(title.height - 6 + brandHeight, h*0.45f);
 
 \t\ttitle.x = insets.left + (w - title.width()) / 2f;
