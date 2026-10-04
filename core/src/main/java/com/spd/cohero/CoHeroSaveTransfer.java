@@ -75,12 +75,21 @@ public final class CoHeroSaveTransfer {
                 if (export) {
                     if (exportDesktopSnapshot()) {
                         System.out.println(LOG_PREFIX + "Save exported!");
+                        GLog.h(
+                                CoHeroMessages.get("save_transfer.exported"),
+                                new Object[0]);
                     }
                 } else {
                     importDesktopSnapshot();
                 }
             } catch (Exception e) {
                 logFailure(operation, e);
+                GLog.w(
+                        CoHeroMessages.get(
+                                export
+                                        ? "save_transfer.export_failed"
+                                        : "save_transfer.import_failed"),
+                        new Object[0]);
             }
         });
     }
@@ -166,6 +175,9 @@ public final class CoHeroSaveTransfer {
         if (!hasAnyContent(sourceDir)) {
             System.out.println(
                     LOG_PREFIX + CoHeroMessages.get("save_transfer.no_save"));
+            GLog.w(
+                    CoHeroMessages.get("save_transfer.no_save"),
+                    new Object[0]);
             return;
         }
 
