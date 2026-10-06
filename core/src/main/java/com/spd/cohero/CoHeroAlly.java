@@ -56,7 +56,7 @@ public class CoHeroAlly extends DirectableAlly {
     private int movementDecisionTarget = -1;
     private boolean debugLogEnabled;
     private boolean inCombat;
-    private CoHeroTurnContext turnContext;
+    private final CoHeroTurnContext turnContext = new CoHeroTurnContext(this);
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -77,7 +77,7 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     CoHeroTurnContext currentTurnContext() {
-        return turnContext;
+        return turnContext.isActive() ? turnContext : null;
     }
 
     boolean lowHealthRally() {
@@ -601,7 +601,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean act() {
-        if (turnContext != null) {
+        if (turnContext.isActive()) {
             throw new IllegalStateException("CoHero decision turn re-entered before completion");
         }
 
@@ -609,7 +609,7 @@ public class CoHeroAlly extends DirectableAlly {
         try {
             return decideAction();
         } finally {
-            turnContext = null;
+            turnContext.end();
             timings().record(this, CoHeroTimings.Action.ACT, started, movementDecision);
         }
     }
@@ -631,7 +631,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        turnContext = new CoHeroTurnContext(this);
+        turnContext.begin();
         guard.updateSession();
         combatObjective.update();
 
@@ -1455,10 +1455,11 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     ArrayList<Mob> visibleAwakeEnemies() {
-        if (turnContext == null) {
+        CoHeroTurnContext context = currentTurnContext();
+        if (context == null) {
             throw new IllegalStateException("CoHero visible threats requested outside decision turn");
         }
-        return turnContext.visibleAwakeEnemies();
+        return context.visibleAwakeEnemies();
     }
 
     int nearestThreatDistance(int cell, ArrayList<Mob> threats) {
