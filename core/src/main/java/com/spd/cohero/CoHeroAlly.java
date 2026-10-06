@@ -631,9 +631,9 @@ public class CoHeroAlly extends DirectableAlly {
         }
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
-        turnContext.begin();
         guard.updateSession();
         combatObjective.update();
+        turnContext.begin();
 
         ArrayList<Mob> visibleThreats = visibleAwakeEnemies();
         inCombat = !visibleThreats.isEmpty();
