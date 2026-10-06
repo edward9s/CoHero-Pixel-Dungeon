@@ -495,6 +495,7 @@ final class CoHeroCombatPositioning {
                     || !threat.isAlive()
                     || owner.isCombatInvulnerable(threat)
                     || owner.hasNonAdjacentAttackCapability(threat)
+                    || !owner.hasAdjacentAttackCapability(threat)
                     || isSwarmEngagingHero(threat)) {
                 continue;
             }
