@@ -45,7 +45,7 @@ final class CoHeroNavigation {
     }
 
     boolean actExplore() {
-        long validateStarted = owner.timings().start();
+        long validateStarted = owner.timings().startNanos();
         boolean targetInvalid;
         try {
             targetInvalid = explorationTarget == -1
@@ -61,7 +61,7 @@ final class CoHeroNavigation {
 
         if (targetInvalid) {
             owner.clearNavigationPath();
-            long selectStarted = owner.timings().start();
+            long selectStarted = owner.timings().startNanos();
             try {
                 explorationTarget = chooseExplorationTarget();
             } finally {
@@ -77,7 +77,7 @@ final class CoHeroNavigation {
 
         boolean moved = false;
         if (explorationTarget != -1) {
-            long moveStarted = owner.timings().start();
+            long moveStarted = owner.timings().startNanos();
             try {
                 moved = moveTowardExplorationTarget(explorationTarget);
             } finally {
@@ -93,7 +93,7 @@ final class CoHeroNavigation {
         }
 
         owner.clearNavigationPath();
-        long selectStarted = owner.timings().start();
+        long selectStarted = owner.timings().startNanos();
         try {
             explorationTarget = chooseExplorationTarget();
         } finally {
@@ -179,7 +179,7 @@ final class CoHeroNavigation {
             return null;
         }
 
-        long started = owner.timings().start();
+        long started = owner.timings().startNanos();
         try {
             boolean[] dangerMask = CoHeroHazards.dangerMask(owner);
             boolean[] escapePassable = hazardEscapePassable();
@@ -313,7 +313,7 @@ final class CoHeroNavigation {
         return result;
     }
     boolean getCloser(int target) {
-        long guardStarted = owner.timings().start();
+        long guardStarted = owner.timings().startNanos();
         boolean guardRestricted;
         try {
             guardRestricted = owner.isGuardMovementRestricted();
@@ -324,7 +324,7 @@ final class CoHeroNavigation {
 
         boolean activeHazards = false;
         if (!guardRestricted) {
-            long hazardStarted = owner.timings().start();
+            long hazardStarted = owner.timings().startNanos();
             try {
                 activeHazards = CoHeroHazards.hasActiveHazards(owner);
             } finally {
@@ -335,7 +335,7 @@ final class CoHeroNavigation {
 
         boolean sleepingEnemy = false;
         if (!guardRestricted && !activeHazards) {
-            long sleepStarted = owner.timings().start();
+            long sleepStarted = owner.timings().startNanos();
             try {
                 sleepingEnemy = hasVisibleSleepingEnemy();
             } finally {
@@ -346,7 +346,7 @@ final class CoHeroNavigation {
 
         if (!guardRestricted && !activeHazards && !sleepingEnemy) {
             clearPolicyPath();
-            long stockPathStarted = owner.timings().start();
+            long stockPathStarted = owner.timings().startNanos();
             try {
                 return owner.getCloserWithoutCoHeroPolicy(target);
             } finally {
@@ -359,7 +359,7 @@ final class CoHeroNavigation {
         }
 
         boolean[] safePassable;
-        long safeMaskStarted = owner.timings().start();
+        long safeMaskStarted = owner.timings().startNanos();
         try {
             safePassable = ordinarySafePassable(false);
             owner.restrictGuardPassable(safePassable);
@@ -370,7 +370,7 @@ final class CoHeroNavigation {
         }
 
         int step;
-        long policyPathStarted = owner.timings().start();
+        long policyPathStarted = owner.timings().startNanos();
         try {
             step = nextPolicyStep(target, safePassable);
         } finally {
@@ -381,7 +381,7 @@ final class CoHeroNavigation {
             return false;
         }
 
-        long executeStarted = owner.timings().start();
+        long executeStarted = owner.timings().startNanos();
         try {
             owner.move(step);
             return owner.pos == step;
