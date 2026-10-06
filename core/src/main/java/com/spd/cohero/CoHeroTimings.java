@@ -127,7 +127,7 @@ final class CoHeroTimings {
         return enabled;
     }
 
-    long start() {
+    long startNanos() {
         return enabled ? System.nanoTime() : 0L;
     }
 
