@@ -393,7 +393,7 @@ final class CoHeroCombatController {
             if (canOpenRangedSpacingAgainst(targetMob)) {
                 int spacingStep = chooseRangedSpacingStep(targetMob, threats);
                 if (spacingStep != -1) {
-                    owner.allowAnyGuardMovement();
+                    owner.releaseGuardAreaForCombat();
                     return moveForRangedEngagement(spacingStep, "ranged_spacing");
                 }
             }
@@ -420,10 +420,10 @@ final class CoHeroCombatController {
         }
 
         if (rangedPressure) {
-            // Active ranged fire is combat territory, not guard-roaming territory. The ranged
-            // planner already evaluates live safety/occupancy, so guard scope must not reject the
-            // step after planning has selected a close-in or LOS-cover move.
-            owner.allowAnyGuardMovement();
+            // Active ranged fire may leave the outside guard area, but an active Hero-room support
+            // lock still owns the doorway. Ordinary combat positioning must not oscillate back
+            // through that door; only hazard/survival escape may fully release the lock.
+            owner.releaseGuardAreaForCombat();
         }
 
         if (rangedPressure && !Dungeon.level.adjacent(owner.pos, targetMob.pos)) {
@@ -903,7 +903,7 @@ final class CoHeroCombatController {
             return null;
         }
 
-        owner.allowAnyGuardMovement();
+        owner.releaseGuardAreaForCombat();
         owner.logBossDecision("ranged_friendly_blocker:" + targetMob.id(),
                 owner.targetDebug(targetMob) + " -> reposition for clear projectile line");
         return moveForRangedEngagement(step, "ranged_friendly_blocker");
