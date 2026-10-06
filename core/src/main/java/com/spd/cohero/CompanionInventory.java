@@ -1,5 +1,6 @@
 package com.spd.cohero;
 
+import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Blacksmith;
@@ -830,7 +831,7 @@ public final class CompanionInventory {
     }
 
     boolean canUse(Item item) {
-        if (item == null || isHeroRequiredQuestItem(item)) {
+        if (item == null || mustRemainWithHero(item)) {
             return false;
         }
 
@@ -889,10 +890,21 @@ public final class CompanionInventory {
                 || item instanceof StoneOfShock;
     }
 
-    private static boolean isHeroRequiredQuestItem(Item item) {
-        return item instanceof Pickaxe
-                && Blacksmith.Quest.given()
-                && !Blacksmith.Quest.completed();
+    private static boolean mustRemainWithHero(Item item) {
+        if (!(item instanceof Pickaxe)
+                || !Blacksmith.Quest.given()
+                || Blacksmith.Quest.completed()
+                || Dungeon.hero == null) {
+            return false;
+        }
+
+        int heroPickaxes = Dungeon.hero.belongings.getAllItems(Pickaxe.class).size();
+        if (Dungeon.hero.belongings.contains(item)) {
+            return heroPickaxes <= 1;
+        }
+
+        // A loose/CoHero-owned pickaxe must stay available for Hero only when Hero has none.
+        return heroPickaxes == 0;
     }
 
     private static boolean knownUncursed(Item item) {
