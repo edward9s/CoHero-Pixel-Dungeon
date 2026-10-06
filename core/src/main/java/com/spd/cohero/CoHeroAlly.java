@@ -1008,7 +1008,10 @@ public class CoHeroAlly extends DirectableAlly {
                 int escapeStep = combat.chooseEscapeStep(combatThreats);
                 if (escapeStep != -1) {
                     int oldPos = pos;
-                    guard.allowAnyMovement();
+                    // This is only the ordinary no-legal-action fallback, not a survival retreat.
+                    // It may leave the outside guard area for tactical positioning, but must not
+                    // erase an active HERO_ROOM support lock and bounce back through the doorway.
+                    guard.releaseGuardAreaForCombat();
                     setMovementDecision("combat_escape", escapeStep);
                     if (getCloser(escapeStep)) {
                         spend(1 / speed());
