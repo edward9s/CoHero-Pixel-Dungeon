@@ -512,7 +512,7 @@ final class CoHeroCombatRiskEstimator {
             return cache.targetTtk;
         }
 
-        long ttkStarted = owner.timings().start();
+        long ttkStarted = owner.timings().startNanos();
         try {
             float fastestCurrentDpt = Math.max(
                     estimateMeleeDpt(targetMob),
@@ -591,11 +591,11 @@ final class CoHeroCombatRiskEstimator {
             return cache.bestRangedDpt;
         }
 
-        long rangedStarted = owner.timings().start();
+        long rangedStarted = owner.timings().startNanos();
         try {
             float best = 0f;
 
-            long missileStarted = owner.timings().start();
+            long missileStarted = owner.timings().startNanos();
             try {
                 for (MissileWeapon missile : owner.inventory().missileWeapons()) {
                     best = Math.max(best, estimateMissileDpt(targetMob, missile));
@@ -605,7 +605,7 @@ final class CoHeroCombatRiskEstimator {
                         owner, CoHeroTimings.Action.TTK_MISSILE, missileStarted);
             }
 
-            long bowStarted = owner.timings().start();
+            long bowStarted = owner.timings().startNanos();
             try {
                 SpiritBow bow = owner.inventory().spiritBow();
                 best = Math.max(best, estimateSpiritBowDpt(targetMob, bow));
@@ -614,14 +614,14 @@ final class CoHeroCombatRiskEstimator {
                         owner, CoHeroTimings.Action.TTK_SPIRIT_BOW, bowStarted);
             }
 
-            long wandStarted = owner.timings().start();
+            long wandStarted = owner.timings().startNanos();
             try {
                 for (Wand wand : owner.inventory().wands()) {
                     if (!CoHeroWandAdapter.supported(wand)) {
                         continue;
                     }
 
-                    long perWandStarted = owner.timings().start();
+                    long perWandStarted = owner.timings().startNanos();
                     try {
                         if (CoHeroWandAdapter.guaranteedControl(wand, owner, targetMob)) {
                             best = Math.max(best, targetMob.HP);
@@ -678,7 +678,7 @@ final class CoHeroCombatRiskEstimator {
             return cache.meleeDpt;
         }
 
-        long meleeStarted = owner.timings().start();
+        long meleeStarted = owner.timings().startNanos();
         try {
             float result = 0f;
             if (owner.canAttack(targetMob)
