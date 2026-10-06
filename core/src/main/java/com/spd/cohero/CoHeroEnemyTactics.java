@@ -144,7 +144,7 @@ final class CoHeroEnemyTactics {
         if (owner.hasMeleeCombatCapability() && !owner.rooted) {
             int closeStep = positioning.chooseOneStepMeleeApproach(targetMob, allThreats);
             if (closeStep != -1) {
-                owner.allowAnyGuardMovement();
+                owner.releaseGuardAreaForCombat();
                 return combat.moveForRangedEngagement(closeStep, "monk_focus_close");
             }
         }
@@ -182,7 +182,7 @@ final class CoHeroEnemyTactics {
         if (owner.hasMeleeCombatCapability() && !owner.rooted) {
             int closeStep = positioning.chooseOneStepMeleeApproach(targetMob, allThreats);
             if (closeStep != -1) {
-                owner.allowAnyGuardMovement();
+                owner.releaseGuardAreaForCombat();
                 return combat.moveForRangedEngagement(closeStep, "monk_opening_close");
             }
         }
@@ -377,7 +377,7 @@ final class CoHeroEnemyTactics {
         if (!owner.rooted) {
             int escapeStep = positioning.chooseEscapeStep(allThreats);
             if (escapeStep != -1) {
-                owner.allowAnyGuardMovement();
+                owner.releaseGuardAreaForCombat();
                 return combat.moveForRangedEngagement(
                         escapeStep, "armored_brute_rage_spacing");
             }
@@ -422,7 +422,7 @@ final class CoHeroEnemyTactics {
         if (meleeCapable && !owner.rooted) {
             int captureStep = positioning.chooseImmediateScorpioCaptureStep(scorpio, allThreats);
             if (captureStep != -1) {
-                owner.allowAnyGuardMovement();
+                owner.releaseGuardAreaForCombat();
                 return combat.moveForRangedEngagement(captureStep, "scorpio_capture");
             }
 
@@ -430,7 +430,7 @@ final class CoHeroEnemyTactics {
             if (canSustainChase) {
                 int closeStep = positioning.chooseRangedTargetClosingStep(scorpio, allThreats);
                 if (closeStep != -1) {
-                    owner.allowAnyGuardMovement();
+                    owner.releaseGuardAreaForCombat();
                     return combat.moveForRangedEngagement(closeStep, "scorpio_chase");
                 }
             }
@@ -459,7 +459,7 @@ final class CoHeroEnemyTactics {
             if (coverCell != -1) {
                 int coverStep = positioning.rangedLureStep(coverCell);
                 if (coverStep != -1) {
-                    owner.allowAnyGuardMovement();
+                    owner.releaseGuardAreaForCombat();
                     return combat.moveForRangedEngagement(coverStep, "scorpio_cover");
                 }
             }
@@ -476,7 +476,7 @@ final class CoHeroEnemyTactics {
         if (meleeCapable && !owner.rooted) {
             int closeStep = positioning.chooseRangedTargetClosingStep(scorpio, allThreats);
             if (closeStep != -1) {
-                owner.allowAnyGuardMovement();
+                owner.releaseGuardAreaForCombat();
                 return combat.moveForRangedEngagement(closeStep, "scorpio_forced_close");
             }
         }
