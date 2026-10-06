@@ -34,15 +34,20 @@ final class CoHeroCombatTargeting {
         return result;
     }
 
-    Mob selectCombatTarget(ArrayList<Mob> threats) {
-        if (threats == null || threats.isEmpty()) {
+    Mob selectCombatTarget(ArrayList<Mob> candidates, ArrayList<Mob> activeEnemies) {
+        if (candidates == null || candidates.isEmpty()) {
             return null;
+        }
+
+        Mob strategicSource = selectStrategicSource(candidates, activeEnemies);
+        if (strategicSource != null) {
+            return strategicSource;
         }
 
         ArrayList<Ghoul> ghouls = new ArrayList<>();
         Ghoul linkedHost = null;
         int linkedHostLinks = 0;
-        for (Mob threat : threats) {
+        for (Mob threat : candidates) {
             if (!(threat instanceof Ghoul)) {
                 continue;
             }
@@ -88,13 +93,51 @@ final class CoHeroCombatTargeting {
             return best;
         }
 
-        return nearestThreat(threats);
+        return nearestThreat(candidates);
+    }
+
+    private Mob selectStrategicSource(
+            ArrayList<Mob> candidates, ArrayList<Mob> activeEnemies) {
+        if (activeEnemies == null || activeEnemies.isEmpty()) {
+            return null;
+        }
+
+        Mob best = null;
+        int bestRemoved = 0;
+        int bestDistance = Integer.MAX_VALUE;
+        for (Mob source : candidates) {
+            int removed = 0;
+            for (Mob dependent : activeEnemies) {
+                if (dependent != source
+                        && dependent != null
+                        && dependent.isAlive()
+                        && source.coHeroDeathRemoves(dependent)) {
+                    removed++;
+                }
+            }
+            if (removed == 0) {
+                continue;
+            }
+
+            int distance = Dungeon.level.distance(owner.pos, source.pos);
+            if (best == null
+                    || removed > bestRemoved
+                    || (removed == bestRemoved && distance < bestDistance)
+                    || (removed == bestRemoved
+                        && distance == bestDistance
+                        && source.id() < best.id())) {
+                best = source;
+                bestRemoved = removed;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     /**
-     * Survival uses the fastest currently killable target, not the tactical focus target.
-     * This keeps Ghoul host priority (and future target priorities) from inflating the whole
-     * fight's TTK merely because that tactically important target is durable.
+     * Survival uses the fastest currently killable root target, not the tactical focus target.
+     * A dependent whose death-removing source is itself currently attackable is excluded: killing
+     * that dependent does not resolve the source and can understate the real fight duration.
      */
     Mob selectSurvivalTarget(ArrayList<Mob> threats) {
         if (threats == null || threats.isEmpty()) {
@@ -106,6 +149,10 @@ final class CoHeroCombatTargeting {
         int bestDistance = Integer.MAX_VALUE;
 
         for (Mob threat : threats) {
+            if (hasAttackableDeathRemovingSource(threat, threats)) {
+                continue;
+            }
+
             float ttk = owner.estimateTargetTtk(threat);
             int distance = Dungeon.level.distance(owner.pos, threat.pos);
             if (best == null
@@ -120,7 +167,23 @@ final class CoHeroCombatTargeting {
             }
         }
 
+        if (best == null) {
+            throw new IllegalStateException(
+                    "All CoHero survival targets were excluded without an attackable root");
+        }
         return best;
+    }
+
+    private boolean hasAttackableDeathRemovingSource(
+            Mob dependent, ArrayList<Mob> attackableThreats) {
+        for (Mob source : attackableThreats) {
+            if (source != dependent
+                    && source.isAlive()
+                    && source.coHeroDeathRemoves(dependent)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     ArrayList<Mob> collectActiveThreats(ArrayList<Mob> threats) {
