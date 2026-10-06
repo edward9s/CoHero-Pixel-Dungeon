@@ -786,11 +786,7 @@ final class CoHeroCombatController {
         // A pure-melee target with a gap may still be worth shooting, but speed-aware planning
         // decides whether the spacing is actually free. Extended melee is compared separately.
         boolean preferredRanged = shouldPreferRangedAttack(preferredTarget);
-        boolean preferredMeleeEstablished = owner.canAttack(preferredTarget)
-                && !preferredRanged
-                && (!owner.isCurrentRangedPressure(preferredTarget)
-                    || Dungeon.level.adjacent(owner.pos, preferredTarget.pos));
-        if (preferredMeleeEstablished) {
+        if (meleeEngagementEstablished(preferredTarget, preferredRanged)) {
             return null;
         }
 
@@ -813,11 +809,7 @@ final class CoHeroCombatController {
 
             int distance = Dungeon.level.distance(owner.pos, threat.pos);
             boolean alternateRanged = shouldPreferRangedAttack(threat);
-            boolean meleeEstablished = owner.canAttack(threat)
-                    && !alternateRanged
-                    && (!owner.isCurrentRangedPressure(threat)
-                        || Dungeon.level.adjacent(owner.pos, threat.pos));
-            if (meleeEstablished) {
+            if (meleeEngagementEstablished(threat, alternateRanged)) {
                 continue;
             }
 
@@ -843,6 +835,14 @@ final class CoHeroCombatController {
                 : performRangedChoice(alternateTarget, alternateChoice);
     }
 
+    private boolean meleeEngagementEstablished(
+            Mob targetMob, boolean rangedPreferred) {
+        return owner.canAttack(targetMob)
+                && !rangedPreferred
+                && (!owner.isCurrentRangedPressure(targetMob)
+                    || Dungeon.level.adjacent(owner.pos, targetMob.pos));
+    }
+
     Boolean tryFriendlyBlockedProjectileReposition(
             Mob targetMob, ArrayList<Mob> threats) {
         if (targetMob == null
@@ -851,6 +851,11 @@ final class CoHeroCombatController {
                 || owner.rooted
                 || targetMob.properties().contains(Char.Property.BOSS)
                 || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1) {
+            return null;
+        }
+
+        boolean rangedPreferred = shouldPreferRangedAttack(targetMob);
+        if (meleeEngagementEstablished(targetMob, rangedPreferred)) {
             return null;
         }
 
