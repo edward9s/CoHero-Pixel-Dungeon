@@ -1399,7 +1399,7 @@ final class CoHeroCombatController {
         CharSprite sprite = owner.attachedSprite();
 
         if (heroVisible && sprite != null && targetMob.sprite != null) {
-            long animationStarted = System.nanoTime();
+            long animationStarted = owner.timings().start();
             sprite.attack(targetMob.pos, new Callback() {
                 @Override
                 public void call() {
