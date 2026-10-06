@@ -17,6 +17,7 @@ HERO_FINAL_DEATH_ANKH_GATE = "if (!com.spd.cohero.CoHero.companionDeathEndedRun(
 FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
 COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
 COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
+EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target)"
 
 
 def main() -> int:
@@ -111,6 +112,16 @@ def main() -> int:
     if vision_source.count(COHERO_WARD_VISION_MERGE) != 1:
         print(
             "CoHeroVision must merge CoHero-owned ward vision into CoHero FOV.",
+            file=sys.stderr,
+        )
+        return 1
+
+    eye_patch = (
+        root / "integration" / "shattered" / "patches" / "patch_eye_ranged_damage.py"
+    ).read_text(encoding="utf-8")
+    if eye_patch.count(EYE_DEATH_GAZE_TRACKING_HOOK) != 1:
+        print(
+            "Eye integration must expose whether a charged Death Gaze is still tracking CoHero.",
             file=sys.stderr,
         )
         return 1
