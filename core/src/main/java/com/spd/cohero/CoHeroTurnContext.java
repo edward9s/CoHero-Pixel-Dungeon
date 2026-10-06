@@ -112,6 +112,23 @@ final class CoHeroTurnContext {
         return heroSupportThreat;
     }
 
+    boolean isSleepSafe(int cell) {
+        assertActive();
+        if (cell < 0 || cell >= level.length()) {
+            return true;
+        }
+        if (visibleSleepingEnemies == null) {
+            return true;
+        }
+
+        for (Mob mob : visibleSleepingEnemies) {
+            if (level.distance(cell, mob.pos) <= 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     void maskSleepingEnemyWakeRisk(boolean[] passable) {
         assertActive();
         if (passable == null || passable.length != level.length()) {
