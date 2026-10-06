@@ -204,8 +204,8 @@ CoHero 會讀取 SPD 原版 `GameScene.targetedCell(cell, delay)` 所建立的�
 - 已觸發的 `PitfallTrap.DelayedPit` 直接視為 live hazard：CoHero 讀取原版 buff 的 `positions`、`depth`、`branch` 與 `ignoreAllies`，不複製倒數或另存 warning。若 CoHero 位於即將塌陷的範圍，下一個可行動回合優先用既有 `hazard_escape` 離開；普通尋路也不會走進該範圍。飛行中的 CoHero 或原版 `ignoreAllies` 生效時不視為危險。因判定直接來自原版 buff，存讀檔後只要 `DelayedPit` 仍存在就自然恢復，不需要額外持久化狀態。
 - 天狗第二階段的定時炸彈直接掃描目前 `Tengu.BombAbility`：以原版爆炸規則的 2 格可達範圍視為危險，炸彈 buff 消失後危險區立即消失。`Tengu.FireAbility.FireBlob` 則依原版火焰免疫規則納入環境危險，因此 CoHero 會避開火牆目前已覆蓋、即將引燃的格子。
 - `DelayedRockFall` 在存檔載入重建特效時，會按 buff 剩餘 `cooldown()` 重新登記危險格，因此地動法師／DM-300 已預告但尚未落下的岩石不會因讀檔而被 CoHero 忘記。
-- 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯；Vault Laser / Vault Sentry 則由上述寶庫機關判定處理，避免 `giveWarning = false` 時漏判。`RipperDemon` 的跳躍另外直接讀取目前 pending leap target，依原版跳躍彈道只把實際碰撞／落點格視為危險；`Eye` 的 Death Gaze 也直接讀取目前鎖定的 beam target，以原版 `Ballistica.STOP_SOLID` 重建蓄力光線。兩者都不依賴 Hero FOV 或畫面上的 targeted-cell 特效，因此視野外戰鬥與讀檔後仍能依 live actor 狀態避讓。
-- 若 CoHero 被定身、麻痺，或所有相鄰合法格本身都危險／不可通行，AI 不會假裝能躲開，會繼續執行其他可行生存或戰鬥行為。
+- 因此 Yog-Dzewa 光線、Gnoll Geomancer / DM-300 落石等使用原版 targeted-cell 警示的攻擊可共用同一套避讓邏輯；Vault Laser / Vault Sentry 則由上述寶庫機關判定處理，避免 `giveWarning = false` 時漏判。`RipperDemon` 的跳躍另外直接讀取目前 pending leap target，依原版跳躍彈道只把實際碰撞／落點格視為危險。`Eye` 的 Death Gaze 除了保留目前鎖定的 `beamTarget`／`Ballistica.STOP_SOLID` 光束外，也讀取這發蓄力是否仍以 CoHero 為 live enemy；只要 CoHero 尚未隱形且仍在 Eye 視野內，原版 `canAttack()` 會在真正發射前把 `beamTarget` 更新到 CoHero 當下位置，因此該 Eye 的可見區在蓄力期間也視為會被重新瞄準的危險區。避讓時直接比較 `eye.cooldown()` 與 CoHero 到最近安全視野外格所需的移動時間；能趕上就步行脫離，來不及或被定身時先嘗試安全的 `StoneOfBlink`。只有 CoHero 已離開所有舊鎖定 beam、危險純粹來自重新瞄準時，隱形藥才是有效解；再不行才嘗試 `ScrollOfTeleportation`。這些判定不依賴 Hero FOV 或畫面上的 targeted-cell 特效，因此視野外戰鬥與讀檔後仍能依 live actor 狀態避讓。
+- 一般 hazard 若 CoHero 被定身、麻痺，或沒有合法安全格，仍不會假裝能步行躲開；但已蓄力的 Death Gaze 具有明確 actor deadline，因此會在普通走位無法及時脫離時升級到上述立即位移／不可見手段。
 
 ### CoHero 職業固有能力
 
