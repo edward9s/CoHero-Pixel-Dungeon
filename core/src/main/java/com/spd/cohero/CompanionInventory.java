@@ -18,6 +18,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCle
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
+import com.shatteredpixel.shatteredpixeldungeon.items.quest.Pickaxe;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
@@ -828,7 +829,7 @@ public final class CompanionInventory {
     }
 
     boolean canUse(Item item) {
-        if (item == null) {
+        if (item == null || isHeroOnlyQuestItem(item)) {
             return false;
         }
 
@@ -885,6 +886,10 @@ public final class CompanionInventory {
                 || item instanceof StoneOfBlink
                 || item instanceof StoneOfFlock
                 || item instanceof StoneOfShock;
+    }
+
+    private static boolean isHeroOnlyQuestItem(Item item) {
+        return item instanceof Pickaxe;
     }
 
     private static boolean knownUncursed(Item item) {
