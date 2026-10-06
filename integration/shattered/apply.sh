@@ -90,6 +90,11 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/DelayedRockFall.java"
     python "$patches/patch_vault_firewall.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/quest/vault/VaultBossElemental.java"
+    python "$patches/patch_vault_final_room_cohero.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/rooms/quest/vault/VaultFinalRoom.java"
+    python "$patches/patch_vault_transition_cohero.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/VaultLevel.java" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/quest/EscapeCrystal.java"
     python "$patches/patch_missileweapon.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/weapon/missiles/MissileWeapon.java"
     python "$patches/patch_mages_staff.py" \
