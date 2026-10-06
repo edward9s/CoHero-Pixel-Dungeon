@@ -200,11 +200,15 @@ final class CoHeroTurnContext {
                 continue;
             }
 
-            if (mob.state == mob.SLEEPING
-                    && mob.pos >= 0
-                    && mob.pos < owner.fieldOfView.length
-                    && owner.fieldOfView[mob.pos]) {
-                visibleSleepingEnemies.add(mob);
+            if (mob.state == mob.SLEEPING) {
+                if (mob.pos < 0 || mob.pos >= owner.fieldOfView.length) {
+                    throw new IllegalStateException(
+                            "Sleeping CoHero enemy has invalid position: "
+                                    + mob.getClass().getSimpleName() + "@" + mob.pos);
+                }
+                if (owner.fieldOfView[mob.pos]) {
+                    visibleSleepingEnemies.add(mob);
+                }
             }
 
             if (mob.invisible > 0
