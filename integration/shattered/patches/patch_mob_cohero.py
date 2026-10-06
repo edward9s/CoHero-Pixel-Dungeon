@@ -49,6 +49,14 @@ patch = anchor + """	/**
 	}
 
 	/**
+	 * CoHero strategic relationship seam. Returns true only when killing this mob immediately
+	 * removes the supplied dependent enemy as part of the mob's own death semantics.
+	 */
+	public boolean coHeroDeathRemoves(Mob dependent) {
+		return false;
+	}
+
+	/**
 	 * CoHero-only surprise semantics. This deliberately does not feed Mob.surprisedBy(), because
 	 * the stock path also records Hero sneak-attack statistics and Hero-specific surprise effects.
 	 */

@@ -22,6 +22,8 @@ The 54 Java targets are classified A 7, B 12, C 14, D 6, E 15. `build.gradle` (`
 | A | `HeroSelectScene.java` | `patch_hero_select.py` | new run companion selection; scene presentation is D |
 | A | `GameScene.java` | `patch_gamescene.py` | scene-ready restore; UI is D and hazard display is E |
 | A | `Mob.java` | `patch_mob_cohero.py` | combat target and ranged-damage base semantics; remote attack display is D |
+| A | `Necromancer.java` | `patch_necromancer_cohero.py` | exact death-removes relationship for its own summoned skeleton |
+| A | `SpectralNecromancer.java` | `patch_spectral_necromancer_cohero.py` | exact death-removes relationships for its tracked wraiths |
 | A | `WndGame.java` | `patch_wndgame.py` | restart availability after companion run end |
 | B | `Char.java` | `patch_cohero_class_traits.py` | cleric Bless accuracy and evasion |
 | B | `RingOfArcana.java` | `patch_cohero_ring_traits.py` | huntress ring effect |
@@ -82,7 +84,7 @@ The restore hook must remain after terrain/fog/UI construction and before Hero s
 
 ### Mob.java: semantics, not just a call site
 
-`patch_mob_cohero.py` implements `coHeroCanAttackFrom()` by temporarily changing `pos` in a `try/finally`, thereby invoking the actual overridden `canAttack()`. A fork's override may depend on more mutable state or produce side effects, so copying this probe without inspecting the host's attack implementations is unsafe. It also adds `coHeroRangedDamageRoll()`: standard ranged attacks default to `damageRoll()`, while enemy classes whose real ranged attack uses a different formula override that seam in their own one-target patch. A negative result marks effect-driven ranged behavior whose direct damage is not comparable, so the enemy-damage 1.5× preference rule is skipped for that target. The same Mob script also adds CoHero surprise defense, a sleeping hostile FOV gate, remote attack presentation, and an exclusion from stock held-ally transport.
+`patch_mob_cohero.py` implements `coHeroCanAttackFrom()` by temporarily changing `pos` in a `try/finally`, thereby invoking the actual overridden `canAttack()`. A fork's override may depend on more mutable state or produce side effects, so copying this probe without inspecting the host's attack implementations is unsafe. It also adds `coHeroRangedDamageRoll()`: standard ranged attacks default to `damageRoll()`, while enemy classes whose real ranged attack uses a different formula override that seam in their own one-target patch. A negative result marks effect-driven ranged behavior whose direct damage is not comparable, so the enemy-damage 1.5× preference rule is skipped for that target. `Mob.coHeroDeathRemoves()` is the default-false strategic relation seam; concrete host mobs override it only when their own death semantics immediately remove a specific dependent. `Necromancer` reports its exact `mySkeleton` / restored skeleton ID, while `SpectralNecromancer` reports only Wraith IDs it actually created. The same Mob script also adds CoHero surprise defense, a sleeping hostile FOV gate, remote attack presentation, and an exclusion from stock held-ally transport.
 
 The sleeping patch replaces stock hostile selection (`highestChance = Float.POSITIVE_INFINITY` and smallest `detectionChance`) with the largest `detectionChance` candidate. That is an existing gameplay change in this profile, not a mechanical portability seam. Preserve it intentionally when porting, or explicitly review gameplay behavior before changing it. The remote attack callback is presentation; sleeping/attack/surprise are actor semantics; held-ally transport is lifecycle. Keep all of them visible under the single `Mob.java` owner.
 
@@ -94,7 +96,7 @@ The sleeping patch replaces stock hostile selection (`highestChance = Float.POSI
 
 ## Exactness and persistence
 
-The one-owner-per-target invariant was checked against the 54 Java patch calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
+The one-owner-per-target invariant applies to the current 60 Java target calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
 
 - `patch_wand_lightning.py`, `patch_wand_regrowth.py`, `patch_wand_fireblast.py` and `patch_wand_prismatic_light.py` now check the complete set of source lines containing `curUser` before the existing replacement. The expected lines were taken from the Shattered v4.0.0 release. Extra, missing or changed source lines cause an explicit failure before writing the file.
 - `patch_living_earth.py` now verifies the exact cardinality of each former unchecked replacement, including the two occurrences of guardian armor assignment and the two caster particle calls. All replacements still produce the same Java source when their known anchors match.

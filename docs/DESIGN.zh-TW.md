@@ -294,6 +294,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 
 - **Charm / Succubus 類來源**：目前正在魅惑 CoHero 的來源直接排除出 offensive target。若魅惑來源仍施加壓力，優先選一步能降低 charmer 即時攻擊者數量的位置，再比較總 incoming DPT、是否切斷 LOS 與距離；若所有可見攻擊目標都是目前 charm source 且沒有更安全的一步，就原地等待。底層 `attackTarget()` 對誤攻目前 charm source 直接 fail fast。
 - **Ghoul 群**：可見 Ghoul 若帶有 `GhoulLifeLink`，優先攻擊目前承擔 life-link 的存活 host；多個 host 先比較 link 數，再比較較低 effective HP。Ghoul 復活到約 10% HP 後，在沒有更高優先 link host 時會優先收掉；pack / link 條件消失後立即回到一般目標選擇，不保存「上一隻 Ghoul」。
+- **Source / dependent 敵人**：`CoHeroCombatTargeting` 將「要優先殺誰」與「誰正在造成傷害」分開。若一個目前可攻擊的 source 依其原版死亡語意會同步移除目前 active dependent，source 優先成為 `combatTarget`；dependent 仍保留在 incoming risk／站位計算中。只要該 source 目前可攻擊，dependent 不拿來當 `survivalTarget` 低估整場戰鬥 TTK；若 source 暫時不可攻擊，dependent 仍可成為短期生存目標。Shattered profile 以精確的 `coHeroDeathRemoves()` seam 表示關係：普通 `Necromancer` 對應自己的 `mySkeleton`／讀檔後 `storedSkeletonID`，`SpectralNecromancer` 對應自己 `wraithIDs` 內的 Wraith。這不是以 class 或距離猜 owner。
 - **Monk / Senior Focus**：生存與防圍毆仍優先。`Monk.Focus` 存在且當前局勢允許進攻時，先找能安全繞過 physical infinite evasion 的傷害法杖；沒有時依序用目前可直接命中的近戰／延伸近戰、可重複使用的 Spirit Bow，再到最低預期傷害的支援投擲武器消耗 Focus。Focus 消失後直接攻擊或接近，不另外保存 Focus cooldown 狀態。
 - **Brute rage**：普通短時間 `BruteRage` 偏向脫離並等待其原版自我毀滅，不為了打掉短命 rage 無謂換血；`ArmoredRage` 不套用相同等待策略，較偏向以遠程壓低 shield。只有近戰手段時不會為了 ArmoredRage 人為製造沒有收益的 spacing。
 - **Scorpio**：相鄰才視為真正壓制其遠程攻擊的安全距離；若一步即可安全貼身就優先 capture。只有 CoHero 確實更快、Scorpio 已被定身／麻痺，或原版逃跑判定顯示地形已無退路時才持續追擊；否則保留合理遠程交換，預估失血過高時改找控制／掩體方案。
