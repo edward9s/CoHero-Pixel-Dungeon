@@ -11,6 +11,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Scorpio;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Swarm;
+import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 
 import com.watabou.utils.PathFinder;
 
@@ -967,6 +968,78 @@ final class CoHeroCombatPositioning {
         }
 
         return bestStep;
+    }
+
+    int chooseFriendlyBlockedProjectileStep(
+            Mob targetMob, ArrayList<Mob> threats) {
+        if (owner.rooted
+                || targetMob == null
+                || threats == null
+                || threats.isEmpty()) {
+            return -1;
+        }
+
+        int currentAttackers = owner.countCurrentAttackersAtCell(owner.pos, threats);
+        float currentIncoming = owner.estimatedIncomingDptAtCell(owner.pos, threats);
+        int best = -1;
+        int bestAttackers = currentAttackers;
+        float bestIncoming = currentIncoming;
+        int bestDistance = Dungeon.level.distance(owner.pos, targetMob.pos);
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = owner.pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(owner.pos, cell) != 1
+                    || Dungeon.level.distance(cell, targetMob.pos) <= 1
+                    || !Dungeon.level.passable[cell]
+                    || !owner.isMovementSafe(cell)
+                    || (!owner.fieldOfView[cell] && !owner.isKnown(cell))
+                    || Actor.findChar(cell) != null
+                    || !hasProjectileLineFrom(cell, targetMob)) {
+                continue;
+            }
+
+            int attackers = owner.countCurrentAttackersAtCell(cell, threats);
+            float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
+            int distance = Dungeon.level.distance(cell, targetMob.pos);
+
+            boolean noWorse = attackers < currentAttackers
+                    || (attackers == currentAttackers
+                        && incoming <= currentIncoming + 0.01f);
+            if (!noWorse) {
+                continue;
+            }
+
+            boolean better = best == -1
+                    || attackers < bestAttackers
+                    || (attackers == bestAttackers && incoming < bestIncoming - 0.01f)
+                    || (attackers == bestAttackers
+                        && Math.abs(incoming - bestIncoming) <= 0.01f
+                        && distance > bestDistance);
+            if (better) {
+                best = cell;
+                bestAttackers = attackers;
+                bestIncoming = incoming;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean hasProjectileLineFrom(int sourceCell, Mob targetMob) {
+        int livePos = owner.pos;
+        try {
+            // Ballistica uses Actor.findChar(), so probe from the hypothetical source cell with
+            // CoHero temporarily moved there. Otherwise CoHero's live cell can falsely block the
+            // candidate line when the sidestep ray crosses its current position.
+            owner.pos = sourceCell;
+            return new Ballistica(
+                    sourceCell, targetMob.pos, Ballistica.PROJECTILE).collisionPos
+                    == targetMob.pos;
+        } finally {
+            owner.pos = livePos;
+        }
     }
 
     int chooseOneStepMeleeApproach(Mob targetMob, ArrayList<Mob> threats) {

@@ -924,6 +924,13 @@ public class CoHeroAlly extends DirectableAlly {
                 if (directRanged != null) {
                     return directRanged;
                 }
+
+                Boolean clearProjectileLine =
+                        combat.tryFriendlyBlockedProjectileReposition(
+                                combatTarget, combatThreats);
+                if (clearProjectileLine != null) {
+                    return clearProjectileLine;
+                }
                 } finally {
                     timings().record(
                             this, CoHeroTimings.Action.COMBAT_RANGED, combatRangedStarted);
