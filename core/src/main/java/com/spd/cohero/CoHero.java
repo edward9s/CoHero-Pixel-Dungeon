@@ -432,6 +432,10 @@ public final class CoHero {
         });
     }
 
+    public static void captureCompanionStateForForcedTransition() {
+        captureCompanionState();
+    }
+
     private static void captureCompanionState() {
         CoHeroAlly companion = findCompanion();
         if (companion == null || !companion.isAlive()) {
