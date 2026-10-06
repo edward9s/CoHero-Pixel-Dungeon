@@ -2,6 +2,7 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Blacksmith;
 import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
@@ -829,7 +830,7 @@ public final class CompanionInventory {
     }
 
     boolean canUse(Item item) {
-        if (item == null || isHeroOnlyQuestItem(item)) {
+        if (item == null || isHeroRequiredQuestItem(item)) {
             return false;
         }
 
@@ -888,8 +889,10 @@ public final class CompanionInventory {
                 || item instanceof StoneOfShock;
     }
 
-    private static boolean isHeroOnlyQuestItem(Item item) {
-        return item instanceof Pickaxe;
+    private static boolean isHeroRequiredQuestItem(Item item) {
+        return item instanceof Pickaxe
+                && Blacksmith.Quest.given()
+                && !Blacksmith.Quest.completed();
     }
 
     private static boolean knownUncursed(Item item) {
