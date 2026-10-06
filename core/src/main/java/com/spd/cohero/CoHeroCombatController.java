@@ -376,6 +376,20 @@ final class CoHeroCombatController {
                 return null;
             }
 
+            // High-evasion enemies are a deliberate wand exception at adjacency. Wand damage does
+            // not roll physical accuracy, so forcing melee here defeats the high-evasion policy.
+            // Keep the ordinary adjacent restriction for missiles, Spirit Bow, and generic
+            // damage-based ranged preference.
+            Wand highEvasionWand = preferredDamageWandForHighEvasion(targetMob);
+            if (highEvasionWand != null) {
+                owner.logBossDecision(
+                        "adjacent_high_evasion_wand:" + targetMob.id() + ":"
+                                + highEvasionWand.getClass().getSimpleName(),
+                        owner.targetDebug(targetMob) + " -> adjacent high-evasion wand");
+                return performWandCast(
+                        bestUsableDamageWandAimCell(targetMob), highEvasionWand);
+            }
+
             if (canOpenRangedSpacingAgainst(targetMob)) {
                 int spacingStep = chooseRangedSpacingStep(targetMob, threats);
                 if (spacingStep != -1) {
