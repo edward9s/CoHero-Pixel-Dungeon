@@ -45,6 +45,12 @@ final class CoHeroGuardController {
         moveScope = MoveScope.ANY;
     }
 
+    void releaseGuardAreaForCombat() {
+        if (moveScope == MoveScope.GUARD_DOMAIN) {
+            moveScope = MoveScope.ANY;
+        }
+    }
+
     String blockedMovementReason(int step) {
         if (session == null) {
             return null;

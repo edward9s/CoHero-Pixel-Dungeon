@@ -445,7 +445,7 @@ final class CoHeroCombatPositioning {
         }
         if (tacticalCell != -1 && tacticalCell != owner.pos) {
             int oldPos = owner.pos;
-            owner.allowAnyGuardMovement();
+            owner.releaseGuardAreaForCombat();
             owner.setMovementDecision("encirclement_positioning", tacticalCell);
             if (owner.getCloser(tacticalCell)) {
                 owner.spendActionTime(1 / owner.speed());
@@ -467,7 +467,7 @@ final class CoHeroCombatPositioning {
                 int escape = chooseEscapeStep(threats);
                 if (escape != -1) {
                     int oldPos = owner.pos;
-                    owner.allowAnyGuardMovement();
+                    owner.releaseGuardAreaForCombat();
                     owner.setMovementDecision("encirclement_escape", escape);
                     owner.move(escape, true);
                     if (owner.pos != oldPos) {
