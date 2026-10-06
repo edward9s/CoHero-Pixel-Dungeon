@@ -157,7 +157,7 @@ final class CoHeroNavigation {
     }
 
     Boolean tryAvoidHazard() {
-        if (owner.rooted || !CoHeroHazards.isDangerous(owner, owner.pos)) {
+        if (!CoHeroHazards.isDangerous(owner, owner.pos)) {
             return null;
         }
 
@@ -165,61 +165,118 @@ final class CoHeroNavigation {
         try {
             boolean[] dangerMask = CoHeroHazards.dangerMask(owner);
             boolean[] escapePassable = hazardEscapePassable();
-            PathFinder.buildDistanceMap(owner.pos, escapePassable);
+            float deathGazeDeadline = CoHeroHazards.eyeDeathGazeDeadline(owner);
+            boolean imminentDeathGaze = !Float.isInfinite(deathGazeDeadline);
 
             int target = -1;
             int bestDistance = Integer.MAX_VALUE;
             int bestNearbyDanger = Integer.MAX_VALUE;
             int bestHeroDistance = Integer.MAX_VALUE;
 
-            for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-                if (cell == owner.pos
-                        || PathFinder.distance[cell] == Integer.MAX_VALUE
-                        || dangerMask[cell]) {
-                    continue;
+            if (!owner.rooted) {
+                PathFinder.buildDistanceMap(owner.pos, escapePassable);
+
+                for (int cell = 0; cell < Dungeon.level.length(); cell++) {
+                    if (cell == owner.pos
+                            || PathFinder.distance[cell] == Integer.MAX_VALUE
+                            || dangerMask[cell]) {
+                        continue;
+                    }
+
+                    int distance = PathFinder.distance[cell];
+                    int nearbyDanger = CoHeroHazards.nearbyDangerCount(dangerMask, cell);
+                    int heroDistance = Dungeon.hero == null
+                            ? 0
+                            : Dungeon.level.distance(cell, Dungeon.hero.pos);
+
+                    if (target == -1
+                            || distance < bestDistance
+                            || (distance == bestDistance && nearbyDanger < bestNearbyDanger)
+                            || (distance == bestDistance
+                                && nearbyDanger == bestNearbyDanger
+                                && heroDistance < bestHeroDistance)) {
+                        target = cell;
+                        bestDistance = distance;
+                        bestNearbyDanger = nearbyDanger;
+                        bestHeroDistance = heroDistance;
+                    }
+                }
+            }
+
+            boolean walkInTime = target != -1
+                    && (!imminentDeathGaze
+                        || canReachHazardSafetyBefore(bestDistance, deathGazeDeadline));
+            if (walkInTime) {
+                Boolean moved = moveTowardHazardSafety(target, escapePassable);
+                if (moved != null) {
+                    return moved;
+                }
+            }
+
+            if (imminentDeathGaze) {
+                // A charged Eye re-evaluates its live enemy position immediately before firing.
+                // If ordinary walking cannot break that retarget window in time, use an immediate
+                // displacement first. The safe mask already excludes the Eye's current FOV while
+                // it is tracking CoHero, as well as every locked Death Gaze beam.
+                boolean[] blinkSafe = movementSafeMask();
+                if (owner.controlItems().tryHazardBlinkRunestone(blinkSafe)) {
+                    return true;
                 }
 
-                int distance = PathFinder.distance[cell];
-                int nearbyDanger = CoHeroHazards.nearbyDangerCount(dangerMask, cell);
-                int heroDistance = Dungeon.hero == null
-                        ? 0
-                        : Dungeon.level.distance(cell, Dungeon.hero.pos);
+                // Invisibility only works after CoHero has already left every locked beam. In that
+                // state it prevents a tracking Eye from replacing beamTarget with the new position.
+                if (CoHeroHazards.eyeDeathGazeCanBreakWithInvisibility(owner)
+                        && owner.survival().tryUseInvisibilityPotion()) {
+                    owner.setMovementDecision("hazard_eye_invisibility", owner.pos);
+                    return true;
+                }
 
-                if (target == -1
-                        || distance < bestDistance
-                        || (distance == bestDistance && nearbyDanger < bestNearbyDanger)
-                        || (distance == bestDistance
-                            && nearbyDanger == bestNearbyDanger
-                            && heroDistance < bestHeroDistance)) {
-                    target = cell;
-                    bestDistance = distance;
-                    bestNearbyDanger = nearbyDanger;
-                    bestHeroDistance = heroDistance;
+                // Random teleport is less controlled than Blink, but it is still preferable to
+                // knowingly remaining in a Death Gaze that cannot be escaped before the Eye acts.
+                if (owner.controlItems().tryUseTeleportationScroll()) {
+                    owner.setMovementDecision("hazard_teleport", owner.pos);
+                    return true;
                 }
             }
 
-            if (target == -1) {
-                return null;
+            // Keep the previous best-effort behavior when no emergency resource is available.
+            // This also covers non-Eye hazards, which do not have an actor-action deadline here.
+            if (target != -1) {
+                return moveTowardHazardSafety(target, escapePassable);
             }
-
-            int step = Dungeon.findStep(
-                    owner, target, escapePassable, owner.fieldOfView, true);
-            if (step == -1 || step == owner.pos || !escapePassable[step]) {
-                owner.clearNavigationPath();
-                return null;
-            }
-
-            int oldPos = owner.pos;
-            owner.allowAnyGuardMovement();
-            owner.setMovementDecision("hazard_escape", step);
-            owner.clearNavigationPath();
-            owner.move(step, true);
-            owner.spendActionTime(1 / owner.speed());
-            owner.refreshOwnFieldOfView();
-            return owner.finishMovementAnimation(oldPos);
+            return null;
         } finally {
             owner.timings().record(owner, CoHeroTimings.Action.HAZARD_ESCAPE, started);
         }
+    }
+
+    private boolean canReachHazardSafetyBefore(int pathDistance, float deadline) {
+        if (pathDistance <= 1) {
+            // The first movement happens during the current CoHero action, before time advances.
+            return true;
+        }
+
+        float moveTime = 1f / Math.max(0.001f, owner.speed());
+        float arrivalTime = (pathDistance - 1) * moveTime;
+        return arrivalTime + 0.001f < deadline;
+    }
+
+    private Boolean moveTowardHazardSafety(int target, boolean[] escapePassable) {
+        int step = Dungeon.findStep(
+                owner, target, escapePassable, owner.fieldOfView, true);
+        if (step == -1 || step == owner.pos || !escapePassable[step]) {
+            owner.clearNavigationPath();
+            return null;
+        }
+
+        int oldPos = owner.pos;
+        owner.allowAnyGuardMovement();
+        owner.setMovementDecision("hazard_escape", step);
+        owner.clearNavigationPath();
+        owner.move(step, true);
+        owner.spendActionTime(1 / owner.speed());
+        owner.refreshOwnFieldOfView();
+        return owner.finishMovementAnimation(oldPos);
     }
 
     private boolean[] hazardEscapePassable() {
