@@ -435,7 +435,7 @@ final class CoHeroCombatPositioning {
         // Ranged pressure does not disable anti-encirclement positioning. Melee threats define
         // whether a choke actually limits frontage; every threat still contributes to incoming
         // DPT when choosing between otherwise valid positions.
-        long searchStarted = System.nanoTime();
+        long searchStarted = owner.timings().start();
         int tacticalCell;
         try {
             tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
@@ -462,7 +462,7 @@ final class CoHeroCombatPositioning {
         // chooseEscapeStep refuses neutral/worse moves, so this does not make CoHero run forever
         // from a lone swarm in an open room.
         if (crowdedMelee && !owner.rooted) {
-            long escapeStarted = System.nanoTime();
+            long escapeStarted = owner.timings().start();
             try {
                 int escape = chooseEscapeStep(threats);
                 if (escape != -1) {
@@ -510,21 +510,21 @@ final class CoHeroCombatPositioning {
         long filterNanos = 0L;
         long dynamicNanos = 0L;
 
-        long phaseStarted = profile ? System.nanoTime() : 0L;
+        long phaseStarted = profile ? owner.timings().start() : 0L;
         boolean[] movementSafe = owner.movementSafeMask();
         ensureChokeTopologyCache();
         if (profile) {
-            filterNanos += System.nanoTime() - phaseStarted;
+            filterNanos += owner.timings().start() - phaseStarted;
         }
 
-        phaseStarted = profile ? System.nanoTime() : 0L;
+        phaseStarted = profile ? owner.timings().start() : 0L;
         PathFinder.buildDistanceMap(
                 owner.pos, Dungeon.level.passable, ENCIRCLEMENT_SEARCH_RADIUS);
         if (profile) {
             owner.timings().recordElapsed(
                     owner,
                     CoHeroTimings.Action.ENCIRCLEMENT_DISTANCE_MAP,
-                    System.nanoTime() - phaseStarted);
+                    owner.timings().start() - phaseStarted);
         }
 
         int best = -1;
@@ -533,7 +533,7 @@ final class CoHeroCombatPositioning {
         int bestTargetDistance = Integer.MAX_VALUE;
 
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            phaseStarted = profile ? System.nanoTime() : 0L;
+            phaseStarted = profile ? owner.timings().start() : 0L;
             int pathDistance = PathFinder.distance[cell];
             boolean candidate = pathDistance != Integer.MAX_VALUE
                     && pathDistance <= ENCIRCLEMENT_SEARCH_RADIUS
@@ -546,7 +546,7 @@ final class CoHeroCombatPositioning {
                 candidate = occupant == null || occupant == owner;
             }
             if (profile) {
-                filterNanos += System.nanoTime() - phaseStarted;
+                filterNanos += owner.timings().start() - phaseStarted;
             }
             if (!candidate) {
                 continue;
@@ -557,10 +557,10 @@ final class CoHeroCombatPositioning {
                 continue;
             }
 
-            phaseStarted = profile ? System.nanoTime() : 0L;
+            phaseStarted = profile ? owner.timings().start() : 0L;
             if (!isDefensibleChokeCached(cell, topology, meleeThreats)) {
                 if (profile) {
-                    dynamicNanos += System.nanoTime() - phaseStarted;
+                    dynamicNanos += owner.timings().start() - phaseStarted;
                 }
                 continue;
             }
@@ -586,7 +586,7 @@ final class CoHeroCombatPositioning {
                 bestTargetDistance = targetDistance;
             }
             if (profile) {
-                dynamicNanos += System.nanoTime() - phaseStarted;
+                dynamicNanos += owner.timings().start() - phaseStarted;
             }
         }
 
@@ -653,7 +653,7 @@ final class CoHeroCombatPositioning {
         }
 
         boolean profile = owner.timings().isEnabled();
-        long started = profile ? System.nanoTime() : 0L;
+        long started = profile ? owner.timings().start() : 0L;
         chokeTopologyComputed[cell] = true;
         try {
         int[] exits = new int[2];
@@ -702,7 +702,7 @@ final class CoHeroCombatPositioning {
                 owner.timings().recordElapsed(
                         owner,
                         CoHeroTimings.Action.ENCIRCLEMENT_TOPOLOGY_BUILD,
-                        System.nanoTime() - started);
+                        owner.timings().start() - started);
             }
         }
     }
