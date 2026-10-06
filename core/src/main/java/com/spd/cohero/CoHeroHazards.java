@@ -77,7 +77,7 @@ public final class CoHeroHazards {
                 || isKnownActiveTrap(cell)
                 || isDelayedPitDanger(owner, cell)
                 || isRipperLeapDanger(cell)
-                || isEyeDeathGazeDanger(cell)
+                || isEyeDeathGazeDanger(owner, cell)
                 || isVaultMechanismDanger(owner, cell)
                 || isEnvironmentalDanger(owner, cell);
     }
@@ -127,7 +127,7 @@ public final class CoHeroHazards {
 
         maskDelayedPitDanger(owner, result);
         maskRipperLeaps(result);
-        maskEyeDeathGazes(result);
+        maskEyeDeathGazes(owner, result);
 
         if (owner != null) {
             ensureVaultMechanismDanger(owner);
@@ -619,30 +619,106 @@ public final class CoHeroHazards {
         return false;
     }
 
-    private static boolean isEyeDeathGazeDanger(int cell) {
+    /**
+     * Returns the time until the earliest charged Eye which currently threatens {@code owner}
+     * gets its next action. A tracking Eye can retarget any cell it can still see immediately
+     * before firing; otherwise only its already locked beam remains dangerous.
+     */
+    public static float eyeDeathGazeDeadline(Char owner) {
+        if (owner == null || Dungeon.level == null) {
+            return Float.POSITIVE_INFINITY;
+        }
+
+        float deadline = Float.POSITIVE_INFINITY;
         for (Char ch : Actor.chars()) {
-            if (!(ch instanceof Eye)) {
+            if (!(ch instanceof Eye) || !ch.isAlive()) {
                 continue;
             }
+
             Eye eye = (Eye) ch;
             int beamTarget = eye.coHeroDeathGazeTarget();
             if (beamTarget < 0) {
                 continue;
             }
 
-            Ballistica beam = new Ballistica(eye.pos, beamTarget, Ballistica.STOP_SOLID);
-            if (beam.subPath(1, beam.dist).contains(cell)) {
+            boolean threatensCurrent = lockedEyeBeamContains(eye, beamTarget, owner.pos);
+            if (!threatensCurrent
+                    && eye.coHeroDeathGazeTracks(owner)
+                    && eyeCanSeeCell(eye, owner.pos)) {
+                threatensCurrent = true;
+            }
+
+            if (threatensCurrent) {
+                deadline = Math.min(deadline, Math.max(0f, eye.cooldown()));
+            }
+        }
+        return deadline;
+    }
+
+    /**
+     * Invisibility is only a valid Death Gaze escape when the danger is live retargeting.
+     * If the current cell is still on any already locked beam, becoming invisible makes the Eye
+     * keep that old aim and does not save CoHero.
+     */
+    public static boolean eyeDeathGazeCanBreakWithInvisibility(Char owner) {
+        if (owner == null || owner.invisible > 0 || Dungeon.level == null) {
+            return false;
+        }
+
+        boolean retargetDanger = false;
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Eye) || !ch.isAlive()) {
+                continue;
+            }
+
+            Eye eye = (Eye) ch;
+            int beamTarget = eye.coHeroDeathGazeTarget();
+            if (beamTarget < 0) {
+                continue;
+            }
+
+            if (lockedEyeBeamContains(eye, beamTarget, owner.pos)) {
+                return false;
+            }
+
+            if (eye.coHeroDeathGazeTracks(owner) && eyeCanSeeCell(eye, owner.pos)) {
+                retargetDanger = true;
+            }
+        }
+        return retargetDanger;
+    }
+
+    private static boolean isEyeDeathGazeDanger(Char owner, int cell) {
+        for (Char ch : Actor.chars()) {
+            if (!(ch instanceof Eye) || !ch.isAlive()) {
+                continue;
+            }
+
+            Eye eye = (Eye) ch;
+            int beamTarget = eye.coHeroDeathGazeTarget();
+            if (beamTarget < 0) {
+                continue;
+            }
+
+            if (lockedEyeBeamContains(eye, beamTarget, cell)) {
+                return true;
+            }
+
+            if (owner != null
+                    && eye.coHeroDeathGazeTracks(owner)
+                    && eyeCanSeeCell(eye, cell)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static void maskEyeDeathGazes(boolean[] passable) {
+    private static void maskEyeDeathGazes(Char owner, boolean[] passable) {
         for (Char ch : Actor.chars()) {
-            if (!(ch instanceof Eye)) {
+            if (!(ch instanceof Eye) || !ch.isAlive()) {
                 continue;
             }
+
             Eye eye = (Eye) ch;
             int beamTarget = eye.coHeroDeathGazeTarget();
             if (beamTarget < 0) {
@@ -655,7 +731,44 @@ public final class CoHeroHazards {
                     passable[cell] = false;
                 }
             }
+
+            if (owner != null && eye.coHeroDeathGazeTracks(owner)) {
+                boolean[] eyeFov = eyeFieldOfView(eye);
+                int limit = Math.min(passable.length, eyeFov.length);
+                for (int cell = 0; cell < limit; cell++) {
+                    if (eyeFov[cell]) {
+                        passable[cell] = false;
+                    }
+                }
+            }
         }
+    }
+
+    private static boolean lockedEyeBeamContains(Eye eye, int beamTarget, int cell) {
+        if (eye == null
+                || beamTarget < 0
+                || cell < 0
+                || cell >= Dungeon.level.length()) {
+            return false;
+        }
+
+        Ballistica beam = new Ballistica(eye.pos, beamTarget, Ballistica.STOP_SOLID);
+        return beam.subPath(1, beam.dist).contains(cell);
+    }
+
+    private static boolean eyeCanSeeCell(Eye eye, int cell) {
+        if (eye == null
+                || cell < 0
+                || cell >= Dungeon.level.length()) {
+            return false;
+        }
+        return eyeFieldOfView(eye)[cell];
+    }
+
+    private static boolean[] eyeFieldOfView(Eye eye) {
+        boolean[] result = new boolean[Dungeon.level.length()];
+        Dungeon.level.updateFieldOfView(eye, result);
+        return result;
     }
 
     private static boolean hasVaultMechanismHazard(Char owner) {
