@@ -440,11 +440,36 @@ jobs:
           name: changelog
           path: notes
 
+      - name: Move existing release tag to this build
+        if: github.event_name == 'workflow_dispatch' && needs.prepare.outputs.existing == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/git/refs/tags/${RELEASE_TAG}" \
+            -f sha="${GITHUB_SHA}" \
+            -F force=true >/dev/null
+
+          TAG_SHA=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" \
+            --jq '.object.sha')
+          if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "::error::Release tag ${RELEASE_TAG} points to $TAG_SHA instead of build commit ${GITHUB_SHA}."
+            exit 1
+          fi
+
+          echo "Moved ${RELEASE_TAG} to ${GITHUB_SHA}."
+
       - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
           name: ${{ needs.prepare.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
           body_path: notes/release-notes.md
           files: out/*
           overwrite_files: true
