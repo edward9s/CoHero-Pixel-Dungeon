@@ -18,6 +18,7 @@ The core game is playable, but AI behaviour and balance are still being tuned. B
 - The CoHero has its own backpack, weapons, armor, rings, wands, and consumables.
 - Dungeon resources are shared between both heroes.
 - Giving the CoHero different equipment is the main way to influence its behaviour.
+- Auto-equip is part of auto-loot, not a continuous backpack optimizer: when the CoHero itself picks up a known-uncursed, usable melee weapon or armor that is strictly better than its current equipment, it equips it immediately. Items manually transferred into the CoHero backpack are not auto-equipped.
 - Either Hero dying ends the run.
 - Boss and branch floors let you choose whether the CoHero comes with you.
 - The CoHero backpack includes an enemy spawn multiplier from **1.0x to 4.0x** in **0.25x** steps, defaulting to **1.5x**, for difficulty tuning.
