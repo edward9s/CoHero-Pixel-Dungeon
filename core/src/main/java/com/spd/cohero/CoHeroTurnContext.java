@@ -3,12 +3,12 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.watabou.utils.PathFinder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * Per-decision cache for live facts that are expensive to rebuild and remain valid until CoHero
@@ -23,6 +23,9 @@ final class CoHeroTurnContext {
     private final Level level;
     private final ArrayList<Mob> visibleAwakeEnemies = new ArrayList<>();
     private ArrayList<Mob> visibleSleepingEnemies;
+    private ArrayList<Mob> heroSupportCandidates;
+    private boolean heroSupportThreatEvaluated;
+    private Mob heroSupportThreat;
 
     private boolean[] movementSafeMask;
     private boolean[] ordinarySafePassable;
@@ -59,17 +62,54 @@ final class CoHeroTurnContext {
 
     boolean[] ordinarySafePassable(boolean knownOnly, CoHeroNavigation navigation) {
         assertActive();
-        if (knownOnly) {
-            if (knownSafePassable == null) {
-                knownSafePassable = navigation.buildOrdinarySafePassable(true);
-            }
-            return knownSafePassable.clone();
-        }
-
         if (ordinarySafePassable == null) {
             ordinarySafePassable = navigation.buildOrdinarySafePassable(false);
         }
-        return ordinarySafePassable.clone();
+
+        if (!knownOnly) {
+            return ordinarySafePassable.clone();
+        }
+
+        if (knownSafePassable == null) {
+            knownSafePassable = ordinarySafePassable.clone();
+            for (int cell = 0; cell < knownSafePassable.length; cell++) {
+                if (cell != owner.pos
+                        && knownSafePassable[cell]
+                        && !navigation.isKnown(cell)) {
+                    knownSafePassable[cell] = false;
+                }
+            }
+        }
+        return knownSafePassable.clone();
+    }
+
+    Mob heroSupportThreat() {
+        assertActive();
+        if (heroSupportThreatEvaluated) {
+            return heroSupportThreat;
+        }
+        heroSupportThreatEvaluated = true;
+
+        if (Dungeon.hero == null
+                || !Dungeon.hero.isAlive()
+                || heroSupportCandidates == null) {
+            return null;
+        }
+
+        for (Mob mob : heroSupportCandidates) {
+            if (!mob.isAlive()) {
+                continue;
+            }
+
+            int distance = level.distance(Dungeon.hero.pos, mob.pos);
+            if (distance <= CoHeroSupportController.MELEE_SUPPORT_RADIUS
+                    || (distance <= CoHeroSupportController.RANGED_SUPPORT_RADIUS
+                        && mob.coHeroCanAttackFrom(mob.pos, Dungeon.hero))) {
+                heroSupportThreat = mob;
+                break;
+            }
+        }
+        return heroSupportThreat;
     }
 
     void maskSleepingEnemyWakeRisk(boolean[] passable) {
@@ -94,9 +134,18 @@ final class CoHeroTurnContext {
 
     private void scanVisibleEnemies() {
         for (Mob mob : level.mobs) {
-            if (mob == owner
-                    || mob.alignment != Char.Alignment.ENEMY
-                    || !mob.isAlive()) {
+            if (mob == owner || !mob.isAlive()) {
+                continue;
+            }
+
+            if (mob.alignment == Char.Alignment.ENEMY || mob instanceof Mimic) {
+                if (heroSupportCandidates == null) {
+                    heroSupportCandidates = new ArrayList<>();
+                }
+                heroSupportCandidates.add(mob);
+            }
+
+            if (mob.alignment != Char.Alignment.ENEMY) {
                 continue;
             }
 
