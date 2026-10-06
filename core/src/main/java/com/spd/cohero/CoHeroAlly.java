@@ -1582,6 +1582,10 @@ public class CoHeroAlly extends DirectableAlly {
         guard.allowAnyMovement();
     }
 
+    void releaseGuardAreaForCombat() {
+        guard.releaseGuardAreaForCombat();
+    }
+
     boolean getCloserWithoutCoHeroPolicy(int target) {
         return super.getCloser(target);
     }
