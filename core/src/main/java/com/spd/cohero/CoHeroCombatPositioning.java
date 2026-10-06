@@ -510,21 +510,21 @@ final class CoHeroCombatPositioning {
         long filterNanos = 0L;
         long dynamicNanos = 0L;
 
-        long phaseStarted = profile ? owner.timings().startNanos() : 0L;
+        long phaseStarted = profile ? System.nanoTime() : 0L;
         boolean[] movementSafe = owner.movementSafeMask();
         ensureChokeTopologyCache();
         if (profile) {
-            filterNanos += owner.timings().startNanos() - phaseStarted;
+            filterNanos += System.nanoTime() - phaseStarted;
         }
 
-        phaseStarted = profile ? owner.timings().startNanos() : 0L;
+        phaseStarted = profile ? System.nanoTime() : 0L;
         PathFinder.buildDistanceMap(
                 owner.pos, Dungeon.level.passable, ENCIRCLEMENT_SEARCH_RADIUS);
         if (profile) {
             owner.timings().recordElapsed(
                     owner,
                     CoHeroTimings.Action.ENCIRCLEMENT_DISTANCE_MAP,
-                    owner.timings().startNanos() - phaseStarted);
+                    System.nanoTime() - phaseStarted);
         }
 
         int best = -1;
@@ -533,7 +533,7 @@ final class CoHeroCombatPositioning {
         int bestTargetDistance = Integer.MAX_VALUE;
 
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
-            phaseStarted = profile ? owner.timings().startNanos() : 0L;
+            phaseStarted = profile ? System.nanoTime() : 0L;
             int pathDistance = PathFinder.distance[cell];
             boolean candidate = pathDistance != Integer.MAX_VALUE
                     && pathDistance <= ENCIRCLEMENT_SEARCH_RADIUS
@@ -546,7 +546,7 @@ final class CoHeroCombatPositioning {
                 candidate = occupant == null || occupant == owner;
             }
             if (profile) {
-                filterNanos += owner.timings().startNanos() - phaseStarted;
+                filterNanos += System.nanoTime() - phaseStarted;
             }
             if (!candidate) {
                 continue;
@@ -557,10 +557,10 @@ final class CoHeroCombatPositioning {
                 continue;
             }
 
-            phaseStarted = profile ? owner.timings().startNanos() : 0L;
+            phaseStarted = profile ? System.nanoTime() : 0L;
             if (!isDefensibleChokeCached(cell, topology, meleeThreats)) {
                 if (profile) {
-                    dynamicNanos += owner.timings().startNanos() - phaseStarted;
+                    dynamicNanos += System.nanoTime() - phaseStarted;
                 }
                 continue;
             }
@@ -586,7 +586,7 @@ final class CoHeroCombatPositioning {
                 bestTargetDistance = targetDistance;
             }
             if (profile) {
-                dynamicNanos += owner.timings().startNanos() - phaseStarted;
+                dynamicNanos += System.nanoTime() - phaseStarted;
             }
         }
 
@@ -653,7 +653,7 @@ final class CoHeroCombatPositioning {
         }
 
         boolean profile = owner.timings().isEnabled();
-        long started = profile ? owner.timings().startNanos() : 0L;
+        long started = profile ? System.nanoTime() : 0L;
         chokeTopologyComputed[cell] = true;
         try {
         int[] exits = new int[2];
@@ -702,7 +702,7 @@ final class CoHeroCombatPositioning {
                 owner.timings().recordElapsed(
                         owner,
                         CoHeroTimings.Action.ENCIRCLEMENT_TOPOLOGY_BUILD,
-                        owner.timings().startNanos() - started);
+                        System.nanoTime() - started);
             }
         }
     }
