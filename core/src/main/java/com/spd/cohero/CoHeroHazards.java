@@ -53,6 +53,9 @@ public final class CoHeroHazards {
     private static int vaultMechanismInvisibility = -1;
     private static boolean vaultMechanismFlameImmune;
 
+    private static final HashMap<Integer, boolean[]> EYE_FOV_CACHE = new HashMap<>();
+    private static float eyeFovAt = Float.NaN;
+
     private CoHeroHazards() {
     }
 
@@ -198,6 +201,7 @@ public final class CoHeroHazards {
         WARNED_UNTIL.clear();
         trackedLevel = Dungeon.level;
         invalidateVaultMechanismCache();
+        invalidateEyeFovCache();
     }
 
     private static boolean isWarned(int cell) {
@@ -766,9 +770,25 @@ public final class CoHeroHazards {
     }
 
     private static boolean[] eyeFieldOfView(Eye eye) {
-        boolean[] result = new boolean[Dungeon.level.length()];
-        Dungeon.level.updateFieldOfView(eye, result);
+        syncLevel();
+        float now = Actor.now();
+        if (Float.compare(eyeFovAt, now) != 0) {
+            EYE_FOV_CACHE.clear();
+            eyeFovAt = now;
+        }
+
+        boolean[] result = EYE_FOV_CACHE.get(eye.id());
+        if (result == null || result.length != Dungeon.level.length()) {
+            result = new boolean[Dungeon.level.length()];
+            Dungeon.level.updateFieldOfView(eye, result);
+            EYE_FOV_CACHE.put(eye.id(), result);
+        }
         return result;
+    }
+
+    private static void invalidateEyeFovCache() {
+        EYE_FOV_CACHE.clear();
+        eyeFovAt = Float.NaN;
     }
 
     private static boolean hasVaultMechanismHazard(Char owner) {
@@ -1028,6 +1048,7 @@ public final class CoHeroHazards {
             WARNED_UNTIL.clear();
             trackedLevel = Dungeon.level;
             invalidateVaultMechanismCache();
+            invalidateEyeFovCache();
         }
     }
 
