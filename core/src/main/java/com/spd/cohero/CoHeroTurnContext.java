@@ -28,7 +28,6 @@ final class CoHeroTurnContext {
     private boolean heroSupportThreatEvaluated;
     private Mob heroSupportThreat;
 
-    private boolean[] movementSafeMask;
     private boolean[] ordinarySafePassable;
     private boolean[] knownSafePassable;
 
@@ -57,7 +56,6 @@ final class CoHeroTurnContext {
         heroSupportCandidates.clear();
         heroSupportThreatEvaluated = false;
         heroSupportThreat = null;
-        movementSafeMask = null;
         ordinarySafePassable = null;
         knownSafePassable = null;
         scanVisibleEnemies();
@@ -70,7 +68,6 @@ final class CoHeroTurnContext {
         visibleSleepingEnemies.clear();
         heroSupportCandidates.clear();
         heroSupportThreat = null;
-        movementSafeMask = null;
         ordinarySafePassable = null;
         knownSafePassable = null;
     }
@@ -82,14 +79,6 @@ final class CoHeroTurnContext {
     ArrayList<Mob> visibleAwakeEnemies() {
         assertActive();
         return visibleAwakeEnemies;
-    }
-
-    boolean[] movementSafeMask(CoHeroNavigation navigation) {
-        assertActive();
-        if (movementSafeMask == null) {
-            movementSafeMask = navigation.buildMovementSafeMask();
-        }
-        return movementSafeMask.clone();
     }
 
     boolean[] ordinarySafePassable(boolean knownOnly, CoHeroNavigation navigation) {
