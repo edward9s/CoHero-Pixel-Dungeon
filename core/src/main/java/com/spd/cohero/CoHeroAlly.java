@@ -56,6 +56,7 @@ public class CoHeroAlly extends DirectableAlly {
     private int movementDecisionTarget = -1;
     private boolean debugLogEnabled;
     private boolean inCombat;
+    private CoHeroTurnContext turnContext;
 
     {
         spriteClass = CoHeroAllySprite.class;
@@ -73,6 +74,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     CoHeroTimings timings() {
         return CoHero.timings();
+    }
+
+    CoHeroTurnContext currentTurnContext() {
+        return turnContext;
     }
 
     boolean lowHealthRally() {
@@ -596,16 +601,21 @@ public class CoHeroAlly extends DirectableAlly {
 
     @Override
     protected boolean act() {
-        long started = System.nanoTime();
+        if (turnContext != null) {
+            throw new IllegalStateException("CoHero decision turn re-entered before completion");
+        }
+
+        long started = timings().start();
         try {
             return decideAction();
         } finally {
+            turnContext = null;
             timings().record(this, CoHeroTimings.Action.ACT, started, movementDecision);
         }
     }
 
     private boolean decideAction() {
-        long prepareStarted = System.nanoTime();
+        long prepareStarted = timings().start();
         movementDecision = "unspecified";
         movementDecisionTarget = -1;
         combat.beginTurn();
@@ -621,6 +631,7 @@ public class CoHeroAlly extends DirectableAlly {
         }
         Dungeon.level.updateFieldOfView(this, fieldOfView);
         revealVisibleCells();
+        turnContext = new CoHeroTurnContext(this);
         guard.updateSession();
         combatObjective.update();
 
@@ -672,16 +683,16 @@ public class CoHeroAlly extends DirectableAlly {
         }
 
         if (!combatThreats.isEmpty()) {
-            long combatStarted = System.nanoTime();
+            long combatStarted = timings().start();
             try {
                 ArrayList<Mob> attackableThreats;
                 ArrayList<Mob> charmingThreats;
                 Mob combatTarget;
                 Mob survivalTarget;
 
-                long combatSetupStarted = System.nanoTime();
+                long combatSetupStarted = timings().start();
                 try {
-                long setupFilterStarted = System.nanoTime();
+                long setupFilterStarted = timings().start();
                 try {
                     attackableThreats = combat.collectAttackableThreats(combatThreats);
                     charmingThreats = combat.collectCharmingThreats(combatThreats);
@@ -693,7 +704,7 @@ public class CoHeroAlly extends DirectableAlly {
                 // Invulnerability does not end the fight. It only has tactical priority while an
                 // invulnerable enemy can currently hit CoHero. Once outside that enemy's attack range,
                 // ordinary combat against any damageable enemies resumes immediately.
-                long setupInvulnerableStarted = System.nanoTime();
+                long setupInvulnerableStarted = timings().start();
                 Boolean invulnerableRetreat;
                 try {
                     invulnerableRetreat =
@@ -712,7 +723,7 @@ public class CoHeroAlly extends DirectableAlly {
                 // restriction from the live buff each turn, then first tries to leave the charmer's
                 // immediate pressure while preferring safer cells and, when otherwise equal, broken
                 // line of sight and greater distance.
-                long setupCharmStarted = System.nanoTime();
+                long setupCharmStarted = timings().start();
                 Boolean charmRetreat;
                 try {
                     charmRetreat =
@@ -753,7 +764,7 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
-                long setupTargetStarted = System.nanoTime();
+                long setupTargetStarted = timings().start();
                 try {
                     combatTarget = combat.selectCombatTarget(attackableThreats);
                 } finally {
@@ -761,7 +772,7 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_SETUP_TARGET, setupTargetStarted);
                 }
 
-                long setupSurvivalTargetStarted = System.nanoTime();
+                long setupSurvivalTargetStarted = timings().start();
                 try {
                     survivalTarget = combat.selectSurvivalTarget(attackableThreats);
                 } finally {
@@ -775,7 +786,7 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_SETUP, combatSetupStarted);
                 }
 
-                long riskStarted = System.nanoTime();
+                long riskStarted = timings().start();
                 CoHeroCombatRisk combatRisk;
                 try {
                     combatRisk = assessCombatRisk(survivalTarget, combatThreats);
@@ -783,7 +794,7 @@ public class CoHeroAlly extends DirectableAlly {
                     timings().record(this, CoHeroTimings.Action.COMBAT_RISK, riskStarted);
                 }
 
-                long combatSurvivalStarted = System.nanoTime();
+                long combatSurvivalStarted = timings().start();
                 try {
                 Boolean shortBruteRage = combat.tryShortBruteRageTactics(combatThreats);
                 if (shortBruteRage != null) {
@@ -828,7 +839,7 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_SURVIVAL, combatSurvivalStarted);
                 }
 
-                long combatObjectiveStarted = System.nanoTime();
+                long combatObjectiveStarted = timings().start();
                 try {
                 Mob assessedSurvivalTarget = survivalTarget;
                 Boolean objectiveAction =
@@ -849,7 +860,7 @@ public class CoHeroAlly extends DirectableAlly {
                     combatTarget = combat.selectCombatTarget(attackableThreats);
                     survivalTarget = combat.selectSurvivalTarget(attackableThreats);
                     if (survivalTarget != assessedSurvivalTarget) {
-                        long objectiveRiskStarted = System.nanoTime();
+                        long objectiveRiskStarted = timings().start();
                         try {
                             combatRisk = assessCombatRisk(survivalTarget, combatThreats);
                         } finally {
@@ -863,7 +874,7 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_OBJECTIVE, combatObjectiveStarted);
                 }
 
-                long combatTacticsStarted = System.nanoTime();
+                long combatTacticsStarted = timings().start();
                 try {
                 Boolean armoredBruteRage = combat.tryArmoredBruteRageTactics(
                         combatTarget, combatThreats, combatRisk);
@@ -873,7 +884,7 @@ public class CoHeroAlly extends DirectableAlly {
                     return armoredBruteRage;
                 }
 
-                long encirclementStarted = System.nanoTime();
+                long encirclementStarted = timings().start();
                 Boolean encirclementPositioning;
                 try {
                     encirclementPositioning = combat.tryEncirclementPositioning(
@@ -906,7 +917,7 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_TACTICS, combatTacticsStarted);
                 }
 
-                long combatRangedStarted = System.nanoTime();
+                long combatRangedStarted = timings().start();
                 try {
                 // Ranged enemies are normally closed to adjacency. Exception: sufficiently stronger
                 // ranged offense may keep spacing, or create it against an immobilized/slower target.
@@ -936,7 +947,7 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_RANGED, combatRangedStarted);
                 }
 
-                long combatActionStarted = System.nanoTime();
+                long combatActionStarted = timings().start();
                 try {
                 // Non-emergency consumables and setup should not repeatedly steal turns from an
                 // immediately available ranged attack.
@@ -965,7 +976,7 @@ public class CoHeroAlly extends DirectableAlly {
                     return true;
                 }
 
-                long meleeStarted = System.nanoTime();
+                long meleeStarted = timings().start();
                 Boolean meleePositioning;
                 try {
                     meleePositioning = combat.tryMeleePositioning(combatTarget, combatThreats);
@@ -987,7 +998,7 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_ACTION, combatActionStarted);
                 }
 
-                long combatEscapeStarted = System.nanoTime();
+                long combatEscapeStarted = timings().start();
                 try {
                 Boolean escapeUtility = combat.tryEscapeUtility(combatRisk, combatThreats);
                 if (escapeUtility != null) {
@@ -1037,7 +1048,7 @@ public class CoHeroAlly extends DirectableAlly {
             return support.actLowHealthRally();
         }
 
-        long supportStarted = System.nanoTime();
+        long supportStarted = timings().start();
         try {
             Boolean supportAction = combat.trySupportAction();
             if (supportAction != null) {
@@ -1052,7 +1063,7 @@ public class CoHeroAlly extends DirectableAlly {
             timings().record(this, CoHeroTimings.Action.SUPPORT, supportStarted);
         }
 
-        long recoveryStarted = System.nanoTime();
+        long recoveryStarted = timings().start();
         try {
             Boolean lootAction = loot.actRecovery();
             if (lootAction != null) {
@@ -1062,7 +1073,7 @@ public class CoHeroAlly extends DirectableAlly {
             timings().record(this, CoHeroTimings.Action.RECOVERY, recoveryStarted);
         }
 
-        long guardStarted = System.nanoTime();
+        long guardStarted = timings().start();
         try {
             Boolean guardAction = guard.act();
             if (guardAction != null) {
@@ -1074,7 +1085,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         guard.clearDirective();
 
-        long exploreStarted = System.nanoTime();
+        long exploreStarted = timings().start();
         try {
             return navigation.actExplore();
         } finally {
@@ -1444,7 +1455,10 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     ArrayList<Mob> visibleAwakeEnemies() {
-        return vision.visibleAwakeEnemies();
+        if (turnContext == null) {
+            throw new IllegalStateException("CoHero visible threats requested outside decision turn");
+        }
+        return turnContext.visibleAwakeEnemies();
     }
 
     int nearestThreatDistance(int cell, ArrayList<Mob> threats) {
@@ -1506,7 +1520,7 @@ public class CoHeroAlly extends DirectableAlly {
                             + target.getClass().getSimpleName());
         }
 
-        long started = System.nanoTime();
+        long started = timings().start();
         boolean hit = attack(target);
         timings().record(this, target.isAlive()
                 ? CoHeroTimings.Action.ATTACK
