@@ -59,6 +59,10 @@ final class CoHeroCombatRiskEstimator {
         boolean ownerNonAdjacent;
         int heroNonAdjacentTurn = -1;
         boolean heroNonAdjacent;
+        int ownerAdjacentTurn = -1;
+        boolean ownerAdjacent;
+        int heroAdjacentTurn = -1;
+        boolean heroAdjacent;
         int targetTtkTurn = -1;
         float targetTtk;
         int meleeDptTurn = -1;
@@ -891,6 +895,48 @@ final class CoHeroCombatRiskEstimator {
             }
         }
 
+        return false;
+    }
+
+    boolean hasAdjacentAttackCapability(Mob threat, Char target) {
+        if (threat == null
+                || !threat.isAlive()
+                || target == null
+                || !target.isAlive()) {
+            return false;
+        }
+
+        ThreatTurnCache cache = threatTurnCache(threat);
+        if (target == owner && cache.ownerAdjacentTurn == turnSerial) {
+            return cache.ownerAdjacent;
+        }
+        if (target == Dungeon.hero && cache.heroAdjacentTurn == turnSerial) {
+            return cache.heroAdjacent;
+        }
+
+        boolean result = calculateAdjacentAttackCapability(threat, target);
+        if (target == owner) {
+            cache.ownerAdjacent = result;
+            cache.ownerAdjacentTurn = turnSerial;
+        } else if (target == Dungeon.hero) {
+            cache.heroAdjacent = result;
+            cache.heroAdjacentTurn = turnSerial;
+        }
+        return result;
+    }
+
+    private boolean calculateAdjacentAttackCapability(Mob threat, Char target) {
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int sourceCell = target.pos + offset;
+            if (!Dungeon.level.insideMap(sourceCell)
+                    || Dungeon.level.distance(target.pos, sourceCell) != 1
+                    || !enemyCanEnterForRisk(threat, sourceCell)) {
+                continue;
+            }
+            if (threat.coHeroCanAttackFrom(sourceCell, target)) {
+                return true;
+            }
+        }
         return false;
     }
 
