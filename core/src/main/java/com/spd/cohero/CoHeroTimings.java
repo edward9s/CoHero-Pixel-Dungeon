@@ -127,6 +127,10 @@ final class CoHeroTimings {
         return enabled;
     }
 
+    long start() {
+        return enabled ? System.nanoTime() : 0L;
+    }
+
     synchronized void sceneStarted() {
         lastFrameStarted = 0L;
         peakFrameSinceStep = 0L;
@@ -138,40 +142,50 @@ final class CoHeroTimings {
         lastBytesAllocated = -1L;
     }
 
-    // Called on the render thread. No allocations or platform queries on ordinary frames.
-    synchronized void frameStarted(int heroPos) {
+    // Called on the render thread. Disabled diagnostics avoid both the clock and monitor.
+    void frameStarted(int heroPos) {
         if (!enabled) {
             return;
         }
-        long now = System.nanoTime();
-        if (lastFrameStarted != 0L) {
-            long elapsed = Math.max(0L, now - lastFrameStarted);
-            accumulate(Action.FRAME_INTERVAL, elapsed);
-            peakFrameSinceStep = Math.max(peakFrameSinceStep, elapsed);
-            if (elapsed >= SLOW_FRAME_NANOS) {
-                appendHistory("depth=" + Dungeon.depth + " t=" + (int) Actor.now()
-                        + " frame_interval " + milliseconds(elapsed) + "ms hero=" + heroPos);
+        synchronized (this) {
+            if (!enabled) {
+                return;
             }
-        }
-        lastFrameStarted = now;
+            long now = System.nanoTime();
+            if (lastFrameStarted != 0L) {
+                long elapsed = Math.max(0L, now - lastFrameStarted);
+                accumulate(Action.FRAME_INTERVAL, elapsed);
+                peakFrameSinceStep = Math.max(peakFrameSinceStep, elapsed);
+                if (elapsed >= SLOW_FRAME_NANOS) {
+                    appendHistory("depth=" + Dungeon.depth + " t=" + (int) Actor.now()
+                            + " frame_interval " + milliseconds(elapsed) + "ms hero=" + heroPos);
+                }
+            }
+            lastFrameStarted = now;
 
-        if (lastHeroPos != heroPos) {
-            recordHeroStep(heroPos);
-            lastHeroPos = heroPos;
-            peakFrameSinceStep = 0L;
+            if (lastHeroPos != heroPos) {
+                recordHeroStep(heroPos);
+                lastHeroPos = heroPos;
+                peakFrameSinceStep = 0L;
+            }
         }
     }
 
-    synchronized void remoteViewUpdated(long started) {
-        if (!enabled) {
+    void remoteViewUpdated(long started) {
+        if (!enabled || started == 0L) {
             return;
         }
-        long elapsed = Math.max(0L, System.nanoTime() - started);
-        accumulate(Action.REMOTE_VIEW, elapsed);
-        if (elapsed >= SLOW_PHASE_NANOS) {
-            appendHistory("depth=" + Dungeon.depth + " t=" + (int) Actor.now()
-                    + " remote_view " + milliseconds(elapsed) + "ms hero="
-                    + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
+        synchronized (this) {
+            if (!enabled) {
+                return;
+            }
+            long elapsed = Math.max(0L, System.nanoTime() - started);
+            accumulate(Action.REMOTE_VIEW, elapsed);
+            if (elapsed >= SLOW_PHASE_NANOS) {
+                appendHistory("depth=" + Dungeon.depth + " t=" + (int) Actor.now()
+                        + " remote_view " + milliseconds(elapsed) + "ms hero="
+                        + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
+            }
         }
     }
 
@@ -243,23 +257,33 @@ final class CoHeroTimings {
         size = Math.min(size + 1, HISTORY_SIZE);
     }
 
-    synchronized void record(CoHeroAlly owner, Action action, long started) {
+    void record(CoHeroAlly owner, Action action, long started) {
         record(owner, action, started, null);
     }
 
-    synchronized void record(CoHeroAlly owner, Action action, long started, String detail) {
-        if (!enabled) {
+    void record(CoHeroAlly owner, Action action, long started, String detail) {
+        if (!enabled || started == 0L) {
             return;
         }
-        recordElapsedLocked(
-                owner, action, Math.max(0L, System.nanoTime() - started), detail);
+        synchronized (this) {
+            if (!enabled) {
+                return;
+            }
+            recordElapsedLocked(
+                    owner, action, Math.max(0L, System.nanoTime() - started), detail);
+        }
     }
 
-    synchronized void recordElapsed(CoHeroAlly owner, Action action, long elapsed) {
+    void recordElapsed(CoHeroAlly owner, Action action, long elapsed) {
         if (!enabled) {
             return;
         }
-        recordElapsedLocked(owner, action, Math.max(0L, elapsed), null);
+        synchronized (this) {
+            if (!enabled) {
+                return;
+            }
+            recordElapsedLocked(owner, action, Math.max(0L, elapsed), null);
+        }
     }
 
     private void recordElapsedLocked(
