@@ -41,7 +41,7 @@ final class CoHeroCombatController {
     private static final class RangedTurnCache {
         int turn = -1;
         boolean projectileLineEvaluated;
-        boolean projectileLine;
+        int projectileCollisionPos;
         boolean highEvasionWandEvaluated;
         Wand highEvasionWand;
         boolean bestAverageDamageEvaluated;
@@ -60,6 +60,7 @@ final class CoHeroCombatController {
         void reset(int turn) {
             this.turn = turn;
             projectileLineEvaluated = false;
+            projectileCollisionPos = -1;
             highEvasionWandEvaluated = false;
             bestAverageDamageEvaluated = false;
             preferRangedEvaluated = false;
@@ -140,16 +141,19 @@ final class CoHeroCombatController {
         return cache.wandDamageEvaluations.get(wand);
     }
 
-    private boolean hasProjectileLine(Mob targetMob) {
+    private int projectileCollisionPos(Mob targetMob) {
         RangedTurnCache cache = rangedTurnCache(targetMob);
         if (!cache.projectileLineEvaluated) {
-            cache.projectileLine =
+            cache.projectileCollisionPos =
                     new Ballistica(
-                            owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos
-                            == targetMob.pos;
+                            owner.pos, targetMob.pos, Ballistica.PROJECTILE).collisionPos;
             cache.projectileLineEvaluated = true;
         }
-        return cache.projectileLine;
+        return cache.projectileCollisionPos;
+    }
+
+    private boolean hasProjectileLine(Mob targetMob) {
+        return projectileCollisionPos(targetMob) == targetMob.pos;
     }
 
     Mob nearestThreat(ArrayList<Mob> threats) {
@@ -837,6 +841,53 @@ final class CoHeroCombatController {
         return alternateTarget == null
                 ? null
                 : performRangedChoice(alternateTarget, alternateChoice);
+    }
+
+    Boolean tryFriendlyBlockedProjectileReposition(
+            Mob targetMob, ArrayList<Mob> threats) {
+        if (targetMob == null
+                || threats == null
+                || threats.isEmpty()
+                || owner.rooted
+                || targetMob.properties().contains(Char.Property.BOSS)
+                || Dungeon.level.distance(owner.pos, targetMob.pos) <= 1) {
+            return null;
+        }
+
+        int collisionPos = projectileCollisionPos(targetMob);
+        if (collisionPos == targetMob.pos) {
+            return null;
+        }
+
+        Char blocker = Actor.findChar(collisionPos);
+        if (blocker == null || blocker.alignment != Char.Alignment.ALLY) {
+            return null;
+        }
+
+        boolean usableProjectile = false;
+        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+            if (owner.inventory().canUse(missile)) {
+                usableProjectile = true;
+                break;
+            }
+        }
+        if (!usableProjectile) {
+            SpiritBow spiritBow = owner.inventory().spiritBow();
+            usableProjectile = owner.inventory().canUse(spiritBow);
+        }
+        if (!usableProjectile) {
+            return null;
+        }
+
+        int step = positioning.chooseFriendlyBlockedProjectileStep(targetMob, threats);
+        if (step == -1) {
+            return null;
+        }
+
+        owner.allowAnyGuardMovement();
+        owner.logBossDecision("ranged_friendly_blocker:" + targetMob.id(),
+                owner.targetDebug(targetMob) + " -> reposition for clear projectile line");
+        return moveForRangedEngagement(step, "ranged_friendly_blocker");
     }
 
     Boolean tryBestRangedAttack(Mob targetMob) {
