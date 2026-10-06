@@ -49,7 +49,7 @@ final class CoHeroVision {
     }
 
     void revealVisibleCells() {
-        long started = owner.timings().start();
+        long started = owner.timings().startNanos();
         boolean remoteWardRevealedNewCell = mergeOwnedWardVision();
 
         boolean newlyVisited = false;
