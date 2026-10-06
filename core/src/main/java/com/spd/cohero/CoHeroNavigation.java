@@ -105,11 +105,6 @@ final class CoHeroNavigation {
     }
 
     boolean[] movementSafeMask() {
-        CoHeroTurnContext context = owner.currentTurnContext();
-        return context == null ? buildMovementSafeMask() : context.movementSafeMask(this);
-    }
-
-    boolean[] buildMovementSafeMask() {
         boolean[] allCells = new boolean[Dungeon.level.length()];
         Arrays.fill(allCells, true);
         return applyMovementSafety(allCells);
