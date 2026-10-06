@@ -297,6 +297,63 @@ final class CoHeroControlItems {
         return blinkCell != -1 && useBlinkStone(blinkCell);
     }
 
+    boolean tryHazardBlinkRunestone(boolean[] safeCells) {
+        if (safeCells == null
+                || safeCells.length != Dungeon.level.length()
+                || owner.buff(MagicImmune.class) != null
+                || !owner.inventory().hasCombatRunestone(StoneOfBlink.class)) {
+            return false;
+        }
+
+        int best = -1;
+        int bestHeroDistance = Integer.MAX_VALUE;
+        int bestBlinkDistance = Integer.MAX_VALUE;
+
+        for (int cell = 0; cell < safeCells.length; cell++) {
+            if (!safeCells[cell]
+                    || cell == owner.pos
+                    || !owner.fieldOfView[cell]
+                    || !owner.isKnown(cell)
+                    || !Dungeon.level.passable[cell]
+                    || Dungeon.level.pit[cell]
+                    || Dungeon.level.secret[cell]
+                    || Actor.findChar(cell) != null) {
+                continue;
+            }
+
+            Ballistica path = new Ballistica(owner.pos, cell, Ballistica.PROJECTILE);
+            if (path.collisionPos != cell) {
+                continue;
+            }
+
+            int heroDistance = Dungeon.hero == null
+                    ? 0
+                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
+            int blinkDistance = Dungeon.level.distance(owner.pos, cell);
+
+            if (best == -1
+                    || heroDistance < bestHeroDistance
+                    || (heroDistance == bestHeroDistance && blinkDistance < bestBlinkDistance)
+                    || (heroDistance == bestHeroDistance
+                        && blinkDistance == bestBlinkDistance
+                        && cell < best)) {
+                best = cell;
+                bestHeroDistance = heroDistance;
+                bestBlinkDistance = blinkDistance;
+            }
+        }
+
+        if (best == -1) {
+            return false;
+        }
+
+        if (!useBlinkStone(best)) {
+            return false;
+        }
+        owner.setMovementDecision("hazard_blink", best);
+        return true;
+    }
+
     boolean tryEmergencyRunestone(CoHeroCombatRisk risk, ArrayList<Mob> threats) {
         if (risk == null
                 || threats == null

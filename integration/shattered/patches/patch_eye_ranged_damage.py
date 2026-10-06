@@ -44,13 +44,23 @@ addition = (
     "\t\t}\n"
     "\t}\n"
     "\n\tpublic int coHeroDeathGazeTarget() {\n"
-    "\t\treturn beamCharged && beamCooldown == 0 ? beamTarget : -1;\n"
+    "\t\treturn beamCharged && beamCooldown == 0 && state == HUNTING ? beamTarget : -1;\n"
+    "\t}\n"
+    "\n\tpublic boolean coHeroDeathGazeTracks(Char target) {\n"
+    "\t\treturn beamCharged\n"
+    "\t\t\t\t&& beamCooldown == 0\n"
+    "\t\t\t\t&& state == HUNTING\n"
+    "\t\t\t\t&& target != null\n"
+    "\t\t\t\t&& enemy == target\n"
+    "\t\t\t\t&& target.invisible == 0\n"
+    "\t\t\t\t&& !isCharmedBy(target);\n"
     "\t}\n"
 )
 
 if ("coHeroRangedDamageRoll" in text
         or "coHeroCanAttackFrom" in text
-        or "coHeroDeathGazeTarget" in text):
+        or "coHeroDeathGazeTarget" in text
+        or "coHeroDeathGazeTracks" in text):
     raise SystemExit("CoHero Eye hooks are already present")
 if text.count(anchor) != 1:
     raise SystemExit(
