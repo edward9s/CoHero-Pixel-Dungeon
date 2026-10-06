@@ -347,8 +347,11 @@ final class CoHeroControlItems {
             return false;
         }
 
+        if (!useBlinkStone(best)) {
+            return false;
+        }
         owner.setMovementDecision("hazard_blink", best);
-        return useBlinkStone(best);
+        return true;
     }
 
     boolean tryEmergencyRunestone(CoHeroCombatRisk risk, ArrayList<Mob> threats) {
