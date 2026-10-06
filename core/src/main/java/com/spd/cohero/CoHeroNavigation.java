@@ -429,6 +429,11 @@ final class CoHeroNavigation {
     }
 
     private boolean hasVisibleSleepingEnemy() {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            return context.hasVisibleSleepingEnemy();
+        }
+
         for (Mob mob : Dungeon.level.mobs) {
             if (mob != owner
                     && mob.alignment == Char.Alignment.ENEMY
