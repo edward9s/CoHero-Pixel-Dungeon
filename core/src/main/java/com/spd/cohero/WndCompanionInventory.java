@@ -1,6 +1,7 @@
 package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Blacksmith;
 import com.shatteredpixel.shatteredpixeldungeon.items.EquipableItem;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
@@ -616,6 +617,9 @@ public class WndCompanionInventory extends Window {
 
     private void warnEquipBlocked(CompanionInventory.EquipFailure failure) {
         switch (failure) {
+            case HERO_REQUIRED_QUEST_ITEM:
+                GLog.w(Messages.get(Blacksmith.class, "lost_pick"));
+                break;
             case CURSED_OR_UNKNOWN:
                 GLog.w(text("inventory.cant_cursed"));
                 break;

@@ -1,7 +1,9 @@
 package com.spd.cohero;
 
+import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Blacksmith;
 import com.shatteredpixel.shatteredpixeldungeon.items.BrokenSeal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Ankh;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
@@ -18,6 +20,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCle
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
+import com.shatteredpixel.shatteredpixeldungeon.items.quest.Pickaxe;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
@@ -410,7 +413,7 @@ public final class CompanionInventory {
     }
 
     public boolean canAddToBackpack(Item item) {
-        if (item == null) {
+        if (item == null || mustRemainWithHero(item)) {
             return false;
         }
         if (backpack.contains(item)) {
@@ -429,6 +432,9 @@ public final class CompanionInventory {
     public boolean addToBackpack(Item item) {
         if (item == null) {
             throw new IllegalArgumentException("item must not be null");
+        }
+        if (mustRemainWithHero(item)) {
+            return false;
         }
         if (backpack.contains(item)) {
             return true;
@@ -633,6 +639,10 @@ public final class CompanionInventory {
                     + (item == null ? "null" : item.getClass().getName()));
         }
 
+        if (mustRemainWithHero(item)) {
+            return EquipFailure.HERO_REQUIRED_QUEST_ITEM;
+        }
+
         if (!knownUncursed(item)) {
             return EquipFailure.CURSED_OR_UNKNOWN;
         }
@@ -742,6 +752,7 @@ public final class CompanionInventory {
 
     public enum EquipFailure {
         NONE,
+        HERO_REQUIRED_QUEST_ITEM,
         CURSED_OR_UNKNOWN,
         TOO_HEAVY_UNKNOWN,
         TOO_HEAVY
@@ -828,7 +839,7 @@ public final class CompanionInventory {
     }
 
     boolean canUse(Item item) {
-        if (item == null) {
+        if (item == null || mustRemainWithHero(item)) {
             return false;
         }
 
@@ -885,6 +896,23 @@ public final class CompanionInventory {
                 || item instanceof StoneOfBlink
                 || item instanceof StoneOfFlock
                 || item instanceof StoneOfShock;
+    }
+
+    private static boolean mustRemainWithHero(Item item) {
+        if (!(item instanceof Pickaxe)
+                || !Blacksmith.Quest.given()
+                || Blacksmith.Quest.completed()
+                || Dungeon.hero == null) {
+            return false;
+        }
+
+        int heroPickaxes = Dungeon.hero.belongings.getAllItems(Pickaxe.class).size();
+        if (Dungeon.hero.belongings.contains(item)) {
+            return heroPickaxes <= 1;
+        }
+
+        // A loose/CoHero-owned pickaxe must stay available for Hero only when Hero has none.
+        return heroPickaxes == 0;
     }
 
     private static boolean knownUncursed(Item item) {
