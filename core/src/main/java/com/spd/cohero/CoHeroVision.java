@@ -3,12 +3,9 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
-import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Light;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
-import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
-import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.FlameParticle;
 import com.shatteredpixel.shatteredpixeldungeon.items.Torch;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfMagicMapping;
@@ -22,7 +19,6 @@ import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.particles.Emitter;
 import com.watabou.utils.Random;
 
-import java.util.ArrayList;
 
 /**
  * Owns CoHero-local perception and visibility refresh behavior.
@@ -193,19 +189,4 @@ final class CoHeroVision {
         }
     }
 
-    ArrayList<Mob> visibleAwakeEnemies() {
-        ArrayList<Mob> result = new ArrayList<>();
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob != owner
-                    && mob.alignment == Char.Alignment.ENEMY
-                    && mob.isAlive()
-                    && mob.invisible <= 0
-                    && owner.fieldOfView[mob.pos]
-                    && mob.state != mob.SLEEPING
-                    && mob.buff(Challenge.SpectatorFreeze.class) == null) {
-                result.add(mob);
-            }
-        }
-        return result;
-    }
 }
