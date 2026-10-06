@@ -20,10 +20,11 @@ import java.util.ArrayList;
 final class CoHeroTurnContext {
 
     private final CoHeroAlly owner;
-    private final Level level;
+    private Level level;
+    private boolean active;
     private final ArrayList<Mob> visibleAwakeEnemies = new ArrayList<>();
-    private ArrayList<Mob> visibleSleepingEnemies;
-    private ArrayList<Mob> heroSupportCandidates;
+    private final ArrayList<Mob> visibleSleepingEnemies = new ArrayList<>();
+    private final ArrayList<Mob> heroSupportCandidates = new ArrayList<>();
     private boolean heroSupportThreatEvaluated;
     private Mob heroSupportThreat;
 
@@ -35,6 +36,13 @@ final class CoHeroTurnContext {
         if (owner == null) {
             throw new IllegalArgumentException("CoHero turn context requires an owner");
         }
+        this.owner = owner;
+    }
+
+    void begin() {
+        if (active) {
+            throw new IllegalStateException("CoHero turn context started twice");
+        }
         if (Dungeon.level == null) {
             throw new IllegalStateException("CoHero turn context started without a level");
         }
@@ -42,9 +50,33 @@ final class CoHeroTurnContext {
             throw new IllegalStateException("CoHero turn context started without current field of view");
         }
 
-        this.owner = owner;
-        this.level = Dungeon.level;
+        level = Dungeon.level;
+        active = true;
+        visibleAwakeEnemies.clear();
+        visibleSleepingEnemies.clear();
+        heroSupportCandidates.clear();
+        heroSupportThreatEvaluated = false;
+        heroSupportThreat = null;
+        movementSafeMask = null;
+        ordinarySafePassable = null;
+        knownSafePassable = null;
         scanVisibleEnemies();
+    }
+
+    void end() {
+        active = false;
+        level = null;
+        visibleAwakeEnemies.clear();
+        visibleSleepingEnemies.clear();
+        heroSupportCandidates.clear();
+        heroSupportThreat = null;
+        movementSafeMask = null;
+        ordinarySafePassable = null;
+        knownSafePassable = null;
+    }
+
+    boolean isActive() {
+        return active;
     }
 
     ArrayList<Mob> visibleAwakeEnemies() {
@@ -92,7 +124,7 @@ final class CoHeroTurnContext {
 
         if (Dungeon.hero == null
                 || !Dungeon.hero.isAlive()
-                || heroSupportCandidates == null) {
+                || heroSupportCandidates.isEmpty()) {
             return null;
         }
 
@@ -117,7 +149,7 @@ final class CoHeroTurnContext {
         if (cell < 0 || cell >= level.length()) {
             return true;
         }
-        if (visibleSleepingEnemies == null) {
+        if (visibleSleepingEnemies.isEmpty()) {
             return true;
         }
 
@@ -134,7 +166,7 @@ final class CoHeroTurnContext {
         if (passable == null || passable.length != level.length()) {
             throw new IllegalArgumentException("Invalid CoHero movement mask length");
         }
-        if (visibleSleepingEnemies == null) {
+        if (visibleSleepingEnemies.isEmpty()) {
             return;
         }
 
@@ -156,9 +188,6 @@ final class CoHeroTurnContext {
             }
 
             if (mob.alignment == Char.Alignment.ENEMY || mob instanceof Mimic) {
-                if (heroSupportCandidates == null) {
-                    heroSupportCandidates = new ArrayList<>();
-                }
                 heroSupportCandidates.add(mob);
             }
 
@@ -170,9 +199,6 @@ final class CoHeroTurnContext {
                     && mob.pos >= 0
                     && mob.pos < owner.fieldOfView.length
                     && owner.fieldOfView[mob.pos]) {
-                if (visibleSleepingEnemies == null) {
-                    visibleSleepingEnemies = new ArrayList<>();
-                }
                 visibleSleepingEnemies.add(mob);
             }
 
@@ -193,7 +219,7 @@ final class CoHeroTurnContext {
     }
 
     private void assertActive() {
-        if (Dungeon.level != level || owner.currentTurnContext() != this) {
+        if (!active || Dungeon.level != level || owner.currentTurnContext() != this) {
             throw new IllegalStateException("Stale CoHero turn context");
         }
     }
