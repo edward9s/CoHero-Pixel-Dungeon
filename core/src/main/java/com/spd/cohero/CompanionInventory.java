@@ -413,7 +413,7 @@ public final class CompanionInventory {
     }
 
     public boolean canAddToBackpack(Item item) {
-        if (item == null) {
+        if (item == null || mustRemainWithHero(item)) {
             return false;
         }
         if (backpack.contains(item)) {
@@ -432,6 +432,9 @@ public final class CompanionInventory {
     public boolean addToBackpack(Item item) {
         if (item == null) {
             throw new IllegalArgumentException("item must not be null");
+        }
+        if (mustRemainWithHero(item)) {
+            return false;
         }
         if (backpack.contains(item)) {
             return true;
@@ -636,6 +639,10 @@ public final class CompanionInventory {
                     + (item == null ? "null" : item.getClass().getName()));
         }
 
+        if (mustRemainWithHero(item)) {
+            return EquipFailure.HERO_REQUIRED_QUEST_ITEM;
+        }
+
         if (!knownUncursed(item)) {
             return EquipFailure.CURSED_OR_UNKNOWN;
         }
@@ -745,6 +752,7 @@ public final class CompanionInventory {
 
     public enum EquipFailure {
         NONE,
+        HERO_REQUIRED_QUEST_ITEM,
         CURSED_OR_UNKNOWN,
         TOO_HEAVY_UNKNOWN,
         TOO_HEAVY
