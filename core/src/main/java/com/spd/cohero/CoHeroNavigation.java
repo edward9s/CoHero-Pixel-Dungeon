@@ -450,6 +450,11 @@ final class CoHeroNavigation {
     }
 
     private boolean isSleepSafe(int cell) {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            return context.isSleepSafe(cell);
+        }
+
         for (Mob mob : Dungeon.level.mobs) {
             if (mob != owner
                     && mob.alignment == Char.Alignment.ENEMY
