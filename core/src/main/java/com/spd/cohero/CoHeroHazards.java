@@ -628,7 +628,7 @@ public final class CoHeroHazards {
      * gets its next action. A tracking Eye can retarget any cell it can still see immediately
      * before firing; otherwise only its already locked beam remains dangerous.
      */
-    public static float eyeDeathGazeDeadline(Char owner) {
+    static float eyeDeathGazeDeadline(Char owner) {
         if (owner == null || Dungeon.level == null) {
             return Float.POSITIVE_INFINITY;
         }
@@ -664,7 +664,7 @@ public final class CoHeroHazards {
      * If the current cell is still on any already locked beam, becoming invisible makes the Eye
      * keep that old aim and does not save CoHero.
      */
-    public static boolean eyeDeathGazeCanBreakWithInvisibility(Char owner) {
+    static boolean eyeDeathGazeCanBreakWithInvisibility(Char owner) {
         if (owner == null || owner.invisible > 0 || Dungeon.level == null) {
             return false;
         }
