@@ -58,6 +58,10 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java"
     python "$patches/patch_mob_cohero.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Mob.java"
+    python "$patches/patch_necromancer_cohero.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Necromancer.java"
+    python "$patches/patch_spectral_necromancer_cohero.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/SpectralNecromancer.java"
     python "$patches/patch_shaman_ranged_damage.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/mobs/Shaman.java"
     python "$patches/patch_dm100_ranged_damage.py" \
