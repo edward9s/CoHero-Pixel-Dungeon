@@ -144,6 +144,11 @@ final class CoHeroTurnContext {
         return heroSupportThreat;
     }
 
+    boolean hasVisibleSleepingEnemy() {
+        assertActive();
+        return !visibleSleepingEnemies.isEmpty();
+    }
+
     boolean isSleepSafe(int cell) {
         assertActive();
         if (cell < 0 || cell >= level.length()) {
