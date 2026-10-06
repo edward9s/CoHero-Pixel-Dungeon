@@ -45,7 +45,7 @@ final class CoHeroNavigation {
     }
 
     boolean actExplore() {
-        long validateStarted = System.nanoTime();
+        long validateStarted = owner.timings().startNanos();
         boolean targetInvalid;
         try {
             targetInvalid = explorationTarget == -1
@@ -61,7 +61,7 @@ final class CoHeroNavigation {
 
         if (targetInvalid) {
             owner.clearNavigationPath();
-            long selectStarted = System.nanoTime();
+            long selectStarted = owner.timings().startNanos();
             try {
                 explorationTarget = chooseExplorationTarget();
             } finally {
@@ -77,7 +77,7 @@ final class CoHeroNavigation {
 
         boolean moved = false;
         if (explorationTarget != -1) {
-            long moveStarted = System.nanoTime();
+            long moveStarted = owner.timings().startNanos();
             try {
                 moved = moveTowardExplorationTarget(explorationTarget);
             } finally {
@@ -93,7 +93,7 @@ final class CoHeroNavigation {
         }
 
         owner.clearNavigationPath();
-        long selectStarted = System.nanoTime();
+        long selectStarted = owner.timings().startNanos();
         try {
             explorationTarget = chooseExplorationTarget();
         } finally {
@@ -117,6 +117,13 @@ final class CoHeroNavigation {
     }
 
     boolean[] ordinarySafePassable(boolean knownOnly) {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        return context == null
+                ? buildOrdinarySafePassable(knownOnly)
+                : context.ordinarySafePassable(knownOnly, this);
+    }
+
+    boolean[] buildOrdinarySafePassable(boolean knownOnly) {
         boolean[] result = applyMovementSafety(Dungeon.level.passable);
 
         if (knownOnly) {
@@ -134,6 +141,12 @@ final class CoHeroNavigation {
     }
 
     private void maskSleepingEnemyWakeRisk(boolean[] passable) {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            context.maskSleepingEnemyWakeRisk(passable);
+            return;
+        }
+
         for (Mob mob : Dungeon.level.mobs) {
             if (mob == owner
                     || mob.alignment != Char.Alignment.ENEMY
@@ -161,7 +174,7 @@ final class CoHeroNavigation {
             return null;
         }
 
-        long started = System.nanoTime();
+        long started = owner.timings().startNanos();
         try {
             boolean[] dangerMask = CoHeroHazards.dangerMask(owner);
             boolean[] escapePassable = hazardEscapePassable();
@@ -295,7 +308,7 @@ final class CoHeroNavigation {
         return result;
     }
     boolean getCloser(int target) {
-        long guardStarted = System.nanoTime();
+        long guardStarted = owner.timings().startNanos();
         boolean guardRestricted;
         try {
             guardRestricted = owner.isGuardMovementRestricted();
@@ -306,7 +319,7 @@ final class CoHeroNavigation {
 
         boolean activeHazards = false;
         if (!guardRestricted) {
-            long hazardStarted = System.nanoTime();
+            long hazardStarted = owner.timings().startNanos();
             try {
                 activeHazards = CoHeroHazards.hasActiveHazards(owner);
             } finally {
@@ -317,7 +330,7 @@ final class CoHeroNavigation {
 
         boolean sleepingEnemy = false;
         if (!guardRestricted && !activeHazards) {
-            long sleepStarted = System.nanoTime();
+            long sleepStarted = owner.timings().startNanos();
             try {
                 sleepingEnemy = hasVisibleSleepingEnemy();
             } finally {
@@ -328,7 +341,7 @@ final class CoHeroNavigation {
 
         if (!guardRestricted && !activeHazards && !sleepingEnemy) {
             clearPolicyPath();
-            long stockPathStarted = System.nanoTime();
+            long stockPathStarted = owner.timings().startNanos();
             try {
                 return owner.getCloserWithoutCoHeroPolicy(target);
             } finally {
@@ -341,7 +354,7 @@ final class CoHeroNavigation {
         }
 
         boolean[] safePassable;
-        long safeMaskStarted = System.nanoTime();
+        long safeMaskStarted = owner.timings().startNanos();
         try {
             safePassable = ordinarySafePassable(false);
             owner.restrictGuardPassable(safePassable);
@@ -352,7 +365,7 @@ final class CoHeroNavigation {
         }
 
         int step;
-        long policyPathStarted = System.nanoTime();
+        long policyPathStarted = owner.timings().startNanos();
         try {
             step = nextPolicyStep(target, safePassable);
         } finally {
@@ -363,7 +376,7 @@ final class CoHeroNavigation {
             return false;
         }
 
-        long executeStarted = System.nanoTime();
+        long executeStarted = owner.timings().startNanos();
         try {
             owner.move(step);
             return owner.pos == step;
@@ -411,6 +424,11 @@ final class CoHeroNavigation {
     }
 
     private boolean hasVisibleSleepingEnemy() {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            return context.hasVisibleSleepingEnemy();
+        }
+
         for (Mob mob : Dungeon.level.mobs) {
             if (mob != owner
                     && mob.alignment == Char.Alignment.ENEMY
@@ -432,6 +450,11 @@ final class CoHeroNavigation {
     }
 
     private boolean isSleepSafe(int cell) {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            return context.isSleepSafe(cell);
+        }
+
         for (Mob mob : Dungeon.level.mobs) {
             if (mob != owner
                     && mob.alignment == Char.Alignment.ENEMY

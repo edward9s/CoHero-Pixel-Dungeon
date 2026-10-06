@@ -16,8 +16,8 @@ final class CoHeroSupportController {
     private static final int LOW_HEALTH_EXIT_PERCENT = 60;
     private static final int RALLY_MIN_DISTANCE = 2;
     private static final int RALLY_MAX_DISTANCE = 3;
-    private static final int MELEE_SUPPORT_RADIUS = 6;
-    private static final int RANGED_SUPPORT_RADIUS = 10;
+    static final int MELEE_SUPPORT_RADIUS = 6;
+    static final int RANGED_SUPPORT_RADIUS = 10;
 
     private final CoHeroAlly owner;
     private boolean lowHealthRally;
@@ -83,6 +83,11 @@ final class CoHeroSupportController {
     Mob heroSupportThreat() {
         if (Dungeon.hero == null || !Dungeon.hero.isAlive() || Dungeon.level == null) {
             return null;
+        }
+
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            return context.heroSupportThreat();
         }
 
         for (Mob mob : Dungeon.level.mobs) {

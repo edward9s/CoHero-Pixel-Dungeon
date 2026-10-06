@@ -73,7 +73,7 @@ public final class CoHero {
     }
 
     public static long onRemoteViewStarted() {
-        return timings.isEnabled() ? System.nanoTime() : 0L;
+        return timings.startNanos();
     }
 
     public static void onRemoteViewUpdated(long started) {

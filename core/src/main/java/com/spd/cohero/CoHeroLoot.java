@@ -102,7 +102,7 @@ final class CoHeroLoot {
     }
 
     Boolean actRecovery() {
-        long validateStarted = System.nanoTime();
+        long validateStarted = owner.timings().startNanos();
         try {
             if (recoverPreferredLootAtCurrentCell()) {
                 recoveryTarget = -1;
@@ -122,7 +122,7 @@ final class CoHeroLoot {
         }
 
         if (recoveryTarget == -1) {
-            long searchStarted = System.nanoTime();
+            long searchStarted = owner.timings().startNanos();
             recoveryTarget = nearestPreferredLootCell();
             owner.timings().record(owner, CoHeroTimings.Action.LOOT_SEARCH, searchStarted);
         }
@@ -135,7 +135,7 @@ final class CoHeroLoot {
         owner.allowAnyGuardMovement();
         owner.setMovementDecision("loot_recovery", recoveryTarget);
 
-        long moveStarted = System.nanoTime();
+        long moveStarted = owner.timings().startNanos();
         boolean moved;
         try {
             moved = owner.getCloser(recoveryTarget);
@@ -148,7 +148,7 @@ final class CoHeroLoot {
 
         owner.spendActionTime(1 / owner.speed());
 
-        long animationStarted = System.nanoTime();
+        long animationStarted = owner.timings().startNanos();
         try {
             return owner.finishMovementAnimation(oldPos);
         } finally {
@@ -205,7 +205,7 @@ final class CoHeroLoot {
             return false;
         }
 
-        long pickupStarted = System.nanoTime();
+        long pickupStarted = owner.timings().startNanos();
         heap.remove(selected);
 
         if (selected instanceof Gold) {

@@ -435,7 +435,7 @@ final class CoHeroCombatPositioning {
         // Ranged pressure does not disable anti-encirclement positioning. Melee threats define
         // whether a choke actually limits frontage; every threat still contributes to incoming
         // DPT when choosing between otherwise valid positions.
-        long searchStarted = System.nanoTime();
+        long searchStarted = owner.timings().startNanos();
         int tacticalCell;
         try {
             tacticalCell = chooseEncirclementCell(targetMob, meleeThreats, threats);
@@ -462,7 +462,7 @@ final class CoHeroCombatPositioning {
         // chooseEscapeStep refuses neutral/worse moves, so this does not make CoHero run forever
         // from a lone swarm in an open room.
         if (crowdedMelee && !owner.rooted) {
-            long escapeStarted = System.nanoTime();
+            long escapeStarted = owner.timings().startNanos();
             try {
                 int escape = chooseEscapeStep(threats);
                 if (escape != -1) {
