@@ -766,7 +766,7 @@ public class CoHeroAlly extends DirectableAlly {
 
                 long setupTargetStarted = timings().startNanos();
                 try {
-                    combatTarget = combat.selectCombatTarget(attackableThreats);
+                    combatTarget = combat.selectCombatTarget(attackableThreats, combatThreats);
                 } finally {
                     timings().record(
                             this, CoHeroTimings.Action.COMBAT_SETUP_TARGET, setupTargetStarted);
@@ -857,7 +857,7 @@ public class CoHeroAlly extends DirectableAlly {
 
                 if (!objectiveThreats.equals(attackableThreats)) {
                     attackableThreats = objectiveThreats;
-                    combatTarget = combat.selectCombatTarget(attackableThreats);
+                    combatTarget = combat.selectCombatTarget(attackableThreats, combatThreats);
                     survivalTarget = combat.selectSurvivalTarget(attackableThreats);
                     if (survivalTarget != assessedSurvivalTarget) {
                         long objectiveRiskStarted = timings().startNanos();
