@@ -425,7 +425,9 @@ final class CoHeroCombatPositioning {
                 ? owner.estimateMeleeDpt(targetMob) * Math.max(0.25f, owner.attackDelay())
                 : owner.estimateBestRangedDpt(targetMob);
         boolean swarmSplitPressure =
-                targetMob instanceof Swarm && targetMob.HP >= expectedNextDamage + 2f;
+                targetMob instanceof Swarm
+                        && !isSwarmEngagingHero(targetMob)
+                        && targetMob.HP >= expectedNextDamage + 2f;
         ArrayList<Mob> meleeThreats = collectEncirclementMeleeThreats(threats);
         boolean crowdedMelee = meleeThreats.size() >= 2;
         if (!swarmSplitPressure && !crowdedMelee) {
@@ -492,12 +494,20 @@ final class CoHeroCombatPositioning {
             if (threat == null
                     || !threat.isAlive()
                     || owner.isCombatInvulnerable(threat)
-                    || owner.hasNonAdjacentAttackCapability(threat)) {
+                    || owner.hasNonAdjacentAttackCapability(threat)
+                    || isSwarmEngagingHero(threat)) {
                 continue;
             }
             result.add(threat);
         }
         return result;
+    }
+
+    private boolean isSwarmEngagingHero(Mob threat) {
+        return threat instanceof Swarm
+                && Dungeon.hero != null
+                && Dungeon.hero.isAlive()
+                && Dungeon.level.adjacent(threat.pos, Dungeon.hero.pos);
     }
 
     int chooseEncirclementCell(
