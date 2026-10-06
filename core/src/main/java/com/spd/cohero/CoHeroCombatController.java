@@ -160,8 +160,9 @@ final class CoHeroCombatController {
         return targeting.nearestThreat(threats);
     }
 
-    Mob selectCombatTarget(ArrayList<Mob> threats) {
-        return targeting.selectCombatTarget(threats);
+    Mob selectCombatTarget(
+            ArrayList<Mob> candidates, ArrayList<Mob> activeEnemies) {
+        return targeting.selectCombatTarget(candidates, activeEnemies);
     }
 
     Mob selectSurvivalTarget(ArrayList<Mob> threats) {
