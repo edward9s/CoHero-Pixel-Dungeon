@@ -689,7 +689,18 @@ public final class CoHeroHazards {
                 retargetDanger = true;
             }
         }
-        return retargetDanger;
+
+        if (!retargetDanger) {
+            return false;
+        }
+
+        int cell = owner.pos;
+        return !isWarned(cell)
+                && !isKnownActiveTrap(cell)
+                && !isDelayedPitDanger(owner, cell)
+                && !isRipperLeapDanger(cell)
+                && !isVaultMechanismDanger(owner, cell)
+                && !isEnvironmentalDanger(owner, cell);
     }
 
     private static boolean isEyeDeathGazeDanger(Char owner, int cell) {
