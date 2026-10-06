@@ -1433,6 +1433,10 @@ public class CoHeroAlly extends DirectableAlly {
                 && riskEstimator.hasNonAdjacentAttackCapability(threat, Dungeon.hero);
     }
 
+    boolean hasAdjacentAttackCapability(Mob threat) {
+        return riskEstimator.hasAdjacentAttackCapability(threat);
+    }
+
     boolean anyThreatCanAttackNow(ArrayList<Mob> threats) {
         for (Mob threat : threats) {
             if (threat.coHeroCanAttackFrom(threat.pos, this)) {
