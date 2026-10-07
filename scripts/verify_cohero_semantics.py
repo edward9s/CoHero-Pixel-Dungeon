@@ -26,6 +26,16 @@ AUTO_LOOT_RESOURCE_TYPES = (
     "item instanceof Plant.Seed",
     "item instanceof Potion",
     "item instanceof Scroll",
+    "item instanceof Food",
+    "item instanceof Stylus",
+    "item instanceof ArcaneResin",
+    "item instanceof LiquidMetal",
+    "item instanceof GooBlob",
+    "item instanceof MetalShard",
+)
+AUTO_LOOT_SPECIAL_ROUTES = (
+    ("item instanceof Key", "PickupDestination.KEYRING"),
+    ("item instanceof EnergyCrystal", "PickupDestination.ENERGY_POOL"),
 )
 
 
@@ -163,7 +173,31 @@ def main() -> int:
     resource_body = loot_source[resource_start:hero_collect]
     if any(resource_type not in resource_body for resource_type in AUTO_LOOT_RESOURCE_TYPES):
         print(
-            "Unsupported runestones, seeds, potions, and scrolls must all route to Hero during auto-loot.",
+            "Safe inventory resources must route to Hero when CoHero cannot use them.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if any(
+        item_check not in destination_body or destination not in destination_body
+        for item_check, destination in AUTO_LOOT_SPECIAL_ROUTES
+    ):
+        print(
+            "Keys and energy crystals must keep explicit shared-resource pickup routes.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if "collectKey((Key) selected)" not in loot_source:
+        print(
+            "Key auto-loot must use the dedicated shared keyring handler.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if "collectEnergyCrystal((EnergyCrystal) selected)" not in loot_source:
+        print(
+            "Energy crystal auto-loot must use the dedicated shared energy handler.",
             file=sys.stderr,
         )
         return 1
