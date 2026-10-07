@@ -7,17 +7,28 @@ import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
+import com.shatteredpixel.shatteredpixeldungeon.items.ArcaneResin;
+import com.shatteredpixel.shatteredpixeldungeon.items.EnergyCrystal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
+import com.shatteredpixel.shatteredpixeldungeon.items.LiquidMetal;
+import com.shatteredpixel.shatteredpixeldungeon.items.Stylus;
+import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.SkeletonKey;
+import com.shatteredpixel.shatteredpixeldungeon.items.food.Food;
+import com.shatteredpixel.shatteredpixeldungeon.items.keys.Key;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.quest.GooBlob;
+import com.shatteredpixel.shatteredpixeldungeon.items.quest.MetalShard;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
 import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
-import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
+import com.shatteredpixel.shatteredpixeldungeon.journal.Notes;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndJournal;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.PathFinder;
@@ -39,7 +50,9 @@ final class CoHeroLoot {
     private enum PickupDestination {
         NONE,
         COHERO,
-        HERO
+        HERO,
+        KEYRING,
+        ENERGY_POOL
     }
 
     private final CoHeroAlly owner;
@@ -232,6 +245,16 @@ final class CoHeroLoot {
             owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
             return true;
         }
+        if (pickupDestination == PickupDestination.KEYRING) {
+            collectKey((Key) selected);
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
+            return true;
+        }
+        if (pickupDestination == PickupDestination.ENERGY_POOL) {
+            collectEnergyCrystal((EnergyCrystal) selected);
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
+            return true;
+        }
         if (pickupDestination != PickupDestination.COHERO) {
             throw new IllegalStateException(
                     "Selected CoHero loot has no pickup destination: "
@@ -276,6 +299,40 @@ final class CoHeroLoot {
                 1,
                 1,
                 Random.Float(0.9f, 1.1f));
+    }
+
+    private void collectKey(Key key) {
+        Catalog.setSeen(key.getClass());
+        Statistics.itemTypesDiscovered.add(key.getClass());
+        GameScene.pickUpJournal(key, owner.pos);
+        WndJournal.last_index = 0;
+        Notes.add(key);
+        Sample.INSTANCE.play(Assets.Sounds.ITEM);
+        GameScene.updateKeyDisplay();
+
+        SkeletonKey.KeyReplacementTracker tracker =
+                Dungeon.hero.buff(SkeletonKey.KeyReplacementTracker.class);
+        if (tracker != null) {
+            tracker.processExcessKeys();
+        }
+    }
+
+    private void collectEnergyCrystal(EnergyCrystal crystal) {
+        int amount = crystal.quantity();
+        Catalog.setSeen(crystal.getClass());
+        Statistics.itemTypesDiscovered.add(crystal.getClass());
+        Dungeon.energy += amount;
+
+        GameScene.pickUp(crystal, owner.pos);
+        CharSprite sprite = owner.attachedSprite();
+        if (sprite != null) {
+            sprite.showStatusWithIcon(
+                    CharSprite.NEUTRAL,
+                    Integer.toString(amount),
+                    FloatingText.ENERGY);
+        }
+        Sample.INSTANCE.play(Assets.Sounds.ITEM);
+        Item.updateQuickslot();
     }
 
     private int nearestPreferredLootCell() {
@@ -413,10 +470,16 @@ final class CoHeroLoot {
             return PickupDestination.COHERO;
         }
 
-        if (isAutoLootResource(item)
-                && Dungeon.hero != null
-                && Dungeon.hero.isAlive()) {
-            return PickupDestination.HERO;
+        if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
+            if (item instanceof Key) {
+                return PickupDestination.KEYRING;
+            }
+            if (item instanceof EnergyCrystal) {
+                return PickupDestination.ENERGY_POOL;
+            }
+            if (isAutoLootResource(item)) {
+                return PickupDestination.HERO;
+            }
         }
 
         return PickupDestination.NONE;
@@ -426,7 +489,13 @@ final class CoHeroLoot {
         return item instanceof Runestone
                 || item instanceof Plant.Seed
                 || item instanceof Potion
-                || item instanceof Scroll;
+                || item instanceof Scroll
+                || item instanceof Food
+                || item instanceof Stylus
+                || item instanceof ArcaneResin
+                || item instanceof LiquidMetal
+                || item instanceof GooBlob
+                || item instanceof MetalShard;
     }
 
     private void routeToHero(Item item) {
