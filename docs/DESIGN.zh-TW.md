@@ -588,7 +588,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 共享 Hero STR、lvl / exp，但保有獨立 HP / HT。
 - CoHero 擊殺沿用原版流程增加共同 EXP。
 - 基礎自然回血，不處理 Hunger。
-- CoHero 可自動使用少數已鑑定生存／逃生／戰鬥機動消耗品（治療／護盾／隱形／Haste／Stamina／Cleansing／Earthen Armor，以及 Teleportation／Terror／Dread 卷軸），並支援敵意、震爆、電擊、恐懼、沉睡、閃現、羊群七種戰鬥符石；另會利用已知 Sungrass / Mageroyal / Earthroot / Fadeleaf 作免費場景生存資源，並可由自己背包中的 Ankh 在死亡時復活。
+- CoHero 可自動使用少數已鑑定生存／逃生／戰鬥機動消耗品（治療／護盾／隱形／Haste／Stamina／Cleansing／Earthen Armor，以及 Teleportation／Terror／Dread 卷軸），並支援敵意、震爆、電擊、恐懼、沉睡、閃現、羊群七種戰鬥符石；另會利用已知 Sungrass / Mageroyal / Earthroot / Fadeleaf 作免費場景生存資源，並依 Dewdrop routing 在低血量時自療、否則優先補入 Hero Waterskin；也可由自己背包中的 Ankh 在死亡時復活。
 - 完全由背包與裝備驅動的基本戰鬥行為。
 - 近戰武器可及時只使用近戰武器。
 - 高閃避目標優先法杖。
