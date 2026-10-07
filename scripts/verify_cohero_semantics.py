@@ -27,6 +27,10 @@ PIRANHA_ESCAPE_METHOD = "Boolean tryLeavePiranhaDanger() {"
 PIRANHA_TRAPPED_WAIT = 'owner.setMovementDecision("piranha_trapped", owner.pos);'
 PIRANHA_SAFE_DEST = "|| !context.isPiranhaSafe(cell)"
 PIRANHA_NON_WATER_DEST = "|| Dungeon.level.water[cell]"
+PIRANHA_SAFE_RANGED_METHOD = "Boolean tryPiranhaSafeRangedPositioning(Mob targetMob) {"
+PIRANHA_SAFE_RANGED_MASK = "boolean[] safePassable = owner.ordinarySafePassable(true);"
+PIRANHA_SAFE_RANGED_SLEEP_FILTER = "targetMob.state == targetMob.SLEEPING"
+PIRANHA_SAFE_RANGED_DECISION = '"piranha_safe_ranged"'
 HERO_SUPPORT_BEFORE_PASSIVE_FILTER = "heroSupportCandidates.add(mob);"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
@@ -223,6 +227,32 @@ def main() -> int:
     if "context.maskPiranhaDanger(result);" not in navigation_source:
         print(
             "All shared movement-safety masks must reuse the cached Piranha danger mask.",
+            file=sys.stderr,
+        )
+        return 1
+
+    combat_source = (package_root / "CoHeroCombatController.java").read_text(encoding="utf-8")
+    if combat_source.count(PIRANHA_SAFE_RANGED_METHOD) != 1:
+        print(
+            "CoHero combat must have one Piranha safe-ranged positioning phase.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if (PIRANHA_SAFE_RANGED_MASK not in combat_source
+            or PIRANHA_SAFE_RANGED_SLEEP_FILTER not in combat_source
+            or PIRANHA_SAFE_RANGED_DECISION not in combat_source):
+        print(
+            "Piranha ranged positioning must reuse safe passability and ignore sleeping Piranhas.",
+            file=sys.stderr,
+        )
+        return 1
+
+    direct_ranged = ally_source.find("combat.tryDirectRangedAttack(")
+    piranha_ranged = ally_source.find("combat.tryPiranhaSafeRangedPositioning(")
+    if direct_ranged < 0 or piranha_ranged < 0 or direct_ranged > piranha_ranged:
+        print(
+            "Piranha firing-position search must run only after direct ranged offense is unavailable.",
             file=sys.stderr,
         )
         return 1
