@@ -21,7 +21,8 @@ EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target
 PASSIVE_STATUE_FILTER = "boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;"
 PIRANHA_DANGER_MASK_METHOD = "private boolean[] piranhaDangerMask() {"
 PIRANHA_POOL_FLOOD = "|| !level.water[adjacent]"
-PIRANHA_SHORE_EXPANSION = "&& level.passable[adjacent]) {"
+PIRANHA_SHORE_EXPANSION = "int waterCount = tail;"
+PIRANHA_DANGER_CELL_REUSE = "piranhaDangerCells = queue;"
 PIRANHA_ESCAPE_METHOD = "Boolean tryLeavePiranhaDanger() {"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
@@ -175,7 +176,14 @@ def main() -> int:
 
     if PIRANHA_SHORE_EXPANSION not in turn_context_source:
         print(
-            "Piranha danger must include passable shoreline cells adjacent to the connected pool.",
+            "Piranha danger must expand from the connected water cells to the shoreline.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_DANGER_CELL_REUSE not in turn_context_source:
+        print(
+            "Piranha danger must reuse its primitive cell queue for later mask merges.",
             file=sys.stderr,
         )
         return 1
