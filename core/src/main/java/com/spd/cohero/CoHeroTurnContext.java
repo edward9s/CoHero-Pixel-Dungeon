@@ -202,14 +202,6 @@ final class CoHeroTurnContext {
         return !piranhaDangerMask()[cell];
     }
 
-    boolean isInPiranhaPool(int cell) {
-        assertActive();
-        if (cell < 0 || cell >= level.length() || piranhas.isEmpty() || !level.water[cell]) {
-            return false;
-        }
-        return piranhaDangerMask()[cell];
-    }
-
     void maskPiranhaDanger(boolean[] passable) {
         assertActive();
         if (passable == null || passable.length != level.length()) {
