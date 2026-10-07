@@ -5,6 +5,8 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Piranha;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Statue;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.watabou.utils.PathFinder;
 
@@ -25,6 +27,8 @@ final class CoHeroTurnContext {
     private final ArrayList<Mob> visibleAwakeEnemies = new ArrayList<>();
     private final ArrayList<Mob> visibleSleepingEnemies = new ArrayList<>();
     private final ArrayList<Mob> heroSupportCandidates = new ArrayList<>();
+    private final ArrayList<Piranha> visiblePiranhas = new ArrayList<>();
+    private boolean[] piranhaDangerMask;
     private boolean heroSupportThreatEvaluated;
     private Mob heroSupportThreat;
 
@@ -54,6 +58,8 @@ final class CoHeroTurnContext {
         visibleAwakeEnemies.clear();
         visibleSleepingEnemies.clear();
         heroSupportCandidates.clear();
+        visiblePiranhas.clear();
+        piranhaDangerMask = null;
         heroSupportThreatEvaluated = false;
         heroSupportThreat = null;
         ordinarySafePassable = null;
@@ -67,6 +73,8 @@ final class CoHeroTurnContext {
         visibleAwakeEnemies.clear();
         visibleSleepingEnemies.clear();
         heroSupportCandidates.clear();
+        visiblePiranhas.clear();
+        piranhaDangerMask = null;
         heroSupportThreat = null;
         ordinarySafePassable = null;
         knownSafePassable = null;
@@ -175,18 +183,120 @@ final class CoHeroTurnContext {
         }
     }
 
+    boolean hasVisiblePiranhaDanger() {
+        assertActive();
+        return !visiblePiranhas.isEmpty();
+    }
+
+    boolean isPiranhaSafe(int cell) {
+        assertActive();
+        if (cell < 0 || cell >= level.length() || visiblePiranhas.isEmpty()) {
+            return true;
+        }
+        return !piranhaDangerMask()[cell];
+    }
+
+    void maskPiranhaDanger(boolean[] passable) {
+        assertActive();
+        if (passable == null || passable.length != level.length()) {
+            throw new IllegalArgumentException("Invalid CoHero Piranha movement mask length");
+        }
+        if (visiblePiranhas.isEmpty()) {
+            return;
+        }
+
+        boolean[] danger = piranhaDangerMask();
+        for (int cell = 0; cell < passable.length; cell++) {
+            if (danger[cell]) {
+                passable[cell] = false;
+            }
+        }
+    }
+
+    private boolean[] piranhaDangerMask() {
+        if (piranhaDangerMask != null) {
+            return piranhaDangerMask;
+        }
+
+        int length = level.length();
+        boolean[] waterPool = new boolean[length];
+        int[] queue = new int[length];
+        int head = 0;
+        int tail = 0;
+
+        for (Piranha piranha : visiblePiranhas) {
+            int cell = piranha.pos;
+            if (cell < 0
+                    || cell >= length
+                    || !level.water[cell]
+                    || !level.passable[cell]
+                    || waterPool[cell]) {
+                continue;
+            }
+            waterPool[cell] = true;
+            queue[tail++] = cell;
+        }
+
+        while (head < tail) {
+            int cell = queue[head++];
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int adjacent = cell + offset;
+                if (!level.insideMap(adjacent)
+                        || level.distance(cell, adjacent) != 1
+                        || waterPool[adjacent]
+                        || !level.water[adjacent]
+                        || !level.passable[adjacent]) {
+                    continue;
+                }
+                waterPool[adjacent] = true;
+                queue[tail++] = adjacent;
+            }
+        }
+
+        boolean[] danger = waterPool.clone();
+        for (int cell = 0; cell < length; cell++) {
+            if (!waterPool[cell]) {
+                continue;
+            }
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int adjacent = cell + offset;
+                if (level.insideMap(adjacent)
+                        && level.distance(cell, adjacent) == 1
+                        && level.passable[adjacent]) {
+                    danger[adjacent] = true;
+                }
+            }
+        }
+
+        piranhaDangerMask = danger;
+        return piranhaDangerMask;
+    }
+
     private void scanVisibleEnemies() {
         for (Mob mob : level.mobs) {
             if (mob == owner || !mob.isAlive()) {
                 continue;
             }
 
-            if (mob.alignment == Char.Alignment.ENEMY || mob instanceof Mimic) {
+            boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;
+            if (!passiveStatue
+                    && (mob.alignment == Char.Alignment.ENEMY || mob instanceof Mimic)) {
                 heroSupportCandidates.add(mob);
             }
 
-            if (mob.alignment != Char.Alignment.ENEMY) {
+            if (mob.alignment != Char.Alignment.ENEMY || passiveStatue) {
                 continue;
+            }
+
+            if (mob instanceof Piranha) {
+                if (mob.pos < 0 || mob.pos >= owner.fieldOfView.length) {
+                    throw new IllegalStateException(
+                            "Piranha has invalid position: "
+                                    + mob.getClass().getSimpleName() + "@" + mob.pos);
+                }
+                if (mob.invisible <= 0 && owner.fieldOfView[mob.pos]) {
+                    visiblePiranhas.add((Piranha) mob);
+                }
             }
 
             if (mob.state == mob.SLEEPING) {
