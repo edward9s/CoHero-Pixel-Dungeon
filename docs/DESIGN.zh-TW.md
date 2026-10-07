@@ -155,10 +155,11 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 
 ### 被動雕像與 Piranha 水域
 
-- `Statue` / `ArmoredStatue` 處於原版 `PASSIVE` 狀態時不列入 CoHero 的可見戰鬥目標，也不觸發 Hero 支援。雕像被攻擊、受到負面效果或因其他原版機制進入敵對狀態後，才恢復成一般威脅。
-- `Piranha` 與其子類 `PhantomPiranha` 採水域級避讓。只要 CoHero 看見一隻活著的 Piranha，當回合即從其位置沿原版可通行水格做一次 8 方向 flood-fill，將整個連通水域與該水域所有相鄰可通行岸邊格標成 Piranha 攻擊危險區；不能只避開魚目前所在格附近，因為 Piranha 的高移速可快速穿越水域後近身攻擊岸邊角色。
+- `Statue` / `ArmoredStatue` 處於原版 `PASSIVE` 狀態時不列入 CoHero 的主動攻擊目標；但 Hero-support trigger 與攻擊決策分離，Hero 周圍符合 6 格近戰／10 格遠攻支援條件的敵人即使仍為 `SLEEPING` 或 `PASSIVE`，仍會讓 CoHero 靠近 Hero。雕像被攻擊、受到負面效果或因其他原版機制進入敵對狀態後，才恢復成一般可攻擊威脅。
+- `Piranha` 與其子類 `PhantomPiranha` 採水域級避讓。對每個活著的 Piranha，從其位置沿原版可通行水格做 8 方向 flood-fill，將整個連通水域與該水域所有相鄰可通行岸邊格標成 Piranha 危險區；不能只避開魚目前所在格附近，因為 Piranha 的高移速可快速穿越水域後攻擊岸邊角色。
 - Piranha 危險區在單次 `CoHeroTurnContext` 內只建立一次並重用；普通探索、戰鬥走位、逃生與 movement-safety 查詢都只讀同一份 mask，避免每個 caller 重複掃描地圖。
-- CoHero 不主動走進 Piranha 危險區；若當回合開始時已位於其中，會先尋找最近的安全格離開。若在危險區外存在合法遠程攻擊線，仍照一般 ranged policy 使用投擲武器、Spirit Bow 或法杖攻擊 Piranha；沒有遠程手段時不為了近戰主動踏入危險區。
+- CoHero 不主動走進 Piranha 危險區。只要 CoHero 已位於該連通水域或其岸邊攻擊圈內，就進入強制撤離：不看 HP、不看 Piranha 與 CoHero 的距離，也不交給一般 combat；尋找路徑距離最近、可到達、非水且已位於 Piranha 危險區之外的格子，途中允許穿過目前水域與岸邊，並逐回合持續撤離直到真正離開整個危險區。普通步行無法離開時才使用既有 Blink／Teleport 緊急位移；仍無法離開時也不主動與 Piranha 交戰。
+- CoHero 已在 Piranha 危險區外且存在合法遠程攻擊線時，仍照一般 ranged policy 使用投擲武器、Spirit Bow 或法杖攻擊 Piranha；沒有遠程手段時不為了近戰主動踏入危險區。
 
 ## 4. AI 與角色實作基礎
 
