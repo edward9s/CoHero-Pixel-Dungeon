@@ -18,6 +18,8 @@ import java.util.Arrays;
  */
 final class CoHeroNavigation {
 
+    private static final int IDLE_HERO_TETHER_RADIUS = 10;
+
     private final CoHeroAlly owner;
     private int explorationTarget = -1;
     private PathFinder.Path policyPath;
@@ -53,7 +55,8 @@ final class CoHeroNavigation {
                     || !Dungeon.level.passable[explorationTarget]
                     || (Actor.findChar(explorationTarget) != null
                         && Actor.findChar(explorationTarget) != owner)
-                    || !isMovementSafe(explorationTarget);
+                    || !isMovementSafe(explorationTarget)
+                    || !isValidIdleHeroTarget(explorationTarget);
         } finally {
             owner.timings().record(
                     owner, CoHeroTimings.Action.EXPLORE_VALIDATE, validateStarted);
@@ -72,7 +75,9 @@ final class CoHeroNavigation {
 
         int oldPos = owner.pos;
         if (explorationTarget != -1) {
-            owner.setMovementDecision("explore", explorationTarget);
+            owner.setMovementDecision(
+                    isInsideIdleHeroTether(owner.pos) ? "explore" : "explore_return_to_hero",
+                    explorationTarget);
         }
 
         boolean moved = false;
@@ -653,9 +658,17 @@ final class CoHeroNavigation {
         boolean[] passable = nonCombatSafePassable(false);
         PathFinder.buildDistanceMap(owner.pos, passable);
 
+        if (!isInsideIdleHeroTether(owner.pos)) {
+            int returnTarget = chooseIdleHeroReturnTarget(passable);
+            if (returnTarget != -1) {
+                return returnTarget;
+            }
+        }
+
         ArrayList<Integer> unknown = new ArrayList<>();
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell == owner.pos
+                    || !isInsideIdleHeroTether(cell)
                     || !passable[cell]
                     || !Dungeon.level.discoverable[cell]
                     || (Dungeon.level.visited[cell] || Dungeon.level.mapped[cell])
@@ -676,6 +689,7 @@ final class CoHeroNavigation {
         ArrayList<Integer> roaming = new ArrayList<>();
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell == owner.pos
+                    || !isInsideIdleHeroTether(cell)
                     || !isKnown(cell)
                     || !passable[cell]
                     || PathFinder.distance[cell] == Integer.MAX_VALUE) {
@@ -689,5 +703,65 @@ final class CoHeroNavigation {
         }
 
         return roaming.isEmpty() ? -1 : Random.element(roaming);
+    }
+
+    private int chooseIdleHeroReturnTarget(boolean[] passable) {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            return -1;
+        }
+
+        int best = -1;
+        int bestHeroDistance = Integer.MAX_VALUE;
+        int bestPathDistance = Integer.MAX_VALUE;
+
+        for (int cell = 0; cell < passable.length; cell++) {
+            if (cell == owner.pos
+                    || !passable[cell]
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != owner) {
+                continue;
+            }
+
+            int heroDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
+            if (heroDistance >= Dungeon.level.distance(owner.pos, Dungeon.hero.pos)) {
+                continue;
+            }
+
+            int pathDistance = PathFinder.distance[cell];
+            if (best == -1
+                    || heroDistance < bestHeroDistance
+                    || (heroDistance == bestHeroDistance && pathDistance < bestPathDistance)
+                    || (heroDistance == bestHeroDistance
+                        && pathDistance == bestPathDistance
+                        && cell < best)) {
+                best = cell;
+                bestHeroDistance = heroDistance;
+                bestPathDistance = pathDistance;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean isInsideIdleHeroTether(int cell) {
+        return Dungeon.hero == null
+                || !Dungeon.hero.isAlive()
+                || Dungeon.level.distance(cell, Dungeon.hero.pos) <= IDLE_HERO_TETHER_RADIUS;
+    }
+
+    private boolean isValidIdleHeroTarget(int cell) {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            return true;
+        }
+
+        int ownerDistance = Dungeon.level.distance(owner.pos, Dungeon.hero.pos);
+        int targetDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
+        return ownerDistance <= IDLE_HERO_TETHER_RADIUS
+                ? targetDistance <= IDLE_HERO_TETHER_RADIUS
+                : targetDistance < ownerDistance;
     }
 }
