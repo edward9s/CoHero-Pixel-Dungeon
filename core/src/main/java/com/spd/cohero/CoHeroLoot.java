@@ -128,6 +128,104 @@ final class CoHeroLoot {
         }
     }
 
+    Boolean actUrgentDewRecovery() {
+        if (Dungeon.hero == null
+                || !Dungeon.hero.isAlive()
+                || dewdropDestination() != PickupDestination.COHERO_DEW_HEAL) {
+            return null;
+        }
+
+        Heap currentHeap = Dungeon.level.heaps.get(owner.pos);
+        if (currentHeap != null
+                && currentHeap.type == Heap.Type.HEAP
+                && !currentHeap.hidden) {
+            for (Item item : new ArrayList<>(currentHeap.items)) {
+                if (item instanceof Dewdrop) {
+                    currentHeap.remove(item);
+                    consumeDewForCoHero((Dewdrop) item);
+                    recoveryTarget = -1;
+                    clearUnreachableCache();
+                    owner.clearNavigationPath();
+                    owner.spendActionTime(Actor.TICK);
+                    return true;
+                }
+            }
+        }
+
+        int target = nearestUrgentDewCell();
+        if (target == -1) {
+            return null;
+        }
+
+        int oldPos = owner.pos;
+        recoveryTarget = -1;
+        clearUnreachableCache();
+        owner.clearNavigationPath();
+        owner.allowAnyGuardMovement();
+        owner.setMovementDecision("urgent_dew_recovery", target);
+
+        if (!owner.getCloser(target)) {
+            return null;
+        }
+
+        owner.spendActionTime(1 / owner.speed());
+        return owner.finishMovementAnimation(oldPos);
+    }
+
+    private int nearestUrgentDewCell() {
+        int[] heapCells = Dungeon.level.heaps.keyArray();
+        if (heapCells.length == 0) {
+            return -1;
+        }
+
+        boolean[] safePassable = owner.ordinarySafePassable(false);
+        boolean[] passable = Dungeon.findPassable(
+                owner, safePassable, owner.fieldOfView, true);
+        passable[owner.pos] = true;
+        PathFinder.buildDistanceMap(owner.pos, passable);
+
+        int best = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int cell : heapCells) {
+            if (cell == owner.pos
+                    || !owner.isKnown(cell)
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE) {
+                continue;
+            }
+
+            Heap heap = Dungeon.level.heaps.get(cell);
+            if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != owner) {
+                continue;
+            }
+
+            boolean hasDew = false;
+            for (Item item : heap.items) {
+                if (item instanceof Dewdrop) {
+                    hasDew = true;
+                    break;
+                }
+            }
+            if (!hasDew) {
+                continue;
+            }
+
+            int distance = PathFinder.distance[cell];
+            if (distance < bestDistance
+                    || (distance == bestDistance && (best == -1 || cell < best))) {
+                best = cell;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
     Boolean actRecovery() {
         long validateStarted = owner.timings().startNanos();
         try {
