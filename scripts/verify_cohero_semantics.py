@@ -19,6 +19,7 @@ COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
 COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
 EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target)"
 PASSIVE_STATUE_FILTER = "boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;"
+PASSIVE_STATUE_SUPPORT_FILTER = "(mob instanceof Statue && mob.state == mob.PASSIVE)"
 PIRANHA_DANGER_MASK_METHOD = "private boolean[] piranhaDangerMask() {"
 PIRANHA_POOL_FLOOD = "|| !level.water[adjacent]"
 PIRANHA_SHORE_EXPANSION = "int waterCount = tail;"
@@ -156,6 +157,14 @@ def main() -> int:
     if turn_context_source.count(PASSIVE_STATUE_FILTER) != 1:
         print(
             "CoHero threat scanning must exclude only passive Statue instances from combat/support.",
+            file=sys.stderr,
+        )
+        return 1
+
+    support_source = (package_root / "CoHeroSupportController.java").read_text(encoding="utf-8")
+    if support_source.count(PASSIVE_STATUE_SUPPORT_FILTER) != 1:
+        print(
+            "CoHero Hero-support fallback must ignore passive Statue instances.",
             file=sys.stderr,
         )
         return 1
