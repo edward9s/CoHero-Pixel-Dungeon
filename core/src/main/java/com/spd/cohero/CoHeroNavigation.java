@@ -315,11 +315,11 @@ final class CoHeroNavigation {
     }
     Boolean tryLeavePiranhaDanger() {
         CoHeroTurnContext context = owner.currentTurnContext();
-        if (context == null || !context.hasPiranhaDanger() || context.isPiranhaSafe(owner.pos)) {
+        if (context == null || !context.hasPiranhaDanger() || !context.isInPiranhaPool(owner.pos)) {
             return null;
         }
 
-        // Being inside a Piranha pool/shore attack zone is a mandatory escape state.
+        // Being inside a Piranha-occupied connected water body is a mandatory escape state.
         // Do not let normal combat run even at full HP or when the fish is far away.
         if (!owner.rooted) {
             boolean[] escapePassable = piranhaEscapePassable();
@@ -331,8 +331,8 @@ final class CoHeroNavigation {
             for (int cell = 0; cell < escapePassable.length; cell++) {
                 if (cell == owner.pos
                         || !escapePassable[cell]
+                        || Dungeon.level.water[cell]
                         || PathFinder.distance[cell] == Integer.MAX_VALUE
-                        || !context.isPiranhaSafe(cell)
                         || Actor.findChar(cell) != null) {
                     continue;
                 }
@@ -395,8 +395,8 @@ final class CoHeroNavigation {
             }
         }
 
-        // Current Piranha danger is intentionally allowed as transit while escaping;
-        // the destination selection above still requires a cell outside the danger mask.
+        // Current Piranha water is intentionally allowed as transit while escaping;
+        // the destination selection above requires the nearest reachable non-water cell.
         result[owner.pos] = true;
         return result;
     }
