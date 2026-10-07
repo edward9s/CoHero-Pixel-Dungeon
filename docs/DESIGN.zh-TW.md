@@ -153,6 +153,13 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 - 避讓只影響 CoHero 的路徑選擇，不改寫敵人的睡眠機制；若 CoHero 實際進入睡眠敵人的偵測範圍，仍依 SPD Sleeping detection 的距離、stealth、隱形與飛行規則決定是否醒來。Hero 與 CoHero 同時位於睡眠敵人 FOV 時，應以其中實際 detection chance 最高、也就是最容易被發現的 hostile 決定喚醒擲骰；不能讓遠處 Hero 的低偵測率蓋掉貼近的 CoHero。一般未隱形、未飛行的 CoHero 走到相鄰格時，應正常把敵人吵醒。
 - 這是避讓偏好，不需要為此建立完整戰術規劃；完全無路可繞時的處理仍可依 prototype 行為再調整。
 
+### 被動雕像與 Piranha 水域
+
+- `Statue` / `ArmoredStatue` 處於原版 `PASSIVE` 狀態時不列入 CoHero 的可見戰鬥目標，也不觸發 Hero 支援。雕像被攻擊、受到負面效果或因其他原版機制進入敵對狀態後，才恢復成一般威脅。
+- `Piranha` 與其子類 `PhantomPiranha` 採水域級避讓。只要 CoHero 看見一隻活著的 Piranha，當回合即從其位置沿原版可通行水格做一次 8 方向 flood-fill，將整個連通水域與該水域所有相鄰可通行岸邊格標成 Piranha 攻擊危險區；不能只避開魚目前所在格附近，因為 Piranha 的高移速可快速穿越水域後近身攻擊岸邊角色。
+- Piranha 危險區在單次 `CoHeroTurnContext` 內只建立一次並重用；普通探索、戰鬥走位、逃生與 movement-safety 查詢都只讀同一份 mask，避免每個 caller 重複掃描地圖。
+- CoHero 不主動走進 Piranha 危險區；若當回合開始時已位於其中，會先尋找最近的安全格離開。若在危險區外存在合法遠程攻擊線，仍照一般 ranged policy 使用投擲武器、Spirit Bow 或法杖攻擊 Piranha；沒有遠程手段時不為了近戰主動踏入危險區。
+
 ## 4. AI 與角色實作基礎
 
 第一個實作基礎應直接參考或繼承 SPD 既有的：
