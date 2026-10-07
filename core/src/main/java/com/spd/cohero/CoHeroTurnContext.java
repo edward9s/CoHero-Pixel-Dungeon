@@ -29,6 +29,8 @@ final class CoHeroTurnContext {
     private final ArrayList<Mob> heroSupportCandidates = new ArrayList<>();
     private final ArrayList<Piranha> visiblePiranhas = new ArrayList<>();
     private boolean[] piranhaDangerMask;
+    private int[] piranhaDangerCells;
+    private int piranhaDangerCellCount;
     private boolean heroSupportThreatEvaluated;
     private Mob heroSupportThreat;
 
@@ -60,6 +62,8 @@ final class CoHeroTurnContext {
         heroSupportCandidates.clear();
         visiblePiranhas.clear();
         piranhaDangerMask = null;
+        piranhaDangerCells = null;
+        piranhaDangerCellCount = 0;
         heroSupportThreatEvaluated = false;
         heroSupportThreat = null;
         ordinarySafePassable = null;
@@ -75,6 +79,8 @@ final class CoHeroTurnContext {
         heroSupportCandidates.clear();
         visiblePiranhas.clear();
         piranhaDangerMask = null;
+        piranhaDangerCells = null;
+        piranhaDangerCellCount = 0;
         heroSupportThreat = null;
         ordinarySafePassable = null;
         knownSafePassable = null;
@@ -205,11 +211,9 @@ final class CoHeroTurnContext {
             return;
         }
 
-        boolean[] danger = piranhaDangerMask();
-        for (int cell = 0; cell < passable.length; cell++) {
-            if (danger[cell]) {
-                passable[cell] = false;
-            }
+        piranhaDangerMask();
+        for (int i = 0; i < piranhaDangerCellCount; i++) {
+            passable[piranhaDangerCells[i]] = false;
         }
     }
 
@@ -254,7 +258,9 @@ final class CoHeroTurnContext {
         }
 
         // queue[0..tail) is exactly the connected water component(s). Expand only from those
-        // cells so shoreline marking is O(pool size), not another full-level scan.
+        // cells so shoreline marking is O(pool size), not another full-level scan. Newly marked
+        // shoreline cells are appended to the same primitive queue so later mask merges iterate
+        // only the danger zone instead of scanning the full level.
         int waterCount = tail;
         for (int i = 0; i < waterCount; i++) {
             int cell = queue[i];
@@ -262,13 +268,17 @@ final class CoHeroTurnContext {
                 int adjacent = cell + offset;
                 if (level.insideMap(adjacent)
                         && level.distance(cell, adjacent) == 1
-                        && level.passable[adjacent]) {
+                        && level.passable[adjacent]
+                        && !danger[adjacent]) {
                     danger[adjacent] = true;
+                    queue[tail++] = adjacent;
                 }
             }
         }
 
         piranhaDangerMask = danger;
+        piranhaDangerCells = queue;
+        piranhaDangerCellCount = tail;
         return piranhaDangerMask;
     }
 
