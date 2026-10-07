@@ -128,6 +128,48 @@ final class CoHeroNavigation {
                 : context.ordinarySafePassable(knownOnly, this);
     }
 
+    boolean[] nonCombatSafePassable(boolean knownOnly) {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        return context == null
+                ? buildNonCombatSafePassable(knownOnly)
+                : context.nonCombatSafePassable(knownOnly, this);
+    }
+
+    private boolean[] buildNonCombatSafePassable(boolean knownOnly) {
+        boolean[] result = buildOrdinarySafePassable(knownOnly);
+        maskSleepingDetectionIncrease(result);
+        result[owner.pos] = true;
+        return result;
+    }
+
+    private void maskSleepingDetectionIncrease(boolean[] passable) {
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob == owner
+                    || mob.alignment != Char.Alignment.ENEMY
+                    || !mob.isAlive()
+                    || mob.state != mob.SLEEPING
+                    || mob.pos < 0
+                    || mob.pos >= owner.fieldOfView.length
+                    || !owner.fieldOfView[mob.pos]) {
+                continue;
+            }
+
+            float currentChance =
+                    mob.coHeroSleepingDetectionChanceAt(owner, owner.pos);
+            for (int cell = 0; cell < passable.length; cell++) {
+                if (cell == owner.pos || !passable[cell]) {
+                    continue;
+                }
+
+                float candidateChance =
+                        mob.coHeroSleepingDetectionChanceAt(owner, cell);
+                if (candidateChance > currentChance + 0.0001f) {
+                    passable[cell] = false;
+                }
+            }
+        }
+    }
+
     boolean[] buildOrdinarySafePassable(boolean knownOnly) {
         boolean[] result = applyMovementSafety(Dungeon.level.passable);
 
@@ -487,6 +529,24 @@ final class CoHeroNavigation {
         }
     }
 
+    boolean getCloserNonCombat(int target) {
+        if (owner.rooted || target == owner.pos || !Dungeon.level.insideMap(target)) {
+            return false;
+        }
+
+        boolean[] safePassable = nonCombatSafePassable(false);
+        owner.restrictGuardPassable(safePassable);
+        safePassable[owner.pos] = true;
+
+        int step = nextPolicyStep(target, safePassable);
+        if (step == -1) {
+            return false;
+        }
+
+        owner.move(step);
+        return owner.pos == step;
+    }
+
     private int nextPolicyStep(int target, boolean[] safePassable) {
         boolean rebuild = policyPath == null
                 || policyPath.isEmpty()
@@ -586,11 +646,11 @@ final class CoHeroNavigation {
             return false;
         }
 
-        return getCloser(target);
+        return getCloserNonCombat(target);
     }
 
     private int chooseExplorationTarget() {
-        boolean[] passable = ordinarySafePassable(false);
+        boolean[] passable = nonCombatSafePassable(false);
         PathFinder.buildDistanceMap(owner.pos, passable);
 
         ArrayList<Integer> unknown = new ArrayList<>();
