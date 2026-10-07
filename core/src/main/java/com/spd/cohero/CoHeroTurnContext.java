@@ -219,7 +219,7 @@ final class CoHeroTurnContext {
         }
 
         int length = level.length();
-        boolean[] waterPool = new boolean[length];
+        boolean[] danger = new boolean[length];
         int[] queue = new int[length];
         int head = 0;
         int tail = 0;
@@ -230,10 +230,10 @@ final class CoHeroTurnContext {
                     || cell >= length
                     || !level.water[cell]
                     || !level.passable[cell]
-                    || waterPool[cell]) {
+                    || danger[cell]) {
                 continue;
             }
-            waterPool[cell] = true;
+            danger[cell] = true;
             queue[tail++] = cell;
         }
 
@@ -243,21 +243,21 @@ final class CoHeroTurnContext {
                 int adjacent = cell + offset;
                 if (!level.insideMap(adjacent)
                         || level.distance(cell, adjacent) != 1
-                        || waterPool[adjacent]
+                        || danger[adjacent]
                         || !level.water[adjacent]
                         || !level.passable[adjacent]) {
                     continue;
                 }
-                waterPool[adjacent] = true;
+                danger[adjacent] = true;
                 queue[tail++] = adjacent;
             }
         }
 
-        boolean[] danger = waterPool.clone();
-        for (int cell = 0; cell < length; cell++) {
-            if (!waterPool[cell]) {
-                continue;
-            }
+        // queue[0..tail) is exactly the connected water component(s). Expand only from those
+        // cells so shoreline marking is O(pool size), not another full-level scan.
+        int waterCount = tail;
+        for (int i = 0; i < waterCount; i++) {
+            int cell = queue[i];
             for (int offset : PathFinder.NEIGHBOURS8) {
                 int adjacent = cell + offset;
                 if (level.insideMap(adjacent)
