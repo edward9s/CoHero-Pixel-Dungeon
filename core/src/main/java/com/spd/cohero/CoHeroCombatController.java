@@ -7,6 +7,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Paralysis;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Piranha;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.RingOfForce;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfWarding;
@@ -909,6 +910,130 @@ final class CoHeroCombatController {
                 owner.targetDebug(targetMob) + " -> reposition for clear projectile line");
         return moveForRangedEngagement(step, "ranged_friendly_blocker");
     }
+
+    Boolean tryPiranhaSafeRangedPositioning(Mob targetMob) {
+        if (!(targetMob instanceof Piranha)
+                || !targetMob.isAlive()
+                || targetMob.state == targetMob.SLEEPING
+                || targetMob.invisible > 0
+                || owner.rooted
+                || !hasUsableRangedPotential(targetMob)) {
+            return null;
+        }
+
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context == null || !context.isPiranhaSafe(owner.pos)) {
+            return null;
+        }
+
+        boolean[] safePassable = owner.ordinarySafePassable(true);
+        PathFinder.buildDistanceMap(owner.pos, safePassable);
+
+        int firingCell = -1;
+        int bestPathDistance = Integer.MAX_VALUE;
+        int bestTargetDistance = -1;
+
+        for (int cell = 0; cell < safePassable.length; cell++) {
+            if (cell == owner.pos
+                    || !safePassable[cell]
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || Dungeon.level.distance(cell, targetMob.pos) <= 1
+                    || Actor.findChar(cell) != null
+                    || !canUseRangedAttackFrom(cell, targetMob)) {
+                continue;
+            }
+
+            int pathDistance = PathFinder.distance[cell];
+            int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
+            if (firingCell == -1
+                    || pathDistance < bestPathDistance
+                    || (pathDistance == bestPathDistance
+                        && targetDistance > bestTargetDistance)
+                    || (pathDistance == bestPathDistance
+                        && targetDistance == bestTargetDistance
+                        && cell < firingCell)) {
+                firingCell = cell;
+                bestPathDistance = pathDistance;
+                bestTargetDistance = targetDistance;
+            }
+        }
+
+        if (firingCell == -1) {
+            return null;
+        }
+
+        int step = Dungeon.findStep(
+                owner, firingCell, safePassable, owner.fieldOfView, true);
+        if (step == -1
+                || step == owner.pos
+                || !safePassable[step]
+                || Actor.findChar(step) != null) {
+            return null;
+        }
+
+        owner.releaseGuardAreaForCombat();
+        owner.logBossDecision(
+                "piranha_safe_ranged:" + targetMob.id(),
+                owner.targetDebug(targetMob)
+                        + " -> safe firing cell " + firingCell);
+        return moveForRangedEngagement(step, "piranha_safe_ranged");
+    }
+
+    private boolean hasUsableRangedPotential(Mob targetMob) {
+        for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+            if (owner.inventory().canUse(missile)) {
+                return true;
+            }
+        }
+
+        SpiritBow spiritBow = owner.inventory().spiritBow();
+        if (owner.inventory().canUse(spiritBow)) {
+            return true;
+        }
+
+        for (Wand wand : owner.inventory().wands()) {
+            if (CoHeroWandAdapter.hasOffensivePotential(wand, owner, targetMob)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean canUseRangedAttackFrom(int sourceCell, Mob targetMob) {
+        if (Dungeon.level.distance(sourceCell, targetMob.pos) <= 1) {
+            return false;
+        }
+
+        int livePos = owner.pos;
+        try {
+            owner.pos = sourceCell;
+
+            Ballistica projectile =
+                    new Ballistica(sourceCell, targetMob.pos, Ballistica.PROJECTILE);
+            if (projectile.collisionPos == targetMob.pos) {
+                for (MissileWeapon missile : owner.inventory().missileWeapons()) {
+                    if (owner.inventory().canUse(missile)) {
+                        return true;
+                    }
+                }
+
+                SpiritBow spiritBow = owner.inventory().spiritBow();
+                if (owner.inventory().canUse(spiritBow)) {
+                    return true;
+                }
+            }
+
+            for (Wand wand : owner.inventory().wands()) {
+                if (CoHeroWandAdapter.canAffectEnemy(wand, owner, targetMob)) {
+                    return true;
+                }
+            }
+            return false;
+        } finally {
+            owner.pos = livePos;
+        }
+    }
+
 
     Boolean tryBestRangedAttack(Mob targetMob) {
         RangedChoice ranged = chooseRangedAttack(targetMob);
