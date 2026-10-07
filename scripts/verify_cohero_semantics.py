@@ -18,6 +18,11 @@ FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
 COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
 COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
 EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target)"
+PASSIVE_STATUE_FILTER = "boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;"
+PIRANHA_DANGER_MASK_METHOD = "private boolean[] piranhaDangerMask() {"
+PIRANHA_POOL_FLOOD = "|| !level.water[adjacent]"
+PIRANHA_SHORE_EXPANSION = "&& level.passable[adjacent]) {"
+PIRANHA_ESCAPE_METHOD = "Boolean tryLeavePiranhaDanger() {"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -142,6 +147,50 @@ def main() -> int:
     if eye_patch.count(EYE_DEATH_GAZE_TRACKING_HOOK) != 1:
         print(
             "Eye integration must expose whether a charged Death Gaze is still tracking CoHero.",
+            file=sys.stderr,
+        )
+        return 1
+
+    turn_context_source = (package_root / "CoHeroTurnContext.java").read_text(encoding="utf-8")
+    if turn_context_source.count(PASSIVE_STATUE_FILTER) != 1:
+        print(
+            "CoHero threat scanning must exclude only passive Statue instances from combat/support.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if turn_context_source.count(PIRANHA_DANGER_MASK_METHOD) != 1:
+        print(
+            "CoHero must build one cached Piranha danger mask per decision turn.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_POOL_FLOOD not in turn_context_source:
+        print(
+            "Piranha danger must flood the connected passable water body, not a fixed radius.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_SHORE_EXPANSION not in turn_context_source:
+        print(
+            "Piranha danger must include passable shoreline cells adjacent to the connected pool.",
+            file=sys.stderr,
+        )
+        return 1
+
+    navigation_source = (package_root / "CoHeroNavigation.java").read_text(encoding="utf-8")
+    if navigation_source.count(PIRANHA_ESCAPE_METHOD) != 1:
+        print(
+            "CoHero navigation must leave a known Piranha attack zone before ordinary combat.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if "context.maskPiranhaDanger(result);" not in navigation_source:
+        print(
+            "All shared movement-safety masks must reuse the cached Piranha danger mask.",
             file=sys.stderr,
         )
         return 1
