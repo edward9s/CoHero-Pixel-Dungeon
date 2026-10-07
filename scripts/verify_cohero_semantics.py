@@ -61,7 +61,7 @@ SELF_HEALING_DEW_RECOVERY_METHOD = "Boolean tryRecoverSelfHealingDew(int maxDist
 SELF_HEALING_DEW_DECISION = '"recovery_dew"'
 SELF_HEALING_DEW_SURVIVAL_CALL = "owner.loot().tryRecoverSelfHealingDew(6)"
 OWNED_MISSILE_RECOVERY_METHOD = "Boolean actOwnedMissileRecovery(ArrayList<Mob> activeEnemies) {"
-OWNED_MISSILE_CLEARANCE = "private static final int OWNED_MISSILE_ENEMY_CLEARANCE = 6;"
+OWNED_MISSILE_CLEARANCE = "private static final int OWNED_MISSILE_ENEMY_CLEARANCE = 4;"
 OWNED_MISSILE_DIRECT_THREAT_GATE = "owner.anyThreatCanAttackNow(activeEnemies)"
 OWNED_MISSILE_NEARBY_ENEMY_GATE = "hasActiveEnemyNear(cell, activeEnemies)"
 OWNED_MISSILE_RECOVERY_CALL = "loot.actOwnedMissileRecovery(combatThreats)"
@@ -502,7 +502,7 @@ def main() -> int:
             OWNED_MISSILE_NEARBY_ENEMY_GATE):
         if required not in loot_source:
             print(
-                "Owned-missile recovery must require no direct attacker and a six-cell "
+                "Owned-missile recovery must require no direct attacker and a four-cell "
                 "active-enemy clearance around the target.",
                 file=sys.stderr,
             )
