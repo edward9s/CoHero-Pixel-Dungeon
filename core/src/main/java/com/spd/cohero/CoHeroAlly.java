@@ -948,6 +948,12 @@ public class CoHeroAlly extends DirectableAlly {
                 if (clearProjectileLine != null) {
                     return clearProjectileLine;
                 }
+
+                Boolean piranhaSafeRanged =
+                        combat.tryPiranhaSafeRangedPositioning(combatTarget);
+                if (piranhaSafeRanged != null) {
+                    return piranhaSafeRanged;
+                }
                 } finally {
                     timings().record(
                             this, CoHeroTimings.Action.COMBAT_RANGED, combatRangedStarted);
@@ -1490,6 +1496,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     boolean[] movementSafeMask() {
         return navigation.movementSafeMask();
+    }
+
+    boolean[] ordinarySafePassable(boolean knownOnly) {
+        return navigation.ordinarySafePassable(knownOnly);
     }
 
 
