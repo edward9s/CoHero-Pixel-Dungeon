@@ -934,16 +934,17 @@ final class CoHeroCombatController {
         int bestTargetDistance = -1;
 
         for (int cell = 0; cell < safePassable.length; cell++) {
+            int pathDistance = PathFinder.distance[cell];
             if (cell == owner.pos
                     || !safePassable[cell]
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || pathDistance == Integer.MAX_VALUE
+                    || pathDistance > bestPathDistance
                     || Dungeon.level.distance(cell, targetMob.pos) <= 1
                     || Actor.findChar(cell) != null
                     || !canUseRangedAttackFrom(cell, targetMob)) {
                 continue;
             }
 
-            int pathDistance = PathFinder.distance[cell];
             int targetDistance = Dungeon.level.distance(cell, targetMob.pos);
             if (firingCell == -1
                     || pathDistance < bestPathDistance
