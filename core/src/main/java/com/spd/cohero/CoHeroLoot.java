@@ -49,7 +49,7 @@ final class CoHeroLoot {
 
     private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
     private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
-    private static final int OWNED_MISSILE_ENEMY_CLEARANCE = 6;
+    private static final int OWNED_MISSILE_ENEMY_CLEARANCE = 4;
 
     private enum PickupDestination {
         NONE,
