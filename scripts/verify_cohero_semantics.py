@@ -28,7 +28,7 @@ PIRANHA_TRAPPED_WAIT = 'owner.setMovementDecision("piranha_trapped", owner.pos);
 PIRANHA_SAFE_DEST = "|| !context.isPiranhaSafe(cell)"
 PIRANHA_NON_WATER_DEST = "|| Dungeon.level.water[cell]"
 PIRANHA_SAFE_RANGED_METHOD = "Boolean tryPiranhaSafeRangedPositioning(Mob targetMob) {"
-PIRANHA_SAFE_RANGED_MASK = "boolean[] safePassable = owner.ordinarySafePassable(true);"
+PIRANHA_SAFE_RANGED_MASK = "boolean[] safePassable = owner.ordinarySafePassable(false);"
 PIRANHA_SAFE_RANGED_SLEEP_FILTER = "targetMob.state == targetMob.SLEEPING"
 PIRANHA_SAFE_RANGED_DECISION = '"piranha_safe_ranged"'
 HERO_SUPPORT_BEFORE_PASSIVE_FILTER = "heroSupportCandidates.add(mob);"
@@ -163,7 +163,7 @@ def main() -> int:
     turn_context_source = (package_root / "CoHeroTurnContext.java").read_text(encoding="utf-8")
     if turn_context_source.count(PASSIVE_STATUE_FILTER) != 1:
         print(
-            "CoHero threat scanning must exclude only passive Statue instances from combat/support.",
+            "CoHero threat scanning must exclude passive Statue instances from active combat.",
             file=sys.stderr,
         )
         return 1
