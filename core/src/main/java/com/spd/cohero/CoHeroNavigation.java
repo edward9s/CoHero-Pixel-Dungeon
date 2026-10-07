@@ -315,62 +315,90 @@ final class CoHeroNavigation {
     }
     Boolean tryLeavePiranhaDanger() {
         CoHeroTurnContext context = owner.currentTurnContext();
-        if (context == null || !context.hasVisiblePiranhaDanger() || context.isPiranhaSafe(owner.pos)) {
-            return null;
-        }
-        if (owner.rooted) {
+        if (context == null || !context.hasPiranhaDanger() || context.isPiranhaSafe(owner.pos)) {
             return null;
         }
 
-        boolean[] safePassable = ordinarySafePassable(false);
-        safePassable[owner.pos] = true;
-        PathFinder.buildDistanceMap(owner.pos, safePassable);
+        // Being inside a Piranha pool/shore attack zone is a mandatory escape state.
+        // Do not let normal combat run even at full HP or when the fish is far away.
+        if (!owner.rooted) {
+            boolean[] escapePassable = piranhaEscapePassable();
+            PathFinder.buildDistanceMap(owner.pos, escapePassable);
 
-        int target = -1;
-        int bestDistance = Integer.MAX_VALUE;
-        int bestHeroDistance = Integer.MAX_VALUE;
-        for (int cell = 0; cell < safePassable.length; cell++) {
-            if (cell == owner.pos
-                    || !safePassable[cell]
-                    || PathFinder.distance[cell] == Integer.MAX_VALUE
-                    || !context.isPiranhaSafe(cell)
-                    || Actor.findChar(cell) != null) {
-                continue;
+            int target = -1;
+            int bestDistance = Integer.MAX_VALUE;
+            int bestHeroDistance = Integer.MAX_VALUE;
+            for (int cell = 0; cell < escapePassable.length; cell++) {
+                if (cell == owner.pos
+                        || !escapePassable[cell]
+                        || PathFinder.distance[cell] == Integer.MAX_VALUE
+                        || !context.isPiranhaSafe(cell)
+                        || Actor.findChar(cell) != null) {
+                    continue;
+                }
+
+                int distance = PathFinder.distance[cell];
+                int heroDistance = Dungeon.hero == null
+                        ? 0
+                        : Dungeon.level.distance(cell, Dungeon.hero.pos);
+                if (target == -1
+                        || distance < bestDistance
+                        || (distance == bestDistance && heroDistance < bestHeroDistance)) {
+                    target = cell;
+                    bestDistance = distance;
+                    bestHeroDistance = heroDistance;
+                }
             }
 
-            int distance = PathFinder.distance[cell];
-            int heroDistance = Dungeon.hero == null
-                    ? 0
-                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
-            if (target == -1
-                    || distance < bestDistance
-                    || (distance == bestDistance && heroDistance < bestHeroDistance)) {
-                target = cell;
-                bestDistance = distance;
-                bestHeroDistance = heroDistance;
+            if (target != -1) {
+                int step = Dungeon.findStep(
+                        owner, target, escapePassable, owner.fieldOfView, true);
+                if (step != -1 && step != owner.pos) {
+                    int oldPos = owner.pos;
+                    owner.allowAnyGuardMovement();
+                    owner.setMovementDecision("piranha_escape", target);
+                    owner.clearNavigationPath();
+                    owner.move(step, true);
+                    if (owner.pos != oldPos) {
+                        owner.spendActionTime(1 / owner.speed());
+                        owner.refreshOwnFieldOfView();
+                        return owner.finishMovementAnimation(oldPos);
+                    }
+                }
             }
         }
 
-        if (target == -1) {
-            return null;
+        // If ordinary walking cannot leave the attack zone, use existing emergency displacement.
+        // The shared safety mask excludes the whole Piranha danger zone.
+        boolean[] blinkSafe = movementSafeMask();
+        if (owner.controlItems().tryHazardBlinkRunestone(blinkSafe)) {
+            return true;
+        }
+        if (owner.controlItems().tryUseTeleportationScroll()) {
+            owner.setMovementDecision("piranha_teleport", owner.pos);
+            return true;
         }
 
-        int step = nextPolicyStep(target, safePassable);
-        if (step == -1 || step == owner.pos) {
-            return null;
+        // Still do not enter ordinary combat while trapped in the pool.
+        owner.setMovementDecision("piranha_trapped", owner.pos);
+        owner.spendActionTime(Actor.TICK);
+        return true;
+    }
+
+    private boolean[] piranhaEscapePassable() {
+        boolean[] result = CoHeroHazards.maskDangerous(owner, Dungeon.level.passable);
+        maskSleepingEnemyWakeRisk(result);
+
+        for (int cell = 0; cell < result.length; cell++) {
+            if (cell != owner.pos && Actor.findChar(cell) != null) {
+                result[cell] = false;
+            }
         }
 
-        int oldPos = owner.pos;
-        owner.allowAnyGuardMovement();
-        owner.setMovementDecision("piranha_escape", target);
-        owner.move(step, true);
-        if (owner.pos == oldPos) {
-            clearPolicyPath();
-            return null;
-        }
-        owner.spendActionTime(1 / owner.speed());
-        owner.refreshOwnFieldOfView();
-        return owner.finishMovementAnimation(oldPos);
+        // Current Piranha danger is intentionally allowed as transit while escaping;
+        // the destination selection above still requires a cell outside the danger mask.
+        result[owner.pos] = true;
+        return result;
     }
 
     boolean getCloser(int target) {
@@ -408,7 +436,7 @@ final class CoHeroNavigation {
         boolean piranhaDanger = !guardRestricted
                 && !activeHazards
                 && !sleepingEnemy
-                && hasVisiblePiranhaDanger();
+                && hasPiranhaDanger();
 
         if (!guardRestricted && !activeHazards && !sleepingEnemy && !piranhaDanger) {
             clearPolicyPath();
@@ -496,9 +524,9 @@ final class CoHeroNavigation {
                 && isPiranhaSafe(cell);
     }
 
-    private boolean hasVisiblePiranhaDanger() {
+    private boolean hasPiranhaDanger() {
         CoHeroTurnContext context = owner.currentTurnContext();
-        return context != null && context.hasVisiblePiranhaDanger();
+        return context != null && context.hasPiranhaDanger();
     }
 
     private boolean isPiranhaSafe(int cell) {
