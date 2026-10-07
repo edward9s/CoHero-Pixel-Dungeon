@@ -41,6 +41,9 @@ ALLY_SAFE_PASSABLE_BRIDGE = "boolean[] ordinarySafePassable(boolean knownOnly) {
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
+URGENT_DEW_RECOVERY_METHOD = "Boolean actUrgentDewRecovery() {"
+URGENT_DEW_DECISION = '"urgent_dew_recovery"'
+URGENT_DEW_RALLY_CALL = "Boolean urgentDewRecovery = loot.actUrgentDewRecovery();"
 AUTO_LOOT_HERO_COLLECT = "item.collect(Dungeon.hero.belongings.backpack)"
 AUTO_LOOT_RESOURCE_TYPES = (
     "item instanceof Runestone",
@@ -361,6 +364,32 @@ def main() -> int:
         print(
             "Dewdrop routing must heal CoHero below 60%, otherwise fill Hero Waterskin, "
             "then fall back to CoHero healing when the Waterskin cannot accept dew.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if loot_source.count(URGENT_DEW_RECOVERY_METHOD) != 1:
+        print(
+            "Low-health rally must have one dedicated urgent CoHero-dew recovery path.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if URGENT_DEW_DECISION not in loot_source:
+        print(
+            "Urgent dew recovery must use its own movement decision instead of general loot recovery.",
+            file=sys.stderr,
+        )
+        return 1
+
+    rally_gate = ally_source.find("if (support.isLowHealthRally()) {")
+    urgent_dew = ally_source.find(URGENT_DEW_RALLY_CALL)
+    rally_action = ally_source.find("return support.actLowHealthRally();", rally_gate)
+    if (rally_gate < 0
+            or urgent_dew < rally_gate
+            or rally_action < urgent_dew):
+        print(
+            "Self-healing dew recovery must run inside the low-health rally gate before rally movement.",
             file=sys.stderr,
         )
         return 1
