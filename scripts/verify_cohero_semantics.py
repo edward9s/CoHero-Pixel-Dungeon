@@ -37,6 +37,7 @@ HERO_SUPPORT_UNSAFE_HERO_GATE = "if (!owner.isMovementSafe(Dungeon.hero.pos)) {"
 HERO_SUPPORT_SCOPE_REUSE = "owner.restrictGuardPassable(safePassable);"
 HERO_SUPPORT_CURRENT_CELL_STICKINESS = "&& cell == owner.pos"
 HERO_SUPPORT_SAFE_HOLD = '"hero_support_safe_hold threat="'
+ALLY_SAFE_PASSABLE_BRIDGE = "boolean[] ordinarySafePassable(boolean knownOnly) {"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -113,6 +114,13 @@ def main() -> int:
     if ally_source.count(COMPANION_MOB_CAUSE_UNWRAP) != 1:
         print(
             "CoHeroAlly must map nested mob damage-source classes back to their enclosing mob.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if ally_source.count(ALLY_SAFE_PASSABLE_BRIDGE) != 1:
+        print(
+            "CoHeroAlly must expose exactly one ordinarySafePassable(boolean) navigation bridge.",
             file=sys.stderr,
         )
         return 1
