@@ -18,8 +18,8 @@ FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
 COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
 COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
 EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target)"
-AUTO_LOOT_TARGET_METHOD = "private PickupTarget autoPickupTarget(Item item) {"
-AUTO_LOOT_RESOURCE_METHOD = "private static boolean isHeroRoutedResource(Item item) {"
+AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
+AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_HERO_COLLECT = "item.collect(Dungeon.hero.belongings.backpack)"
 AUTO_LOOT_RESOURCE_TYPES = (
     "item instanceof Runestone",
@@ -136,26 +136,26 @@ def main() -> int:
         return 1
 
     loot_source = (package_root / "CoHeroLoot.java").read_text(encoding="utf-8")
-    target_start = loot_source.find(AUTO_LOOT_TARGET_METHOD)
+    destination_start = loot_source.find(AUTO_LOOT_DESTINATION_METHOD)
     resource_start = loot_source.find(AUTO_LOOT_RESOURCE_METHOD)
     hero_collect = loot_source.find(AUTO_LOOT_HERO_COLLECT)
-    if target_start < 0 or resource_start < 0 or hero_collect < 0:
+    if destination_start < 0 or resource_start < 0 or hero_collect < 0:
         print(
-            "CoHero auto-loot must keep an explicit pickup-target policy and Hero routing path.",
+            "CoHero auto-loot must keep an explicit pickup-destination policy and Hero routing path.",
             file=sys.stderr,
         )
         return 1
 
-    target_body = loot_source[target_start:resource_start]
-    if "owner.inventory().canUse(item)" not in target_body:
+    destination_body = loot_source[destination_start:resource_start]
+    if "owner.inventory().canUse(item)" not in destination_body:
         print(
             "CoHero auto-loot must use CompanionInventory.canUse(item) as its capability authority.",
             file=sys.stderr,
         )
         return 1
-    if "owner.inventory().canAddToBackpack(item)" not in target_body:
+    if "owner.inventory().canAddToBackpack(item)" not in destination_body:
         print(
-            "CoHero-usable auto-loot must respect companion backpack capacity.",
+            "CoHero auto-loot must prefer the companion backpack only when it can accept the item.",
             file=sys.stderr,
         )
         return 1
