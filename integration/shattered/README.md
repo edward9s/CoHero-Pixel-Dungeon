@@ -22,7 +22,7 @@ Do not change CoHero Bundle keys or the serialized `CoHeroAlly` class while adap
 These make stock SPD rules treat CoHero as a real second combatant instead of assuming every player-controlled actor is `Hero`.
 
 - `Char.java` — class-trait seams.
-- `Mob.java` — attack probes, ranged-damage base semantics, the default `coHeroDeathRemoves()` strategic-relation seam, surprise semantics, sleeping detection, remote attack presentation, and held-allies exclusion.
+- `Mob.java` — attack probes, ranged-damage base semantics, the default `coHeroDeathRemoves()` strategic-relation seam, surprise semantics, sleeping hostile detection plus the live `coHeroSleepingDetectionChanceAt()` navigation probe, remote attack presentation, and held-allies exclusion.
 - `Necromancer.java`, `SpectralNecromancer.java` — exact source/dependent death relationships for the ordinary summoned skeleton and the rare spectral wraith group, so targeting can prefer the summoner without guessing ownership.
 - `Shaman.java`, `DM100.java`, `Warlock.java`, `Eye.java`, `GnollGuard.java`, `Elemental.java` — exact ranged-damage semantics used by CoHero's close-vs-trade decision when stock ranged behavior differs from the generic `damageRoll()` assumption.
 - `GreatCrab.java` — Great Crab surprise handling.
