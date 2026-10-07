@@ -710,9 +710,13 @@ final class CoHeroNavigation {
             return -1;
         }
 
-        int best = -1;
-        int bestHeroDistance = Integer.MAX_VALUE;
-        int bestPathDistance = Integer.MAX_VALUE;
+        int ownerHeroDistance = Dungeon.level.distance(owner.pos, Dungeon.hero.pos);
+        int bestInside = -1;
+        int bestInsidePathDistance = Integer.MAX_VALUE;
+        int bestInsideHeroDistance = Integer.MAX_VALUE;
+        int bestFallback = -1;
+        int bestFallbackHeroDistance = Integer.MAX_VALUE;
+        int bestFallbackPathDistance = Integer.MAX_VALUE;
 
         for (int cell = 0; cell < passable.length; cell++) {
             if (cell == owner.pos
@@ -727,24 +731,41 @@ final class CoHeroNavigation {
             }
 
             int heroDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
-            if (heroDistance >= Dungeon.level.distance(owner.pos, Dungeon.hero.pos)) {
+            int pathDistance = PathFinder.distance[cell];
+
+            if (heroDistance <= IDLE_HERO_TETHER_RADIUS) {
+                if (bestInside == -1
+                        || pathDistance < bestInsidePathDistance
+                        || (pathDistance == bestInsidePathDistance
+                            && heroDistance < bestInsideHeroDistance)
+                        || (pathDistance == bestInsidePathDistance
+                            && heroDistance == bestInsideHeroDistance
+                            && cell < bestInside)) {
+                    bestInside = cell;
+                    bestInsidePathDistance = pathDistance;
+                    bestInsideHeroDistance = heroDistance;
+                }
                 continue;
             }
 
-            int pathDistance = PathFinder.distance[cell];
-            if (best == -1
-                    || heroDistance < bestHeroDistance
-                    || (heroDistance == bestHeroDistance && pathDistance < bestPathDistance)
-                    || (heroDistance == bestHeroDistance
-                        && pathDistance == bestPathDistance
-                        && cell < best)) {
-                best = cell;
-                bestHeroDistance = heroDistance;
-                bestPathDistance = pathDistance;
+            if (heroDistance >= ownerHeroDistance) {
+                continue;
+            }
+
+            if (bestFallback == -1
+                    || heroDistance < bestFallbackHeroDistance
+                    || (heroDistance == bestFallbackHeroDistance
+                        && pathDistance < bestFallbackPathDistance)
+                    || (heroDistance == bestFallbackHeroDistance
+                        && pathDistance == bestFallbackPathDistance
+                        && cell < bestFallback)) {
+                bestFallback = cell;
+                bestFallbackHeroDistance = heroDistance;
+                bestFallbackPathDistance = pathDistance;
             }
         }
 
-        return best;
+        return bestInside != -1 ? bestInside : bestFallback;
     }
 
     private boolean isInsideIdleHeroTether(int cell) {
