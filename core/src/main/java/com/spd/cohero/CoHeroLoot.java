@@ -128,7 +128,10 @@ final class CoHeroLoot {
         }
     }
 
-    Boolean actUrgentDewRecovery() {
+    Boolean tryRecoverSelfHealingDew(int maxDistance) {
+        if (maxDistance < 0) {
+            throw new IllegalArgumentException("maxDistance must be non-negative");
+        }
         if (Dungeon.hero == null
                 || !Dungeon.hero.isAlive()
                 || dewdropDestination() != PickupDestination.COHERO_DEW_HEAL) {
@@ -152,7 +155,7 @@ final class CoHeroLoot {
             }
         }
 
-        int target = nearestUrgentDewCell();
+        int target = nearestSelfHealingDewCell(maxDistance);
         if (target == -1) {
             return null;
         }
@@ -162,7 +165,7 @@ final class CoHeroLoot {
         clearUnreachableCache();
         owner.clearNavigationPath();
         owner.allowAnyGuardMovement();
-        owner.setMovementDecision("urgent_dew_recovery", target);
+        owner.setMovementDecision("recovery_dew", target);
 
         if (!owner.getCloser(target)) {
             return null;
@@ -172,7 +175,7 @@ final class CoHeroLoot {
         return owner.finishMovementAnimation(oldPos);
     }
 
-    private int nearestUrgentDewCell() {
+    private int nearestSelfHealingDewCell(int maxDistance) {
         int[] heapCells = Dungeon.level.heaps.keyArray();
         if (heapCells.length == 0) {
             return -1;
@@ -182,7 +185,7 @@ final class CoHeroLoot {
         boolean[] passable = Dungeon.findPassable(
                 owner, safePassable, owner.fieldOfView, true);
         passable[owner.pos] = true;
-        PathFinder.buildDistanceMap(owner.pos, passable);
+        PathFinder.buildDistanceMap(owner.pos, passable, maxDistance);
 
         int best = -1;
         int bestDistance = Integer.MAX_VALUE;
