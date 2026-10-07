@@ -169,7 +169,7 @@ final class CoHeroLoot {
         owner.allowAnyGuardMovement();
         owner.setMovementDecision("recovery_dew", target);
 
-        if (!owner.getCloser(target)) {
+        if (!owner.getCloserNonCombat(target)) {
             return null;
         }
 
@@ -183,7 +183,7 @@ final class CoHeroLoot {
             return -1;
         }
 
-        boolean[] safePassable = owner.ordinarySafePassable(false);
+        boolean[] safePassable = owner.nonCombatSafePassable(false);
         boolean[] passable = Dungeon.findPassable(
                 owner, safePassable, owner.fieldOfView, true);
         passable[owner.pos] = true;
@@ -262,7 +262,7 @@ final class CoHeroLoot {
         owner.allowAnyGuardMovement();
         owner.setMovementDecision("owned_missile_recovery", target);
 
-        if (!owner.getCloser(target)) {
+        if (!owner.getCloserNonCombat(target)) {
             return null;
         }
 
@@ -276,7 +276,7 @@ final class CoHeroLoot {
             return -1;
         }
 
-        boolean[] safePassable = owner.ordinarySafePassable(false);
+        boolean[] safePassable = owner.nonCombatSafePassable(false);
         boolean[] passable = Dungeon.findPassable(
                 owner, safePassable, owner.fieldOfView, true);
         passable[owner.pos] = true;
@@ -414,7 +414,7 @@ final class CoHeroLoot {
         long moveStarted = owner.timings().startNanos();
         boolean moved;
         try {
-            moved = owner.getCloser(recoveryTarget);
+            moved = owner.getCloserNonCombat(recoveryTarget);
         } finally {
             owner.timings().record(owner, CoHeroTimings.Action.RECOVERY_MOVE, moveStarted);
         }
@@ -666,7 +666,7 @@ final class CoHeroLoot {
             return -1;
         }
 
-        boolean[] safePassable = owner.ordinarySafePassable(false);
+        boolean[] safePassable = owner.nonCombatSafePassable(false);
         boolean[] passable = Dungeon.findPassable(owner, safePassable, owner.fieldOfView, true);
         passable[owner.pos] = true;
 
