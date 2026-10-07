@@ -159,7 +159,7 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 - `Piranha` 與其子類 `PhantomPiranha` 採水域級避讓。對每個活著的 Piranha，從其位置沿原版可通行水格做 8 方向 flood-fill，將整個連通水域與該水域所有相鄰可通行岸邊格標成 Piranha 危險區；不能只避開魚目前所在格附近，因為 Piranha 的高移速可快速穿越水域後攻擊岸邊角色。
 - Piranha 危險區在單次 `CoHeroTurnContext` 內只建立一次並重用；普通探索、戰鬥走位、逃生與 movement-safety 查詢都只讀同一份 mask，避免每個 caller 重複掃描地圖。
 - CoHero 不主動走進 Piranha 危險區。只要 CoHero 已位於該連通水域或其岸邊攻擊圈內，就進入強制撤離：不看 HP、不看 Piranha 與 CoHero 的距離，也不交給一般 combat；尋找路徑距離最近、可到達、非水且已位於 Piranha 危險區之外的格子，途中允許穿過目前水域與岸邊，並逐回合持續撤離直到真正離開整個危險區。普通步行無法離開時才使用既有 Blink／Teleport 緊急位移；仍無法離開時也不主動與 Piranha 交戰。
-- CoHero 已在 Piranha 危險區外且存在合法遠程攻擊線時，仍照一般 ranged policy 使用投擲武器、Spirit Bow 或法杖攻擊 Piranha；沒有遠程手段時不為了近戰主動踏入危險區。
+- CoHero 已在 Piranha 危險區外時，對已醒來且可攻擊的 Piranha 使用一般遠攻；若目前位置沒有合法遠攻，但 CoHero 有可用的投擲武器、Spirit Bow 或攻擊性法杖，才按需建立一次安全可達距離圖，從已知且不在 Piranha／其他 movement-safety 危險區的格子中選擇路徑距離最近、實際可從該格遠攻 Piranha 的射擊位，每回合只走一步並重新評估。標準 Piranha 房通常會自然選到門口／門外安全射線位置；開放水池也使用同一規則，不做房型或門口特判。睡眠中的 Piranha 不啟動這套攻擊站位；沒有遠程手段時也不為了近戰主動踏入危險區。
 
 ## 4. AI 與角色實作基礎
 
