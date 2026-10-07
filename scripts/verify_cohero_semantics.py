@@ -19,12 +19,13 @@ COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
 COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
 EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target)"
 PASSIVE_STATUE_FILTER = "boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;"
-PASSIVE_STATUE_SUPPORT_FILTER = "(mob instanceof Statue && mob.state == mob.PASSIVE)"
 PIRANHA_DANGER_MASK_METHOD = "private boolean[] piranhaDangerMask() {"
 PIRANHA_POOL_FLOOD = "|| !level.water[adjacent]"
 PIRANHA_SHORE_EXPANSION = "int waterCount = tail;"
 PIRANHA_DANGER_CELL_REUSE = "piranhaDangerCells = queue;"
 PIRANHA_ESCAPE_METHOD = "Boolean tryLeavePiranhaDanger() {"
+PIRANHA_TRAPPED_WAIT = 'owner.setMovementDecision("piranha_trapped", owner.pos);'
+HERO_SUPPORT_BEFORE_PASSIVE_FILTER = "heroSupportCandidates.add(mob);"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -161,10 +162,11 @@ def main() -> int:
         )
         return 1
 
-    support_source = (package_root / "CoHeroSupportController.java").read_text(encoding="utf-8")
-    if support_source.count(PASSIVE_STATUE_SUPPORT_FILTER) != 1:
+    support_add = turn_context_source.find(HERO_SUPPORT_BEFORE_PASSIVE_FILTER)
+    passive_filter = turn_context_source.find(PASSIVE_STATUE_FILTER)
+    if support_add < 0 or passive_filter < 0 or support_add > passive_filter:
         print(
-            "CoHero Hero-support fallback must ignore passive Statue instances.",
+            "Hero-support candidates must be collected before passive-Statue attack filtering.",
             file=sys.stderr,
         )
         return 1
@@ -200,7 +202,14 @@ def main() -> int:
     navigation_source = (package_root / "CoHeroNavigation.java").read_text(encoding="utf-8")
     if navigation_source.count(PIRANHA_ESCAPE_METHOD) != 1:
         print(
-            "CoHero navigation must leave a known Piranha attack zone before ordinary combat.",
+            "CoHero navigation must leave a Piranha attack zone before ordinary combat.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_TRAPPED_WAIT not in navigation_source:
+        print(
+            "A CoHero trapped in Piranha danger must not fall through into ordinary combat.",
             file=sys.stderr,
         )
         return 1
