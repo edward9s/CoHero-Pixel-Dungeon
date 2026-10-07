@@ -20,6 +20,7 @@ COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
 EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target)"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
+AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
 AUTO_LOOT_HERO_COLLECT = "item.collect(Dungeon.hero.belongings.backpack)"
 AUTO_LOOT_RESOURCE_TYPES = (
     "item instanceof Runestone",
@@ -147,9 +148,10 @@ def main() -> int:
 
     loot_source = (package_root / "CoHeroLoot.java").read_text(encoding="utf-8")
     destination_start = loot_source.find(AUTO_LOOT_DESTINATION_METHOD)
+    dewdrop_start = loot_source.find(AUTO_LOOT_DEWDROP_METHOD)
     resource_start = loot_source.find(AUTO_LOOT_RESOURCE_METHOD)
     hero_collect = loot_source.find(AUTO_LOOT_HERO_COLLECT)
-    if destination_start < 0 or resource_start < 0 or hero_collect < 0:
+    if destination_start < 0 or dewdrop_start < 0 or resource_start < 0 or hero_collect < 0:
         print(
             "CoHero auto-loot must keep an explicit pickup-destination policy and Hero routing path.",
             file=sys.stderr,
@@ -198,6 +200,36 @@ def main() -> int:
     if "collectEnergyCrystal((EnergyCrystal) selected)" not in loot_source:
         print(
             "Energy crystal auto-loot must use the dedicated shared energy handler.",
+            file=sys.stderr,
+        )
+        return 1
+
+    dewdrop_body = loot_source[dewdrop_start:resource_start]
+    dewdrop_requirements = (
+        "owner.HP * 100 < owner.HT * 60",
+        "PickupDestination.COHERO_DEW_HEAL",
+        "Dungeon.hero.belongings.getItem(Waterskin.class)",
+        "!waterskin.isFull()",
+        "PickupDestination.HERO_WATERSKIN",
+        "boolean injured = owner.HP < owner.HT",
+    )
+    if any(requirement not in dewdrop_body for requirement in dewdrop_requirements):
+        print(
+            "Dewdrop routing must heal CoHero below 60%, otherwise fill Hero Waterskin, "
+            "then fall back to CoHero healing when the Waterskin cannot accept dew.",
+            file=sys.stderr,
+        )
+        return 1
+
+    dewdrop_handlers = (
+        "consumeDewForCoHero((Dewdrop) selected)",
+        "collectDewForHero((Dewdrop) selected)",
+        "Catalog.countUse(Dewdrop.class)",
+        "waterskin.collectDew(dew)",
+    )
+    if any(handler not in loot_source for handler in dewdrop_handlers):
+        print(
+            "Dewdrop auto-loot must keep explicit CoHero-heal and Hero-Waterskin handlers.",
             file=sys.stderr,
         )
         return 1
