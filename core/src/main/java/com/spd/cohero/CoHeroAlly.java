@@ -1043,9 +1043,9 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
-        Boolean recoveryPlant = survival.tryKnownRecoveryPlant();
-        if (recoveryPlant != null) {
-            return recoveryPlant;
+        Boolean recoveryResource = survival.tryKnownRecoveryResource();
+        if (recoveryResource != null) {
+            return recoveryResource;
         }
 
         if (survival.tryUseCleansingPotion(null)) {

@@ -188,7 +188,7 @@ final class CoHeroSurvivalController {
         return true;
     }
 
-    Boolean tryKnownRecoveryPlant() {
+    Boolean tryKnownRecoveryResource() {
         // Sungrass only heals while its target remains on the activation cell.
         if (owner.buff(Sungrass.Health.class) != null && owner.HP < owner.HT) {
             owner.spendActionTime(Actor.TICK);
@@ -208,6 +208,11 @@ final class CoHeroSurvivalController {
             int sungrass = nearestKnownPlantCell(Sungrass.class, 6);
             if (sungrass != -1) {
                 return moveTowardKnownPlant(sungrass);
+            }
+
+            Boolean dew = owner.loot().tryRecoverSelfHealingDew(6);
+            if (dew != null) {
+                return dew;
             }
         }
 

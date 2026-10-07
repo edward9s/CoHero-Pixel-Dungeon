@@ -41,6 +41,10 @@ ALLY_SAFE_PASSABLE_BRIDGE = "boolean[] ordinarySafePassable(boolean knownOnly) {
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
+RECOVERY_RESOURCE_METHOD = "Boolean tryKnownRecoveryResource() {"
+SELF_HEALING_DEW_RECOVERY_METHOD = "Boolean tryRecoverSelfHealingDew(int maxDistance) {"
+SELF_HEALING_DEW_DECISION = '"recovery_dew"'
+SELF_HEALING_DEW_SURVIVAL_CALL = "owner.loot().tryRecoverSelfHealingDew(6)"
 AUTO_LOOT_HERO_COLLECT = "item.collect(Dungeon.hero.belongings.backpack)"
 AUTO_LOOT_RESOURCE_TYPES = (
     "item instanceof Runestone",
@@ -361,6 +365,49 @@ def main() -> int:
         print(
             "Dewdrop routing must heal CoHero below 60%, otherwise fill Hero Waterskin, "
             "then fall back to CoHero healing when the Waterskin cannot accept dew.",
+            file=sys.stderr,
+        )
+        return 1
+
+    survival_source = (package_root / "CoHeroSurvivalController.java").read_text(
+        encoding="utf-8"
+    )
+    if survival_source.count(RECOVERY_RESOURCE_METHOD) != 1:
+        print(
+            "Map-based healing and cleansing resources must share one survival recovery entry point.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if SELF_HEALING_DEW_SURVIVAL_CALL not in survival_source:
+        print(
+            "Survival recovery must delegate nearby self-healing Dewdrop pickup to CoHeroLoot.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if loot_source.count(SELF_HEALING_DEW_RECOVERY_METHOD) != 1:
+        print(
+            "CoHeroLoot must expose exactly one bounded self-healing Dewdrop recovery capability.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if SELF_HEALING_DEW_DECISION not in loot_source:
+        print(
+            "Self-healing Dewdrop recovery must keep a dedicated recovery movement decision.",
+            file=sys.stderr,
+        )
+        return 1
+
+    recovery_resource = ally_source.find("survival.tryKnownRecoveryResource()")
+    survival_potion = ally_source.find("survival.tryAutoSurvivalPotion()")
+    rally_gate = ally_source.find("if (support.isLowHealthRally()) {")
+    if (recovery_resource < 0
+            or survival_potion < recovery_resource
+            or rally_gate < survival_potion):
+        print(
+            "Known recovery resources must be considered before low-health potion/rally fallback.",
             file=sys.stderr,
         )
         return 1
