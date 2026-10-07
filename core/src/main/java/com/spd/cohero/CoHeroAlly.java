@@ -1056,12 +1056,11 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
-        Boolean urgentDewRecovery = loot.actUrgentDewRecovery();
-        if (urgentDewRecovery != null) {
-            return urgentDewRecovery;
-        }
-
         if (support.isLowHealthRally()) {
+            Boolean urgentDewRecovery = loot.actUrgentDewRecovery();
+            if (urgentDewRecovery != null) {
+                return urgentDewRecovery;
+            }
             return support.actLowHealthRally();
         }
 
