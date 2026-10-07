@@ -6,6 +6,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.items.ArcaneResin;
 import com.shatteredpixel.shatteredpixeldungeon.items.Dewdrop;
@@ -48,6 +49,7 @@ final class CoHeroLoot {
 
     private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
     private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
+    private static final int OWNED_MISSILE_ENEMY_CLEARANCE = 6;
 
     private enum PickupDestination {
         NONE,
@@ -167,7 +169,7 @@ final class CoHeroLoot {
         owner.allowAnyGuardMovement();
         owner.setMovementDecision("recovery_dew", target);
 
-        if (!owner.getCloser(target)) {
+        if (!owner.getCloserNonCombat(target)) {
             return null;
         }
 
@@ -181,7 +183,7 @@ final class CoHeroLoot {
             return -1;
         }
 
-        boolean[] safePassable = owner.ordinarySafePassable(false);
+        boolean[] safePassable = owner.nonCombatSafePassable(false);
         boolean[] passable = Dungeon.findPassable(
                 owner, safePassable, owner.fieldOfView, true);
         passable[owner.pos] = true;
@@ -229,6 +231,152 @@ final class CoHeroLoot {
         return best;
     }
 
+    Boolean actOwnedMissileRecovery(ArrayList<Mob> activeEnemies) {
+        if (activeEnemies == null) {
+            throw new IllegalArgumentException("activeEnemies must not be null");
+        }
+        if (thrownOutstanding.isEmpty() || owner.anyThreatCanAttackNow(activeEnemies)) {
+            return null;
+        }
+
+        int target = nearestSafeOwnedMissileCell(activeEnemies);
+        if (target == -1) {
+            return null;
+        }
+
+        if (target == owner.pos) {
+            if (!recoverOwnedMissileAtCurrentCell()) {
+                return null;
+            }
+            recoveryTarget = -1;
+            clearUnreachableCache();
+            owner.clearNavigationPath();
+            owner.spendActionTime(Actor.TICK);
+            return true;
+        }
+
+        int oldPos = owner.pos;
+        recoveryTarget = -1;
+        clearUnreachableCache();
+        owner.clearNavigationPath();
+        owner.allowAnyGuardMovement();
+        owner.setMovementDecision("owned_missile_recovery", target);
+
+        if (!owner.getCloserNonCombat(target)) {
+            return null;
+        }
+
+        owner.spendActionTime(1 / owner.speed());
+        return owner.finishMovementAnimation(oldPos);
+    }
+
+    private int nearestSafeOwnedMissileCell(ArrayList<Mob> activeEnemies) {
+        int[] heapCells = Dungeon.level.heaps.keyArray();
+        if (heapCells.length == 0) {
+            return -1;
+        }
+
+        boolean[] safePassable = owner.nonCombatSafePassable(false);
+        boolean[] passable = Dungeon.findPassable(
+                owner, safePassable, owner.fieldOfView, true);
+        passable[owner.pos] = true;
+        PathFinder.buildDistanceMap(owner.pos, passable);
+
+        int best = -1;
+        int bestDistance = Integer.MAX_VALUE;
+
+        for (int cell : heapCells) {
+            if (PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || hasActiveEnemyNear(cell, activeEnemies)) {
+                continue;
+            }
+
+            Heap heap = Dungeon.level.heaps.get(cell);
+            if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != owner) {
+                continue;
+            }
+
+            if (!hasRecoverableOwnedMissile(heap)) {
+                continue;
+            }
+
+            int distance = PathFinder.distance[cell];
+            if (distance < bestDistance
+                    || (distance == bestDistance && (best == -1 || cell < best))) {
+                best = cell;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
+    private boolean hasActiveEnemyNear(int cell, ArrayList<Mob> activeEnemies) {
+        for (Mob enemy : activeEnemies) {
+            if (enemy != null
+                    && enemy.isAlive()
+                    && Dungeon.level.distance(cell, enemy.pos)
+                            <= OWNED_MISSILE_ENEMY_CLEARANCE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasRecoverableOwnedMissile(Heap heap) {
+        for (Item item : heap.items) {
+            if (item instanceof MissileWeapon
+                    && isRecoverableOwnedMissile((MissileWeapon) item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isRecoverableOwnedMissile(MissileWeapon missile) {
+        Integer outstanding = thrownOutstanding.get(missile.setID);
+        return outstanding != null
+                && outstanding > 0
+                && CoHeroMissileAdapter.supported(missile)
+                && owner.inventory().canAddToBackpack(missile);
+    }
+
+    private boolean recoverOwnedMissileAtCurrentCell() {
+        Heap heap = Dungeon.level.heaps.get(owner.pos);
+        if (heap == null || heap.type != Heap.Type.HEAP || heap.hidden) {
+            return false;
+        }
+
+        MissileWeapon selected = null;
+        for (Item item : new ArrayList<>(heap.items)) {
+            if (item instanceof MissileWeapon
+                    && isRecoverableOwnedMissile((MissileWeapon) item)) {
+                selected = (MissileWeapon) item;
+                break;
+            }
+        }
+        if (selected == null) {
+            return false;
+        }
+
+        long pickupStarted = owner.timings().startNanos();
+        heap.remove(selected);
+        if (!owner.inventory().addToBackpack(selected)) {
+            Dungeon.level.drop(selected, owner.pos).sprite.drop();
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_FAILED, pickupStarted);
+            return false;
+        }
+
+        markRecovered(selected.setID, selected.quantity());
+        owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
+        return true;
+    }
+
     Boolean actRecovery() {
         long validateStarted = owner.timings().startNanos();
         try {
@@ -266,11 +414,13 @@ final class CoHeroLoot {
         long moveStarted = owner.timings().startNanos();
         boolean moved;
         try {
-            moved = owner.getCloser(recoveryTarget);
+            moved = owner.getCloserNonCombat(recoveryTarget);
         } finally {
             owner.timings().record(owner, CoHeroTimings.Action.RECOVERY_MOVE, moveStarted);
         }
         if (!moved) {
+            recoveryTarget = -1;
+            owner.clearNavigationPath();
             return null;
         }
 
@@ -518,7 +668,7 @@ final class CoHeroLoot {
             return -1;
         }
 
-        boolean[] safePassable = owner.ordinarySafePassable(false);
+        boolean[] safePassable = owner.nonCombatSafePassable(false);
         boolean[] passable = Dungeon.findPassable(owner, safePassable, owner.fieldOfView, true);
         passable[owner.pos] = true;
 

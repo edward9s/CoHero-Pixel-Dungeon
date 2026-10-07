@@ -38,6 +38,16 @@ HERO_SUPPORT_SCOPE_REUSE = "owner.restrictGuardPassable(safePassable);"
 HERO_SUPPORT_CURRENT_CELL_STICKINESS = "&& cell == owner.pos"
 HERO_SUPPORT_SAFE_HOLD = '"hero_support_safe_hold threat="'
 ALLY_SAFE_PASSABLE_BRIDGE = "boolean[] ordinarySafePassable(boolean knownOnly) {"
+MOB_SLEEP_DETECTION_PROBE = "public float coHeroSleepingDetectionChanceAt(Char hostile, int hostilePos) {"
+ALLY_NON_COMBAT_SAFE_PASSABLE_BRIDGE = "boolean[] nonCombatSafePassable(boolean knownOnly) {"
+ALLY_NON_COMBAT_MOVE_BRIDGE = "boolean getCloserNonCombat(int target) {"
+NON_COMBAT_SAFE_PASSABLE_METHOD = "boolean[] nonCombatSafePassable(boolean knownOnly) {"
+NON_COMBAT_MOVE_METHOD = "boolean getCloserNonCombat(int target) {"
+NON_COMBAT_DETECTION_COMPARISON = "candidateChance > currentChance + 0.0001f"
+LOOT_NON_COMBAT_MASK = "owner.nonCombatSafePassable(false)"
+LOOT_NON_COMBAT_MOVE = "owner.getCloserNonCombat("
+EXPLORE_NON_COMBAT_MASK = "boolean[] passable = nonCombatSafePassable(false);"
+EXPLORE_NON_COMBAT_MOVE = "return getCloserNonCombat(target);"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -45,6 +55,11 @@ RECOVERY_RESOURCE_METHOD = "Boolean tryKnownRecoveryResource() {"
 SELF_HEALING_DEW_RECOVERY_METHOD = "Boolean tryRecoverSelfHealingDew(int maxDistance) {"
 SELF_HEALING_DEW_DECISION = '"recovery_dew"'
 SELF_HEALING_DEW_SURVIVAL_CALL = "owner.loot().tryRecoverSelfHealingDew(6)"
+OWNED_MISSILE_RECOVERY_METHOD = "Boolean actOwnedMissileRecovery(ArrayList<Mob> activeEnemies) {"
+OWNED_MISSILE_CLEARANCE = "private static final int OWNED_MISSILE_ENEMY_CLEARANCE = 6;"
+OWNED_MISSILE_DIRECT_THREAT_GATE = "owner.anyThreatCanAttackNow(activeEnemies)"
+OWNED_MISSILE_NEARBY_ENEMY_GATE = "hasActiveEnemyNear(cell, activeEnemies)"
+OWNED_MISSILE_RECOVERY_CALL = "loot.actOwnedMissileRecovery(combatThreats)"
 AUTO_LOOT_HERO_COLLECT = "item.collect(Dungeon.hero.belongings.backpack)"
 AUTO_LOOT_RESOURCE_TYPES = (
     "item instanceof Runestone",
@@ -125,6 +140,24 @@ def main() -> int:
     if ally_source.count(ALLY_SAFE_PASSABLE_BRIDGE) != 1:
         print(
             "CoHeroAlly must expose exactly one ordinarySafePassable(boolean) navigation bridge.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if (ally_source.count(ALLY_NON_COMBAT_SAFE_PASSABLE_BRIDGE) != 1
+            or ally_source.count(ALLY_NON_COMBAT_MOVE_BRIDGE) != 1):
+        print(
+            "CoHeroAlly must expose exactly one non-combat passability and movement bridge.",
+            file=sys.stderr,
+        )
+        return 1
+
+    mob_patch = (
+        root / "integration" / "shattered" / "patches" / "patch_mob_cohero.py"
+    ).read_text(encoding="utf-8")
+    if mob_patch.count(MOB_SLEEP_DETECTION_PROBE) != 1:
+        print(
+            "Mob integration must expose the live SLEEPING detection probe for CoHero navigation.",
             file=sys.stderr,
         )
         return 1
@@ -243,6 +276,18 @@ def main() -> int:
         return 1
 
     navigation_source = (package_root / "CoHeroNavigation.java").read_text(encoding="utf-8")
+    if (navigation_source.count(NON_COMBAT_SAFE_PASSABLE_METHOD) != 1
+            or navigation_source.count(NON_COMBAT_MOVE_METHOD) != 1
+            or NON_COMBAT_DETECTION_COMPARISON not in navigation_source
+            or EXPLORE_NON_COMBAT_MASK not in navigation_source
+            or EXPLORE_NON_COMBAT_MOVE not in navigation_source):
+        print(
+            "Loot/exploration movement must share a non-combat mask that never increases "
+            "visible sleeping-enemy detection chance.",
+            file=sys.stderr,
+        )
+        return 1
+
     if PIRANHA_SAFE_DEST not in navigation_source or PIRANHA_NON_WATER_DEST not in navigation_source:
         print("Piranha destination guard missing.", file=sys.stderr)
         return 1
@@ -295,6 +340,17 @@ def main() -> int:
         return 1
 
     loot_source = (package_root / "CoHeroLoot.java").read_text(encoding="utf-8")
+    if (loot_source.count(LOOT_NON_COMBAT_MASK) < 3
+            or loot_source.count(LOOT_NON_COMBAT_MOVE) < 3
+            or "owner.ordinarySafePassable(false)" in loot_source
+            or "owner.getCloser(" in loot_source):
+        print(
+            "Dewdrop, owned-missile, and ordinary loot recovery must use non-combat "
+            "sleep-aware passability and movement.",
+            file=sys.stderr,
+        )
+        return 1
+
     destination_start = loot_source.find(AUTO_LOOT_DESTINATION_METHOD)
     dewdrop_start = loot_source.find(AUTO_LOOT_DEWDROP_METHOD)
     resource_start = loot_source.find(AUTO_LOOT_RESOURCE_METHOD)
@@ -412,6 +468,60 @@ def main() -> int:
             or rally_gate < 0):
         print(
             "Known recovery resources must be considered before low-health potion/rally fallback.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if loot_source.count(OWNED_MISSILE_RECOVERY_METHOD) != 1:
+        print(
+            "CoHeroLoot must expose exactly one dedicated owned-missile recovery path.",
+            file=sys.stderr,
+        )
+        return 1
+
+    for required in (
+            OWNED_MISSILE_CLEARANCE,
+            OWNED_MISSILE_DIRECT_THREAT_GATE,
+            OWNED_MISSILE_NEARBY_ENEMY_GATE):
+        if required not in loot_source:
+            print(
+                "Owned-missile recovery must require no direct attacker and a six-cell "
+                "active-enemy clearance around the target.",
+                file=sys.stderr,
+            )
+            return 1
+
+    if ally_source.count(OWNED_MISSILE_RECOVERY_CALL) != 2:
+        print(
+            "Owned-missile recovery must run once inside combat after survival handling "
+            "and once before Hero support when combat is absent.",
+            file=sys.stderr,
+        )
+        return 1
+
+    first_missile_recovery = ally_source.find(OWNED_MISSILE_RECOVERY_CALL)
+    combat_survival = ally_source.rfind(
+        "CoHeroTimings.Action.COMBAT_SURVIVAL", 0, first_missile_recovery
+    )
+    combat_objective = ally_source.find(
+        "CoHeroTimings.Action.COMBAT_OBJECTIVE", first_missile_recovery
+    )
+    second_missile_recovery = ally_source.find(
+        OWNED_MISSILE_RECOVERY_CALL, first_missile_recovery + 1
+    )
+    low_health_rally = ally_source.rfind(
+        "if (support.isLowHealthRally()) {", 0, second_missile_recovery
+    )
+    hero_support = ally_source.find(
+        "support.tryFollowHeroForNearbyEnemy()", second_missile_recovery
+    )
+    if (combat_survival < 0
+            or combat_objective < first_missile_recovery
+            or low_health_rally < 0
+            or hero_support < second_missile_recovery):
+        print(
+            "Owned-missile recovery ordering must preserve survival before recovery, "
+            "then prefer safe recovery over offense/support.",
             file=sys.stderr,
         )
         return 1

@@ -71,6 +71,37 @@ patch = anchor + """	/**
 	}
 
 	/**
+	 * CoHero navigation probe for sleeping-enemy wake risk. Uses the mob's live SLEEPING
+	 * implementation, including stealth-gameplay overrides, at a hypothetical hostile cell.
+	 * The hostile position is restored before returning.
+	 */
+	public float coHeroSleepingDetectionChanceAt(Char hostile, int hostilePos) {
+		if (hostile == null
+				|| state != SLEEPING
+				|| hostile.invisible > 0
+				|| fieldOfView == null
+				|| hostilePos < 0
+				|| hostilePos >= fieldOfView.length
+				|| !fieldOfView[hostilePos]) {
+			return 0f;
+		}
+		if (!(SLEEPING instanceof Sleeping)) {
+			throw new IllegalStateException("Mob SLEEPING state is not a Sleeping implementation");
+		}
+
+		int livePos = hostile.pos;
+		try {
+			hostile.pos = hostilePos;
+			if (hostile.flying && distance(hostile) >= 2) {
+				return 0f;
+			}
+			return Math.max(0f, ((Sleeping) SLEEPING).detectionChance(hostile));
+		} finally {
+			hostile.pos = livePos;
+		}
+	}
+
+	/**
 	 * Sleeping AI normally enters its hostile scan only when chooseEnemy() produced a visible
 	 * target. A sleeping mob can retain a stale Hero target, which makes that gate false even when
 	 * CoHero is standing in its FOV. This helper repairs only that gate; the stock Sleeping logic

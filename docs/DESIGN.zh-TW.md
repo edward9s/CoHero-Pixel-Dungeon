@@ -149,9 +149,9 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 同伴不應主動吵醒正在睡覺的怪物。
 
 - 睡眠怪物若在同伴的可視範圍內，不應被選為主動攻擊目標。
-- 目前實作把 CoHero 可視範圍內的睡眠敵人所在格與距離 1 格的相鄰位置視為不安全，尋路不主動踏入；能繞行就繞行。
-- 避讓只影響 CoHero 的路徑選擇，不改寫敵人的睡眠機制；若 CoHero 實際進入睡眠敵人的偵測範圍，仍依 SPD Sleeping detection 的距離、stealth、隱形與飛行規則決定是否醒來。Hero 與 CoHero 同時位於睡眠敵人 FOV 時，應以其中實際 detection chance 最高、也就是最容易被發現的 hostile 決定喚醒擲骰；不能讓遠處 Hero 的低偵測率蓋掉貼近的 CoHero。一般未隱形、未飛行的 CoHero 走到相鄰格時，應正常把敵人吵醒。
-- 這是避讓偏好，不需要為此建立完整戰術規劃；完全無路可繞時的處理仍可依 prototype 行為再調整。
+- 既有 movement safety 仍把 CoHero 可視範圍內的睡眠敵人所在格與相鄰 1 格視為不安全；除此之外，loot、自己投出的武器回收與普通探索另外使用 non-combat movement mask。這個 mask 直接呼叫該睡眠敵人目前 `SLEEPING` state 的原版 detection chance（包含 stealth-gameplay override），比較 CoHero「目前格」與每個候選格；只要候選格會提高 CoHero 自身被該敵人發現的機率，就不作為非戰鬥路徑。當前格永遠保留為合法 path origin，因此若 CoHero 已經處於較高偵測風險，只允許維持或降低風險的非戰鬥移動。
+- 這個額外限制只套在 loot／投擲物回收／普通探索，不直接擴大到 combat、Hero support 或 hazard escape，避免睡眠敵人阻塞必要戰術或逃生。它只考慮 CoHero 目前已看見的睡眠敵人，不利用未發現敵人的資訊。
+- 避讓不改寫敵人的睡眠機制；若其他必要行動讓 CoHero 實際進入睡眠敵人的偵測範圍，仍依 SPD Sleeping detection 的距離、stealth、隱形與飛行規則決定是否醒來。Hero 與 CoHero 同時位於睡眠敵人 FOV 時，應以其中實際 detection chance 最高、也就是最容易被發現的 hostile 決定喚醒擲骰；不能讓遠處 Hero 的低偵測率蓋掉貼近的 CoHero。一般未隱形、未飛行的 CoHero 走到相鄰格時，應正常把敵人吵醒。
 
 ### 被動雕像與 Piranha 水域
 
@@ -322,7 +322,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
    - 投擲武器不要求鑑定，也不限制詛咒狀態；只要屬於明確支援類型，就可以被 AI 投擲。Spirit Bow 仍必須先確認未詛咒才可使用。
    - 第一版明確支援：`ThrowingStone`、`ThrowingKnife`、`ThrowingSpike`、`FishingSpear`、`ThrowingClub`、`ThrowingSpear`、`Kunai`、`Bolas`、`Javelin`、`Tomahawk`、`Trident`、`ThrowingHammer`。
    - `Shuriken`、`HeavyBoomerang`、`ForceCube`、`Dart/TippedDart` 等具有額外 Hero-specific 使用語意的類型先 fail closed。
-   - 投出的武器以 `setID` 追蹤；沒有可見威脅時，CoHero 會優先走向並拾回自己仍留在本層地面的投擲武器。若沒有待回收的自己投擲物，CoHero 會在一般探索前主動前往已知地圖上的金錢，以及背包可容納且「目前真的可由 CoHero 使用」的物品：已確認未詛咒的近戰武器、護甲、戒指與支援法杖，以及明確支援的投擲武器，已知種類且有 AI 語意的藥水／卷軸，支援符石、Spirit Bow、火把與 Ankh。未知藥水／卷軸、詛咒狀態未知或已知詛咒的近戰武器／護甲／戒指／Spirit Bow／法杖、未支援物品都不主動撿；投擲武器不受詛咒狀態限制。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般可用物品。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。撿起近戰武器或護甲後，若該物品可裝備且主要戰鬥能力明確高於目前裝備，CoHero 會立即自動換裝；近戰武器以平均傷害／攻擊延遲比較，護甲以平均有效 DR 比較。這個 auto-equip 是 auto-loot 的後續動作，只評估本次由 CoHero 自己從地面撿起的候選物品；它不是持續運作的背包裝備 optimizer，不會因 STR、鑑定狀態、buff 或 Ring of Force 等後續變化重新掃描整個背包。玩家透過背包 UI 手動交給 CoHero 的裝備只會加入背包，不會因此自動換上；若要使用由玩家交付的裝備，仍由玩家在 CoHero 背包介面明確執行裝備。尚未知道強化等級時一律以 +0 數值比較，不利用隱藏強化等級做決策。力量需求超過 CoHero STR 的近戰武器或護甲不屬於目前可用物品，因此不主動撿拾。
+   - 投出的武器以 `setID` 追蹤，並走獨立於普通 loot 的回收判定：只要目前沒有 active enemy 能直接攻擊 CoHero，而且候選投擲物周圍 6 格內沒有目前可見、清醒且 active 的敵人，CoHero 就可優先往最近、可安全到達的自己投擲物移動一步；每回合重新判定，因此敵人逼近、取得射線或進入該 6 格安全半徑後會立即停止回收並回到戰鬥。睡眠敵人與仍為 PASSIVE 的 Statue 不阻塞這個回收判定。若沒有待回收的自己投擲物，CoHero 會在一般探索前主動前往已知地圖上的金錢，以及背包可容納且「目前真的可由 CoHero 使用」的物品：已確認未詛咒的近戰武器、護甲、戒指與支援法杖，以及明確支援的投擲武器，已知種類且有 AI 語意的藥水／卷軸，支援符石、Spirit Bow、火把與 Ankh。未知藥水／卷軸、詛咒狀態未知或已知詛咒的近戰武器／護甲／戒指／Spirit Bow／法杖、未支援物品都不主動撿；投擲武器不受詛咒狀態限制。普通 loot 只從 `visited` / `mapped` 的已知格選擇，避免直接讀取未探索區 heap；路徑依實際安全可走距離選最近者，且不穿越 CoHero 已知 hazard 或會驚動睡眠敵人的格子。自己投出的武器仍高於其他 loot；同一 heap 沒有待回收投擲物時，金錢優先於一般可用物品。金錢不進 CoHero 背包，而是直接加入共用 `Dungeon.gold`，並更新原版 `Statistics.goldCollected`、金錢徽章、拾取動畫與音效。撿起近戰武器或護甲後，若該物品可裝備且主要戰鬥能力明確高於目前裝備，CoHero 會立即自動換裝；近戰武器以平均傷害／攻擊延遲比較，護甲以平均有效 DR 比較。這個 auto-equip 是 auto-loot 的後續動作，只評估本次由 CoHero 自己從地面撿起的候選物品；它不是持續運作的背包裝備 optimizer，不會因 STR、鑑定狀態、buff 或 Ring of Force 等後續變化重新掃描整個背包。玩家透過背包 UI 手動交給 CoHero 的裝備只會加入背包，不會因此自動換上；若要使用由玩家交付的裝備，仍由玩家在 CoHero 背包介面明確執行裝備。尚未知道強化等級時一律以 +0 數值比較，不利用隱藏強化等級做決策。力量需求超過 CoHero STR 的近戰武器或護甲不屬於目前可用物品，因此不主動撿拾。
    - 一般探索每完成一步後，CoHero 會從自己的位置做一次原版式被動搜尋：普通職業掃描周圍 3×3、Rogue 掃描 5×5，且只檢查自身 FOV 內的格子。隱藏陷阱與隱藏門分別沿用原版 `search(false)` 的深度機率，因此不是必定發現；在真正發現前，導航不會利用 `secret` 資訊選路或刻意靠近秘密位置。
    - 已顯示且仍為 active 的陷阱視為 CoHero movement hazard：探索、撤退、戰術走位與前往拾取金錢／可用物品時都不會主動踩入。未被發現的 `SECRET_TRAP` 不納入 AI 判斷，避免藉由 trap map 偷看隱藏資訊；若意外踩到，仍沿用 SPD 對非 Hero 角色的 soft-press 規則。
    - 換樓層時清除尚未回收的投擲物追蹤，不跨樓層追索。
@@ -602,7 +602,7 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - 高閃避目標優先法杖。
 - 魔法免疫目標禁用法杖。
 - 當前距離下使用最高傷害的合法攻擊選項。
-- 投擲武器以 setID 追蹤並在無可見威脅時回收；不跨樓層追蹤。
+- 投擲武器以 setID 追蹤；只要 CoHero 當下未受直接攻擊壓力，且候選投擲物周圍 6 格沒有 active enemy，就可優先回收一步並每回合重判；不跨樓層追蹤。
 - 避免主動吵醒可視範圍內的睡眠怪物。
 - 讀取原版 targeted-cell 預告並優先避開即將爆發的危險格，也會避開已存在的有害氣體、火焰、電流與冰凍類 blob。
 - 官方六職業具有固有 trait；Mage Staff、Spirit Bow 等已明確支援的專武使用原版物件與 CoHero-safe seam。

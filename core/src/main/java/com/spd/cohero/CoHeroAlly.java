@@ -845,6 +845,11 @@ public class CoHeroAlly extends DirectableAlly {
                             this, CoHeroTimings.Action.COMBAT_SURVIVAL, combatSurvivalStarted);
                 }
 
+                Boolean ownedMissileRecovery = loot.actOwnedMissileRecovery(combatThreats);
+                if (ownedMissileRecovery != null) {
+                    return ownedMissileRecovery;
+                }
+
                 long combatObjectiveStarted = timings().startNanos();
                 try {
                 Mob assessedSurvivalTarget = survivalTarget;
@@ -1058,6 +1063,11 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (support.isLowHealthRally()) {
             return support.actLowHealthRally();
+        }
+
+        Boolean ownedMissileRecovery = loot.actOwnedMissileRecovery(combatThreats);
+        if (ownedMissileRecovery != null) {
+            return ownedMissileRecovery;
         }
 
         long supportStarted = timings().startNanos();
@@ -1492,6 +1502,14 @@ public class CoHeroAlly extends DirectableAlly {
 
     boolean[] ordinarySafePassable(boolean knownOnly) {
         return navigation.ordinarySafePassable(knownOnly);
+    }
+
+    boolean[] nonCombatSafePassable(boolean knownOnly) {
+        return navigation.nonCombatSafePassable(knownOnly);
+    }
+
+    boolean getCloserNonCombat(int target) {
+        return navigation.getCloserNonCombat(target);
     }
 
 

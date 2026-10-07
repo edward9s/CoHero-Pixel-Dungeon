@@ -36,6 +36,8 @@ final class CoHeroTurnContext {
 
     private boolean[] ordinarySafePassable;
     private boolean[] knownSafePassable;
+    private boolean[] nonCombatSafePassable;
+    private boolean[] knownNonCombatSafePassable;
 
     CoHeroTurnContext(CoHeroAlly owner) {
         if (owner == null) {
@@ -68,6 +70,8 @@ final class CoHeroTurnContext {
         heroSupportThreat = null;
         ordinarySafePassable = null;
         knownSafePassable = null;
+        nonCombatSafePassable = null;
+        knownNonCombatSafePassable = null;
         scanVisibleEnemies();
     }
 
@@ -84,6 +88,8 @@ final class CoHeroTurnContext {
         heroSupportThreat = null;
         ordinarySafePassable = null;
         knownSafePassable = null;
+        nonCombatSafePassable = null;
+        knownNonCombatSafePassable = null;
     }
 
     boolean isActive() {
@@ -116,6 +122,61 @@ final class CoHeroTurnContext {
             }
         }
         return knownSafePassable.clone();
+    }
+
+    boolean[] nonCombatSafePassable(
+            boolean knownOnly, CoHeroNavigation navigation) {
+        assertActive();
+
+        if (nonCombatSafePassable == null) {
+            nonCombatSafePassable = ordinarySafePassable(false, navigation);
+            maskSleepingDetectionIncrease(nonCombatSafePassable);
+            nonCombatSafePassable[owner.pos] = true;
+        }
+
+        if (!knownOnly) {
+            return nonCombatSafePassable.clone();
+        }
+
+        if (knownNonCombatSafePassable == null) {
+            knownNonCombatSafePassable = nonCombatSafePassable.clone();
+            for (int cell = 0; cell < knownNonCombatSafePassable.length; cell++) {
+                if (cell != owner.pos
+                        && knownNonCombatSafePassable[cell]
+                        && !navigation.isKnown(cell)) {
+                    knownNonCombatSafePassable[cell] = false;
+                }
+            }
+        }
+        return knownNonCombatSafePassable.clone();
+    }
+
+    private void maskSleepingDetectionIncrease(boolean[] passable) {
+        if (visibleSleepingEnemies.isEmpty()) {
+            return;
+        }
+
+        float[] currentChance = new float[visibleSleepingEnemies.size()];
+        for (int i = 0; i < visibleSleepingEnemies.size(); i++) {
+            currentChance[i] = visibleSleepingEnemies.get(i)
+                    .coHeroSleepingDetectionChanceAt(owner, owner.pos);
+        }
+
+        for (int cell = 0; cell < passable.length; cell++) {
+            if (cell == owner.pos || !passable[cell]) {
+                continue;
+            }
+
+            for (int i = 0; i < visibleSleepingEnemies.size(); i++) {
+                Mob sleeping = visibleSleepingEnemies.get(i);
+                float candidateChance =
+                        sleeping.coHeroSleepingDetectionChanceAt(owner, cell);
+                if (candidateChance > currentChance[i] + 0.0001f) {
+                    passable[cell] = false;
+                    break;
+                }
+            }
+        }
     }
 
     Mob heroSupportThreat() {
