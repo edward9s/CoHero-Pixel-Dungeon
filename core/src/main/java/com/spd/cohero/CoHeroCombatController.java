@@ -926,7 +926,15 @@ final class CoHeroCombatController {
             return null;
         }
 
-        boolean[] safePassable = owner.ordinarySafePassable(true);
+        boolean[] safePassable = owner.ordinarySafePassable(false);
+        for (int cell = 0; cell < safePassable.length; cell++) {
+            if (cell != owner.pos
+                    && safePassable[cell]
+                    && !owner.fieldOfView[cell]
+                    && !owner.isKnown(cell)) {
+                safePassable[cell] = false;
+            }
+        }
         PathFinder.buildDistanceMap(owner.pos, safePassable);
 
         int firingCell = -1;
