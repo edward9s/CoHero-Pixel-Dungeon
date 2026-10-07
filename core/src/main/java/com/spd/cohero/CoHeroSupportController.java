@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Statue;
 import com.watabou.utils.PathFinder;
 
 /**
@@ -93,6 +94,7 @@ final class CoHeroSupportController {
         for (Mob mob : Dungeon.level.mobs) {
             if (mob == null
                     || !mob.isAlive()
+                    || (mob instanceof Statue && mob.state == mob.PASSIVE)
                     || (mob.alignment != Char.Alignment.ENEMY && !(mob instanceof Mimic))) {
                 continue;
             }
