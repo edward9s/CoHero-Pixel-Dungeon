@@ -25,6 +25,8 @@ PIRANHA_SHORE_EXPANSION = "int waterCount = tail;"
 PIRANHA_DANGER_CELL_REUSE = "piranhaDangerCells = queue;"
 PIRANHA_ESCAPE_METHOD = "Boolean tryLeavePiranhaDanger() {"
 PIRANHA_TRAPPED_WAIT = 'owner.setMovementDecision("piranha_trapped", owner.pos);'
+PIRANHA_SAFE_DEST = "|| !context.isPiranhaSafe(cell)"
+PIRANHA_NON_WATER_DEST = "|| Dungeon.level.water[cell]"
 HERO_SUPPORT_BEFORE_PASSIVE_FILTER = "heroSupportCandidates.add(mob);"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
@@ -200,6 +202,10 @@ def main() -> int:
         return 1
 
     navigation_source = (package_root / "CoHeroNavigation.java").read_text(encoding="utf-8")
+    if PIRANHA_SAFE_DEST not in navigation_source or PIRANHA_NON_WATER_DEST not in navigation_source:
+        print("Piranha destination guard missing.", file=sys.stderr)
+        return 1
+
     if navigation_source.count(PIRANHA_ESCAPE_METHOD) != 1:
         print(
             "CoHero navigation must leave a Piranha attack zone before ordinary combat.",
