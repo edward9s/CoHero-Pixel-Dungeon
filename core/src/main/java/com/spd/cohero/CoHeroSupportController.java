@@ -73,6 +73,11 @@ final class CoHeroSupportController {
 
         owner.clearExplorationTarget();
         owner.prepareGuardHeroSupportMovement();
+
+        if (!owner.isMovementSafe(Dungeon.hero.pos)) {
+            return followHeroToNearestSafeRendezvous(threat);
+        }
+
         owner.setMovementDecision(
                 "hero_support threat=" + threat.getClass().getSimpleName()
                         + " threatPos=" + threat.pos,
@@ -118,6 +123,84 @@ final class CoHeroSupportController {
         boolean result = owner.actCurrentState();
         owner.refreshOwnFieldOfView();
         return result;
+    }
+
+    private boolean followHeroToNearestSafeRendezvous(Mob threat) {
+        boolean[] safePassable = owner.ordinarySafePassable(false);
+        owner.restrictGuardPassable(safePassable);
+
+        boolean[] reachable = Dungeon.findPassable(
+                owner, safePassable, owner.fieldOfView, true).clone();
+        reachable[owner.pos] = true;
+        PathFinder.buildDistanceMap(owner.pos, reachable);
+
+        int best = -1;
+        int bestHeroDistance = Integer.MAX_VALUE;
+        int bestPathDistance = Integer.MAX_VALUE;
+
+        for (int cell = 0; cell < reachable.length; cell++) {
+            if (PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || !owner.isMovementSafe(cell)
+                    || (cell != owner.pos && !safePassable[cell])) {
+                continue;
+            }
+
+            Char occupant = Actor.findChar(cell);
+            if (occupant != null && occupant != owner) {
+                continue;
+            }
+
+            int heroDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
+            int pathDistance = PathFinder.distance[cell];
+
+            boolean better = best == -1
+                    || heroDistance < bestHeroDistance
+                    || (heroDistance == bestHeroDistance
+                        && cell == owner.pos
+                        && best != owner.pos)
+                    || (heroDistance == bestHeroDistance
+                        && best != owner.pos
+                        && cell != owner.pos
+                        && pathDistance < bestPathDistance)
+                    || (heroDistance == bestHeroDistance
+                        && best != owner.pos
+                        && cell != owner.pos
+                        && pathDistance == bestPathDistance
+                        && cell < best);
+
+            if (better) {
+                best = cell;
+                bestHeroDistance = heroDistance;
+                bestPathDistance = pathDistance;
+            }
+        }
+
+        if (best == -1 || best == owner.pos) {
+            owner.setMovementDecision(
+                    "hero_support_safe_hold threat=" + threat.getClass().getSimpleName()
+                            + " threatPos=" + threat.pos,
+                    owner.pos);
+            owner.spendActionTime(Actor.TICK);
+            return true;
+        }
+
+        int oldPos = owner.pos;
+        owner.setMovementDecision(
+                "hero_support_safe_rendezvous threat=" + threat.getClass().getSimpleName()
+                        + " threatPos=" + threat.pos,
+                best);
+        if (owner.getCloser(best)) {
+            owner.spendActionTime(1 / owner.speed());
+            owner.refreshOwnFieldOfView();
+            return owner.finishMovementAnimation(oldPos);
+        }
+
+        owner.setMovementDecision(
+                "hero_support_safe_hold threat=" + threat.getClass().getSimpleName()
+                        + " threatPos=" + threat.pos,
+                owner.pos);
+        owner.spendActionTime(Actor.TICK);
+        return true;
     }
 
     boolean actLowHealthRally() {
