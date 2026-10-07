@@ -661,6 +661,12 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
+        Boolean piranhaAvoidance = tryLeavePiranhaDanger();
+        if (piranhaAvoidance != null) {
+            logBossDecision("avoid_piranha_pool", "leaving Piranha attack zone");
+            return piranhaAvoidance;
+        }
+
         Mob guardSupportThreat =
                 guard.isActive() ? support.heroSupportThreat() : null;
         guard.prepareMovementScope(guardSupportThreat);
@@ -1192,6 +1198,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     private Boolean tryAvoidHazard() {
         return navigation.tryAvoidHazard();
+    }
+
+    private Boolean tryLeavePiranhaDanger() {
+        return navigation.tryLeavePiranhaDanger();
     }
 
     @Override
