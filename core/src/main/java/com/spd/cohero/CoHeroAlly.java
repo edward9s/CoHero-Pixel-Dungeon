@@ -1504,6 +1504,14 @@ public class CoHeroAlly extends DirectableAlly {
         return navigation.ordinarySafePassable(knownOnly);
     }
 
+    boolean[] nonCombatSafePassable(boolean knownOnly) {
+        return navigation.nonCombatSafePassable(knownOnly);
+    }
+
+    boolean getCloserNonCombat(int target) {
+        return navigation.getCloserNonCombat(target);
+    }
+
 
 
 
