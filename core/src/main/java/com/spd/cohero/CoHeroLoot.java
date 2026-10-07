@@ -8,12 +8,14 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.items.ArcaneResin;
+import com.shatteredpixel.shatteredpixeldungeon.items.Dewdrop;
 import com.shatteredpixel.shatteredpixeldungeon.items.EnergyCrystal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.LiquidMetal;
 import com.shatteredpixel.shatteredpixeldungeon.items.Stylus;
+import com.shatteredpixel.shatteredpixeldungeon.items.Waterskin;
 import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.SkeletonKey;
 import com.shatteredpixel.shatteredpixeldungeon.items.food.Food;
 import com.shatteredpixel.shatteredpixeldungeon.items.keys.Key;
@@ -52,7 +54,9 @@ final class CoHeroLoot {
         COHERO,
         HERO,
         KEYRING,
-        ENERGY_POOL
+        ENERGY_POOL,
+        COHERO_DEW_HEAL,
+        HERO_WATERSKIN
     }
 
     private final CoHeroAlly owner;
@@ -255,6 +259,16 @@ final class CoHeroLoot {
             owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
             return true;
         }
+        if (pickupDestination == PickupDestination.COHERO_DEW_HEAL) {
+            consumeDewForCoHero((Dewdrop) selected);
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
+            return true;
+        }
+        if (pickupDestination == PickupDestination.HERO_WATERSKIN) {
+            collectDewForHero((Dewdrop) selected);
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
+            return true;
+        }
         if (pickupDestination != PickupDestination.COHERO) {
             throw new IllegalStateException(
                     "Selected CoHero loot has no pickup destination: "
@@ -333,6 +347,50 @@ final class CoHeroLoot {
         }
         Sample.INSTANCE.play(Assets.Sounds.ITEM);
         Item.updateQuickslot();
+    }
+
+    private void consumeDewForCoHero(Dewdrop dew) {
+        if (owner.HT <= 0 || owner.HP >= owner.HT) {
+            throw new IllegalStateException("CoHero cannot consume dew without missing HP");
+        }
+
+        Catalog.setSeen(Dewdrop.class);
+        Statistics.itemTypesDiscovered.add(Dewdrop.class);
+
+        int effect = Math.round(owner.HT * 0.05f * dew.quantity());
+        int heal = Math.min(owner.HT - owner.HP, effect);
+        if (heal <= 0) {
+            throw new IllegalStateException("CoHero dew healing resolved to zero");
+        }
+
+        owner.HP += heal;
+        Catalog.countUse(Dewdrop.class);
+
+        CharSprite sprite = owner.attachedSprite();
+        if (sprite != null) {
+            sprite.showStatusWithIcon(
+                    CharSprite.POSITIVE,
+                    Integer.toString(heal),
+                    FloatingText.HEALING);
+        }
+        Sample.INSTANCE.play(Assets.Sounds.DEWDROP);
+    }
+
+    private void collectDewForHero(Dewdrop dew) {
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            throw new IllegalStateException("Cannot route dew without a live Hero");
+        }
+
+        Waterskin waterskin = Dungeon.hero.belongings.getItem(Waterskin.class);
+        if (waterskin == null || waterskin.isFull()) {
+            throw new IllegalStateException("Hero Waterskin cannot accept dew");
+        }
+
+        Catalog.setSeen(Dewdrop.class);
+        Statistics.itemTypesDiscovered.add(Dewdrop.class);
+        waterskin.collectDew(dew);
+        GameScene.pickUp(dew, owner.pos);
+        Sample.INSTANCE.play(Assets.Sounds.DEWDROP);
     }
 
     private int nearestPreferredLootCell() {
@@ -477,9 +535,34 @@ final class CoHeroLoot {
             if (item instanceof EnergyCrystal) {
                 return PickupDestination.ENERGY_POOL;
             }
+            if (item instanceof Dewdrop) {
+                return dewdropDestination();
+            }
             if (isAutoLootResource(item)) {
                 return PickupDestination.HERO;
             }
+        }
+
+        return PickupDestination.NONE;
+    }
+
+    private PickupDestination dewdropDestination() {
+        if (owner.HT <= 0) {
+            return PickupDestination.NONE;
+        }
+
+        boolean injured = owner.HP < owner.HT;
+        if (injured && owner.HP * 100 < owner.HT * 60) {
+            return PickupDestination.COHERO_DEW_HEAL;
+        }
+
+        Waterskin waterskin = Dungeon.hero.belongings.getItem(Waterskin.class);
+        if (waterskin != null && !waterskin.isFull()) {
+            return PickupDestination.HERO_WATERSKIN;
+        }
+
+        if (injured) {
+            return PickupDestination.COHERO_DEW_HEAL;
         }
 
         return PickupDestination.NONE;
