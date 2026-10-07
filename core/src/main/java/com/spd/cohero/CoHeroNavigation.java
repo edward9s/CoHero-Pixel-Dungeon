@@ -332,6 +332,7 @@ final class CoHeroNavigation {
                 if (cell == owner.pos
                         || !escapePassable[cell]
                         || Dungeon.level.water[cell]
+                        || !context.isPiranhaSafe(cell)
                         || PathFinder.distance[cell] == Integer.MAX_VALUE
                         || Actor.findChar(cell) != null) {
                     continue;
