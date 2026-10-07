@@ -1194,14 +1194,6 @@ public class CoHeroAlly extends DirectableAlly {
 
 
 
-
-
-
-
-    boolean[] ordinarySafePassable(boolean knownOnly) {
-        return navigation.ordinarySafePassable(knownOnly);
-    }
-
     private Boolean tryAvoidHazard() {
         return navigation.tryAvoidHazard();
     }
