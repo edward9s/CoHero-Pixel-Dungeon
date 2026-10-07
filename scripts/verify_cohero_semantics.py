@@ -48,6 +48,11 @@ LOOT_NON_COMBAT_MASK = "owner.nonCombatSafePassable(false)"
 LOOT_NON_COMBAT_MOVE = "owner.getCloserNonCombat("
 EXPLORE_NON_COMBAT_MASK = "boolean[] passable = nonCombatSafePassable(false);"
 EXPLORE_NON_COMBAT_MOVE = "return getCloserNonCombat(target);"
+IDLE_HERO_TETHER_RADIUS = "private static final int IDLE_HERO_TETHER_RADIUS = 10;"
+IDLE_HERO_TETHER_FILTER = "!isInsideIdleHeroTether(cell)"
+IDLE_HERO_TETHER_VALIDATION = "!isValidIdleHeroTarget(explorationTarget)"
+IDLE_HERO_RETURN_METHOD = "private int chooseIdleHeroReturnTarget(boolean[] passable) {"
+IDLE_HERO_RETURN_DECISION = '"explore_return_to_hero"'
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -284,6 +289,18 @@ def main() -> int:
         print(
             "Loot/exploration movement must share a non-combat mask that never increases "
             "visible sleeping-enemy detection chance.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if (IDLE_HERO_TETHER_RADIUS not in navigation_source
+            or navigation_source.count(IDLE_HERO_TETHER_FILTER) < 2
+            or IDLE_HERO_TETHER_VALIDATION not in navigation_source
+            or navigation_source.count(IDLE_HERO_RETURN_METHOD) != 1
+            or IDLE_HERO_RETURN_DECISION not in navigation_source):
+        print(
+            "Idle exploration must stay within the 10-cell Hero soft tether and "
+            "return toward Hero after falling outside it.",
             file=sys.stderr,
         )
         return 1
