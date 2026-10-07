@@ -113,6 +113,11 @@ final class CoHeroNavigation {
     private boolean[] applyMovementSafety(boolean[] passable) {
         boolean[] result = CoHeroHazards.maskDangerous(owner, passable);
         maskSleepingEnemyWakeRisk(result);
+
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            context.maskPiranhaDanger(result);
+        }
         return result;
     }
 
@@ -301,12 +306,103 @@ final class CoHeroNavigation {
             }
             if (!result[cell]
                     || Actor.findChar(cell) != null
-                    || !isSleepSafe(cell)) {
+                    || !isSleepSafe(cell)
+                    || !isPiranhaSafe(cell)) {
                 result[cell] = false;
             }
         }
         return result;
     }
+    Boolean tryLeavePiranhaDanger() {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context == null || !context.hasPiranhaDanger() || context.isPiranhaSafe(owner.pos)) {
+            return null;
+        }
+
+        // The connected Piranha water body and its shoreline reach are one mandatory escape zone.
+        // Do not let normal combat run even at full HP or when the fish is far away.
+        if (!owner.rooted) {
+            boolean[] escapePassable = piranhaEscapePassable();
+            PathFinder.buildDistanceMap(owner.pos, escapePassable);
+
+            int target = -1;
+            int bestDistance = Integer.MAX_VALUE;
+            int bestHeroDistance = Integer.MAX_VALUE;
+            for (int cell = 0; cell < escapePassable.length; cell++) {
+                if (cell == owner.pos
+                        || !escapePassable[cell]
+                        || Dungeon.level.water[cell]
+                        || !context.isPiranhaSafe(cell)
+                        || PathFinder.distance[cell] == Integer.MAX_VALUE
+                        || Actor.findChar(cell) != null) {
+                    continue;
+                }
+
+                int distance = PathFinder.distance[cell];
+                int heroDistance = Dungeon.hero == null
+                        ? 0
+                        : Dungeon.level.distance(cell, Dungeon.hero.pos);
+                if (target == -1
+                        || distance < bestDistance
+                        || (distance == bestDistance && heroDistance < bestHeroDistance)) {
+                    target = cell;
+                    bestDistance = distance;
+                    bestHeroDistance = heroDistance;
+                }
+            }
+
+            if (target != -1) {
+                int step = Dungeon.findStep(
+                        owner, target, escapePassable, owner.fieldOfView, true);
+                if (step != -1 && step != owner.pos) {
+                    int oldPos = owner.pos;
+                    owner.allowAnyGuardMovement();
+                    owner.setMovementDecision("piranha_escape", target);
+                    owner.clearNavigationPath();
+                    owner.move(step, true);
+                    if (owner.pos != oldPos) {
+                        owner.spendActionTime(1 / owner.speed());
+                        owner.refreshOwnFieldOfView();
+                        return owner.finishMovementAnimation(oldPos);
+                    }
+                }
+            }
+        }
+
+        // If ordinary walking cannot leave the attack zone, use existing emergency displacement.
+        // The shared safety mask excludes the whole Piranha danger zone.
+        boolean[] blinkSafe = movementSafeMask();
+        if (owner.controlItems().tryHazardBlinkRunestone(blinkSafe)) {
+            return true;
+        }
+        if (owner.controlItems().tryUseTeleportationScroll()) {
+            owner.setMovementDecision("piranha_teleport", owner.pos);
+            return true;
+        }
+
+        // Still do not enter ordinary combat while trapped in the pool.
+        owner.setMovementDecision("piranha_trapped", owner.pos);
+        owner.spendActionTime(Actor.TICK);
+        return true;
+    }
+
+    private boolean[] piranhaEscapePassable() {
+        boolean[] result = CoHeroHazards.maskDangerous(owner, Dungeon.level.passable);
+        maskSleepingEnemyWakeRisk(result);
+
+        for (int cell = 0; cell < result.length; cell++) {
+            if (cell != owner.pos && Actor.findChar(cell) != null) {
+                result[cell] = false;
+            }
+        }
+
+        // Piranha water and shoreline danger are intentionally allowed as transit while escaping;
+        // the destination selection requires the nearest reachable non-water cell outside the
+        // cached Piranha danger mask.
+        result[owner.pos] = true;
+        return result;
+    }
+
     boolean getCloser(int target) {
         long guardStarted = owner.timings().startNanos();
         boolean guardRestricted;
@@ -339,7 +435,12 @@ final class CoHeroNavigation {
             }
         }
 
-        if (!guardRestricted && !activeHazards && !sleepingEnemy) {
+        boolean piranhaDanger = !guardRestricted
+                && !activeHazards
+                && !sleepingEnemy
+                && hasPiranhaDanger();
+
+        if (!guardRestricted && !activeHazards && !sleepingEnemy && !piranhaDanger) {
             clearPolicyPath();
             long stockPathStarted = owner.timings().startNanos();
             try {
@@ -420,7 +521,19 @@ final class CoHeroNavigation {
     }
 
     boolean isMovementSafe(int cell) {
-        return !CoHeroHazards.isDangerous(owner, cell) && isSleepSafe(cell);
+        return !CoHeroHazards.isDangerous(owner, cell)
+                && isSleepSafe(cell)
+                && isPiranhaSafe(cell);
+    }
+
+    private boolean hasPiranhaDanger() {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        return context != null && context.hasPiranhaDanger();
+    }
+
+    private boolean isPiranhaSafe(int cell) {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        return context == null || context.isPiranhaSafe(cell);
     }
 
     private boolean hasVisibleSleepingEnemy() {

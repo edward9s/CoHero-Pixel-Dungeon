@@ -18,6 +18,20 @@ FAILURE_CLAIM_HOOK = "com.spd.cohero.CoHero.claimRunFailureSubmission()"
 COHERO_WARD_HERO_FOV_EXCLUSION = "&& ((WandOfWarding.Ward) m).coHeroOwned()) {"
 COHERO_WARD_VISION_MERGE = "private boolean mergeOwnedWardVision() {"
 EYE_DEATH_GAZE_TRACKING_HOOK = "public boolean coHeroDeathGazeTracks(Char target)"
+PASSIVE_STATUE_FILTER = "boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;"
+PIRANHA_DANGER_MASK_METHOD = "private boolean[] piranhaDangerMask() {"
+PIRANHA_POOL_FLOOD = "|| !level.water[adjacent]"
+PIRANHA_SHORE_EXPANSION = "int waterCount = tail;"
+PIRANHA_DANGER_CELL_REUSE = "piranhaDangerCells = queue;"
+PIRANHA_ESCAPE_METHOD = "Boolean tryLeavePiranhaDanger() {"
+PIRANHA_TRAPPED_WAIT = 'owner.setMovementDecision("piranha_trapped", owner.pos);'
+PIRANHA_SAFE_DEST = "|| !context.isPiranhaSafe(cell)"
+PIRANHA_NON_WATER_DEST = "|| Dungeon.level.water[cell]"
+PIRANHA_SAFE_RANGED_METHOD = "Boolean tryPiranhaSafeRangedPositioning(Mob targetMob) {"
+PIRANHA_SAFE_RANGED_MASK = "boolean[] safePassable = owner.ordinarySafePassable(false);"
+PIRANHA_SAFE_RANGED_SLEEP_FILTER = "targetMob.state == targetMob.SLEEPING"
+PIRANHA_SAFE_RANGED_DECISION = '"piranha_safe_ranged"'
+HERO_SUPPORT_BEFORE_PASSIVE_FILTER = "heroSupportCandidates.add(mob);"
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -142,6 +156,103 @@ def main() -> int:
     if eye_patch.count(EYE_DEATH_GAZE_TRACKING_HOOK) != 1:
         print(
             "Eye integration must expose whether a charged Death Gaze is still tracking CoHero.",
+            file=sys.stderr,
+        )
+        return 1
+
+    turn_context_source = (package_root / "CoHeroTurnContext.java").read_text(encoding="utf-8")
+    if turn_context_source.count(PASSIVE_STATUE_FILTER) != 1:
+        print(
+            "CoHero threat scanning must exclude passive Statue instances from active combat.",
+            file=sys.stderr,
+        )
+        return 1
+
+    support_add = turn_context_source.find(HERO_SUPPORT_BEFORE_PASSIVE_FILTER)
+    passive_filter = turn_context_source.find(PASSIVE_STATUE_FILTER)
+    if support_add < 0 or passive_filter < 0 or support_add > passive_filter:
+        print(
+            "Hero-support candidates must be collected before passive-Statue attack filtering.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if turn_context_source.count(PIRANHA_DANGER_MASK_METHOD) != 1:
+        print(
+            "CoHero must build one cached Piranha danger mask per decision turn.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_POOL_FLOOD not in turn_context_source:
+        print(
+            "Piranha danger must flood the connected passable water body, not a fixed radius.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_SHORE_EXPANSION not in turn_context_source:
+        print(
+            "Piranha danger must expand from the connected water cells to the shoreline.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_DANGER_CELL_REUSE not in turn_context_source:
+        print(
+            "Piranha danger must reuse its primitive cell queue for later mask merges.",
+            file=sys.stderr,
+        )
+        return 1
+
+    navigation_source = (package_root / "CoHeroNavigation.java").read_text(encoding="utf-8")
+    if PIRANHA_SAFE_DEST not in navigation_source or PIRANHA_NON_WATER_DEST not in navigation_source:
+        print("Piranha destination guard missing.", file=sys.stderr)
+        return 1
+
+    if navigation_source.count(PIRANHA_ESCAPE_METHOD) != 1:
+        print(
+            "CoHero navigation must leave a Piranha attack zone before ordinary combat.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if PIRANHA_TRAPPED_WAIT not in navigation_source:
+        print(
+            "A CoHero trapped in Piranha danger must not fall through into ordinary combat.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if "context.maskPiranhaDanger(result);" not in navigation_source:
+        print(
+            "All shared movement-safety masks must reuse the cached Piranha danger mask.",
+            file=sys.stderr,
+        )
+        return 1
+
+    combat_source = (package_root / "CoHeroCombatController.java").read_text(encoding="utf-8")
+    if combat_source.count(PIRANHA_SAFE_RANGED_METHOD) != 1:
+        print(
+            "CoHero combat must have one Piranha safe-ranged positioning phase.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if (PIRANHA_SAFE_RANGED_MASK not in combat_source
+            or PIRANHA_SAFE_RANGED_SLEEP_FILTER not in combat_source
+            or PIRANHA_SAFE_RANGED_DECISION not in combat_source):
+        print(
+            "Piranha ranged positioning must reuse safe passability and ignore sleeping Piranhas.",
+            file=sys.stderr,
+        )
+        return 1
+
+    direct_ranged = ally_source.find("combat.tryDirectRangedAttack(")
+    piranha_ranged = ally_source.find("combat.tryPiranhaSafeRangedPositioning(")
+    if direct_ranged < 0 or piranha_ranged < 0 or direct_ranged > piranha_ranged:
+        print(
+            "Piranha firing-position search must run only after direct ranged offense is unavailable.",
             file=sys.stderr,
         )
         return 1

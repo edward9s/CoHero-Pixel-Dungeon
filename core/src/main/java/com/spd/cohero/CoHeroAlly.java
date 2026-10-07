@@ -661,6 +661,12 @@ public class CoHeroAlly extends DirectableAlly {
             return true;
         }
 
+        Boolean piranhaAvoidance = tryLeavePiranhaDanger();
+        if (piranhaAvoidance != null) {
+            logBossDecision("avoid_piranha_pool", "leaving Piranha attack zone");
+            return piranhaAvoidance;
+        }
+
         Mob guardSupportThreat =
                 guard.isActive() ? support.heroSupportThreat() : null;
         guard.prepareMovementScope(guardSupportThreat);
@@ -942,6 +948,12 @@ public class CoHeroAlly extends DirectableAlly {
                 if (clearProjectileLine != null) {
                     return clearProjectileLine;
                 }
+
+                Boolean piranhaSafeRanged =
+                        combat.tryPiranhaSafeRangedPositioning(combatTarget);
+                if (piranhaSafeRanged != null) {
+                    return piranhaSafeRanged;
+                }
                 } finally {
                     timings().record(
                             this, CoHeroTimings.Action.COMBAT_RANGED, combatRangedStarted);
@@ -1192,6 +1204,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     private Boolean tryAvoidHazard() {
         return navigation.tryAvoidHazard();
+    }
+
+    private Boolean tryLeavePiranhaDanger() {
+        return navigation.tryLeavePiranhaDanger();
     }
 
     @Override
@@ -1480,6 +1496,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     boolean[] movementSafeMask() {
         return navigation.movementSafeMask();
+    }
+
+    boolean[] ordinarySafePassable(boolean knownOnly) {
+        return navigation.ordinarySafePassable(knownOnly);
     }
 
 
