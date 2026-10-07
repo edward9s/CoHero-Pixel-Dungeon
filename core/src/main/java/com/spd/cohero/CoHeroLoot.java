@@ -36,7 +36,7 @@ final class CoHeroLoot {
     private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
     private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
 
-    private enum PickupTarget {
+    private enum PickupDestination {
         NONE,
         COHERO,
         HERO
@@ -224,15 +224,15 @@ final class CoHeroLoot {
             return true;
         }
 
-        PickupTarget pickupTarget = selectedOwnedMissile
-                ? PickupTarget.COHERO
-                : autoPickupTarget(selected);
-        if (pickupTarget == PickupTarget.HERO) {
+        PickupDestination pickupTarget = selectedOwnedMissile
+                ? PickupDestination.COHERO
+                : autoPickupDestination(selected);
+        if (pickupTarget == PickupDestination.HERO) {
             routeToHero(selected);
             owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
             return true;
         }
-        if (pickupTarget != PickupTarget.COHERO) {
+        if (pickupTarget != PickupDestination.COHERO) {
             throw new IllegalStateException(
                     "Selected CoHero loot has no pickup target: "
                             + selected.getClass().getName());
@@ -400,30 +400,29 @@ final class CoHeroLoot {
     }
 
     private boolean canAutoPickup(Item item) {
-        return autoPickupTarget(item) != PickupTarget.NONE;
+        return autoPickupDestination(item) != PickupDestination.NONE;
     }
 
-    private PickupTarget autoPickupTarget(Item item) {
+    private PickupDestination autoPickupDestination(Item item) {
         if (item == null) {
-            return PickupTarget.NONE;
+            return PickupDestination.NONE;
         }
 
-        if (owner.inventory().canUse(item)) {
-            return owner.inventory().canAddToBackpack(item)
-                    ? PickupTarget.COHERO
-                    : PickupTarget.NONE;
+        if (owner.inventory().canUse(item)
+                && owner.inventory().canAddToBackpack(item)) {
+            return PickupDestination.COHERO;
         }
 
-        if (isHeroRoutedResource(item)
+        if (isAutoLootResource(item)
                 && Dungeon.hero != null
                 && Dungeon.hero.isAlive()) {
-            return PickupTarget.HERO;
+            return PickupDestination.HERO;
         }
 
-        return PickupTarget.NONE;
+        return PickupDestination.NONE;
     }
 
-    private static boolean isHeroRoutedResource(Item item) {
+    private static boolean isAutoLootResource(Item item) {
         return item instanceof Runestone
                 || item instanceof Plant.Seed
                 || item instanceof Potion
