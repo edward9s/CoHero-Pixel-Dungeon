@@ -27,7 +27,7 @@ final class CoHeroTurnContext {
     private final ArrayList<Mob> visibleAwakeEnemies = new ArrayList<>();
     private final ArrayList<Mob> visibleSleepingEnemies = new ArrayList<>();
     private final ArrayList<Mob> heroSupportCandidates = new ArrayList<>();
-    private final ArrayList<Piranha> visiblePiranhas = new ArrayList<>();
+    private final ArrayList<Piranha> piranhas = new ArrayList<>();
     private boolean[] piranhaDangerMask;
     private int[] piranhaDangerCells;
     private int piranhaDangerCellCount;
@@ -60,7 +60,7 @@ final class CoHeroTurnContext {
         visibleAwakeEnemies.clear();
         visibleSleepingEnemies.clear();
         heroSupportCandidates.clear();
-        visiblePiranhas.clear();
+        piranhas.clear();
         piranhaDangerMask = null;
         piranhaDangerCells = null;
         piranhaDangerCellCount = 0;
@@ -77,7 +77,7 @@ final class CoHeroTurnContext {
         visibleAwakeEnemies.clear();
         visibleSleepingEnemies.clear();
         heroSupportCandidates.clear();
-        visiblePiranhas.clear();
+        piranhas.clear();
         piranhaDangerMask = null;
         piranhaDangerCells = null;
         piranhaDangerCellCount = 0;
@@ -189,14 +189,14 @@ final class CoHeroTurnContext {
         }
     }
 
-    boolean hasVisiblePiranhaDanger() {
+    boolean hasPiranhaDanger() {
         assertActive();
-        return !visiblePiranhas.isEmpty();
+        return !piranhas.isEmpty();
     }
 
     boolean isPiranhaSafe(int cell) {
         assertActive();
-        if (cell < 0 || cell >= level.length() || visiblePiranhas.isEmpty()) {
+        if (cell < 0 || cell >= level.length() || piranhas.isEmpty()) {
             return true;
         }
         return !piranhaDangerMask()[cell];
@@ -207,7 +207,7 @@ final class CoHeroTurnContext {
         if (passable == null || passable.length != level.length()) {
             throw new IllegalArgumentException("Invalid CoHero Piranha movement mask length");
         }
-        if (visiblePiranhas.isEmpty()) {
+        if (piranhas.isEmpty()) {
             return;
         }
 
@@ -228,7 +228,7 @@ final class CoHeroTurnContext {
         int head = 0;
         int tail = 0;
 
-        for (Piranha piranha : visiblePiranhas) {
+        for (Piranha piranha : piranhas) {
             int cell = piranha.pos;
             if (cell < 0
                     || cell >= length
@@ -288,25 +288,22 @@ final class CoHeroTurnContext {
                 continue;
             }
 
-            boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;
-            if (!passiveStatue
-                    && (mob.alignment == Char.Alignment.ENEMY || mob instanceof Mimic)) {
-                heroSupportCandidates.add(mob);
-            }
-
-            if (mob.alignment != Char.Alignment.ENEMY || passiveStatue) {
-                continue;
-            }
-
-            if (mob instanceof Piranha) {
-                if (mob.pos < 0 || mob.pos >= owner.fieldOfView.length) {
+            if (mob instanceof Piranha && mob.alignment == Char.Alignment.ENEMY) {
+                if (mob.pos < 0 || mob.pos >= level.length()) {
                     throw new IllegalStateException(
                             "Piranha has invalid position: "
                                     + mob.getClass().getSimpleName() + "@" + mob.pos);
                 }
-                if (mob.invisible <= 0 && owner.fieldOfView[mob.pos]) {
-                    visiblePiranhas.add((Piranha) mob);
-                }
+                piranhas.add((Piranha) mob);
+            }
+
+            if (mob.alignment == Char.Alignment.ENEMY || mob instanceof Mimic) {
+                heroSupportCandidates.add(mob);
+            }
+
+            boolean passiveStatue = mob instanceof Statue && mob.state == mob.PASSIVE;
+            if (mob.alignment != Char.Alignment.ENEMY || passiveStatue) {
+                continue;
             }
 
             if (mob.state == mob.SLEEPING) {
