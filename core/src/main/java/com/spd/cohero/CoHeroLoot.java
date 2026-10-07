@@ -224,17 +224,17 @@ final class CoHeroLoot {
             return true;
         }
 
-        PickupDestination pickupTarget = selectedOwnedMissile
+        PickupDestination pickupDestination = selectedOwnedMissile
                 ? PickupDestination.COHERO
                 : autoPickupDestination(selected);
-        if (pickupTarget == PickupDestination.HERO) {
+        if (pickupDestination == PickupDestination.HERO) {
             routeToHero(selected);
             owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
             return true;
         }
-        if (pickupTarget != PickupDestination.COHERO) {
+        if (pickupDestination != PickupDestination.COHERO) {
             throw new IllegalStateException(
-                    "Selected CoHero loot has no pickup target: "
+                    "Selected CoHero loot has no pickup destination: "
                             + selected.getClass().getName());
         }
 
