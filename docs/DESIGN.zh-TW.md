@@ -149,9 +149,9 @@ Boss 樓層鎖定期間的 `CoHero:` 決策診斷也由同一個 `CoHero debug l
 同伴不應主動吵醒正在睡覺的怪物。
 
 - 睡眠怪物若在同伴的可視範圍內，不應被選為主動攻擊目標。
-- 目前實作把 CoHero 可視範圍內的睡眠敵人所在格與距離 1 格的相鄰位置視為不安全，尋路不主動踏入；能繞行就繞行。
-- 避讓只影響 CoHero 的路徑選擇，不改寫敵人的睡眠機制；若 CoHero 實際進入睡眠敵人的偵測範圍，仍依 SPD Sleeping detection 的距離、stealth、隱形與飛行規則決定是否醒來。Hero 與 CoHero 同時位於睡眠敵人 FOV 時，應以其中實際 detection chance 最高、也就是最容易被發現的 hostile 決定喚醒擲骰；不能讓遠處 Hero 的低偵測率蓋掉貼近的 CoHero。一般未隱形、未飛行的 CoHero 走到相鄰格時，應正常把敵人吵醒。
-- 這是避讓偏好，不需要為此建立完整戰術規劃；完全無路可繞時的處理仍可依 prototype 行為再調整。
+- 既有 movement safety 仍把 CoHero 可視範圍內的睡眠敵人所在格與相鄰 1 格視為不安全；除此之外，loot、自己投出的武器回收與普通探索另外使用 non-combat movement mask。這個 mask 直接呼叫該睡眠敵人目前 `SLEEPING` state 的原版 detection chance（包含 stealth-gameplay override），比較 CoHero「目前格」與每個候選格；只要候選格會提高 CoHero 自身被該敵人發現的機率，就不作為非戰鬥路徑。當前格永遠保留為合法 path origin，因此若 CoHero 已經處於較高偵測風險，只允許維持或降低風險的非戰鬥移動。
+- 這個額外限制只套在 loot／投擲物回收／普通探索，不直接擴大到 combat、Hero support 或 hazard escape，避免睡眠敵人阻塞必要戰術或逃生。它只考慮 CoHero 目前已看見的睡眠敵人，不利用未發現敵人的資訊。
+- 避讓不改寫敵人的睡眠機制；若其他必要行動讓 CoHero 實際進入睡眠敵人的偵測範圍，仍依 SPD Sleeping detection 的距離、stealth、隱形與飛行規則決定是否醒來。Hero 與 CoHero 同時位於睡眠敵人 FOV 時，應以其中實際 detection chance 最高、也就是最容易被發現的 hostile 決定喚醒擲骰；不能讓遠處 Hero 的低偵測率蓋掉貼近的 CoHero。一般未隱形、未飛行的 CoHero 走到相鄰格時，應正常把敵人吵醒。
 
 ### 被動雕像與 Piranha 水域
 
