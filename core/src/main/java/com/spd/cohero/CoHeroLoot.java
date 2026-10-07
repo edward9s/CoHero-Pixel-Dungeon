@@ -419,6 +419,8 @@ final class CoHeroLoot {
             owner.timings().record(owner, CoHeroTimings.Action.RECOVERY_MOVE, moveStarted);
         }
         if (!moved) {
+            recoveryTarget = -1;
+            owner.clearNavigationPath();
             return null;
         }
 
