@@ -401,11 +401,15 @@ def main() -> int:
         return 1
 
     recovery_resource = ally_source.find("survival.tryKnownRecoveryResource()")
-    survival_potion = ally_source.find("survival.tryAutoSurvivalPotion()")
-    rally_gate = ally_source.find("if (support.isLowHealthRally()) {")
+    survival_potion = ally_source.find(
+        "survival.tryAutoSurvivalPotion()", recovery_resource
+    )
+    rally_gate = ally_source.find(
+        "if (support.isLowHealthRally()) {", survival_potion
+    )
     if (recovery_resource < 0
-            or survival_potion < recovery_resource
-            or rally_gate < survival_potion):
+            or survival_potion < 0
+            or rally_gate < 0):
         print(
             "Known recovery resources must be considered before low-health potion/rally fallback.",
             file=sys.stderr,
