@@ -32,6 +32,11 @@ PIRANHA_SAFE_RANGED_MASK = "boolean[] safePassable = owner.ordinarySafePassable(
 PIRANHA_SAFE_RANGED_SLEEP_FILTER = "targetMob.state == targetMob.SLEEPING"
 PIRANHA_SAFE_RANGED_DECISION = '"piranha_safe_ranged"'
 HERO_SUPPORT_BEFORE_PASSIVE_FILTER = "heroSupportCandidates.add(mob);"
+HERO_SUPPORT_SAFE_RENDEZVOUS = "private boolean followHeroToNearestSafeRendezvous(Mob threat) {"
+HERO_SUPPORT_UNSAFE_HERO_GATE = "if (!owner.isMovementSafe(Dungeon.hero.pos)) {"
+HERO_SUPPORT_SCOPE_REUSE = "owner.restrictGuardPassable(safePassable);"
+HERO_SUPPORT_CURRENT_CELL_STICKINESS = "&& cell == owner.pos"
+HERO_SUPPORT_SAFE_HOLD = '"hero_support_safe_hold threat="'
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -176,6 +181,26 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    support_source = (package_root / "CoHeroSupportController.java").read_text(encoding="utf-8")
+    if support_source.count(HERO_SUPPORT_SAFE_RENDEZVOUS) != 1:
+        print(
+            "Hero support must have one safe-rendezvous path for unsafe Hero cells.",
+            file=sys.stderr,
+        )
+        return 1
+
+    for required in (
+            HERO_SUPPORT_UNSAFE_HERO_GATE,
+            HERO_SUPPORT_SCOPE_REUSE,
+            HERO_SUPPORT_CURRENT_CELL_STICKINESS,
+            HERO_SUPPORT_SAFE_HOLD):
+        if required not in support_source:
+            print(
+                "Safe Hero support must reuse MoveScope and keep an equally-good current cell sticky.",
+                file=sys.stderr,
+            )
+            return 1
 
     if turn_context_source.count(PIRANHA_DANGER_MASK_METHOD) != 1:
         print(
