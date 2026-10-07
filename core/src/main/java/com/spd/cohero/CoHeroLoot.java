@@ -10,7 +10,11 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.FloatingText;
 import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
+import com.shatteredpixel.shatteredpixeldungeon.items.stones.Runestone;
 import com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles.MissileWeapon;
+import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Catalog;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -31,6 +35,12 @@ final class CoHeroLoot {
 
     private static final String THROWN_SET_IDS = "cohero_thrown_set_ids";
     private static final String THROWN_SET_COUNTS = "cohero_thrown_set_counts";
+
+    private enum PickupTarget {
+        NONE,
+        COHERO,
+        HERO
+    }
 
     private final CoHeroAlly owner;
     private final HashMap<Long, Integer> thrownOutstanding = new HashMap<>();
@@ -214,6 +224,20 @@ final class CoHeroLoot {
             return true;
         }
 
+        PickupTarget pickupTarget = selectedOwnedMissile
+                ? PickupTarget.COHERO
+                : autoPickupTarget(selected);
+        if (pickupTarget == PickupTarget.HERO) {
+            routeToHero(selected);
+            owner.timings().record(owner, CoHeroTimings.Action.PICKUP_ITEM, pickupStarted);
+            return true;
+        }
+        if (pickupTarget != PickupTarget.COHERO) {
+            throw new IllegalStateException(
+                    "Selected CoHero loot has no pickup target: "
+                            + selected.getClass().getName());
+        }
+
         if (!owner.inventory().addToBackpack(selected)) {
             Dungeon.level.drop(selected, owner.pos).sprite.drop();
             owner.timings().record(owner, CoHeroTimings.Action.PICKUP_FAILED, pickupStarted);
@@ -376,8 +400,47 @@ final class CoHeroLoot {
     }
 
     private boolean canAutoPickup(Item item) {
-        return owner.inventory().canUse(item)
-                && owner.inventory().canAddToBackpack(item);
+        return autoPickupTarget(item) != PickupTarget.NONE;
+    }
+
+    private PickupTarget autoPickupTarget(Item item) {
+        if (item == null) {
+            return PickupTarget.NONE;
+        }
+
+        if (owner.inventory().canUse(item)) {
+            return owner.inventory().canAddToBackpack(item)
+                    ? PickupTarget.COHERO
+                    : PickupTarget.NONE;
+        }
+
+        if (isHeroRoutedResource(item)
+                && Dungeon.hero != null
+                && Dungeon.hero.isAlive()) {
+            return PickupTarget.HERO;
+        }
+
+        return PickupTarget.NONE;
+    }
+
+    private static boolean isHeroRoutedResource(Item item) {
+        return item instanceof Runestone
+                || item instanceof Plant.Seed
+                || item instanceof Potion
+                || item instanceof Scroll;
+    }
+
+    private void routeToHero(Item item) {
+        if (item == null) {
+            throw new IllegalArgumentException("item must not be null");
+        }
+        if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
+            throw new IllegalStateException("Cannot route CoHero loot without a live Hero");
+        }
+
+        if (!item.collect(Dungeon.hero.belongings.backpack)) {
+            Dungeon.level.drop(item, Dungeon.hero.pos).sprite.drop();
+        }
     }
 
 
