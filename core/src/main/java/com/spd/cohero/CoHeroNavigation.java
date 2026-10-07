@@ -113,6 +113,11 @@ final class CoHeroNavigation {
     private boolean[] applyMovementSafety(boolean[] passable) {
         boolean[] result = CoHeroHazards.maskDangerous(owner, passable);
         maskSleepingEnemyWakeRisk(result);
+
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context != null) {
+            context.maskPiranhaDanger(result);
+        }
         return result;
     }
 
@@ -301,12 +306,73 @@ final class CoHeroNavigation {
             }
             if (!result[cell]
                     || Actor.findChar(cell) != null
-                    || !isSleepSafe(cell)) {
+                    || !isSleepSafe(cell)
+                    || !isPiranhaSafe(cell)) {
                 result[cell] = false;
             }
         }
         return result;
     }
+    Boolean tryLeavePiranhaDanger() {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        if (context == null || !context.hasVisiblePiranhaDanger() || context.isPiranhaSafe(owner.pos)) {
+            return null;
+        }
+        if (owner.rooted) {
+            return null;
+        }
+
+        boolean[] safePassable = ordinarySafePassable(false);
+        safePassable[owner.pos] = true;
+        PathFinder.buildDistanceMap(owner.pos, safePassable);
+
+        int target = -1;
+        int bestDistance = Integer.MAX_VALUE;
+        int bestHeroDistance = Integer.MAX_VALUE;
+        for (int cell = 0; cell < safePassable.length; cell++) {
+            if (cell == owner.pos
+                    || !safePassable[cell]
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || !context.isPiranhaSafe(cell)
+                    || Actor.findChar(cell) != null) {
+                continue;
+            }
+
+            int distance = PathFinder.distance[cell];
+            int heroDistance = Dungeon.hero == null
+                    ? 0
+                    : Dungeon.level.distance(cell, Dungeon.hero.pos);
+            if (target == -1
+                    || distance < bestDistance
+                    || (distance == bestDistance && heroDistance < bestHeroDistance)) {
+                target = cell;
+                bestDistance = distance;
+                bestHeroDistance = heroDistance;
+            }
+        }
+
+        if (target == -1) {
+            return null;
+        }
+
+        int step = nextPolicyStep(target, safePassable);
+        if (step == -1 || step == owner.pos) {
+            return null;
+        }
+
+        int oldPos = owner.pos;
+        owner.allowAnyGuardMovement();
+        owner.setMovementDecision("piranha_escape", target);
+        owner.move(step, true);
+        if (owner.pos == oldPos) {
+            clearPolicyPath();
+            return null;
+        }
+        owner.spendActionTime(1 / owner.speed());
+        owner.refreshOwnFieldOfView();
+        return owner.finishMovementAnimation(oldPos);
+    }
+
     boolean getCloser(int target) {
         long guardStarted = owner.timings().startNanos();
         boolean guardRestricted;
@@ -339,7 +405,12 @@ final class CoHeroNavigation {
             }
         }
 
-        if (!guardRestricted && !activeHazards && !sleepingEnemy) {
+        boolean piranhaDanger = !guardRestricted
+                && !activeHazards
+                && !sleepingEnemy
+                && hasVisiblePiranhaDanger();
+
+        if (!guardRestricted && !activeHazards && !sleepingEnemy && !piranhaDanger) {
             clearPolicyPath();
             long stockPathStarted = owner.timings().startNanos();
             try {
@@ -420,7 +491,19 @@ final class CoHeroNavigation {
     }
 
     boolean isMovementSafe(int cell) {
-        return !CoHeroHazards.isDangerous(owner, cell) && isSleepSafe(cell);
+        return !CoHeroHazards.isDangerous(owner, cell)
+                && isSleepSafe(cell)
+                && isPiranhaSafe(cell);
+    }
+
+    private boolean hasVisiblePiranhaDanger() {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        return context != null && context.hasVisiblePiranhaDanger();
+    }
+
+    private boolean isPiranhaSafe(int cell) {
+        CoHeroTurnContext context = owner.currentTurnContext();
+        return context == null || context.isPiranhaSafe(cell);
     }
 
     private boolean hasVisibleSleepingEnemy() {
