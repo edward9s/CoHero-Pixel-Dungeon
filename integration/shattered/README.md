@@ -94,7 +94,9 @@ The number of upstream files has not been artificially reduced; instead, failure
 
 - Keep common CoHero Java fork-agnostic.
 - Keep host-specific anchors under `integration/<fork>/patches/`.
-- Preserve fail-fast exact anchors; do not use fuzzy patching.
+- Prefer Java-aware class/method scoping for high-churn targets. Within that scope, require the smallest semantic anchors the patch actually depends on and verify explicit postconditions.
+- Remain fail-fast: missing, duplicated or materially changed semantic anchors are errors. Do not silently skip a patch and do not use fuzzy whole-file matching.
+- `java_patch.py` is the shared structural helper. `WandOfWarding.java` and `Mob.java` are the first migrated targets; other patch owners retain their existing exact checks until migrated deliberately.
 - Preserve patch order explicitly in the fork's `apply.sh`.
 - Keep Android save-transfer storage permission wiring host-specific; common CoHero code must not depend on SMM. Desktop folder selection stays reflection-based in common code so Android does not acquire a desktop library dependency.
 - Bring up lifecycle first, then actor semantics, then equipment/combat, encounter safety, and presentation.
