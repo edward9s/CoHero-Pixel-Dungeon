@@ -32,6 +32,7 @@ import java.util.ArrayList;
 public class CoHeroAlly extends DirectableAlly {
 
     private static final String EXPLORATION_TARGET = "cohero_exploration_target";
+    private static final String EXPLORATION_TARGET_ROAMING = "cohero_exploration_target_roaming";
     private static final String INVENTORY = "cohero_inventory";
     private static final String LOW_HEALTH_RALLY = "cohero_low_health_rally";
     private static final String DEBUG_LOG = "cohero_debug_log";
@@ -182,6 +183,7 @@ public class CoHeroAlly extends DirectableAlly {
     public void storeInBundle(Bundle bundle) {
         super.storeInBundle(bundle);
         bundle.put(EXPLORATION_TARGET, navigation.explorationTarget());
+        bundle.put(EXPLORATION_TARGET_ROAMING, navigation.explorationTargetRoaming());
 
         Bundle inventoryBundle = new Bundle();
         inventory.storeInBundle(inventoryBundle);
@@ -201,7 +203,8 @@ public class CoHeroAlly extends DirectableAlly {
         navigation.restoreExplorationTarget(
                 bundle.contains(EXPLORATION_TARGET)
                         ? bundle.getInt(EXPLORATION_TARGET)
-                        : -1);
+                        : -1,
+                bundle.getBoolean(EXPLORATION_TARGET_ROAMING));
 
         if (bundle.contains(INVENTORY)) {
             inventory.restoreFromBundle(bundle.getBundle(INVENTORY));
