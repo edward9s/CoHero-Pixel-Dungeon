@@ -10,34 +10,20 @@ You control the main Hero. The CoHero explores, fights, uses items, and tries to
 
 The core game is playable, but AI behaviour and balance are still being tuned. Bugs and unexpected decisions are expected.
 
-## How it works
+## Playing with CoHero
 
-- Choose a Hero and a CoHero at the start of a run.
-- You directly control only the main Hero.
-- The CoHero moves, explores, and fights by itself.
-- The CoHero has its own backpack, weapons, armor, rings, wands, and consumables.
-- Dungeon resources are shared between both heroes.
-- Giving the CoHero different equipment is the main way to influence its behaviour.
-- Auto-equip is part of auto-loot, not a continuous backpack optimizer: when the CoHero itself picks up a known-uncursed, usable melee weapon or armor that is strictly better than its current equipment, it equips it immediately. Items manually transferred into the CoHero backpack are not auto-equipped.
-- Either Hero dying ends the run.
-- Boss and branch floors let you choose whether the CoHero comes with you.
-- The **Settings** menu includes an enemy spawn multiplier from **1.0x to 4.0x** in **0.25x** steps, defaulting to **1.5x**, for difficulty tuning.
+- Choose a Hero and a CoHero at the start of each run.
+- You control the Hero. The CoHero acts independently, exploring, fighting, collecting items, and trying to survive.
+- CoHero usually stays near the Hero and helps when danger arises, but its decisions are not entirely predictable.
+- You cannot directly command CoHero's movements or attacks. You can influence it through equipment, items, and your own actions.
+- CoHero has its own backpack and equipment, while dungeon resources are shared. Open its backpack using the CoHero backpack icon; a thin gold border marks items it can use or equip.
+- Hero talents do not apply to CoHero. Each CoHero class has its own passive abilities, with an additional one unlocked when the Hero chooses a subclass using Tengu's Mask.
+- If either character dies, the run ends. On boss and branch floors, you can choose whether CoHero comes along.
 
-Use the CoHero backpack tag to open its inventory.
+## Settings
 
-## What to expect from the CoHero AI
-
-The CoHero is designed to be autonomous rather than a second character you manually command. Its behaviour should be understandable and reasonably predictable, but not fully deterministic.
-
-- **Passive enemies and hazards:** the CoHero does not proactively attack passive Statues. It avoids Piranha-occupied water and the shoreline attack zone around that water. If it ends up inside that danger zone, leaving it takes priority over fighting.
-- **Off-screen actions:** gameplay outside the Hero's field of view resolves immediately instead of waiting for every CoHero animation to finish. Remote animations are presentation only and do not block the Hero's turns.
-- **Room guarding:** when the Hero stays in a suitable single-exit room, the CoHero may patrol the area outside the entrance instead of following inside. This commonly applies to places such as shops and alchemy rooms.
-- **Sacrificial Fire:** when the Hero is in a room with active Sacrificial Fire, the CoHero can position itself to lure suitable melee enemies toward the sacrifice area instead of simply fighting them wherever they are.
-- **Hero support:** an enemy within **6 tiles** of the Hero triggers nearby support. Enemies farther away can also trigger support out to **10 tiles** when they can attack the Hero from range. This support trigger is separate from attack selection, so a sleeping or passive enemy can make the CoHero move closer without making it proactively attack that enemy.
-- **Idle exploration:** when combat, survival, support, guarding, and useful loot do not take priority, the CoHero explores unknown areas within about **10 tiles** of the Hero. Once there are no reachable unknown tiles nearby, it roams within about **6 tiles** of the Hero, favoring shorter walks. If it strays outside the applicable idle radius, it returns toward the nearest safe reachable point inside it. Paths around walls may temporarily exceed either radius.
-- **No direct movement or attack commands:** protecting the CoHero is part of the run. Equipment, backpack contents, positioning, and the Hero's own decisions are the main ways to influence what the CoHero can do.
-- **Class traits:** Hero talents are not copied onto the CoHero. Each stock CoHero class instead has its own intrinsic passive effect. After the Hero completes the Tengu-mask subclass choice, the CoHero unlocks its second class passive.
-- **Items and equipment:** the CoHero picks up resources and uses supported items when appropriate. In the CoHero backpack, items with a currently supported use/equip capability are marked with a thin gold frame. Items the CoHero collects but cannot use may be routed to the Hero instead.
+- **Enemy spawn multiplier:** Adjust the spawn rate from **1.0x to 4.0x** (default **1.5x**).
+- **CoHero debug log:** Records AI decisions and performance information to help diagnose problems. When enabled, exported saves include `cohero-diagnostics.txt`.
 
 Save export/import uses `Documents/spd_saves/<app name>/` on Android and Desktop. CoHero and CoHero + SMM have different app names and therefore keep separate snapshots.
 
