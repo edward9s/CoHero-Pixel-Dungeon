@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_dm100_ranged_damage.py <DM100.java>")
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+text = java_source(path.read_text(encoding="utf-8"))
 
 anchor = "\t@Override\n\tpublic int damageRoll() {\n\t\treturn Random.NormalIntRange( 2, 8 );\n\t}\n"
 addition = "\n\t@Override\n\tpublic int coHeroRangedDamageRoll(Char enemy) {\n\t\tint damage = Random.NormalIntRange(3, 10);\n\t\treturn Math.round(damage * AscensionChallenge.statModifier(this));\n\t}\n"
