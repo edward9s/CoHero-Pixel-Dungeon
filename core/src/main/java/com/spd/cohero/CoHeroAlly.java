@@ -558,7 +558,7 @@ public class CoHeroAlly extends DirectableAlly {
             return;
         }
         lastBossDecisionLog = key;
-        GLog.i("CoHero: " + detail);
+        logDebug("CoHero: " + detail);
     }
 
     String targetDebug(Mob targetMob) {
@@ -1164,9 +1164,11 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     void logDebug(String message) {
-        if (debugLogEnabled) {
-            GLog.i(message);
+        if (!debugLogEnabled) {
+            return;
         }
+        timings().recordDebug(message);
+        GLog.i(message);
     }
 
     void setMovementDecision(String decision, int target) {
@@ -1175,7 +1177,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (!debugLogEnabled) {
             return;
         }
-        GLog.i("[CoHeroMove] DECIDE"
+        logDebug("[CoHeroMove] DECIDE"
                 + " decision=" + decision
                 + " target=" + target
                 + " " + movementContext());
@@ -1185,7 +1187,7 @@ public class CoHeroAlly extends DirectableAlly {
         if (!debugLogEnabled) {
             return;
         }
-        GLog.i("[CoHeroMove] " + result
+        logDebug("[CoHeroMove] " + result
                 + " decision=" + movementDecision
                 + " target=" + movementDecisionTarget
                 + " from=" + oldPos
