@@ -1,0 +1,34 @@
+name: Sync curated release notes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/release-notes/*.md'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Update matching GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only --diff-filter=AM "$BEFORE" "$AFTER" -- 'docs/release-notes/*.md' | while IFS= read -r notes_file; do
+            [ -f "$notes_file" ] || continue
+            tag="${notes_file##*/}"
+            tag="${tag%.md}"
+            [[ "$tag" == CoHero-v* ]] || { echo "::error::Invalid release tag: $tag"; exit 1; }
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$notes_file"
+          done
