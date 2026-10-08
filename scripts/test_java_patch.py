@@ -366,8 +366,91 @@ def test_all_java_patch_scripts_use_resilient_source():
                     f"{name} reads Java source without java_source wrapper: {line.strip()}")
 
 
+
+def test_non_java_patch_resilience():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+
+        gradle = tmp / "build.gradle"
+        gradle.write_text(
+            'ext {\n'
+            '    appName   =   "Shattered Pixel Dungeon"\n'
+            '    appPackageName = "com.shatteredpixel.shatteredpixeldungeon"\n'
+            '}\n',
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(patch_dir / "patch_app_package.py"), str(gradle)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        gradle_text = gradle.read_text(encoding="utf-8")
+        if "CoShattered Pixel Dungeon" not in gradle_text:
+            raise AssertionError("Gradle identity patch did not tolerate spacing/quote drift")
+        if "com.shatteredpixel.shatteredpixeldungeon.cohero" not in gradle_text:
+            raise AssertionError("Gradle package patch did not tolerate spacing/quote drift")
+
+        manifest = tmp / "AndroidManifest.xml"
+        manifest.write_text(
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n'
+            '  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>\n'
+            '  <application android:label="@string/app_name" />\n'
+            '</manifest>\n',
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(patch_dir / "patch_android_manifest.py"), str(manifest)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        manifest_text = manifest.read_text(encoding="utf-8")
+        for permission in (
+            "android.permission.READ_EXTERNAL_STORAGE",
+            "android.permission.WRITE_EXTERNAL_STORAGE",
+            "android.permission.MANAGE_EXTERNAL_STORAGE",
+        ):
+            if manifest_text.count(permission) != 1:
+                raise AssertionError(
+                    f"Manifest semantic permission patch failed for {permission}"
+                )
+
+        target_dir = tmp / "target_messages"
+        source_dir = tmp / "cohero_messages"
+        target_dir.mkdir()
+        source_dir.mkdir()
+        (source_dir / "misc.properties").write_text(
+            "cohero.alpha=Alpha %s\ncohero.beta=Beta %d\n",
+            encoding="utf-8",
+        )
+        (source_dir / "misc_zh.properties").write_text(
+            "cohero.beta=乙 %d\ncohero.alpha=甲 %s\n",
+            encoding="utf-8",
+        )
+        for name in ("misc.properties", "misc_zh.properties", "misc_new.properties"):
+            (target_dir / name).write_text("stock.key=Stock\n", encoding="utf-8")
+
+        subprocess.run(
+            [
+                sys.executable,
+                str(patch_dir / "patch_messages.py"),
+                str(target_dir),
+                str(source_dir),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        if "甲 %s" not in (target_dir / "misc_zh.properties").read_text(encoding="utf-8"):
+            raise AssertionError("message patch rejected harmless localized key reordering")
+        if "Alpha %s" not in (target_dir / "misc_new.properties").read_text(encoding="utf-8"):
+            raise AssertionError("new upstream locale did not fall back to base CoHero messages")
+
+
 test_helper()
 test_warding_patch()
 test_mob_patch()
 test_all_java_patch_scripts_use_resilient_source()
-print("Java structural patch tests: OK")
+test_non_java_patch_resilience()
+print("Integration patch resilience tests: OK")
