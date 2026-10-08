@@ -20,7 +20,7 @@ from java_patch import (  # noqa: E402
 
 
 def test_helper():
-    source = r"""
+    source = r'''
 class Sample {
     String braces = "{ not code }";
     String block = """
@@ -50,7 +50,7 @@ class Sample {
         }
     }
 }
-"""
+'''
 
     outer = find_class(source, "Sample")
     method = find_method(source, "target", ("Hero", "int"), outer)
