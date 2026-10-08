@@ -2,13 +2,15 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 from java_patch import replace_code_once as replace_once
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_wand_corruption.py <WandOfCorruption.java>")
 
 path = Path(sys.argv[1])
-corruption = path.read_text(encoding="utf-8")
+corruption = java_source(path.read_text(encoding="utf-8"))
 
 
 # Corruption: loot/EXP still belong to the one progression Hero, while visuals use the real caster.
