@@ -320,6 +320,159 @@ def require_regex_count(
             f"expected {expected} {label} occurrence(s) in scoped block, found {count}")
 
 
+
+@dataclass(frozen=True)
+class JavaToken:
+    text: str
+    start: int
+    end: int
+
+
+def java_tokens(source: str):
+    """Tokenizes Java while ignoring whitespace and comments, preserving literal text."""
+    tokens = []
+    i = 0
+    n = len(source)
+
+    while i < n:
+        ch = source[i]
+
+        if ch.isspace():
+            i += 1
+            continue
+
+        if source.startswith("//", i):
+            end = source.find("\n", i + 2)
+            i = n if end < 0 else end + 1
+            continue
+
+        if source.startswith("/*", i):
+            end = source.find("*/", i + 2)
+            if end < 0:
+                raise JavaPatchError(f"unterminated block comment at {i}")
+            i = end + 2
+            continue
+
+        if source.startswith('"""', i):
+            end = source.find('"""', i + 3)
+            if end < 0:
+                raise JavaPatchError(f"unterminated Java text block at {i}")
+            end += 3
+            tokens.append(JavaToken(source[i:end], i, end))
+            i = end
+            continue
+
+        if ch in ('"', "'"):
+            quote = ch
+            start = i
+            i += 1
+            while i < n:
+                if source[i] == "\\":
+                    i += 2
+                    continue
+                if source[i] == quote:
+                    i += 1
+                    break
+                i += 1
+            else:
+                raise JavaPatchError(f"unterminated Java literal at {start}")
+            tokens.append(JavaToken(source[start:i], start, i))
+            continue
+
+        if ch.isalpha() or ch in "_$":
+            start = i
+            i += 1
+            while i < n and (source[i].isalnum() or source[i] in "_$"):
+                i += 1
+            tokens.append(JavaToken(source[start:i], start, i))
+            continue
+
+        if ch.isdigit():
+            start = i
+            i += 1
+            while i < n and (source[i].isalnum() or source[i] in "._"):
+                i += 1
+            tokens.append(JavaToken(source[start:i], start, i))
+            continue
+
+        # Punctuation/operator characters are intentionally individual tokens. This makes
+        # formatting irrelevant without treating changed operators as equivalent.
+        tokens.append(JavaToken(ch, i, i + 1))
+        i += 1
+
+    return tokens
+
+
+def _token_sequence_matches(source: str, anchor: str):
+    source_tokens = java_tokens(source)
+    anchor_tokens = java_tokens(anchor)
+    if not anchor_tokens:
+        raise JavaPatchError("empty Java anchor")
+
+    needle = [token.text for token in anchor_tokens]
+    haystack = [token.text for token in source_tokens]
+    width = len(needle)
+    matches = []
+    for i in range(0, len(haystack) - width + 1):
+        if haystack[i:i + width] == needle:
+            matches.append((source_tokens[i].start, source_tokens[i + width - 1].end))
+    return matches
+
+
+def code_match_count(source: str, anchor: str) -> int:
+    exact = source.count(anchor)
+    if exact:
+        return exact
+    return len(_token_sequence_matches(source, anchor))
+
+
+def replace_code_once(source: str, old: str, new: str, label: str) -> str:
+    """Exact replacement first; then whitespace/comment-insensitive Java-token fallback."""
+    exact = source.count(old)
+    if exact == 1:
+        return source.replace(old, new, 1)
+    if exact > 1:
+        raise JavaPatchError(f"expected exactly one {label} anchor, found {exact}")
+
+    matches = _token_sequence_matches(source, old)
+    if len(matches) != 1:
+        raise JavaPatchError(
+            f"expected exactly one {label} anchor, found {len(matches)} token-equivalent matches")
+
+    start, end = matches[0]
+    return source[:start] + new + source[end:]
+
+
+def replace_code_count(
+        source: str,
+        old: str,
+        new: str,
+        expected: int,
+        label: str) -> str:
+    """Replaces an exact number of token-equivalent Java anchors, right-to-left."""
+    exact = source.count(old)
+    if exact == expected:
+        return source.replace(old, new)
+
+    matches = _token_sequence_matches(source, old)
+    if len(matches) != expected:
+        raise JavaPatchError(
+            f"expected {expected} {label} anchor(s), found {len(matches)} token-equivalent matches")
+
+    result = source
+    for start, end in reversed(matches):
+        result = result[:start] + new + result[end:]
+    return result
+
+
+def insert_after_code_once(source: str, anchor: str, addition: str, label: str) -> str:
+    return replace_code_once(source, anchor, anchor + addition, label)
+
+
+def insert_before_code_once(source: str, anchor: str, addition: str, label: str) -> str:
+    return replace_code_once(source, anchor, addition + anchor, label)
+
+
 def require_token_count(
         source: str,
         token: str,
