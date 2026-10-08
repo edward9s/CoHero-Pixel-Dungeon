@@ -2,16 +2,14 @@
 from pathlib import Path
 import sys
 
+from java_patch import replace_code_once as replace_once
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_wand_fireblast.py <WandOfFireblast.java>")
 
 path = Path(sys.argv[1])
 fireblast = path.read_text(encoding="utf-8")
 
-def replace_once(text, old, new, label):
-    if text.count(old) != 1:
-        raise SystemExit(f"expected exactly one {label} anchor")
-    return text.replace(old, new, 1)
 
 # Fireblast: cone logic is generic; its visual source must use the actual caster.
 expected_user_lines = (
