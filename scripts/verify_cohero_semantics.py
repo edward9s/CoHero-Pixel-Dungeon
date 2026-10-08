@@ -53,6 +53,11 @@ IDLE_HERO_TETHER_FILTER = "!isInsideIdleHeroTether(cell)"
 IDLE_HERO_TETHER_VALIDATION = "!isValidIdleHeroTarget(explorationTarget)"
 IDLE_HERO_RETURN_METHOD = "private int chooseIdleHeroReturnTarget(boolean[] passable) {"
 IDLE_HERO_RETURN_DECISION = '"explore_return_to_hero"'
+DEBUG_HISTORY_SIZE = "private static final int HISTORY_SIZE = 512;"
+DEBUG_HISTORY_METHOD = "void recordDebug(String message) {"
+DEBUG_HISTORY_CALL = "timings().recordDebug(message);"
+DEBUG_GLOG_SINK = "GLog.i(message);"
+DEBUG_BOSS_ROUTE = 'logDebug("CoHero: " + detail);'
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -113,6 +118,18 @@ def main() -> int:
         return 1
 
     ally_source = (package_root / "CoHeroAlly.java").read_text(encoding="utf-8")
+    timings_source = (package_root / "CoHeroTimings.java").read_text(encoding="utf-8")
+    if (DEBUG_HISTORY_SIZE not in timings_source
+            or timings_source.count(DEBUG_HISTORY_METHOD) != 1
+            or ally_source.count(DEBUG_HISTORY_CALL) != 1
+            or ally_source.count(DEBUG_GLOG_SINK) != 1
+            or DEBUG_BOSS_ROUTE not in ally_source):
+        print(
+            "CoHero debug GLog must be routed through one persistent 512-entry timing history.",
+            file=sys.stderr,
+        )
+        return 1
+
     if ally_source.count(COMPANION_DEATH_FAILURE_FLOW) != 1:
         print(
             "CoHeroAlly final death must mark the shared run over, kill the Hero through "

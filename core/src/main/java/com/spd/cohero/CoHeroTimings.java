@@ -86,7 +86,7 @@ final class CoHeroTimings {
         }
     }
 
-    private static final int HISTORY_SIZE = 64;
+    private static final int HISTORY_SIZE = 512;
     private static final long SLOW_PHASE_NANOS = 10_000_000L;
     private static final long SLOW_FRAME_NANOS = 50_000_000L;
     private static final Method ANDROID_GC_STAT = androidGcStat();
@@ -255,6 +255,22 @@ final class CoHeroTimings {
         history[next] = event;
         next = (next + 1) % HISTORY_SIZE;
         size = Math.min(size + 1, HISTORY_SIZE);
+    }
+
+    void recordDebug(String message) {
+        if (!enabled || message == null) {
+            return;
+        }
+        synchronized (this) {
+            if (!enabled) {
+                return;
+            }
+            appendHistory("depth=" + Dungeon.depth
+                    + " branch=" + Dungeon.branch
+                    + " t=" + (int) Actor.now()
+                    + " debug " + message);
+            dirty = true;
+        }
     }
 
     void record(CoHeroAlly owner, Action action, long started) {
