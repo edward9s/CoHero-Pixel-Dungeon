@@ -2,13 +2,15 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 from java_patch import replace_code_once as replace_once
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_wand_lightning.py <WandOfLightning.java>")
 
 path = Path(sys.argv[1])
-lightning = path.read_text(encoding="utf-8")
+lightning = java_source(path.read_text(encoding="utf-8"))
 
 
 # Lightning: its fx prepares combat state, so all caster references must follow the adapter context.
