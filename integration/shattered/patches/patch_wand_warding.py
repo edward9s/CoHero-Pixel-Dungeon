@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 import sys
 
+from java_patch import java_source
+
 from java_patch import (
     JavaPatchError,
     find_class,
@@ -18,7 +20,7 @@ if len(sys.argv) != 2:
     raise SystemExit("usage: patch_wand_warding.py <WandOfWarding.java>")
 
 path = Path(sys.argv[1])
-warding = path.read_text(encoding="utf-8")
+warding = java_source(path.read_text(encoding="utf-8"))
 
 BUDGET_HELPERS = """\
 \tprivate int currentWardEnergy(boolean coHeroOwned) {
