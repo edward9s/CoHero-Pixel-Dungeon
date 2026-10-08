@@ -1,6 +1,6 @@
 # Shattered integration port map
 
-This profile currently patches 53 upstream Java files, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The number is useful as an upper bound, but the files do not all have the same portability cost.
+This profile patches the Java targets declared by `integration/shattered/apply.sh`, plus `build.gradle`, `AndroidManifest.xml`, and the message-resource directory. The workflow tests derive the active Java patch inventory from `apply.sh` instead of hard-coding a target count.
 
 ## Recommended port order
 
@@ -72,13 +72,7 @@ These are important for the finished port but should not block early gameplay br
 
 ## Patch-target invariant
 
-The Shattered profile now keeps Java patch ownership one-to-one:
-
-- 53 Java patch calls target 53 unique upstream Java files.
-- each Java patch script edits exactly one upstream Java file;
-- each upstream Java file is owned by exactly one patch script.
-
-Keep this invariant when adding or changing Shattered hooks. It localizes fork drift: a changed Lightning implementation should fail the Lightning patch, not every wand patch.
+The Shattered profile keeps patch ownership localized by host concern: each target or tightly related target group has a single patch owner. Keep that invariant when adding or changing hooks. It localizes fork drift: a changed Lightning implementation should fail the Lightning patch, not every wand patch. The active inventory is derived from `apply.sh`; do not duplicate a numeric count in documentation.
 
 The highest-churn individual targets are still:
 
@@ -94,9 +88,12 @@ The number of upstream files has not been artificially reduced; instead, failure
 
 - Keep common CoHero Java fork-agnostic.
 - Keep host-specific anchors under `integration/<fork>/patches/`.
-- Prefer Java-aware class/method scoping for high-churn targets. Within that scope, require the smallest semantic anchors the patch actually depends on and verify explicit postconditions.
-- Remain fail-fast: missing, duplicated or materially changed semantic anchors are errors. Do not silently skip a patch and do not use fuzzy whole-file matching.
-- `java_patch.py` is the shared structural helper. `WandOfWarding.java` and `Mob.java` are the first migrated targets; other patch owners retain their existing exact checks until migrated deliberately.
+- Every Java patch reads upstream source through `java_source()`. Matching is exact-first; if exact text drifts only in whitespace/comments, it falls back to Java-token equivalence while still requiring the expected cardinality.
+- Pure insertion patches get one additional safe fallback: when a full anchor no longer matches because upstream inserted unrelated statements, a unique semantic prefix/suffix boundary may be used to insert the CoHero hook without deleting the upstream statements.
+- Prefer Java-aware class/method scoping for high-churn targets. `WandOfWarding.java` and `Mob.java` use structural scoping today; migrate another target when real semantic churn shows that token-aware anchoring is no longer sufficient.
+- Remain fail-fast on ambiguity or real token/semantic changes. Missing, duplicated or materially changed anchors are errors; never silently skip a required patch and never use fuzzy whole-file similarity.
+- Non-Java patching follows the same principle: Gradle identity matches semantic assignments independent of spacing/quote style, Manifest permissions are added by XML element/attribute semantics, and a newly added upstream locale falls back to CoHero's base messages until a translation exists.
+- `scripts/test_java_patch.py` audits that every Java patch invoked by `apply.sh` uses the resilient source wrapper and exercises structural, token, insertion, Gradle, Manifest, and locale-drift cases.
 - Preserve patch order explicitly in the fork's `apply.sh`.
 - Keep Android save-transfer storage permission wiring host-specific; common CoHero code must not depend on SMM. Desktop folder selection stays reflection-based in common code so Android does not acquire a desktop library dependency.
 - Bring up lifecycle first, then actor semantics, then equipment/combat, encounter safety, and presentation.
