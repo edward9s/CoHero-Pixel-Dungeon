@@ -155,23 +155,37 @@ try:
     mob = find_class(text, "Mob")
     sleeping = find_class(text, "Sleeping", mob)
     sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
-    text = replace_regex_once(
-        text,
-        sleeping_act,
-        r"(?m)^(?P<i>[ \t]*)float\s+highestChance\s*=\s*Float\.POSITIVE_INFINITY\s*;\s*$",
-        r"\g<i>float highestChance = 0f;",
-        "Sleeping highest detection chance initializer",
-    )
+    sleeping_body = text[sleeping_act.body_start:sleeping_act.body_end]
 
-    mob = find_class(text, "Mob")
-    sleeping = find_class(text, "Sleeping", mob)
-    sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
+    chance_matches = re.findall(
+        r"\bfloat\s+([A-Za-z_$][\w$]*)\s*=\s*Float\.POSITIVE_INFINITY\s*;",
+        sleeping_body,
+    )
+    candidate_matches = re.findall(
+        r"\bChar\s+([A-Za-z_$][\w$]*)\s*=\s*null\s*;",
+        sleeping_body,
+    )
+    local_chance_matches = re.findall(
+        r"\bfloat\s+([A-Za-z_$][\w$]*)\s*=\s*detectionChance\s*\(\s*ch\s*\)\s*;",
+        sleeping_body,
+    )
+    if len(chance_matches) != 1 or len(candidate_matches) != 1 or len(local_chance_matches) != 1:
+        raise JavaPatchError(
+            "Sleeping detection locals changed structurally; expected one aggregate chance, "
+            "one hostile candidate and one per-hostile detection chance"
+        )
+
+    chance_name = chance_matches[0]
+    candidate_name = candidate_matches[0]
+    local_chance_name = local_chance_matches[0]
+
     text = replace_regex_once(
         text,
         sleeping_act,
-        r"(?m)^(?P<i>[ \t]*)Char\s+closestHostile\s*=\s*null\s*;\s*$",
-        r"\g<i>Char easiestHostileToDetect = null;",
-        "Sleeping hostile candidate",
+        rf"(?m)^(?P<i>[ \t]*)float\s+{re.escape(chance_name)}\s*=\s*"
+        r"Float\.POSITIVE_INFINITY\s*;\s*$",
+        rf"\g<i>float {chance_name} = 0f;",
+        "Sleeping aggregate detection chance initializer",
     )
 
     mob = find_class(text, "Mob")
@@ -180,8 +194,8 @@ try:
     text = replace_regex_count(
         text,
         sleeping_act,
-        r"bestChance\s*=\s*Float\.POSITIVE_INFINITY\s*;",
-        "bestChance = 0f;",
+        rf"{re.escape(local_chance_name)}\s*=\s*Float\.POSITIVE_INFINITY\s*;",
+        f"{local_chance_name} = 0f;",
         2,
         "Sleeping stealth exclusion",
     )
@@ -192,15 +206,15 @@ try:
     text = replace_regex_once(
         text,
         sleeping_act,
-        r"if\s*\(\s*bestChance\s*<\s*highestChance\s*\)\s*\{"
-        r"\s*highestChance\s*=\s*bestChance\s*;"
-        r"\s*closestHostile\s*=\s*ch\s*;"
+        rf"if\s*\(\s*{re.escape(local_chance_name)}\s*<\s*{re.escape(chance_name)}\s*\)\s*\{{"
+        rf"\s*{re.escape(chance_name)}\s*=\s*{re.escape(local_chance_name)}\s*;"
+        rf"\s*{re.escape(candidate_name)}\s*=\s*ch\s*;"
         r"\s*\}",
-        """if (bestChance > highestChance){
-\t\t\t\t\t\t\thighestChance = bestChance;
-\t\t\t\t\t\t\teasiestHostileToDetect = ch;
-\t\t\t\t\t\t}""",
-        "Sleeping easiest-hostile selection",
+        f"""if ({local_chance_name} > {chance_name}){{
+\t\t\t\t\t\t\t{chance_name} = {local_chance_name};
+\t\t\t\t\t\t\t{candidate_name} = ch;
+\t\t\t\t\t\t}}""",
+        "Sleeping maximum-detection selection",
     )
 
     mob = find_class(text, "Mob")
@@ -209,10 +223,10 @@ try:
     text = replace_regex_once(
         text,
         sleeping_act,
-        r"if\s*\(\s*closestHostile\s*!=\s*null\s*"
+        rf"if\s*\(\s*{re.escape(candidate_name)}\s*!=\s*null\s*"
         r"&&\s*Random\.Float\s*\(\s*\)\s*<\s*"
-        r"detectionChance\s*\(\s*closestHostile\s*\)\s*\)",
-        "if (easiestHostileToDetect != null && Random.Float() < highestChance)",
+        rf"detectionChance\s*\(\s*{re.escape(candidate_name)}\s*\)\s*\)",
+        f"if ({candidate_name} != null && Random.Float() < {chance_name})",
         "Sleeping wake roll",
     )
 
@@ -272,15 +286,14 @@ try:
     sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
     for pattern, expected, label in (
             (r"\bcoHeroHostileInFOV\s*\(\s*\)", 1, "Sleeping CoHero FOV gate"),
-            (r"\bChar\s+easiestHostileToDetect\s*=\s*null\s*;", 1,
-             "Sleeping easiest-hostile candidate"),
-            (r"bestChance\s*>\s*highestChance", 1, "Sleeping maximum-detection selection"),
-            (r"Random\.Float\s*\(\s*\)\s*<\s*highestChance", 1,
+            (rf"\bfloat\s+{re.escape(chance_name)}\s*=\s*0f\s*;", 1,
+             "Sleeping aggregate detection chance"),
+            (rf"{re.escape(local_chance_name)}\s*>\s*{re.escape(chance_name)}", 1,
+             "Sleeping maximum-detection selection"),
+            (rf"{re.escape(candidate_name)}\s*!=\s*null\s*&&\s*"
+             rf"Random\.Float\s*\(\s*\)\s*<\s*{re.escape(chance_name)}", 1,
              "Sleeping wake probability")):
         require_regex_count(text, sleeping_act, pattern, expected, label)
-
-    require_regex_count(
-        text, sleeping_act, r"\bclosestHostile\b", 0, "obsolete closest-hostile selection")
 
 except JavaPatchError as error:
     raise SystemExit(str(error))
