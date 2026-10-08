@@ -19,7 +19,7 @@ import java.util.Arrays;
 final class CoHeroNavigation {
 
     private static final int IDLE_HERO_TETHER_RADIUS = 10;
-    private static final int IDLE_ROAM_RADIUS = 4;
+    private static final int IDLE_ROAM_RADIUS = 6;
 
     private final CoHeroAlly owner;
     private int explorationTarget = -1;
