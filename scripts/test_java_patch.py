@@ -185,6 +185,7 @@ __CURSED_GUARD__
                 return false;
             }
         } else if ((currentWardEnergy + 1) > maxWardEnergy) {
+            GLog.w(Messages.get(this, "no_more_wards"));
             return false;
         }
 
