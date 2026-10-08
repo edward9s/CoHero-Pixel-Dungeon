@@ -327,7 +327,8 @@ final class CoHeroCombatController {
         }
 
         // If control resources are unavailable, fall back to immediate shielding/healing.
-        if (owner.survival().tryEmergencySurvivalPotion()) {
+        if (owner.survival().tryEmergencySurvivalPotion(
+                risk.incomingDpt, risk.immediateIncoming)) {
             return true;
         }
 
