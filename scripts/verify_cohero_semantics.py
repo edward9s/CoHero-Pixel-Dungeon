@@ -59,8 +59,6 @@ DEBUG_HISTORY_CALL = "timings().recordDebug(message);"
 DEBUG_GLOG_SINK = "GLog.i(message);"
 DEBUG_BOSS_ROUTE = 'logDebug("CoHero: " + detail);'
 DIAGNOSTICS_REPORT_FILE = 'private static final String REPORT_FILE = "cohero-diagnostics.txt";'
-OLD_DIAGNOSTICS_REPORT_FILE = 'private static final String OLD_REPORT_FILE = "cohero-timings.txt";'
-OLD_DIAGNOSTICS_DELETE = 'FileHandle oldFile = FileUtils.getFileHandle(folder + "/" + OLD_REPORT_FILE);'
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -133,12 +131,9 @@ def main() -> int:
         )
         return 1
 
-    if (DIAGNOSTICS_REPORT_FILE not in timings_source
-            or OLD_DIAGNOSTICS_REPORT_FILE not in timings_source
-            or OLD_DIAGNOSTICS_DELETE not in timings_source):
+    if DIAGNOSTICS_REPORT_FILE not in timings_source:
         print(
-            "CoHero diagnostics must write cohero-diagnostics.txt and remove the obsolete "
-            "cohero-timings.txt file on save.",
+            "CoHero diagnostics must write cohero-diagnostics.txt.",
             file=sys.stderr,
         )
         return 1
