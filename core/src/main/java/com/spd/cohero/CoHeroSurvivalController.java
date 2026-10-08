@@ -30,6 +30,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHaste;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfHealing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfInvisibility;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.PotionOfPurity;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfShielding;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfEarthenArmor;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStamina;
@@ -102,6 +103,22 @@ final class CoHeroSurvivalController {
                 || (curable > 0 && owner.HT > 0 && owner.HP * 100 < owner.HT * 50);
     }
 
+    // Short, already-safe fights do not justify spending a long-duration combat buff.
+    private boolean briefSafeFight(ArrayList<Mob> threats, CoHeroCombatRisk risk) {
+        if (risk.outgoingDpt <= 0.01f
+                || risk.ttd <= 5f
+                || risk.immediateIncoming * 1.35f >= owner.HP + owner.shielding()) {
+            return false;
+        }
+        float remainingHp = 0f;
+        for (Mob threat : threats) {
+            if (threat != null && threat.isAlive()) {
+                remainingHp += Math.max(0, threat.HP);
+            }
+        }
+        return remainingHp > 0f && remainingHp / risk.outgoingDpt <= 2f;
+    }
+
     boolean tryUseCombatStamina(
             Mob targetMob, ArrayList<Mob> threats, CoHeroCombatRisk risk) {
         if (risk == null) {
@@ -129,7 +146,8 @@ final class CoHeroSurvivalController {
                 && outgoing > 0.01f
                 && targetMob.HP <= outgoing;
 
-        if (shortTrivialFight || (!multipleThreats && !rangedPressure && !bossFight)) {
+        if (shortTrivialFight || briefSafeFight(threats, risk)
+                || (!multipleThreats && !rangedPressure && !bossFight)) {
             return false;
         }
 
@@ -370,7 +388,7 @@ final class CoHeroSurvivalController {
         boolean hardFight = threats.size() >= 2
                 || Char.hasProp(targetMob, Char.Property.BOSS)
                 || Char.hasProp(targetMob, Char.Property.MINIBOSS);
-        if (!hardFight) {
+        if (!hardFight || briefSafeFight(threats, risk)) {
             return false;
         }
 
@@ -390,7 +408,7 @@ final class CoHeroSurvivalController {
         if (!owner.isBelowLowHealthThreshold()) {
             return false;
         }
-        return consumeSurvivalPotion(false);
+        return tryConsumeHealingPotion() || tryConsumeShieldingPotion();
     }
 
     boolean tryUseInvisibilityPotion() {
@@ -429,29 +447,49 @@ final class CoHeroSurvivalController {
         return true;
     }
 
-    boolean tryEmergencySurvivalPotion() {
-        return consumeSurvivalPotion(true);
-    }
+    boolean tryEmergencySurvivalPotion(float incomingDpt, float immediateIncoming) {
+        if (incomingDpt < 0f || immediateIncoming < 0f) {
+            throw new IllegalArgumentException("Emergency incoming damage must be non-negative");
+        }
+        float effectiveHp = owner.HP + owner.shielding();
+        if (effectiveHp <= 0f) {
+            return false;
+        }
+        float survivalTurns = incomingDpt <= 0.01f
+                ? Float.POSITIVE_INFINITY
+                : effectiveHp / incomingDpt;
+        boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
+        if (!immediateLethal && survivalTurns > 3f) {
+            return false;
+        }
 
-    private boolean consumeSurvivalPotion(boolean shieldingFirst) {
-        if (shieldingFirst && tryConsumeShieldingPotion()) {
+        // Immediate shielding is useful even at full HP when the next volley could kill us.
+        if (tryConsumeShieldingPotion()) {
             return true;
         }
 
-        // Healing is the normal first choice, but not during a trapped emergency because its
-        // recovery is spread over future turns.
-        if (owner.buff(Healing.class) == null) {
-            Potion healing = owner.inventory().takeOneAutoHealingPotion();
-            if (healing != null) {
-                PotionOfHealing.cure(owner);
-                PotionOfHealing.heal(owner);
-                Sample.INSTANCE.play(Assets.Sounds.DRINK);
-                owner.spendActionTime(Actor.TICK);
-                return true;
-            }
+        // A healing potion restores HP over time. Do not burn one for minor scratches
+        // merely because no movement/control escape was found.
+        return owner.HT > 0
+                && owner.HP * 100 <= owner.HT * 60
+                && tryConsumeHealingPotion();
+    }
+
+    private boolean tryConsumeHealingPotion() {
+        if (owner.buff(Healing.class) != null) {
+            return false;
+        }
+        Potion healing = owner.inventory().takeOneAutoHealingPotion();
+        if (healing == null) {
+            return false;
         }
 
-        return shieldingFirst ? false : tryConsumeShieldingPotion();
+        PotionOfHealing.cure(owner);
+        PotionOfHealing.heal(owner);
+        Catalog.countUse(healing.getClass());
+        Sample.INSTANCE.play(Assets.Sounds.DRINK);
+        owner.spendActionTime(Actor.TICK);
+        return true;
     }
 
     private boolean tryConsumeShieldingPotion() {
@@ -467,6 +505,7 @@ final class CoHeroSurvivalController {
 
         int amount = (int) (0.6f * owner.HT + 10);
         Buff.affect(owner, Barrier.class).setShield(amount);
+        Catalog.countUse(PotionOfShielding.class);
         CharSprite sprite = owner.attachedSprite();
         if (sprite != null) {
             sprite.showStatusWithIcon(
