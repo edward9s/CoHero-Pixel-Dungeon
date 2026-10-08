@@ -317,11 +317,17 @@ final class CoHeroCombatController {
             return true;
         }
 
+        // Area fear is the emergency answer to being surrounded: keep it before
+        // uncontrolled teleport, but only if it can affect unprotected threats.
+        if (owner.controlItems().tryEmergencyFearScroll(risk, threats)) {
+            return true;
+        }
+
         if (owner.controlItems().tryUseTeleportationScroll()) {
             return true;
         }
 
-        // Potions/scrolls remain the next emergency layer.
+        // Invisibility is the remaining emergency escape resource.
         if (owner.controlItems().tryEmergencyEscapeConsumable(risk, threats)) {
             return true;
         }
