@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_title_scene.py <TitleScene.java>")
 
 path = Path(sys.argv[1])
-title = path.read_text(encoding="utf-8")
+title = java_source(path.read_text(encoding="utf-8"))
 
 title_version_old = 'version = new BitmapText( "v" + Game.version, pixelFont);'
 title_version_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), pixelFont);'

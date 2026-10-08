@@ -2,20 +2,19 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
+from java_patch import replace_code_once as replace_once
+
 if len(sys.argv) != 2:
     raise SystemExit(
         "usage: patch_cohero_ring_traits.py <RingOfArcana.java>"
     )
 
 arcana_path = Path(sys.argv[1])
-arcana = arcana_path.read_text(encoding="utf-8")
+arcana = java_source(arcana_path.read_text(encoding="utf-8"))
 
 
-def replace_once(text, old, new, label):
-    count = text.count(old)
-    if count != 1:
-        raise SystemExit(f"expected exactly one {label} anchor, found {count}")
-    return text.replace(old, new, 1)
 
 
 # Huntress intrinsic Ring of Arcana +0. Weapon enchantments and armor glyphs both

@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_spirit_bow.py <SpiritBow.java>")
 
 path = Path(sys.argv[1])
-bow = path.read_text(encoding="utf-8")
+bow = java_source(path.read_text(encoding="utf-8"))
 
 bow_damage_old = """	@Override
 	public int damageRoll(Char owner) {

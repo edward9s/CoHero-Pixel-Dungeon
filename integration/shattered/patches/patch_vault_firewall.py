@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import insert_after_code_once, java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_vault_firewall.py <VaultBossElemental.java>")
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+text = java_source(path.read_text(encoding="utf-8"))
 
 anchor = """	public static class FireWall extends Buff {
 
@@ -45,8 +47,8 @@ replacement = """	public static class FireWall extends Buff {
 
 if "coHeroDangerAt" in text:
     raise SystemExit("CoHero FireWall seam is already present")
-if text.count(anchor) != 1:
-    raise SystemExit(f"expected exactly one FireWall anchor, found {text.count(anchor)}")
-
-path.write_text(text.replace(anchor, replacement, 1), encoding="utf-8")
+addition = replacement[len(anchor):]
+text = java_source(insert_after_code_once(
+    text, anchor, addition, "Vault firewall hazard probe"))
+path.write_text(text, encoding="utf-8")
 print(f"patched {path}")

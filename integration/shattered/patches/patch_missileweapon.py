@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_missileweapon.py <MissileWeapon.java>")
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+text = java_source(path.read_text(encoding="utf-8"))
 
 field_anchor = "\tpublic MissileWeapon parent;\n"
 field_patch = field_anchor + "\n\t// Non-Hero owner context used only while CoHero resolves a thrown attack.\n\tprivate transient Char coHeroUser;\n"

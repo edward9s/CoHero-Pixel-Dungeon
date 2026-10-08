@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_mages_staff.py <MagesStaff.java>")
 
 path = Path(sys.argv[1])
-staff = path.read_text(encoding="utf-8")
+staff = java_source(path.read_text(encoding="utf-8"))
 
 staff_anchor = """	public void applyWandChargeBuff(Char owner){
 		if (wand != null){

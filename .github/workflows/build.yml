@@ -51,8 +51,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python -m compileall -q cohero/integration/shattered/patches cohero/scripts
           python cohero/scripts/verify_source_layout.py cohero
           python cohero/scripts/verify_cohero_semantics.py cohero
+          python cohero/scripts/test_java_patch.py cohero
 
       - name: Overlay CoHero source
         shell: bash

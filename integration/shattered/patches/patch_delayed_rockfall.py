@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import insert_after_code_once, java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_delayed_rockfall.py <DelayedRockFall.java>")
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+text = java_source(path.read_text(encoding="utf-8"))
 
 anchor = """	@Override
 	public void fx(boolean on) {
@@ -21,9 +23,8 @@ replacement = """	@Override
 			}
 """
 
-if text.count(anchor) != 1:
-    raise SystemExit(f"expected exactly one DelayedRockFall fx anchor, found {text.count(anchor)}")
-
-text = text.replace(anchor, replacement, 1)
+addition = replacement[len(anchor):]
+text = java_source(insert_after_code_once(
+    text, anchor, addition, "DelayedRockFall hazard hook"))
 path.write_text(text, encoding="utf-8")
 print(f"patched {path}")

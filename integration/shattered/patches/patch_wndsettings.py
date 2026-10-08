@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 MARKER = "// COHERO_SETTINGS_TAB"
 
 
@@ -17,7 +19,7 @@ def main() -> None:
         raise SystemExit("usage: patch_wndsettings.py <WndSettings.java>")
 
     path = Path(sys.argv[1])
-    text = path.read_text(encoding="utf-8")
+    text = java_source(path.read_text(encoding="utf-8"))
 
     if MARKER in text:
         raise SystemExit(f"CoHero settings tab already exists in {path}")

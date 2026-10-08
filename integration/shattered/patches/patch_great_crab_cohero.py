@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_great_crab_cohero.py <GreatCrab.java>")
 
 path = Path(sys.argv[1])
-great_crab = path.read_text(encoding="utf-8")
+great_crab = java_source(path.read_text(encoding="utf-8"))
 
 great_crab_anchor = """		if (enemySeen
 				&& state != SLEEPING

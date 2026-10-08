@@ -1,302 +1,304 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import sys
+
+from java_patch import java_source
+
+from java_patch import (
+    JavaPatchError,
+    find_class,
+    find_method,
+    insert_after,
+    replace_regex_count,
+    replace_regex_once,
+    require_regex_count,
+    require_token_count,
+)
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_mob_cohero.py <Mob.java>")
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+text = java_source(path.read_text(encoding="utf-8"))
 
-anchor = """	protected boolean canAttack( Char enemy ) {
-		if (Dungeon.level.adjacent( pos, enemy.pos )){
-			return true;
-		}
-		for (ChampionEnemy buff : buffs(ChampionEnemy.class)){
-			if (buff.canAttackWithExtraReach( enemy )){
-				return true;
-			}
-		}
-		return false;
-	}
+PROBE_METHODS = """
 
+\t/**
+\t * CoHero tactical probe. Evaluates the mob's real overridden canAttack() semantics from a
+\t * hypothetical source cell, then restores the live position immediately.
+\t */
+\tpublic boolean coHeroCanAttackFrom(int sourcePos, Char enemy) {
+\t\tif (enemy == null || !Dungeon.level.insideMap(sourcePos)) {
+\t\t\treturn false;
+\t\t}
+\t\tint livePos = pos;
+\t\ttry {
+\t\t\tpos = sourcePos;
+\t\t\treturn canAttack(enemy);
+\t\t} finally {
+\t\t\tpos = livePos;
+\t\t}
+\t}
+
+\t/**
+\t * CoHero ranged-damage probe. Standard non-adjacent attacks use damageRoll(), so that is the
+\t * default. Mobs with a distinct ranged attack override this method. A negative value means the
+\t * ranged effect has no directly comparable damage estimate.
+\t */
+\tpublic int coHeroRangedDamageRoll(Char enemy) {
+\t\treturn damageRoll();
+\t}
+
+\t/**
+\t * CoHero strategic relationship seam. Returns true only when killing this mob immediately
+\t * removes the supplied dependent enemy as part of the mob's own death semantics.
+\t */
+\tpublic boolean coHeroDeathRemoves(Mob dependent) {
+\t\treturn false;
+\t}
+
+\t/**
+\t * CoHero-only surprise semantics. This deliberately does not feed Mob.surprisedBy(), because
+\t * the stock path also records Hero sneak-attack statistics and Hero-specific surprise effects.
+\t */
+\tpublic boolean coHeroSurprisedBy(Char attacker) {
+\t\treturn attacker instanceof com.spd.cohero.CoHeroAlly
+\t\t\t\t&& (attacker.invisible > 0
+\t\t\t\t\t|| !enemySeen
+\t\t\t\t\t|| (fieldOfView != null
+\t\t\t\t\t\t&& fieldOfView.length == Dungeon.level.length()
+\t\t\t\t\t\t&& !fieldOfView[attacker.pos]))
+\t\t\t\t&& attacker.canSurpriseAttack();
+\t}
+
+\t/**
+\t * CoHero navigation probe for sleeping-enemy wake risk. Uses the mob's live SLEEPING
+\t * implementation, including stealth-gameplay overrides, at a hypothetical hostile cell.
+\t * The hostile position is restored before returning.
+\t */
+\tpublic float coHeroSleepingDetectionChanceAt(Char hostile, int hostilePos) {
+\t\tif (hostile == null
+\t\t\t\t|| state != SLEEPING
+\t\t\t\t|| hostile.invisible > 0
+\t\t\t\t|| fieldOfView == null
+\t\t\t\t|| hostilePos < 0
+\t\t\t\t|| hostilePos >= fieldOfView.length
+\t\t\t\t|| !fieldOfView[hostilePos]) {
+\t\t\treturn 0f;
+\t\t}
+\t\tif (!(SLEEPING instanceof Sleeping)) {
+\t\t\tthrow new IllegalStateException("Mob SLEEPING state is not a Sleeping implementation");
+\t\t}
+
+\t\tint livePos = hostile.pos;
+\t\ttry {
+\t\t\thostile.pos = hostilePos;
+\t\t\tif (hostile.flying && distance(hostile) >= 2) {
+\t\t\t\treturn 0f;
+\t\t\t}
+\t\t\treturn Math.max(0f, ((Sleeping) SLEEPING).detectionChance(hostile));
+\t\t} finally {
+\t\t\thostile.pos = livePos;
+\t\t}
+\t}
+
+\t/**
+\t * Sleeping AI normally enters its hostile scan only when chooseEnemy() produced a visible
+\t * target. A sleeping mob can retain a stale Hero target, which makes that gate false even when
+\t * CoHero is standing in its FOV. This helper repairs only that gate; the stock Sleeping logic
+\t * still owns stealth, invisibility, flying, distance, RNG and the actual awaken transition.
+\t */
+\tprivate boolean coHeroHostileInFOV() {
+\t\tif (fieldOfView == null) {
+\t\t\treturn false;
+\t\t}
+\t\tfor (Char ch : Actor.chars()) {
+\t\t\tif (ch instanceof com.spd.cohero.CoHeroAlly
+\t\t\t\t\t&& ch.isAlive()
+\t\t\t\t\t&& ch.invisible <= 0
+\t\t\t\t\t&& ch.alignment != alignment
+\t\t\t\t\t&& ch.alignment != Alignment.NEUTRAL
+\t\t\t\t\t&& ch.pos >= 0
+\t\t\t\t\t&& ch.pos < fieldOfView.length
+\t\t\t\t\t&& fieldOfView[ch.pos]) {
+\t\t\t\treturn true;
+\t\t\t}
+\t\t}
+\t\treturn false;
+\t}
 """
 
-patch = anchor + """	/**
-	 * CoHero tactical probe. Evaluates the mob's real overridden canAttack() semantics from a
-	 * hypothetical source cell, then restores the live position immediately.
-	 */
-	public boolean coHeroCanAttackFrom(int sourcePos, Char enemy) {
-		if (enemy == null || !Dungeon.level.insideMap(sourcePos)) {
-			return false;
-		}
-		int livePos = pos;
-		try {
-			pos = sourcePos;
-			return canAttack(enemy);
-		} finally {
-			pos = livePos;
-		}
-	}
+try:
+    if "coHeroCanAttackFrom(" in text:
+        raise JavaPatchError("CoHero Mob integration is already present")
 
-	/**
-	 * CoHero ranged-damage probe. Standard non-adjacent attacks use damageRoll(), so that is the
-	 * default. Mobs with a distinct ranged attack override this method. A negative value means the
-	 * ranged effect has no directly comparable damage estimate.
-	 */
-	public int coHeroRangedDamageRoll(Char enemy) {
-		return damageRoll();
-	}
+    mob = find_class(text, "Mob")
+    can_attack = find_method(text, "canAttack", ("Char",), mob)
 
-	/**
-	 * CoHero strategic relationship seam. Returns true only when killing this mob immediately
-	 * removes the supplied dependent enemy as part of the mob's own death semantics.
-	 */
-	public boolean coHeroDeathRemoves(Mob dependent) {
-		return false;
-	}
+    # Preserve the host's actual canAttack implementation and attach CoHero probes after it.
+    text = insert_after(text, can_attack, PROBE_METHODS)
 
-	/**
-	 * CoHero-only surprise semantics. This deliberately does not feed Mob.surprisedBy(), because
-	 * the stock path also records Hero sneak-attack statistics and Hero-specific surprise effects.
-	 */
-	public boolean coHeroSurprisedBy(Char attacker) {
-		return attacker instanceof com.spd.cohero.CoHeroAlly
-				&& (attacker.invisible > 0
-					|| !enemySeen
-					|| (fieldOfView != null
-						&& fieldOfView.length == Dungeon.level.length()
-						&& !fieldOfView[attacker.pos]))
-				&& attacker.canSurpriseAttack();
-	}
+    mob = find_class(text, "Mob")
+    sleeping = find_class(text, "Sleeping", mob)
+    sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
 
-	/**
-	 * CoHero navigation probe for sleeping-enemy wake risk. Uses the mob's live SLEEPING
-	 * implementation, including stealth-gameplay overrides, at a hypothetical hostile cell.
-	 * The hostile position is restored before returning.
-	 */
-	public float coHeroSleepingDetectionChanceAt(Char hostile, int hostilePos) {
-		if (hostile == null
-				|| state != SLEEPING
-				|| hostile.invisible > 0
-				|| fieldOfView == null
-				|| hostilePos < 0
-				|| hostilePos >= fieldOfView.length
-				|| !fieldOfView[hostilePos]) {
-			return 0f;
-		}
-		if (!(SLEEPING instanceof Sleeping)) {
-			throw new IllegalStateException("Mob SLEEPING state is not a Sleeping implementation");
-		}
-
-		int livePos = hostile.pos;
-		try {
-			hostile.pos = hostilePos;
-			if (hostile.flying && distance(hostile) >= 2) {
-				return 0f;
-			}
-			return Math.max(0f, ((Sleeping) SLEEPING).detectionChance(hostile));
-		} finally {
-			hostile.pos = livePos;
-		}
-	}
-
-	/**
-	 * Sleeping AI normally enters its hostile scan only when chooseEnemy() produced a visible
-	 * target. A sleeping mob can retain a stale Hero target, which makes that gate false even when
-	 * CoHero is standing in its FOV. This helper repairs only that gate; the stock Sleeping logic
-	 * still owns stealth, invisibility, flying, distance, RNG and the actual awaken transition.
-	 */
-	private boolean coHeroHostileInFOV() {
-		if (fieldOfView == null) {
-			return false;
-		}
-		for (Char ch : Actor.chars()) {
-			if (ch instanceof com.spd.cohero.CoHeroAlly
-					&& ch.isAlive()
-					&& ch.invisible <= 0
-					&& ch.alignment != alignment
-					&& ch.alignment != Alignment.NEUTRAL
-					&& ch.pos >= 0
-					&& ch.pos < fieldOfView.length
-					&& fieldOfView[ch.pos]) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-"""
-
-if "coHeroCanAttackFrom" in text:
-    raise SystemExit("CoHero Mob attack probe is already present")
-if text.count(anchor) != 1:
-    raise SystemExit(f"expected exactly one Mob.canAttack anchor, found {text.count(anchor)}")
-
-text = text.replace(anchor, patch, 1)
-
-
-sleep_anchor = """			if (enemyInFOV || (enemy != null && enemy.invisible > 0)) {
-"""
-sleep_patch = """			if (enemyInFOV
-					|| (enemy != null && enemy.invisible > 0)
-					|| coHeroHostileInFOV()) {
-"""
-if "|| coHeroHostileInFOV())" in text:
-    raise SystemExit("CoHero sleeping wake gate is already present")
-if text.count(sleep_anchor) != 1:
-    raise SystemExit(f"expected exactly one Mob.Sleeping wake gate, found {text.count(sleep_anchor)}")
-text = text.replace(sleep_anchor, sleep_patch, 1)
-
-sleep_selection_anchor = """			if (enemyInFOV
-					|| (enemy != null && enemy.invisible > 0)
-					|| coHeroHostileInFOV()) {
-
-				float highestChance = Float.POSITIVE_INFINITY;
-				Char closestHostile = null;
-
-				for (Char ch : Actor.chars()){
-					if (fieldOfView[ch.pos] && ch.invisible == 0 && ch.alignment != alignment && ch.alignment != Alignment.NEUTRAL){
-						float bestChance = detectionChance(ch);
-						//silent steps rogue talent, which also applies to rogue's shadow clone
-						if ((ch instanceof Hero || ch instanceof ShadowClone.ShadowAlly)
-								&& Dungeon.hero.hasTalent(Talent.SILENT_STEPS)){
-							if (distance(ch) >= 4 - Dungeon.hero.pointsInTalent(Talent.SILENT_STEPS)) {
-								bestChance = Float.POSITIVE_INFINITY;
-							}
-						}
-						//flying characters are naturally stealthy
-						if (ch.flying && distance(ch) >= 2){
-							bestChance = Float.POSITIVE_INFINITY;
-						}
-						if (bestChance < highestChance){
-							highestChance = bestChance;
-							closestHostile = ch;
-						}
-					}
-				}
-
-				if (closestHostile != null && Random.Float() < detectionChance(closestHostile)) {
-"""
-sleep_selection_patch = """			if (enemyInFOV
-					|| (enemy != null && enemy.invisible > 0)
-					|| coHeroHostileInFOV()) {
-
-				float highestChance = 0f;
-				Char easiestHostileToDetect = null;
-
-				for (Char ch : Actor.chars()){
-					if (fieldOfView[ch.pos] && ch.invisible == 0 && ch.alignment != alignment && ch.alignment != Alignment.NEUTRAL){
-						float bestChance = detectionChance(ch);
-						//silent steps rogue talent, which also applies to rogue's shadow clone
-						if ((ch instanceof Hero || ch instanceof ShadowClone.ShadowAlly)
-								&& Dungeon.hero.hasTalent(Talent.SILENT_STEPS)){
-							if (distance(ch) >= 4 - Dungeon.hero.pointsInTalent(Talent.SILENT_STEPS)) {
-								bestChance = 0f;
-							}
-						}
-						//flying characters are naturally stealthy
-						if (ch.flying && distance(ch) >= 2){
-							bestChance = 0f;
-						}
-						if (bestChance > highestChance){
-							highestChance = bestChance;
-							easiestHostileToDetect = ch;
-						}
-					}
-				}
-
-				if (easiestHostileToDetect != null && Random.Float() < highestChance) {
-"""
-if "Char easiestHostileToDetect = null;" in text:
-    raise SystemExit("CoHero sleeping hostile selection fix is already present")
-if text.count(sleep_selection_anchor) != 1:
-    raise SystemExit(
-        f"expected exactly one Mob.Sleeping hostile selection block, found {text.count(sleep_selection_anchor)}"
+    text = replace_regex_once(
+        text,
+        sleeping_act,
+        r"if\s*\(\s*enemyInFOV\s*\|\|\s*"
+        r"\(\s*enemy\s*!=\s*null\s*&&\s*enemy\.invisible\s*>\s*0\s*\)\s*\)\s*\{",
+        """if (enemyInFOV
+\t\t\t\t\t|| (enemy != null && enemy.invisible > 0)
+\t\t\t\t\t|| coHeroHostileInFOV()) {""",
+        "Sleeping wake gate",
     )
-text = text.replace(sleep_selection_anchor, sleep_selection_patch, 1)
 
+    mob = find_class(text, "Mob")
+    sleeping = find_class(text, "Sleeping", mob)
+    sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
+    sleeping_body = text[sleeping_act.body_start:sleeping_act.body_end]
 
-attack_anchor = """	protected boolean doAttack( Char enemy ) {
-		
-		if (sprite != null && (sprite.visible || enemy.sprite.visible)) {
-			sprite.attack( enemy.pos );
-			return false;
-			
-		} else {
-			attack( enemy );
-			Invisibility.dispel(this);
-			spend( attackDelay() );
-			return true;
-		}
-	}
-	
-	@Override
-	public void onAttackComplete() {
-		attack( enemy );
-		Invisibility.dispel(this);
-		spend( attackDelay() );
-		super.onAttackComplete();
-	}
-"""
-
-attack_patch = """	protected boolean doAttack( Char enemy ) {
-		
-		if (sprite != null && (sprite.visible || enemy.sprite.visible)) {
-			sprite.attack( enemy.pos );
-			return false;
-			
-		} else {
-			com.spd.cohero.CoHeroRemoteView.attack(this, enemy.pos);
-			attack( enemy );
-			Invisibility.dispel(this);
-			spend( attackDelay() );
-			return true;
-		}
-	}
-	
-	@Override
-	public void onAttackComplete() {
-		attack( enemy );
-		Invisibility.dispel(this);
-		spend( attackDelay() );
-		super.onAttackComplete();
-	}
-"""
-
-if "CoHeroRemoteView.attack(this, enemy.pos)" in text:
-    raise SystemExit("CoHero remote Mob attack hook is already present")
-if text.count(attack_anchor) != 1:
-    raise SystemExit(
-        f"expected exactly one Mob attack presentation block, found {text.count(attack_anchor)}"
+    chance_matches = re.findall(
+        r"\bfloat\s+([A-Za-z_$][\w$]*)\s*=\s*Float\.POSITIVE_INFINITY\s*;",
+        sleeping_body,
     )
-text = text.replace(attack_anchor, attack_patch, 1)
+    candidate_matches = re.findall(
+        r"\bChar\s+([A-Za-z_$][\w$]*)\s*=\s*null\s*;",
+        sleeping_body,
+    )
+    local_chance_matches = re.findall(
+        r"\bfloat\s+([A-Za-z_$][\w$]*)\s*=\s*detectionChance\s*\(\s*ch\s*\)\s*;",
+        sleeping_body,
+    )
+    if len(chance_matches) != 1 or len(candidate_matches) != 1 or len(local_chance_matches) != 1:
+        raise JavaPatchError(
+            "Sleeping detection locals changed structurally; expected one aggregate chance, "
+            "one hostile candidate and one per-hostile detection chance"
+        )
 
-defense_anchor = """		if ( !surprisedBy(enemy)
-				&& paralysed == 0
-"""
-defense_patch = """		if ( !surprisedBy(enemy)
-				&& !coHeroSurprisedBy(enemy)
-				&& paralysed == 0
-"""
-if text.count(defense_anchor) != 1:
-    raise SystemExit(f"expected exactly one Mob defense anchor, found {text.count(defense_anchor)}")
-text = text.replace(defense_anchor, defense_patch, 1)
+    chance_name = chance_matches[0]
+    candidate_name = candidate_matches[0]
+    local_chance_name = local_chance_matches[0]
 
-hold_anchor = """		for (Mob mob : level.mobs.toArray( new Mob[0] )) {
-			//preserve directable allies or empowered intelligent allies no matter where they are
-"""
-hold_patch = """		for (Mob mob : level.mobs.toArray( new Mob[0] )) {
-			// CoHero owns its own cross-floor lifecycle/state and must never enter the stock
-			// heldAllies transport, otherwise special-floor exclusion can be bypassed.
-			if (mob instanceof com.spd.cohero.CoHeroAlly) {
-				continue;
-			}
-			//preserve directable allies or empowered intelligent allies no matter where they are
-"""
-if text.count(hold_anchor) != 1:
-    raise SystemExit(f"expected exactly one Mob.holdAllies anchor, found {text.count(hold_anchor)}")
-text = text.replace(hold_anchor, hold_patch, 1)
+    text = replace_regex_once(
+        text,
+        sleeping_act,
+        rf"(?m)^(?P<i>[ \t]*)float\s+{re.escape(chance_name)}\s*=\s*"
+        r"Float\.POSITIVE_INFINITY\s*;\s*$",
+        rf"\g<i>float {chance_name} = 0f;",
+        "Sleeping aggregate detection chance initializer",
+    )
+
+    mob = find_class(text, "Mob")
+    sleeping = find_class(text, "Sleeping", mob)
+    sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
+    text = replace_regex_count(
+        text,
+        sleeping_act,
+        rf"{re.escape(local_chance_name)}\s*=\s*Float\.POSITIVE_INFINITY\s*;",
+        f"{local_chance_name} = 0f;",
+        2,
+        "Sleeping stealth exclusion",
+    )
+
+    mob = find_class(text, "Mob")
+    sleeping = find_class(text, "Sleeping", mob)
+    sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
+    text = replace_regex_once(
+        text,
+        sleeping_act,
+        rf"if\s*\(\s*{re.escape(local_chance_name)}\s*<\s*{re.escape(chance_name)}\s*\)\s*\{{"
+        rf"\s*{re.escape(chance_name)}\s*=\s*{re.escape(local_chance_name)}\s*;"
+        rf"\s*{re.escape(candidate_name)}\s*=\s*ch\s*;"
+        r"\s*\}",
+        f"""if ({local_chance_name} > {chance_name}){{
+\t\t\t\t\t\t\t{chance_name} = {local_chance_name};
+\t\t\t\t\t\t\t{candidate_name} = ch;
+\t\t\t\t\t\t}}""",
+        "Sleeping maximum-detection selection",
+    )
+
+    mob = find_class(text, "Mob")
+    sleeping = find_class(text, "Sleeping", mob)
+    sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
+    text = replace_regex_once(
+        text,
+        sleeping_act,
+        rf"if\s*\(\s*{re.escape(candidate_name)}\s*!=\s*null\s*"
+        r"&&\s*Random\.Float\s*\(\s*\)\s*<\s*"
+        rf"detectionChance\s*\(\s*{re.escape(candidate_name)}\s*\)\s*\)",
+        f"if ({candidate_name} != null && Random.Float() < {chance_name})",
+        "Sleeping wake roll",
+    )
+
+    mob = find_class(text, "Mob")
+    do_attack = find_method(text, "doAttack", ("Char",), mob)
+    text = replace_regex_once(
+        text,
+        do_attack,
+        r"(?m)^(?P<i>[ \t]*)attack\s*\(\s*enemy\s*\)\s*;\s*$",
+        r"""\g<i>com.spd.cohero.CoHeroRemoteView.attack(this, enemy.pos);
+\g<i>attack( enemy );""",
+        "Mob remote attack resolution",
+    )
+
+    mob = find_class(text, "Mob")
+    defense_skill = find_method(text, "defenseSkill", ("Char",), mob)
+    text = replace_regex_once(
+        text,
+        defense_skill,
+        r"!\s*surprisedBy\s*\(\s*enemy\s*\)\s*"
+        r"&&\s*paralysed\s*==\s*0",
+        """!surprisedBy(enemy)
+\t\t\t\t&& !coHeroSurprisedBy(enemy)
+\t\t\t\t&& paralysed == 0""",
+        "Mob CoHero surprise defense",
+    )
+
+    mob = find_class(text, "Mob")
+    hold_allies = find_method(text, "holdAllies", ("Level", "int"), mob)
+    text = replace_regex_once(
+        text,
+        hold_allies,
+        r"(?m)^(?P<i>[ \t]*)for\s*\(\s*Mob\s+mob\s*:\s*"
+        r"level\.mobs\.toArray\s*\(\s*new\s+Mob\s*\[\s*0\s*\]\s*\)\s*\)\s*\{\s*$",
+        r"""\g<i>for (Mob mob : level.mobs.toArray( new Mob[0] )) {
+\g<i>\t// CoHero owns its own cross-floor lifecycle/state and must never enter the stock
+\g<i>\t// heldAllies transport, otherwise special-floor exclusion can be bypassed.
+\g<i>\tif (mob instanceof com.spd.cohero.CoHeroAlly) {
+\g<i>\t\tcontinue;
+\g<i>\t}""",
+        "Mob held-allies exclusion",
+    )
+
+    # Postconditions validate the resulting behavior contract.
+    for token, count, label in (
+            ("public boolean coHeroCanAttackFrom(", 1, "Mob attack probe"),
+            ("public int coHeroRangedDamageRoll(", 1, "Mob ranged-damage probe"),
+            ("public boolean coHeroDeathRemoves(", 1, "Mob dependent-death probe"),
+            ("public float coHeroSleepingDetectionChanceAt(", 1, "Mob sleeping detection probe"),
+            ("com.spd.cohero.CoHeroRemoteView.attack(this, enemy.pos);", 1, "remote attack hook"),
+            ("&& !coHeroSurprisedBy(enemy)", 1, "CoHero surprise defense"),
+            ("if (mob instanceof com.spd.cohero.CoHeroAlly)", 1, "held-allies exclusion")):
+        require_token_count(text, token, count, label)
+
+    mob = find_class(text, "Mob")
+    sleeping = find_class(text, "Sleeping", mob)
+    sleeping_act = find_method(text, "act", ("boolean", "boolean"), sleeping)
+    for pattern, expected, label in (
+            (r"\bcoHeroHostileInFOV\s*\(\s*\)", 1, "Sleeping CoHero FOV gate"),
+            (rf"\bfloat\s+{re.escape(chance_name)}\s*=\s*0f\s*;", 1,
+             "Sleeping aggregate detection chance"),
+            (rf"{re.escape(local_chance_name)}\s*>\s*{re.escape(chance_name)}", 1,
+             "Sleeping maximum-detection selection"),
+            (rf"{re.escape(candidate_name)}\s*!=\s*null\s*&&\s*"
+             rf"Random\.Float\s*\(\s*\)\s*<\s*{re.escape(chance_name)}", 1,
+             "Sleeping wake probability")):
+        require_regex_count(text, sleeping_act, pattern, expected, label)
+
+except JavaPatchError as error:
+    raise SystemExit(str(error))
 
 path.write_text(text, encoding="utf-8")
 print(f"patched {path}")

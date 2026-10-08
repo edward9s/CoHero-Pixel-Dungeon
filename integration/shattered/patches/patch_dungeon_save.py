@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_dungeon_save.py <Dungeon.java>")
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+text = java_source(path.read_text(encoding="utf-8"))
 
 save_old = "\t\t\tbundle.put( HERO, hero );\n"
 save_new = save_old + "\t\t\tcom.spd.cohero.CoHero.storeGame(bundle);\n"

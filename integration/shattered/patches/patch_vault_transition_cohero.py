@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 3:
     raise SystemExit(
         "usage: patch_vault_transition_cohero.py <VaultLevel.java> <EscapeCrystal.java>"
@@ -10,8 +12,8 @@ if len(sys.argv) != 3:
 vault_level = Path(sys.argv[1])
 escape_crystal = Path(sys.argv[2])
 
-vault_text = vault_level.read_text(encoding="utf-8")
-crystal_text = escape_crystal.read_text(encoding="utf-8")
+vault_text = java_source(vault_level.read_text(encoding="utf-8"))
+crystal_text = java_source(escape_crystal.read_text(encoding="utf-8"))
 
 marker = "com.spd.cohero.CoHero.captureCompanionStateForForcedTransition"
 
