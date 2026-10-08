@@ -16,6 +16,7 @@ from java_patch import (  # noqa: E402
     find_class,
     find_method,
     replace_regex_once,
+    replace_code_once,
 )
 
 
@@ -85,6 +86,36 @@ class Sample {
         pass
     else:
         raise AssertionError("missing scoped semantic anchor must fail fast")
+
+    token_source = """class TokenFixture {
+        void f() {
+            int value = 1; // upstream comment
+            value += 2;
+        }
+    }"""
+    token_anchor = """void f(){
+        int value=1;
+        value += 2;
+    }"""
+    token_replacement = """void f() {
+        int value = 3;
+    }"""
+    token_patched = replace_code_once(
+        token_source, token_anchor, token_replacement, "token fallback fixture")
+    if "int value = 3;" not in token_patched or "value += 2;" in token_patched:
+        raise AssertionError("token-aware fallback did not tolerate whitespace/comment drift")
+
+    try:
+        replace_code_once(
+            "class A { int x; int x; }",
+            "int x;",
+            "int y;",
+            "ambiguous token anchor",
+        )
+    except JavaPatchError:
+        pass
+    else:
+        raise AssertionError("ambiguous token-equivalent anchors must fail fast")
 
 
 WARDING_TEMPLATE = r"""
