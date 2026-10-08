@@ -58,6 +58,7 @@ DEBUG_HISTORY_METHOD = "void recordDebug(String message) {"
 DEBUG_HISTORY_CALL = "timings().recordDebug(message);"
 DEBUG_GLOG_SINK = "GLog.i(message);"
 DEBUG_BOSS_ROUTE = 'logDebug("CoHero: " + detail);'
+DIAGNOSTICS_REPORT_FILE = 'private static final String REPORT_FILE = "cohero-diagnostics.txt";'
 AUTO_LOOT_DESTINATION_METHOD = "private PickupDestination autoPickupDestination(Item item) {"
 AUTO_LOOT_RESOURCE_METHOD = "private static boolean isAutoLootResource(Item item) {"
 AUTO_LOOT_DEWDROP_METHOD = "private PickupDestination dewdropDestination() {"
@@ -126,6 +127,13 @@ def main() -> int:
             or DEBUG_BOSS_ROUTE not in ally_source):
         print(
             "CoHero debug GLog must be routed through one persistent 512-entry timing history.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if DIAGNOSTICS_REPORT_FILE not in timings_source:
+        print(
+            "CoHero diagnostics must write cohero-diagnostics.txt.",
             file=sys.stderr,
         )
         return 1

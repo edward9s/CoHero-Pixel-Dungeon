@@ -13,6 +13,7 @@ import java.util.Arrays;
 /** A bounded, in-memory report of companion action timings. */
 final class CoHeroTimings {
 
+    private static final String REPORT_FILE = "cohero-diagnostics.txt";
     enum Action {
         ACT("act"),
         FRAME_INTERVAL("frame_interval"),
@@ -403,11 +404,12 @@ final class CoHeroTimings {
 
     synchronized void saveReport() {
         String path = GamesInProgress.gameFolder(GamesInProgress.curSlot)
-                + "/cohero-timings.txt";
+                + "/" + REPORT_FILE;
         FileHandle file = FileUtils.getFileHandle(path);
         if (!enabled) {
             if (file.exists() && !file.delete()) {
-                throw new IllegalStateException("Could not delete disabled CoHero timing report: " + path);
+                throw new IllegalStateException(
+                        "Could not delete disabled CoHero diagnostics report: " + path);
             }
             return;
         }
