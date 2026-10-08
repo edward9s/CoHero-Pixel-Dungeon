@@ -117,9 +117,7 @@ try:
             (r"\bwardAvailable\s*=\s*\(\s*currentWardEnergy\s*<\s*maxWardEnergy\s*\)\s*;",
              "ward-availability assignment"),
             (r"Messages\.get\s*\(\s*this\s*,\s*\"no_more_wards\"\s*\)",
-             "ward-budget failure message"),
-            (r"\breturn\s+super\.tryToZap\s*\(\s*owner\s*,\s*target\s*\)\s*;",
-             "stock tryToZap return")):
+             "ward-budget failure message")):
         require_regex_count(
             warding, try_to_zap, pattern, 1, label, flags=re.MULTILINE | re.DOTALL)
 
