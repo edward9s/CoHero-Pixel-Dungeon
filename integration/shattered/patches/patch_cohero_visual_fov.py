@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_cohero_visual_fov.py <FogOfWar.java>")
 
 fog_path = Path(sys.argv[1])
-fog = fog_path.read_text(encoding="utf-8")
+fog = java_source(fog_path.read_text(encoding="utf-8"))
 
 old = """			updateTexture(Dungeon.level.heroFOV, Dungeon.level.visited, Dungeon.level.mapped);
 """
