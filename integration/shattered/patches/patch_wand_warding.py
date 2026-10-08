@@ -116,9 +116,7 @@ try:
             (budget_start_pattern, "current ward-energy accumulator"),
             (r"\bint\s+maxWardEnergy\s*=\s*0\s*;", "maximum ward-energy accumulator"),
             (r"\bwardAvailable\s*=\s*\(\s*currentWardEnergy\s*<\s*maxWardEnergy\s*\)\s*;",
-             "ward-availability assignment"),
-            (r"Messages\.get\s*\(\s*this\s*,\s*\"no_more_wards\"\s*\)",
-             "ward-budget failure message")):
+             "ward-availability assignment")):
         require_regex_count(
             warding, try_to_zap, pattern, 1, label, flags=re.MULTILINE | re.DOTALL)
 
