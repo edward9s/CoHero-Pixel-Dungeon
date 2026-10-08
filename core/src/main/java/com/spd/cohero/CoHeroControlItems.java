@@ -1116,25 +1116,34 @@ final class CoHeroControlItems {
         return true;
     }
 
-    boolean tryEmergencyEscapeConsumable(
-            CoHeroCombatRisk risk, ArrayList<Mob> threats) {
+    boolean tryEmergencyFearScroll(CoHeroCombatRisk risk, ArrayList<Mob> threats) {
+        if (risk == null || threats == null) {
+            throw new IllegalArgumentException("Emergency fear requires current risk and threats");
+        }
         boolean immediateLethal = risk.immediateIncoming * 1.35f >= owner.HP + owner.shielding();
-
-        int terrorTargets = usableTerrorTargetCount(threats);
-        if (terrorTargets >= 2 || (terrorTargets >= 1 && immediateLethal)) {
-            if (tryUseTerrorScroll(threats)) {
-                return true;
-            }
+        if (risk.attackersNow < 2 && !immediateLethal) {
+            return false;
         }
 
-        int dreadTargets = usableDreadTargetCount(threats);
-        boolean criticallyShortTtd = risk.ttd <= 2f;
-        if (dreadTargets >= 2
-                && (risk.attackersNow >= 2 || immediateLethal || criticallyShortTtd)
-                && tryUseDreadScroll(threats)) {
+        int terrorTargets = usableTerrorTargetCount(threats);
+        if ((terrorTargets >= 2 || (terrorTargets >= 1 && immediateLethal))
+                && tryUseTerrorScroll(threats)) {
             return true;
         }
 
+        int dreadTargets = usableDreadTargetCount(threats);
+        return dreadTargets >= 2
+                && (risk.attackersNow >= 2 || immediateLethal || risk.ttd <= 2f)
+                && tryUseDreadScroll(threats);
+    }
+
+    boolean tryEmergencyEscapeConsumable(
+            CoHeroCombatRisk risk, ArrayList<Mob> threats) {
+        if (risk == null || threats == null) {
+            throw new IllegalArgumentException("Emergency escape requires current risk and threats");
+        }
+        boolean immediateLethal = risk.immediateIncoming * 1.35f >= owner.HP + owner.shielding();
+        boolean criticallyShortTtd = risk.ttd <= 2f;
         boolean lowHealthDanger = owner.isBelowLowHealthThreshold();
         if (risk.attackersNow >= 3 || immediateLethal || lowHealthDanger || criticallyShortTtd) {
             if (owner.trySurvivalInvisibility()) {
