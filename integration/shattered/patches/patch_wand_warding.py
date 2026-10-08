@@ -110,9 +110,10 @@ try:
     original_try_body = warding[try_to_zap.body_start:try_to_zap.body_end]
 
     # These are semantic prerequisites, not a full-source snapshot. Formatting, comments and
-    # unrelated guards may change without invalidating the patch.
+    # unrelated prefix guards may change without invalidating the patch.
+    budget_start_pattern = r"\bint\s+currentWardEnergy\s*=\s*0\s*;"
     for pattern, label in (
-            (r"\bint\s+currentWardEnergy\s*=\s*0\s*;", "current ward-energy accumulator"),
+            (budget_start_pattern, "current ward-energy accumulator"),
             (r"\bint\s+maxWardEnergy\s*=\s*0\s*;", "maximum ward-energy accumulator"),
             (r"\bwardAvailable\s*=\s*\(\s*currentWardEnergy\s*<\s*maxWardEnergy\s*\)\s*;",
              "ward-availability assignment"),
@@ -121,8 +122,26 @@ try:
         require_regex_count(
             warding, try_to_zap, pattern, 1, label, flags=re.MULTILINE | re.DOTALL)
 
+    budget_start_match = re.search(budget_start_pattern, original_try_body)
+    if budget_start_match is None:
+        raise JavaPatchError("Warding budget start disappeared after prerequisite validation")
+
+    budget_region = original_try_body[budget_start_match.start():]
+    terminal_return_pattern = (
+        r"\breturn\s+super\.tryToZap\s*\(\s*owner\s*,\s*target\s*\)\s*;"
+    )
+    terminal_returns = re.findall(
+        terminal_return_pattern, budget_region, flags=re.MULTILINE | re.DOTALL)
+    if len(terminal_returns) != 1:
+        raise JavaPatchError(
+            "expected exactly one terminal stock tryToZap return in the Warding budget region, "
+            f"found {len(terminal_returns)}"
+        )
+
     had_cursed_guard = re.search(
-        r"\bif\s*\(\s*cursed\s*\)", original_try_body) is not None
+        r"\bif\s*\(\s*cursed\s*\)",
+        original_try_body[:budget_start_match.start()],
+    ) is not None
 
     # Keep any upstream preconditions at the start of tryToZap (for example Shattered v4.0.2's
     # cursed-wand early return) and replace only the stock ward-budget region.
