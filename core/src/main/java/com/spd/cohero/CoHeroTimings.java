@@ -14,8 +14,6 @@ import java.util.Arrays;
 final class CoHeroTimings {
 
     private static final String REPORT_FILE = "cohero-diagnostics.txt";
-    private static final String OLD_REPORT_FILE = "cohero-timings.txt";
-
     enum Action {
         ACT("act"),
         FRAME_INTERVAL("frame_interval"),
@@ -405,14 +403,8 @@ final class CoHeroTimings {
     }
 
     synchronized void saveReport() {
-        String folder = GamesInProgress.gameFolder(GamesInProgress.curSlot);
-        FileHandle oldFile = FileUtils.getFileHandle(folder + "/" + OLD_REPORT_FILE);
-        if (oldFile.exists() && !oldFile.delete()) {
-            throw new IllegalStateException(
-                    "Could not delete obsolete CoHero diagnostics report: " + oldFile.path());
-        }
-
-        String path = folder + "/" + REPORT_FILE;
+        String path = GamesInProgress.gameFolder(GamesInProgress.curSlot)
+                + "/" + REPORT_FILE;
         FileHandle file = FileUtils.getFileHandle(path);
         if (!enabled) {
             if (file.exists() && !file.delete()) {
