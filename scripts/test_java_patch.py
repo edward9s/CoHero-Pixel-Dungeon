@@ -17,6 +17,7 @@ from java_patch import (  # noqa: E402
     find_method,
     replace_regex_once,
     replace_code_once,
+    java_source,
 )
 
 
@@ -116,6 +117,32 @@ class Sample {
         pass
     else:
         raise AssertionError("ambiguous token-equivalent anchors must fail fast")
+
+    wrapped = java_source(token_source)
+    if wrapped.count(token_anchor) != 1:
+        raise AssertionError("JavaSource.count did not use token-aware fallback")
+    wrapped_patched = wrapped.replace(token_anchor, token_replacement, 1)
+    if "int value = 3;" not in wrapped_patched:
+        raise AssertionError("JavaSource.replace did not use token-aware fallback")
+    if java_source("class A { int x = 1; }").count("int x = 2;") != 0:
+        raise AssertionError("token-aware fallback must not equate changed Java tokens")
+
+    insertion_old = """void f() {
+        int first = 1;
+        int last = 2;
+    }"""
+    insertion_source = """class InsertFixture {
+        void f() {
+            int first = 1;
+            int upstream = 99;
+            int last = 2;
+        }
+    }"""
+    insertion_new = insertion_old + "\nvoid coHeroHook() {}\n"
+    insertion_patched = java_source(insertion_source).replace(
+        insertion_old, insertion_new, 1)
+    if "int upstream = 99;" not in insertion_patched or "void coHeroHook()" not in insertion_patched:
+        raise AssertionError("safe insertion fallback must preserve unrelated upstream statements")
 
 
 WARDING_TEMPLATE = r"""
@@ -316,7 +343,31 @@ def test_mob_patch():
         raise AssertionError("Mob structural patch left the old stealth exclusion semantics behind")
 
 
+def test_all_java_patch_scripts_use_resilient_source():
+    apply_text = (root / "integration" / "shattered" / "apply.sh").read_text(encoding="utf-8")
+    script_names = sorted(set(__import__("re").findall(
+        r'\$patches/(patch_[A-Za-z0-9_]+\.py)', apply_text)))
+    non_java = {"patch_app_package.py", "patch_android_manifest.py", "patch_messages.py"}
+    java_scripts = [name for name in script_names if name not in non_java]
+
+    if len(java_scripts) < 50:
+        raise AssertionError("unexpectedly small Java patch inventory")
+
+    for name in java_scripts:
+        script = (patch_dir / name).read_text(encoding="utf-8")
+        if "from java_patch import java_source" not in script:
+            raise AssertionError(f"{name} does not import java_source")
+        read_lines = [line for line in script.splitlines() if ".read_text(" in line]
+        if not read_lines:
+            raise AssertionError(f"{name} has no Java source read to wrap")
+        for line in read_lines:
+            if "java_source(" not in line:
+                raise AssertionError(
+                    f"{name} reads Java source without java_source wrapper: {line.strip()}")
+
+
 test_helper()
 test_warding_patch()
 test_mob_patch()
+test_all_java_patch_scripts_use_resilient_source()
 print("Java structural patch tests: OK")
