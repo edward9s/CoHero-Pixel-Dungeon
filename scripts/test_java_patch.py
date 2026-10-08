@@ -297,12 +297,17 @@ def run_patch(script_name, source):
     with tempfile.TemporaryDirectory() as tmp:
         target = Path(tmp) / "Target.java"
         target.write_text(source, encoding="utf-8")
-        subprocess.run(
+        result = subprocess.run(
             [sys.executable, str(patch_dir / script_name), str(target)],
-            check=True,
             capture_output=True,
             text=True,
         )
+        if result.returncode != 0:
+            raise AssertionError(
+                f"{script_name} failed on fixture:\n"
+                f"stdout:\n{result.stdout}\n"
+                f"stderr:\n{result.stderr}"
+            )
         return target.read_text(encoding="utf-8")
 
 
