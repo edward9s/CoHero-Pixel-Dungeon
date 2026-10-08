@@ -49,7 +49,7 @@ LOOT_NON_COMBAT_MOVE = "owner.getCloserNonCombat("
 EXPLORE_NON_COMBAT_MASK = "boolean[] passable = nonCombatSafePassable(false);"
 EXPLORE_NON_COMBAT_MOVE = "return getCloserNonCombat(target);"
 IDLE_HERO_TETHER_RADIUS = "private static final int IDLE_HERO_TETHER_RADIUS = 10;"
-IDLE_ROAM_RADIUS = "private static final int IDLE_ROAM_RADIUS = 4;"
+IDLE_ROAM_RADIUS = "private static final int IDLE_ROAM_RADIUS = 6;"
 IDLE_HERO_TETHER_FILTER = "!isInsideIdleHeroTether(cell)"
 IDLE_ROAM_FILTER = "!isInsideIdleRoamRadius(cell)"
 IDLE_HERO_TETHER_VALIDATION = "!isValidIdleHeroTarget(explorationTarget)"
@@ -338,7 +338,7 @@ def main() -> int:
             or IDLE_ROAM_RESTORE not in ally_source
             or IDLE_HERO_RETURN_DECISION not in navigation_source):
         print(
-            "Idle exploration must retain its 10-cell Hero tether, roam within 4 cells, "
+            "Idle exploration must retain its 10-cell Hero tether, roam within 6 cells, "
             "and preserve target intent when saving/loading.",
             file=sys.stderr,
         )
