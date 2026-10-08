@@ -12,7 +12,7 @@ Each row has one **primary** label, for triage only. A file can contain several 
 - **D — presentation or branding:** preview, visual FOV, display and labels.
 - **E — encounter or hazard rule:** particular enemy, boss, terrain or delayed effect.
 
-The 54 Java targets are classified A 7, B 12, C 14, D 6, E 15. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are outside this count; they belong to packaging, platform permissions, and presentation, respectively.
+The table below classifies the major Java integration owners. The executable inventory is `integration/shattered/apply.sh`; documentation deliberately does not duplicate a numeric target count. `build.gradle` (`patch_app_package.py`), `AndroidManifest.xml` (`patch_android_manifest.py`), and message resources (`patch_messages.py`) are non-Java integration owners.
 
 | Primary | Host target | Shattered patch owner | Existing responsibility |
 | --- | --- | --- | --- |
@@ -94,25 +94,30 @@ The sleeping patch replaces stock hostile selection (`highestChance = Float.POSI
 
 `DamageWand.java` separates Hero talent damage from non-Hero damage, while concrete wand scripts adapt their own visual/caster/ownership details. A single universal `Wand` patch cannot replace these safely without inspecting each wand's effects. The actual opportunity to shrink this surface is a host-provided, explicit caster API that preserves gameplay, charge and FX order; investigate it with an actual target fork.
 
-## Structural patching and persistence
+## Structural patching, tolerant matching, and persistence
 
-The one-owner-per-target invariant still applies: a host file has one patch owner, and unexpected host semantics must fail fast. What changes is **what counts as an anchor**.
+The project is designed for unattended builds, so integration patching uses layered strictness rather than whole-source exactness.
 
-`integration/shattered/patches/java_patch.py` provides Java-aware class/method scoping. It masks comments, string/char literals and Java text blocks before matching braces, then requires exactly one requested class or method signature. A patch may tolerate unrelated comments, whitespace, guards or statements outside the selected method, but it must still require the semantic statements it actually depends on and verify the resulting CoHero contract.
+1. **Exact first.** If the known upstream fragment is unchanged, the original replacement path is used.
+2. **Token-equivalent fallback for every Java patch.** All Java patch owners read source through `java_source()`. Whitespace and comments are ignored for fallback matching, but Java identifiers, literals, operators and punctuation must still match. Cardinality remains strict.
+3. **Safe insertion-boundary fallback.** Only when the requested change is a pure insertion, the matcher may fall back to a unique token prefix/suffix boundary. This preserves unrelated upstream statements inserted inside the old anchor instead of deleting them.
+4. **Structural scoping for high-churn semantics.** `patch_wand_warding.py` and `patch_mob_cohero.py` locate the owning class/method/nested-class before applying local semantic edits and then verify postconditions.
+5. **Fail on real ambiguity or semantic drift.** Changed operators, changed API calls, missing methods, duplicate candidate regions, or materially changed host behavior still stop the build. The system is tolerant of presentation drift, not permissive about gameplay semantics.
 
-The first high-churn migrations are deliberately limited to:
+`java_patch.py` implements comment/literal-aware Java block scanning, method/class lookup, token-aware matching and insertion boundaries. `scripts/test_java_patch.py` derives the Java patch inventory from `apply.sh`, verifies every Java patch uses `java_source()`, and exercises overload/nested-class handling, local-variable renames, whitespace/comment drift, ambiguous matches and upstream insertion preservation. Build, CoHero+SMM build, and release workflows compile-check all Python integration scripts before running these tests.
 
-- `patch_wand_warding.py`: locates `WandOfWarding.tryToZap(Hero,int)`, `onZap(Ballistica)`, `fx(Ballistica,Callback)` and nested `Ward` persistence methods structurally. It no longer snapshots the entire stock `tryToZap()` body. The stock ward-energy region is replaced only after checking the current/max-energy calculation, `wardAvailable`, failure message and terminal stock zap path. Any unrelated prefix guard, including Shattered v4.0.2's cursed-Warding early return, is preserved automatically. Postconditions verify separate CoHero ward budget, ownership assignment, persisted `cohero_owned`, and the actual caster used for FX.
-- `patch_mob_cohero.py`: locates `Mob.canAttack(Char)`, nested `Sleeping.act(boolean,boolean)`, `doAttack(Char)`, `defenseSkill(Char)` and `holdAllies(Level,int)` by structure. The host's complete `canAttack()` implementation is retained and the CoHero probes are attached after it. Sleeping wake-risk changes are confined to the live `Sleeping.act()` method; remote attack, surprise defense and held-ally exclusion are confined to their owning methods. If the host changes the actual detection algorithm or removes one of the required semantic statements, the patch still fails instead of guessing.
+Non-Java owners are also semantic rather than formatting-sensitive:
 
-This is intentionally **not fuzzy patching**. Structural lookup requires exactly one target; method-local semantic anchors require their expected cardinality; ambiguous or materially changed host code raises an error before writing the file. `scripts/test_java_patch.py` exercises comment/literal masking, nested classes, overload selection, scoped replacement and fail-fast behavior, and all build/release workflows run that test before overlaying CoHero.
+- `patch_app_package.py` matches the Gradle identity assignments regardless of quote style and harmless spacing.
+- `patch_android_manifest.py` detects permissions by the `android:name` attribute and inserts only the missing permissions before the unique application element.
+- `patch_messages.py` validates CoHero key/placeholder sets without requiring locale key order. If upstream adds a locale before CoHero has a translation, the base CoHero messages are used for that locale so an unattended build still completes; source locales not used by that upstream release are harmless.
 
-Other integration scripts still use their existing exact-text/cardinality checks until migrated individually. Do not claim the full Shattered profile is structure-based yet. Migrate high-churn owners first rather than adding version-specific alternate full-method snapshots.
+This remains intentionally different from fuzzy source matching. If a host changes the actual semantic tokens required by a patch, the correct behavior is to fail early and adapt that patch owner rather than guess.
 
-Persistence remains a separate review surface. `CoHeroAlly.storeInBundle()` and `restoreFromBundle()` establish only the actor schema; the integration profile also persists data in `LockedFloor` (`cohero_start_relocated`), `WandOfLivingEarth.EarthGuardian` (`owner_id`) and `WandOfWarding.Ward` (`cohero_owned`). Structural patching does not relax those persisted-field contracts.
+Persistence is a separate review surface. `CoHeroAlly.storeInBundle()` and `restoreFromBundle()` establish only the actor schema; the integration profile also persists data in `LockedFloor` (`cohero_start_relocated`), `WandOfLivingEarth.EarthGuardian` (`owner_id`) and `WandOfWarding.Ward` (`cohero_owned`). Matching tolerance does not relax those persisted-field contracts.
 
 ## Next port and validation
 
 Choose a concrete SPD fork. Implement its `integration/<fork>/apply.sh` and one-target patch owners in the existing port order: lifecycle and persistence, actor semantics, equipment and combat, encounter safety, then presentation. Begin with a **defined minimal feature set**, since C and D are classifications and the existing common Java may still call methods introduced by their patches. Avoid fork conditionals in common Java and avoid silently skipping an anchor.
 
-When adapting these patches for another fork, establish its upstream release and exact anchor counts. Validate the host profile with the complete Android/Desktop overlay and SMM overlay where supported, then load an older CoHero save at runtime when touching lifecycle or persisted host actors. Build success alone does not establish runtime save compatibility. Changes that add or alter generated Java, including the ranged-damage probes, require full patch execution and build validation for the target host.
+When adapting these patches for another fork, establish its upstream release, structural assumptions and semantic anchor cardinality. Validate the host profile with the complete Android/Desktop overlay and SMM overlay where supported, then load an older CoHero save at runtime when touching lifecycle or persisted host actors. Build success alone does not establish runtime save compatibility. Changes that add or alter generated Java, including the ranged-damage probes, require full patch execution and build validation for the target host.
