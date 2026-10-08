@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_spectral_necromancer_cohero.py <SpectralNecromancer.java>")
 
 path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
+text = java_source(path.read_text(encoding="utf-8"))
 
 anchor = """	private ArrayList<Integer> wraithIDs = new ArrayList<>();
 """
