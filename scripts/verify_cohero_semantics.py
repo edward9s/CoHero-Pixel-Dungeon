@@ -27,6 +27,21 @@ PIRANHA_ESCAPE_METHOD = "Boolean tryLeavePiranhaDanger() {"
 PIRANHA_TRAPPED_WAIT = 'owner.setMovementDecision("piranha_trapped", owner.pos);'
 PIRANHA_SAFE_DEST = "|| !context.isPiranhaSafe(cell)"
 PIRANHA_NON_WATER_DEST = "|| Dungeon.level.water[cell]"
+WATER_WASH_METHOD = "Boolean tryWashInWater() {"
+WATER_WASH_CALL = "navigation.tryWashInWater()"
+WATER_WASH_GUARDS = (
+    "owner.buff(Burning.class)",
+    "owner.buff(Ooze.class)",
+    "owner.flying",
+    "Dungeon.level.water[owner.pos]",
+    "nonCombatSafePassable(true)",
+    "PathFinder.buildDistanceMap(owner.pos, safePassable, MAX_WASH_DISTANCE)",
+    "PathFinder.distance[cell] > MAX_WASH_DISTANCE",
+    "!owner.fieldOfView[cell]",
+    "owner.countCurrentAttackersAtCell(",
+    "owner.estimatedIncomingDptAtCell(",
+    'owner.setMovementDecision("wash_in_water", target)',
+)
 PIRANHA_SAFE_RANGED_METHOD = "Boolean tryPiranhaSafeRangedPositioning(Mob targetMob) {"
 PIRANHA_SAFE_RANGED_MASK = "boolean[] safePassable = owner.ordinarySafePassable(false);"
 PIRANHA_SAFE_RANGED_SLEEP_FILTER = "targetMob.state == targetMob.SLEEPING"
@@ -358,6 +373,32 @@ def main() -> int:
     if PIRANHA_TRAPPED_WAIT not in navigation_source:
         print(
             "A CoHero trapped in Piranha danger must not fall through into ordinary combat.",
+            file=sys.stderr,
+        )
+        return 1
+
+    wash_start = navigation_source.find(WATER_WASH_METHOD)
+    wash_end = navigation_source.find("Boolean tryAvoidHazard() {", wash_start)
+    if wash_start < 0 or wash_end < wash_start:
+        print("CoHero navigation must expose one bounded water-washing action.", file=sys.stderr)
+        return 1
+
+    wash_source = navigation_source[wash_start:wash_end]
+    if any(guard not in wash_source for guard in WATER_WASH_GUARDS):
+        print(
+            "Water-washing must require a removable debuff, walk only short known safe "
+            "paths, exclude flying, and reject greater enemy exposure.",
+            file=sys.stderr,
+        )
+        return 1
+
+    hazard_decision = ally_source.find("Boolean hazardAvoidance = tryAvoidHazard();")
+    piranha_decision = ally_source.find("Boolean piranhaAvoidance = tryLeavePiranhaDanger();")
+    wash_decision = ally_source.find(WATER_WASH_CALL)
+    combat_decision = ally_source.find("ArrayList<Mob> combatThreats = combat.collectActiveThreats(")
+    if not (0 <= hazard_decision < piranha_decision < wash_decision < combat_decision):
+        print(
+            "Water-washing must follow urgent hazard/Piranha escapes and precede combat.",
             file=sys.stderr,
         )
         return 1

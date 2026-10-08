@@ -84,6 +84,10 @@ CoHero 診斷預設關閉。CoHero 背包提供單一 `CoHero debug log` checkbo
 - CoHero 被麻痺時不會點火。點火後立即重算 CoHero 自己的 FOV 與 CoHero 側 fog，不改動 `Dungeon.level.heroFOV`。
 - 在低視距樓層，CoHero 會把已知且可安全取得的火把列為偏好拾取物；正常視距樓層不會為了囤積火把而偏離探索。
 
+### 燃燒／腐蝕黏液時利用水格
+
+CoHero 身上有原版 `Burning` 或 `Ooze`，且沒有飛行／浮空時，先執行既有環境危險與食人魚避險，再嘗試在最多 4 步的範圍內尋找目前視野內、已知、可實際到達的安全水格。尋路沿用 non-combat movement-safety mask，避免火焰、已知陷阱、睡眠敵人驚醒風險與食人魚水域／岸邊攻擊圈；同時排除角色佔據的格子。面對可見敵人時，水格目的地和下一步都不可增加當前攻擊者數量或預估承受傷害，且不得走進高致命風險位置。找到合法水格才短暫搶占普通戰鬥／把風／探索；沒有安全水格、無法行走或處於飛行狀態時，沿用既有決策。已站在水格且無敵人能立即攻擊時，停留一回合讓 SPD 原版 buff 結算洗除；有即時攻擊威脅時交還普通戰鬥決策。無新物品消耗，也不改動原版 buff 的滅火規則。
+
 ### 自然回血
 
 CoHero 使用獨立的 `CompanionRegeneration`：基礎速率固定為每 10 回合回復 1 HP（0.1 HP/turn），沒有 Hero 的飢餓限制，也不繼承 Hero 的 Chalice、Ring of Energy、Salt Cube 等加速。當 SPD 全域 `Regeneration.regenOn()` 被 LockedFloor 等機制關閉時，CoHero 同樣停止自然回血。

@@ -670,6 +670,12 @@ public class CoHeroAlly extends DirectableAlly {
             return piranhaAvoidance;
         }
 
+        Boolean waterWash = navigation.tryWashInWater();
+        if (waterWash != null) {
+            logBossDecision("wash_in_water", "seeking water to remove Burning or Ooze");
+            return waterWash;
+        }
+
         Mob guardSupportThreat =
                 guard.isActive() ? support.heroSupportThreat() : null;
         guard.prepareMovementScope(guardSupportThreat);
