@@ -448,18 +448,8 @@ final class CoHeroSurvivalController {
     }
 
     boolean tryEmergencySurvivalPotion(float incomingDpt, float immediateIncoming) {
-        if (incomingDpt < 0f || immediateIncoming < 0f) {
-            throw new IllegalArgumentException("Emergency incoming damage must be non-negative");
-        }
-        float effectiveHp = owner.HP + owner.shielding();
-        if (effectiveHp <= 0f) {
-            return false;
-        }
-        float survivalTurns = incomingDpt <= 0.01f
-                ? Float.POSITIVE_INFINITY
-                : effectiveHp / incomingDpt;
-        boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
-        if (!immediateLethal && survivalTurns > 3f) {
+        if (!CoHeroCombatRisk.emergencyConsumableRequired(
+                owner.HP + owner.shielding(), incomingDpt, immediateIncoming)) {
             return false;
         }
 
@@ -470,8 +460,7 @@ final class CoHeroSurvivalController {
 
         // A healing potion restores HP over time. Do not burn one for minor scratches
         // merely because no movement/control escape was found.
-        return owner.HT > 0
-                && owner.HP * 100 <= owner.HT * 60
+        return CoHeroCombatRisk.emergencyHealingWorth(owner.HP, owner.HT)
                 && tryConsumeHealingPotion();
     }
 
