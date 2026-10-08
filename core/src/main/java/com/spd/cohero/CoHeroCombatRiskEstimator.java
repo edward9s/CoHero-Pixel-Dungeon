@@ -176,12 +176,12 @@ final class CoHeroCombatRiskEstimator {
         float ttk = estimateTargetTtk(targetMob, outgoingDpt);
 
         boolean immediateLethal = immediateIncoming * 1.35f >= effectiveHp;
-        boolean overwhelmed = attackersNow >= 3;
         float currentTtd = incomingDpt <= 0.01f
                 ? Float.POSITIVE_INFINITY
                 : effectiveHp / incomingDpt;
-        boolean criticalTtd = currentTtd <= 3f;
-
+        // Counting enemies alone overstates danger, especially when Hero is fighting nearby.
+        // Defensive positioning still runs independently from retreat.
+        boolean heroEngaged = heroCanFightAlongside(threats);
         boolean bossTarget = targetMob.properties().contains(Char.Property.BOSS);
         boolean losingRace = !bossTarget
                 && incomingDpt > 0.01f
@@ -190,8 +190,8 @@ final class CoHeroCombatRiskEstimator {
                 && incomingDpt > 0.01f
                 && ttd <= ttk * 1.5f;
 
-        boolean retreat =
-                immediateLethal || overwhelmed || criticalTtd || losingRace || outnumberedRace;
+        boolean retreat = CoHeroCombatRisk.retreatRequired(immediateLethal,
+                attackersNow, currentTtd, losingRace, outnumberedRace, heroEngaged);
 
         return new CoHeroCombatRisk(
                 retreat,
@@ -201,6 +201,24 @@ final class CoHeroCombatRiskEstimator {
                 outgoingDpt,
                 ttd,
                 ttk);
+    }
+
+    private boolean heroCanFightAlongside(ArrayList<Mob> threats) {
+        if (Dungeon.hero == null
+                || !Dungeon.hero.isAlive()
+                || Dungeon.hero.paralysed > 0
+                || Dungeon.hero.HT <= 0
+                || (Dungeon.hero.HP + Dungeon.hero.shielding()) * 100L
+                        < Dungeon.hero.HT * 35L
+                || Dungeon.level.distance(owner.pos, Dungeon.hero.pos) > 5) {
+            return false;
+        }
+        for (Mob threat : threats) {
+            if (threat != null && threat.isAlive() && Dungeon.hero.canAttack(threat)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     CoHeroThreatTiming assessThreatTimingAtCell(

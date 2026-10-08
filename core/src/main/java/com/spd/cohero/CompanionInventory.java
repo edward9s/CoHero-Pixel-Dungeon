@@ -203,7 +203,8 @@ public final class CompanionInventory {
     }
 
     Potion takeOneAutoHealingPotion() {
-        return takeOneKnownPotion(PotionOfHealing.class, ElixirOfHoneyedHealing.class);
+        Potion healing = takeOneKnownPotion(PotionOfHealing.class);
+        return healing != null ? healing : takeOneKnownPotion(ElixirOfHoneyedHealing.class);
     }
 
     boolean hasAutoFrostPotion() {
