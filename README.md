@@ -17,8 +17,23 @@ The core game is playable, but AI behaviour and balance are still being tuned. B
 - CoHero usually stays near the Hero and helps when danger arises, but its decisions are not entirely predictable.
 - You cannot directly command CoHero's movements or attacks. You can influence it through equipment, items, and your own actions.
 - CoHero has its own backpack and equipment, while dungeon resources are shared. Open its backpack using the CoHero backpack icon; a thin gold border marks items it can use or equip.
-- Hero talents do not apply to CoHero. Each CoHero class has its own passive abilities, with an additional one unlocked when the Hero chooses a subclass using Tengu's Mask.
+- Hero talents do not apply to CoHero.
 - If either character dies, the run ends. On boss and branch floors, you can choose whether CoHero comes along.
+
+## CoHero class abilities
+
+Each class has an innate passive ability. A second ability unlocks when the **Hero chooses a subclass using Tengu's Mask**.
+
+| Class | Starting passive | Additional passive |
+| --- | --- | --- |
+| **Warrior** | More strength and health (Might) | Reduced damage taken (Tenacity) |
+| **Mage** | Faster wand recharging (Energy) | Resistance to elemental and magical effects (Elements) |
+| **Rogue** | Faster movement (Haste) | Faster melee attacks (Furor) |
+| **Huntress** | Stronger, more durable thrown weapons (Sharpshooting) | Stronger enchantments and glyphs (Arcana) |
+| **Duelist** | Faster melee attacks (Furor) | Reduced damage taken (Tenacity) |
+| **Cleric** | Permanent Bless effect | Shares Bless with the nearby Hero |
+
+These are innate bonuses, generally equivalent to **+0 rings**. They use no ring slots, and equipped rings still work normally.
 
 ## Settings
 
