@@ -226,8 +226,15 @@ final class CoHeroCombatPositioning {
         if (owner.survival().tryUseInvisibilityPotion()) {
             return true;
         }
-        float incoming = owner.estimatedIncomingDptAtCell(owner.pos, invulnerableThreats);
-        if (owner.survival().tryEmergencySurvivalPotion(incoming, incoming)) {
+        float incomingDpt = owner.estimatedIncomingDptAtCell(owner.pos, invulnerableThreats);
+        float immediateIncoming = 0f;
+        for (Mob threat : invulnerableThreats) {
+            if (threat.coHeroCanAttackFrom(threat.pos, owner)) {
+                immediateIncoming += owner.estimatedThreatDamage(threat, owner.pos)
+                        * owner.estimatedHitChance(threat, owner.pos);
+            }
+        }
+        if (owner.survival().tryEmergencySurvivalPotion(incomingDpt, immediateIncoming)) {
             return true;
         }
 
