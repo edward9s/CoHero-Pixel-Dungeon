@@ -94,14 +94,22 @@ The sleeping patch replaces stock hostile selection (`highestChance = Float.POSI
 
 `DamageWand.java` separates Hero talent damage from non-Hero damage, while concrete wand scripts adapt their own visual/caster/ownership details. A single universal `Wand` patch cannot replace these safely without inspecting each wand's effects. The actual opportunity to shrink this surface is a host-provided, explicit caster API that preserves gameplay, charge and FX order; investigate it with an actual target fork.
 
-## Exactness and persistence
+## Structural patching and persistence
 
-The one-owner-per-target invariant applies to the current 60 Java target calls in `apply.sh`. It localizes fork drift to a host file. The follow-up in this branch tightens the five patch scripts identified by this audit:
+The one-owner-per-target invariant still applies: a host file has one patch owner, and unexpected host semantics must fail fast. What changes is **what counts as an anchor**.
 
-- `patch_wand_lightning.py`, `patch_wand_regrowth.py`, `patch_wand_fireblast.py` and `patch_wand_prismatic_light.py` now check the complete set of source lines containing `curUser` before the existing replacement. The expected lines were taken from the Shattered v4.0.0 release. Extra, missing or changed source lines cause an explicit failure before writing the file.
-- `patch_living_earth.py` now verifies the exact cardinality of each former unchecked replacement, including the two occurrences of guardian armor assignment and the two caster particle calls. All replacements still produce the same Java source when their known anchors match.
-- The six ranged-enemy damage patches each own one stock mob class and require exactly one known `damageRoll()` anchor. Shaman, DM100, Warlock, Eye and GnollGuard expose their actual ranged damage formulas; Elemental explicitly reports its subtype-specific ranged effects as non-comparable direct damage.
-- `CoHeroAlly.storeInBundle()` and `restoreFromBundle()` staying unchanged establishes only the actor's schema. This existing integration profile also persists data in `LockedFloor` (`cohero_start_relocated`), `WandOfLivingEarth.EarthGuardian` (`owner_id`) and `WandOfWarding.Ward` (`cohero_owned`), in addition to CoHero game state. Review these before claiming whole-save compatibility. The anchor checks do not change those persisted fields.
+`integration/shattered/patches/java_patch.py` provides Java-aware class/method scoping. It masks comments, string/char literals and Java text blocks before matching braces, then requires exactly one requested class or method signature. A patch may tolerate unrelated comments, whitespace, guards or statements outside the selected method, but it must still require the semantic statements it actually depends on and verify the resulting CoHero contract.
+
+The first high-churn migrations are deliberately limited to:
+
+- `patch_wand_warding.py`: locates `WandOfWarding.tryToZap(Hero,int)`, `onZap(Ballistica)`, `fx(Ballistica,Callback)` and nested `Ward` persistence methods structurally. It no longer snapshots the entire stock `tryToZap()` body. The stock ward-energy region is replaced only after checking the current/max-energy calculation, `wardAvailable`, failure message and terminal stock zap path. Any unrelated prefix guard, including Shattered v4.0.2's cursed-Warding early return, is preserved automatically. Postconditions verify separate CoHero ward budget, ownership assignment, persisted `cohero_owned`, and the actual caster used for FX.
+- `patch_mob_cohero.py`: locates `Mob.canAttack(Char)`, nested `Sleeping.act(boolean,boolean)`, `doAttack(Char)`, `defenseSkill(Char)` and `holdAllies(Level,int)` by structure. The host's complete `canAttack()` implementation is retained and the CoHero probes are attached after it. Sleeping wake-risk changes are confined to the live `Sleeping.act()` method; remote attack, surprise defense and held-ally exclusion are confined to their owning methods. If the host changes the actual detection algorithm or removes one of the required semantic statements, the patch still fails instead of guessing.
+
+This is intentionally **not fuzzy patching**. Structural lookup requires exactly one target; method-local semantic anchors require their expected cardinality; ambiguous or materially changed host code raises an error before writing the file. `scripts/test_java_patch.py` exercises comment/literal masking, nested classes, overload selection, scoped replacement and fail-fast behavior, and all build/release workflows run that test before overlaying CoHero.
+
+Other integration scripts still use their existing exact-text/cardinality checks until migrated individually. Do not claim the full Shattered profile is structure-based yet. Migrate high-churn owners first rather than adding version-specific alternate full-method snapshots.
+
+Persistence remains a separate review surface. `CoHeroAlly.storeInBundle()` and `restoreFromBundle()` establish only the actor schema; the integration profile also persists data in `LockedFloor` (`cohero_start_relocated`), `WandOfLivingEarth.EarthGuardian` (`owner_id`) and `WandOfWarding.Ward` (`cohero_owned`). Structural patching does not relax those persisted-field contracts.
 
 ## Next port and validation
 
