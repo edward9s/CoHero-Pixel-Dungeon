@@ -19,9 +19,11 @@ import java.util.Arrays;
 final class CoHeroNavigation {
 
     private static final int IDLE_HERO_TETHER_RADIUS = 10;
+    private static final int IDLE_ROAM_RADIUS = 4;
 
     private final CoHeroAlly owner;
     private int explorationTarget = -1;
+    private boolean explorationTargetRoaming;
     private PathFinder.Path policyPath;
     private int policyPathTarget = -1;
 
@@ -33,11 +35,17 @@ final class CoHeroNavigation {
         return explorationTarget;
     }
 
-    void restoreExplorationTarget(int target) {
+    boolean explorationTargetRoaming() {
+        return explorationTargetRoaming;
+    }
+
+    void restoreExplorationTarget(int target, boolean roaming) {
         explorationTarget = target;
+        explorationTargetRoaming = target != -1 && roaming;
     }
 
     void clearExplorationTarget() {
+        explorationTargetRoaming = false;
         if (explorationTarget == -1) {
             return;
         }
@@ -75,8 +83,11 @@ final class CoHeroNavigation {
 
         int oldPos = owner.pos;
         if (explorationTarget != -1) {
+            int radius = explorationTargetRoaming ? IDLE_ROAM_RADIUS : IDLE_HERO_TETHER_RADIUS;
             owner.setMovementDecision(
-                    isInsideIdleHeroTether(owner.pos) ? "explore" : "explore_return_to_hero",
+                    !isInsideHeroRadius(owner.pos, radius)
+                            ? "explore_return_to_hero"
+                            : explorationTargetRoaming ? "idle_roam" : "explore",
                     explorationTarget);
         }
 
@@ -659,8 +670,9 @@ final class CoHeroNavigation {
         PathFinder.buildDistanceMap(owner.pos, passable);
 
         if (!isInsideIdleHeroTether(owner.pos)) {
-            int returnTarget = chooseIdleHeroReturnTarget(passable);
+            int returnTarget = chooseIdleHeroReturnTarget(passable, IDLE_HERO_TETHER_RADIUS);
             if (returnTarget != -1) {
+                explorationTargetRoaming = false;
                 return returnTarget;
             }
         }
@@ -683,13 +695,25 @@ final class CoHeroNavigation {
         }
 
         if (!unknown.isEmpty()) {
+            explorationTargetRoaming = false;
             return Random.element(unknown);
         }
 
-        ArrayList<Integer> roaming = new ArrayList<>();
+        // With nothing left to explore, return close to Hero before local roaming.
+        if (!isInsideIdleRoamRadius(owner.pos)) {
+            int returnTarget = chooseIdleHeroReturnTarget(passable, IDLE_ROAM_RADIUS);
+            if (returnTarget != -1) {
+                explorationTargetRoaming = true;
+                return returnTarget;
+            }
+        }
+
+        // Weighted reservoir sampling keeps nearby cells likelier without losing randomness.
+        int roamTarget = -1;
+        int totalWeight = 0;
         for (int cell = 0; cell < Dungeon.level.length(); cell++) {
             if (cell == owner.pos
-                    || !isInsideIdleHeroTether(cell)
+                    || !isInsideIdleRoamRadius(cell)
                     || !isKnown(cell)
                     || !passable[cell]
                     || PathFinder.distance[cell] == Integer.MAX_VALUE) {
@@ -697,15 +721,24 @@ final class CoHeroNavigation {
             }
 
             Char occupant = Actor.findChar(cell);
-            if (occupant == null || occupant == owner) {
-                roaming.add(cell);
+            if (occupant != null && occupant != owner) {
+                continue;
+            }
+
+            int pathDistance = PathFinder.distance[cell];
+            int weight = pathDistance == 1 ? 8 : pathDistance == 2 ? 4
+                    : pathDistance == 3 ? 2 : 1;
+            totalWeight += weight;
+            if (Random.Int(totalWeight) < weight) {
+                roamTarget = cell;
             }
         }
 
-        return roaming.isEmpty() ? -1 : Random.element(roaming);
+        explorationTargetRoaming = roamTarget != -1;
+        return roamTarget;
     }
 
-    private int chooseIdleHeroReturnTarget(boolean[] passable) {
+    private int chooseIdleHeroReturnTarget(boolean[] passable, int radius) {
         if (Dungeon.hero == null || !Dungeon.hero.isAlive()) {
             return -1;
         }
@@ -733,7 +766,7 @@ final class CoHeroNavigation {
             int heroDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
             int pathDistance = PathFinder.distance[cell];
 
-            if (heroDistance <= IDLE_HERO_TETHER_RADIUS) {
+            if (heroDistance <= radius) {
                 if (bestInside == -1
                         || pathDistance < bestInsidePathDistance
                         || (pathDistance == bestInsidePathDistance
@@ -769,9 +802,17 @@ final class CoHeroNavigation {
     }
 
     private boolean isInsideIdleHeroTether(int cell) {
+        return isInsideHeroRadius(cell, IDLE_HERO_TETHER_RADIUS);
+    }
+
+    private boolean isInsideIdleRoamRadius(int cell) {
+        return isInsideHeroRadius(cell, IDLE_ROAM_RADIUS);
+    }
+
+    private boolean isInsideHeroRadius(int cell, int radius) {
         return Dungeon.hero == null
                 || !Dungeon.hero.isAlive()
-                || Dungeon.level.distance(cell, Dungeon.hero.pos) <= IDLE_HERO_TETHER_RADIUS;
+                || Dungeon.level.distance(cell, Dungeon.hero.pos) <= radius;
     }
 
     private boolean isValidIdleHeroTarget(int cell) {
@@ -779,10 +820,11 @@ final class CoHeroNavigation {
             return true;
         }
 
+        int radius = explorationTargetRoaming ? IDLE_ROAM_RADIUS : IDLE_HERO_TETHER_RADIUS;
         int ownerDistance = Dungeon.level.distance(owner.pos, Dungeon.hero.pos);
         int targetDistance = Dungeon.level.distance(cell, Dungeon.hero.pos);
-        return ownerDistance <= IDLE_HERO_TETHER_RADIUS
-                ? targetDistance <= IDLE_HERO_TETHER_RADIUS
+        return ownerDistance <= radius
+                ? targetDistance <= radius
                 : targetDistance < ownerDistance;
     }
 }

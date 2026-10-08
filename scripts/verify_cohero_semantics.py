@@ -49,9 +49,16 @@ LOOT_NON_COMBAT_MOVE = "owner.getCloserNonCombat("
 EXPLORE_NON_COMBAT_MASK = "boolean[] passable = nonCombatSafePassable(false);"
 EXPLORE_NON_COMBAT_MOVE = "return getCloserNonCombat(target);"
 IDLE_HERO_TETHER_RADIUS = "private static final int IDLE_HERO_TETHER_RADIUS = 10;"
+IDLE_ROAM_RADIUS = "private static final int IDLE_ROAM_RADIUS = 4;"
 IDLE_HERO_TETHER_FILTER = "!isInsideIdleHeroTether(cell)"
+IDLE_ROAM_FILTER = "!isInsideIdleRoamRadius(cell)"
 IDLE_HERO_TETHER_VALIDATION = "!isValidIdleHeroTarget(explorationTarget)"
-IDLE_HERO_RETURN_METHOD = "private int chooseIdleHeroReturnTarget(boolean[] passable) {"
+IDLE_ROAM_VALIDATION = "int radius = explorationTargetRoaming ? IDLE_ROAM_RADIUS : IDLE_HERO_TETHER_RADIUS;"
+IDLE_HERO_RETURN_METHOD = "private int chooseIdleHeroReturnTarget(boolean[] passable, int radius) {"
+IDLE_ROAM_RETURN = "chooseIdleHeroReturnTarget(passable, IDLE_ROAM_RADIUS)"
+IDLE_ROAM_SELECTION = "if (Random.Int(totalWeight) < weight)"
+IDLE_ROAM_STORAGE = "bundle.put(EXPLORATION_TARGET_ROAMING, navigation.explorationTargetRoaming());"
+IDLE_ROAM_RESTORE = "bundle.getBoolean(EXPLORATION_TARGET_ROAMING)"
 IDLE_HERO_RETURN_DECISION = '"explore_return_to_hero"'
 DEBUG_HISTORY_SIZE = "private static final int HISTORY_SIZE = 512;"
 DEBUG_HISTORY_METHOD = "void recordDebug(String message) {"
@@ -319,13 +326,20 @@ def main() -> int:
         return 1
 
     if (IDLE_HERO_TETHER_RADIUS not in navigation_source
-            or navigation_source.count(IDLE_HERO_TETHER_FILTER) < 2
+            or IDLE_ROAM_RADIUS not in navigation_source
+            or IDLE_HERO_TETHER_FILTER not in navigation_source
+            or IDLE_ROAM_FILTER not in navigation_source
             or IDLE_HERO_TETHER_VALIDATION not in navigation_source
+            or IDLE_ROAM_VALIDATION not in navigation_source
             or navigation_source.count(IDLE_HERO_RETURN_METHOD) != 1
+            or IDLE_ROAM_RETURN not in navigation_source
+            or IDLE_ROAM_SELECTION not in navigation_source
+            or IDLE_ROAM_STORAGE not in ally_source
+            or IDLE_ROAM_RESTORE not in ally_source
             or IDLE_HERO_RETURN_DECISION not in navigation_source):
         print(
-            "Idle exploration must stay within the 10-cell Hero soft tether and "
-            "return toward Hero after falling outside it.",
+            "Idle exploration must retain its 10-cell Hero tether, roam within 4 cells, "
+            "and preserve target intent when saving/loading.",
             file=sys.stderr,
         )
         return 1
