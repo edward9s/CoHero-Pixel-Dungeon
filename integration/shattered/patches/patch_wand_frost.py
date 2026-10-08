@@ -2,16 +2,14 @@
 from pathlib import Path
 import sys
 
+from java_patch import replace_code_once as replace_once
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_wand_frost.py <WandOfFrost.java>")
 
 path = Path(sys.argv[1])
 frost = path.read_text(encoding="utf-8")
 
-def replace_once(text, old, new, label):
-    if text.count(old) != 1:
-        raise SystemExit(f"expected exactly one {label} anchor")
-    return text.replace(old, new, 1)
 
 # Frost: only the visual path is Hero-static.
 frost = replace_once(
