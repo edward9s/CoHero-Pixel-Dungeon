@@ -2,11 +2,13 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_menu_pane.py <MenuPane.java>")
 
 path = Path(sys.argv[1])
-menu = path.read_text(encoding="utf-8")
+menu = java_source(path.read_text(encoding="utf-8"))
 
 menu_old = 'version = new BitmapText( "v" + Game.version , PixelScene.pixelFont);'
 menu_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), PixelScene.pixelFont);'
