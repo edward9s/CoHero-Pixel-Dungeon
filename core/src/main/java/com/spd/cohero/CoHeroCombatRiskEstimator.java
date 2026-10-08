@@ -179,27 +179,19 @@ final class CoHeroCombatRiskEstimator {
         float currentTtd = incomingDpt <= 0.01f
                 ? Float.POSITIVE_INFINITY
                 : effectiveHp / incomingDpt;
-        boolean criticalTtd = currentTtd <= 3f;
-
-        // Counting enemies alone overstates danger, especially when Hero is fighting beside
-        // CoHero. Keep retreat tied to actual survival time; local anti-surround positioning
-        // remains independent of the retreat decision.
-        boolean overwhelmed = attackersNow >= 3 && currentTtd <= 5f;
+        // Counting enemies alone overstates danger, especially when Hero is fighting nearby.
+        // Defensive positioning still runs independently from retreat.
         boolean heroEngaged = heroCanFightAlongside(threats);
-        boolean soloOrUrgent = !heroEngaged || currentTtd <= 5f;
-
         boolean bossTarget = targetMob.properties().contains(Char.Property.BOSS);
         boolean losingRace = !bossTarget
                 && incomingDpt > 0.01f
-                && ttd <= ttk + 1.25f
-                && soloOrUrgent;
+                && ttd <= ttk + 1.25f;
         boolean outnumberedRace = attackersNow >= 2
                 && incomingDpt > 0.01f
-                && ttd <= ttk * 1.5f
-                && soloOrUrgent;
+                && ttd <= ttk * 1.5f;
 
-        boolean retreat =
-                immediateLethal || overwhelmed || criticalTtd || losingRace || outnumberedRace;
+        boolean retreat = CoHeroCombatRisk.retreatRequired(immediateLethal,
+                attackersNow, currentTtd, losingRace, outnumberedRace, heroEngaged);
 
         return new CoHeroCombatRisk(
                 retreat,
