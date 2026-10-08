@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_ring_info_owner.py <rings-directory>")
 
@@ -51,7 +53,7 @@ for filename in RING_FILES:
     if not path.is_file():
         raise SystemExit(f"expected ring source not found: {path}")
 
-    text = path.read_text(encoding="utf-8")
+    text = java_source(path.read_text(encoding="utf-8"))
     start, end = stats_info_span(text, path)
     method = text[start:end]
     original = method
