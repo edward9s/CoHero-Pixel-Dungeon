@@ -56,14 +56,14 @@ final class CoHeroGuardController {
             return null;
         }
 
-        if (moveScope == MoveScope.HERO_ROOM
-                && !isRoomInteriorCell(session.heroRoom, step)) {
-            return "BLOCKED_HERO_ROOM";
+        if (moveScope == MoveScope.GUARDED_ROOM
+                && !isRoomInteriorCell(session.guardedRoom, step)) {
+            return "BLOCKED_GUARDED_ROOM";
         }
 
         if (moveScope == MoveScope.GUARD_DOMAIN
                 && !areaContains(session.area, step)
-                && !isRoomBoundsCell(session.heroRoom, step)) {
+                && !isRoomBoundsCell(session.guardedRoom, step)) {
             return "BLOCKED_GUARD_DOMAIN";
         }
 
@@ -75,8 +75,8 @@ final class CoHeroGuardController {
             return;
         }
 
-        if (heroSupportThreat != null && isRoomBoundsCell(session.heroRoom, owner.pos)) {
-            moveScope = MoveScope.HERO_ROOM;
+        if (heroSupportThreat != null && isRoomBoundsCell(session.guardedRoom, owner.pos)) {
+            moveScope = MoveScope.GUARDED_ROOM;
             if (owner.debugLogEnabled()) {
                 owner.logDebug("[CoHeroMove] SUPPORT_LOCK"
                         + " threat=" + heroSupportThreat.getClass().getSimpleName()
@@ -84,7 +84,7 @@ final class CoHeroGuardController {
                         + " " + owner.movementContext());
             }
         } else if (areaContains(session.area, owner.pos)
-                || isRoomBoundsCell(session.heroRoom, owner.pos)) {
+                || isRoomBoundsCell(session.guardedRoom, owner.pos)) {
             moveScope = MoveScope.GUARD_DOMAIN;
         }
     }
@@ -93,8 +93,8 @@ final class CoHeroGuardController {
 
         if (session == null) {
             moveScope = MoveScope.ANY;
-        } else if (isRoomBoundsCell(session.heroRoom, owner.pos)) {
-            moveScope = MoveScope.HERO_ROOM;
+        } else if (isRoomBoundsCell(session.guardedRoom, owner.pos)) {
+            moveScope = MoveScope.GUARDED_ROOM;
         } else if (areaContains(session.area, owner.pos)) {
             moveScope = MoveScope.GUARD_DOMAIN;
         } else {
@@ -111,35 +111,35 @@ final class CoHeroGuardController {
         }
 
         if (session != null) {
-            if (isRoomBoundsCell(session.heroRoom, Dungeon.hero.pos)) {
+            if (isRoomBoundsCell(session.guardedRoom, Dungeon.hero.pos)) {
                 return;
             }
             leaveSession();
         }
 
         RegularLevel level = (RegularLevel) Dungeon.level;
-        Room heroRoom = level.room(Dungeon.hero.pos);
-        if (heroRoom == null || heroRoom.isEntrance() || heroRoom.isExit()) {
+        Room occupiedRoom = level.room(Dungeon.hero.pos);
+        if (occupiedRoom == null || occupiedRoom.isEntrance() || occupiedRoom.isExit()) {
             return;
         }
 
-        ArrayList<RoomExit> exits = runtimeRoomExits(level, heroRoom);
+        ArrayList<RoomExit> exits = runtimeRoomExits(level, occupiedRoom);
         if (exits.size() != 1) {
             return;
         }
 
         RoomExit heroExit = exits.get(0);
-        Room outsideRoom = findOutsideRoom(level, heroRoom, heroExit);
-        if (outsideRoom == null) {
+        Room adjacentRoom = findAdjacentRoom(level, occupiedRoom, heroExit);
+        if (adjacentRoom == null) {
             return;
         }
 
-        boolean[] area = buildGuardArea(level, heroRoom, outsideRoom, heroExit);
+        boolean[] area = buildGuardArea(level, occupiedRoom, adjacentRoom, heroExit);
         if (area == null) {
             return;
         }
 
-        session = new GuardSession(heroRoom, outsideRoom, heroExit.cell, area);
+        session = new GuardSession(occupiedRoom, adjacentRoom, heroExit.cell, area);
         owner.clearExplorationTarget();
 
         int areaCells = 0;
@@ -151,8 +151,8 @@ final class CoHeroGuardController {
 
         if (owner.debugLogEnabled()) {
             owner.logDebug("[CoHeroMove] GUARD_SESSION enter"
-                    + " heroRoom=" + heroRoom.getClass().getSimpleName()
-                    + " outsideRoom=" + outsideRoom.getClass().getSimpleName()
+                    + " guardedRoom=" + occupiedRoom.getClass().getSimpleName()
+                    + " adjacentRoom=" + adjacentRoom.getClass().getSimpleName()
                     + " door=" + heroExit.cell
                     + " areaCells=" + areaCells
                     + " pos=" + owner.pos
@@ -186,7 +186,7 @@ final class CoHeroGuardController {
             return moveWithinGuardArea(roamTarget);
         }
 
-        if (isRoomBoundsCell(session.heroRoom, owner.pos)) {
+        if (isRoomBoundsCell(session.guardedRoom, owner.pos)) {
             int returnTarget = nearestReachableGuardCell(session.area);
             if (returnTarget == -1) {
                 owner.spendActionTime(Actor.TICK);
@@ -194,7 +194,7 @@ final class CoHeroGuardController {
             }
 
             moveScope = MoveScope.GUARD_DOMAIN;
-            owner.setMovementDecision("guard_return_from_hero_room", returnTarget);
+            owner.setMovementDecision("guard_return_from_guarded_room", returnTarget);
             return actTowardGuardTarget(returnTarget);
         }
 
@@ -215,11 +215,11 @@ final class CoHeroGuardController {
 
         for (int cell = 0; cell < safePassable.length; cell++) {
             boolean allowed;
-            if (moveScope == MoveScope.HERO_ROOM) {
-                allowed = isRoomInteriorCell(session.heroRoom, cell);
+            if (moveScope == MoveScope.GUARDED_ROOM) {
+                allowed = isRoomInteriorCell(session.guardedRoom, cell);
             } else {
                 allowed = areaContains(session.area, cell)
-                        || isRoomBoundsCell(session.heroRoom, cell);
+                        || isRoomBoundsCell(session.guardedRoom, cell);
             }
             safePassable[cell] = safePassable[cell] && allowed;
         }
@@ -228,8 +228,8 @@ final class CoHeroGuardController {
     String debugState() {
         return "guard=" + (session != null)
                 + " inGuardArea=" + (session != null && areaContains(session.area, owner.pos))
-                + " inHeroRoom="
-                + (session != null && isRoomBoundsCell(session.heroRoom, owner.pos))
+                + " inGuardedRoom="
+                + (session != null && isRoomBoundsCell(session.guardedRoom, owner.pos))
                 + " scope=" + moveScope;
     }
 
@@ -237,7 +237,7 @@ final class CoHeroGuardController {
         if (session != null) {
             if (owner.debugLogEnabled()) {
                 owner.logDebug("[CoHeroMove] GUARD_SESSION exit"
-                        + " heroRoom=" + session.heroRoom.getClass().getSimpleName()
+                        + " guardedRoom=" + session.guardedRoom.getClass().getSimpleName()
                         + " pos=" + owner.pos
                         + " hero=" + (Dungeon.hero == null ? -1 : Dungeon.hero.pos));
             }
@@ -297,11 +297,11 @@ final class CoHeroGuardController {
         exits.add(new RoomExit(cell, outwardCell));
     }
 
-    private Room findOutsideRoom(RegularLevel level, Room heroRoom, RoomExit heroExit) {
+    private Room findAdjacentRoom(RegularLevel level, Room guardedRoom, RoomExit heroExit) {
         Room interiorMatch = null;
         Point outsidePoint = level.cellToPoint(heroExit.outsideCell);
         for (Room candidate : level.rooms()) {
-            if (candidate == heroRoom) {
+            if (candidate == guardedRoom) {
                 continue;
             }
             if (candidate.inside(outsidePoint)) {
@@ -317,7 +317,7 @@ final class CoHeroGuardController {
 
         Room boundsMatch = null;
         for (Room candidate : level.rooms()) {
-            if (candidate == heroRoom
+            if (candidate == guardedRoom
                     || !isRoomBoundsCell(candidate, heroExit.outsideCell)) {
                 continue;
             }
@@ -331,14 +331,14 @@ final class CoHeroGuardController {
 
     private boolean[] buildGuardArea(
             RegularLevel level,
-            Room heroRoom,
-            Room outsideRoom,
+            Room guardedRoom,
+            Room adjacentRoom,
             RoomExit heroExit) {
         boolean[] roomPassable = new boolean[level.length()];
         for (int cell = 0; cell < roomPassable.length; cell++) {
             roomPassable[cell] = level.passable[cell]
-                    && isRoomBoundsCell(outsideRoom, cell)
-                    && !isRoomBoundsCell(heroRoom, cell);
+                    && isRoomBoundsCell(adjacentRoom, cell)
+                    && !isRoomBoundsCell(guardedRoom, cell);
         }
 
         int startCell = heroExit.outsideCell;
@@ -346,9 +346,9 @@ final class CoHeroGuardController {
             return null;
         }
 
-        ArrayList<RoomExit> outsideExits = runtimeRoomExits(level, outsideRoom);
+        ArrayList<RoomExit> adjacentExits = runtimeRoomExits(level, adjacentRoom);
         boolean[] otherExit = new boolean[level.length()];
-        for (RoomExit exit : outsideExits) {
+        for (RoomExit exit : adjacentExits) {
             if (exit.cell != heroExit.cell
                     && exit.cell >= 0
                     && exit.cell < otherExit.length) {
@@ -368,7 +368,7 @@ final class CoHeroGuardController {
         int[] heroDoorDistance = PathFinder.distance.clone();
 
         ArrayList<int[]> competingDistances = new ArrayList<>();
-        for (RoomExit exit : outsideExits) {
+        for (RoomExit exit : adjacentExits) {
             if (exit.cell == heroExit.cell) {
                 continue;
             }
@@ -534,7 +534,7 @@ final class CoHeroGuardController {
         for (int cell = 0; cell < passable.length; cell++) {
             passable[cell] = passable[cell] && areaContains(session.area, cell);
         }
-        if (isRoomBoundsCell(session.heroRoom, owner.pos)) {
+        if (isRoomBoundsCell(session.guardedRoom, owner.pos)) {
             passable[owner.pos] = true;
         }
         return passable;
@@ -571,7 +571,7 @@ final class CoHeroGuardController {
     private enum MoveScope {
         ANY,
         GUARD_DOMAIN,
-        HERO_ROOM
+        GUARDED_ROOM
     }
 
     private static final class RoomExit {
@@ -585,14 +585,14 @@ final class CoHeroGuardController {
     }
 
     private static final class GuardSession {
-        final Room heroRoom;
-        final Room outsideRoom;
+        final Room guardedRoom;
+        final Room adjacentRoom;
         final int heroDoorCell;
         final boolean[] area;
 
-        GuardSession(Room heroRoom, Room outsideRoom, int heroDoorCell, boolean[] area) {
-            this.heroRoom = heroRoom;
-            this.outsideRoom = outsideRoom;
+        GuardSession(Room guardedRoom, Room adjacentRoom, int heroDoorCell, boolean[] area) {
+            this.guardedRoom = guardedRoom;
+            this.adjacentRoom = adjacentRoom;
             this.heroDoorCell = heroDoorCell;
             this.area = area;
         }
