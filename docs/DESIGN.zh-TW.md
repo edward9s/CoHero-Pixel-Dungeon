@@ -283,7 +283,7 @@ CoHero 自主探索不應迫使玩家反覆拖動畫面找人，因此 GameScene
 - 無敵敵人不納入可攻擊目標：真正的戰鬥無敵仍沿用 SPD 的 `mob.isInvulnerable(CoHeroAlly.class)` 語意；但 `Challenge.SpectatorFreeze` 明確排除，因為它同時用於 Duelist Challenge 的旁觀者凍結與存檔載入期間的暫時 freeze，不代表應觸發逃跑。被 `SpectatorFreeze` 的角色直接不算當前臨戰威脅。無敵不代表退出整場戰鬥：只要任一真正無敵敵人目前能從其所在格攻擊 CoHero，脫離該敵人的有效攻擊範圍會取得臨戰優先權；移動選格先降低無敵敵人的可攻擊者數量與 incoming DPT，再避免把自己送進其他敵人的火力。離開無敵敵人的射程後，若仍有可傷害敵人，CoHero 立即恢復原本的近戰／投擲／Spirit Bow／法杖決策；若只剩無敵敵人且它們已打不到 CoHero，則原地保持安全距離，不主動靠近。一般移動無法改善無敵火力時，依序嘗試 Blink、Teleportation、Invisibility，最後才用立即生存資源撐住。
 - 撤退有 hysteresis：進入撤退後，不會只拉開一格就立刻回頭。必須降到最多 1 名即時攻擊者、HP 至少 45%，且 TTD 對 TTK 取得明顯安全餘裕，才恢復攻擊。
 - 逃跑路徑不再只最大化「離最近敵人的距離」，而是優先降低候選格上的即時攻擊者數量與總預期 incoming DPT，再以距離作 tie-break。這能處理被多名敵人包圍時「躲開 A 卻走進 B/C 火力」的問題。
-- 若完全沒有合法逃生格，才消耗緊急生存資源；此時 `PotionOfShielding` 因立即生效優先於逐回合恢復的治療藥。若被定身，不能用撤退邏輯非法移動。
+- 只有目前面臨實際生命危險、且完全沒有合法逃生格時，才考慮緊急生存消耗品；此時 `PotionOfShielding` 因立即生效優先於逐回合恢復的治療藥。面對 3+ 敵人不再單獨構成 retreat：會先看預估存活時間與 Hero 是否能直接參與目前戰鬥；Hero 可在 CoHero 周圍 5 格內直接攻擊當前威脅且未被麻痺時，預估戰鬥勝負劣勢不會在生存時間仍充裕（> 5 回合）時強制觸發 retreat。直接致命威脅或預估存活時間 ≤ 3 回合仍會撤退，3+ 當前攻擊者且預估存活時間 ≤ 5 回合也會撤退。防包圍走位不受此緊急定義限制。若被定身，不能用撤退邏輯非法移動。
 
 近戰在真正出手前還有一層地形戰術：
 
@@ -370,7 +370,7 @@ CoHero 背包視窗頂部固定顯示目前即時基本數值：Lv、HP（有護
 - 給投擲武器 → 同伴取得遠程物理攻擊選項。
 - 給法杖 → 同伴取得魔法遠程攻擊選項。
 - 不給任何合法攻擊能力 → 同伴不主動戰鬥，偏向避敵。
-- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存／逃生／戰鬥機動／控制藥劑。一般低血量流程仍在 HP 低於 35% 時優先使用 `PotionOfHealing` / `ElixirOfHoneyedHealing`，治療正在進行或沒有治療藥時才用 `PotionOfShielding`；但若戰鬥風險模型已判定必須撤退、又完全沒有合法逃生格，緊急流程會反過來優先使用立即生效的 `PotionOfShielding`。有安全逃生步但正常速度仍會持續受到追擊壓力時，可使用 `PotionOfHaste` 作為短效逃跑資源；高威脅戰鬥則可使用 `PotionOfStamina` 作長效機動資源。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
+- CoHero 原則上不自行使用消耗品；目前例外是已鑑定的生存／逃生／戰鬥機動／控制藥劑。一般低血量流程仍在 HP 低於 35% 時優先使用普通治療藥，沒有時才用 `ElixirOfHoneyedHealing`，治療正在進行或沒有治療藥時才用 `PotionOfShielding`；緊急生存藥劑則只在即時攻擊接近致命或未加算背包補給的存活時間 ≤ 3 回合時優先使用立即生效的護盾，治療藥仍需 HP ≤ 60%。有安全逃生步但正常速度仍會持續受到追擊壓力時，可使用 `PotionOfHaste` 作為短效逃跑資源；高威脅戰鬥則可使用 `PotionOfStamina` 作長效機動資源。這些行為不讀取 Hero 背包，也不觸發 Hero 專屬 Potion talents。
 - CoHero 背包可持有 `Ankh`。CoHero 死亡時優先消耗祝福 Ankh：回滿 HP 並獲得 15 回合 `Invulnerability`；未祝福 Ankh 則回滿 HP 並隨機傳送到本層一個合法、非秘密、無角色占用的可走格。Ankh 成功觸發時不進入 CoHero Game Over 流程。
 
 因此玩家不是直接命令同伴，而是透過資源配置限制或擴張它可以採取的行動。
@@ -396,29 +396,29 @@ CoHero 不泛化成會自行決策各種 consumable；目前只支援少數明�
 
 - CoHero 背包允許存放所有正常物品；Potion 只是其中一類。未鑑定 Potion 不會因其隱藏真實種類改變「能不能放」或 capability 框線，避免透過 UI 洩漏身份。
 - 未鑑定 Potion 即使實際類型是治療藥也不會被 CoHero 自動使用。
-- HP 低於 35% 時，CoHero 先嘗試消耗自己背包中的一瓶已鑑定 `PotionOfHealing` 或 `ElixirOfHoneyedHealing`。
-- 治療期間不會連續喝下一瓶治療藥；若仍低於 35%，可以把已鑑定 `PotionOfShielding` 當作次順位生存資源。
+- HP 低於 35% 時，CoHero 先嘗試消耗自己背包中的一瓶已鑑定 `PotionOfHealing`；沒有普通治療藥時才使用 `ElixirOfHoneyedHealing`。
+- 治療期間不會連續喝下一瓶治療藥；若仍低於 35%，可以把已鑑定 `PotionOfShielding` 當作次順位生存資源。戰鬥緊急路徑要求即時預估傷害接近致命，或不計背包消耗品的預估存活時間 ≤ 3 回合；先使用立即生效的護盾。若沒有可用護盾，只有 HP ≤ 60% 才考慮逐回合回血的治療藥，避免小傷就消耗。
 - 已有有效 `Barrier` 時不會再喝第二瓶護盾藥，避免覆蓋仍有價值的護盾。
 - `Pharmacophobia` 只讓玩家 Hero 對治療藥過敏；SPD 原版明確規定其他角色仍正常受治療，因此 CoHero 仍可正常使用治療藥。
 - 已鑑定 `PotionOfInvisibility` 可作為緊急逃生資源，但不會因單純低於 35% HP 就立即飲用；只有當回合戰鬥風險模型判定 retreat、免費 escape utility 與安全走位都失敗，而且存在 3+ 當前攻擊者、立即致命風險、低血危險或 TTD ≤ 2 回合等條件時才使用。飲用後取得原版 `Invisibility.DURATION`；之後每回合重新計算風險，若當下仍屬 retreat 且隱形仍在，就優先純移動脫離，否則不靠任何保存的 `combatRetreating` flag 延續撤退。
 - 已鑑定 `PotionOfHaste` 定位為逃跑資源。只有 CoHero 已進入 retreat、確實存在安全逃生步，而且移動一步後仍有敵人可直接攻擊、仍有能跟上的追兵，或 TTD 已縮短到約 3.5 回合內時才考慮。若當前一輪傷害已接近致命，反而不花一回合喝 Haste，直接走位／控制優先。Haste 沿用原版 `Haste.DURATION = 20` 與 3× movement speed。
-- 已鑑定 `PotionOfStamina` 定位為戰鬥機動資源。只有非 retreat 狀態下遇到 2+ 可見威脅、遠程壓制／anti-ranged 接敵，或 Boss / Miniboss 戰時才會自動使用；單一普通敵人且預估很快能結束的戰鬥不浪費。Stamina 沿用原版 `Stamina.DURATION = 100` 與 1.5× movement speed。
+- 已鑑定 `PotionOfStamina` 定位為戰鬥機動資源。只有非 retreat 狀態下遇到 2+ 可見威脅、遠程壓制／anti-ranged 接敵，或 Boss / Miniboss 戰時才會自動使用；單一普通敵人或全部當前威脅預估兩回合內能打完、且不緊急的戰鬥不浪費。Stamina 沿用原版 `Stamina.DURATION = 100` 與 1.5× movement speed。
 - CoHero 不會主動把 Haste 與 Stamina 疊加：已有其中一種 buff 時，不自動消耗另一瓶。原版 `Char.speed()` 會將兩者相乘，因此這項限制避免 AI 為了 4.5× 移速浪費兩瓶藥。
 - 已鑑定 `PotionOfCleansing` 只處理角色身上的負面 buff：Roots、多個負面 buff、持續傷害類 debuff，或低血量下仍存在負面狀態時才會使用。它能直接解除例如 `Poison`、`Bleeding`、`Corrosion`、`Paralysis` 等負面狀態，但不把 `ToxicGas` 的直接 blob 傷害誤認成「中毒／窒息 buff」；原版 Toxic Gas 的 Suffocated 是 blob 直接傷害，沒有可供 Cleansing 拔除的 buff。若當前敵方一輪傷害已接近致命，不花一回合清狀態，仍讓 Blink／Teleport／立即護盾優先。
 - 已鑑定 `PotionOfPurity` 專門處理環境 blob。既有 hazard escape 永遠先嘗試走出危險；只有 CoHero 仍站在 `BlobImmunity` 可防的有害 blob 上、沒有成功走出時才飲用，取得原版 20 回合 `BlobImmunity`。因此 Toxic Gas 窒息屬 Purity 範圍，而 `Poison` buff 屬 Cleansing 範圍。陷阱、預告攻擊、Tengu bomb 等非 blob 危險不會誤觸 Purity。
-- 已鑑定 `PotionOfEarthenArmor` 定位為高威脅戰鬥的預防性防禦資源：非 retreat 狀態下遇到 2+ 威脅或 Boss / Miniboss，且目前沒有 Barkskin / Earthroot Armor 時才使用；沿用原版 `Barkskin.conditionallyAppend()`，強度為 `2 + level/3`、interval 50。
+- 已鑑定 `PotionOfEarthenArmor` 定位為高威脅戰鬥的預防性防禦資源：非 retreat 狀態下遇到 2+ 威脅或 Boss / Miniboss，且目前沒有 Barkskin / Earthroot Armor、也非可安全於兩回合內結束的戰鬥時才使用；沿用原版 `Barkskin.conditionallyAppend()`，強度為 `2 + level/3`、interval 50。
 - 已鑑定 `PotionOfFrost` 定位為保守的區域控制資源。一般戰鬥只在風險已偏高時使用：原則上必須讓同一個 3×3 Freezing 區域至少影響 2 名當前威脅；只有危險的 Boss / Miniboss 單體戰可降為 1 名。撤退時只有 CoHero 已進入 retreat、仍有安全逃生步、目前沒有敵人已能立即攻擊，而且花一回合丟藥不會面臨立即致命傷害時才考慮。投擲點以 CoHero 自己的 FOV / 已知地圖與原版 projectile `Ballistica` 即時計算，不保存目標；作用區若會碰到非 Freezing 免疫的 Hero／CoHero／其他友軍、中立角色、睡眠敵人、非當前威脅敵人或任何地面 heap 就不使用。已帶 `Chill` / `Frost` 或對 `Freezing` / `Chill` 免疫的敵人不算有效目標。實際效果直接重用原版 `PotionOfFrost.shatter()`，並沿用投擲藥劑的 `pressCell()` 語意；不呼叫 Hero-only `Item.cast()`，也不觸發 Hero Potion talents。
 - Scroll 與其他物品一樣都可手動存放。目前只有已鑑定的 `ScrollOfTeleportation`、`ScrollOfTerror`、`ScrollOfDread` 具有自動使用語意；auto-loot 仍會撿所有 Scroll，CoHero 目前可用且背包可接收者留在 CoHero 背包，其餘直接送入 Hero 背包。
 - `ScrollOfTeleportation` 是 retreat 的最後直接脫離層：只有普通安全走位、wand escape utility 與可控 `StoneOfBlink` 都不可用時才消耗。它重用原版 `ScrollOfTeleportation.teleportChar(Char)`，所以可解除 Roots；若 teleport 失敗，卷軸會放回 CoHero 背包而不浪費。
-- `ScrollOfTerror` 只在 retreat 且無安全逃生步時使用；若能影響至少 2 名當前可見、清醒敵人，或單一可恐懼敵人已造成立即致命風險，優先於隱形藥。作用範圍使用 CoHero 自己的 FOV，不借用 `Dungeon.level.heroFOV`；失明或 `MagicImmune` 時不讀。效果沿用原版 `Terror.DURATION`，並將恐懼來源設為 CoHero。
-- `ScrollOfDread` 位於普通 Terror 之後，避免先消耗較稀有的高級卷軸。retreat 時至少有 2 名可見清醒威脅，且存在 2+ 當前攻擊者、立即致命風險或 TTD ≤ 2 回合時才用；可 Dread 的目標取得原版 Dread，免疫 Dread 但可 Terror 的目標退化成 Terror。上游 `Dread.act()` 原本把「離開視野且距離 ≥ 6 後消失」硬綁 `Dungeon.hero` / `heroFOV`；CoHero patch 改為依 Dread 保存的 caster `object` 找實際 `Char`，Hero 行為保持等價，CoHero cast 則使用 CoHero 自己的 FOV / 位置。
+- `ScrollOfTerror` 只在 retreat 且無安全逃生步時使用；若能新影響至少 2 名當前可見、清醒、未受 Terror/Dread 控制的敵人，或單一可恐懼敵人已造成立即致命風險，優先於隱形藥。作用範圍使用 CoHero 自己的 FOV，不借用 `Dungeon.level.heroFOV`；失明或 `MagicImmune` 時不讀。效果沿用原版 `Terror.DURATION`，並將恐懼來源設為 CoHero。
+- `ScrollOfDread` 位於普通 Terror 之後，避免先消耗較稀有的高級卷軸。retreat 時至少有 2 名可見清醒且尚未受到 Terror/Dread 控制的威脅，且存在 2+ 當前攻擊者、立即致命風險或 TTD ≤ 2 回合時才用；可 Dread 的目標取得原版 Dread，免疫 Dread 但可 Terror 的目標退化成 Terror。上游 `Dread.act()` 原本把「離開視野且距離 ≥ 6 後消失」硬綁 `Dungeon.hero` / `heroFOV`；CoHero patch 改為依 Dread 保存的 caster `object` 找實際 `Char`，Hero 行為保持等價，CoHero cast 則使用 CoHero 自己的 FOV / 位置。
 - CoHero 目前只會主動使用七種明確定義的戰鬥符石：`StoneOfAggression`、`StoneOfBlast`、`StoneOfShock`、`StoneOfFear`、`StoneOfDeepSleep`、`StoneOfBlink`、`StoneOfFlock`；其他 Runestone 可手動存放但 AI 不會使用。auto-loot 會撿所有 Runestone，未支援者直接交給 Hero。Runestone 在 SPD 本來就永遠 identified，因此不存在用符石選擇洩漏未知身份的問題。
 - 原版 `Runestone.onThrow()` 仍以玩家 Hero 為中心，會讀 `Dungeon.hero`、`curUser` 與 Hero Talent hook；CoHero 不直接呼叫這個入口，而是在自身 AI 中重現七種已確認安全的效果，仍更新 `Catalog.countUse()`、消耗一枚符石、解除 CoHero 自身隱形並花費一回合。
 - `StoneOfBlast` 只在爆炸半徑內至少能命中 2 名可見清醒敵人時使用；只要會炸到 Hero、CoHero、其他友軍／中立角色、睡眠敵人或任何地面 heap 就放棄。實際爆炸仍使用原版 `Bomb.ConjuredBomb.explode()`，因此傷害與地形破壞語意保持原版。
 - `StoneOfShock` 同時是進攻與撤退資源。進攻時，針對目前目標實際有意義的傷害法杖必須全部處於低充能（0 或 1 charge）；仍有 2+ charge 且目前能安全、合法攻擊該目標的法杖時，不為了充能消耗電擊符石。高充能但因免疫、無敵或目前攻擊路徑／範圍不安全而不能實際攻擊目標的法杖不阻止使用。符石作用區不能碰到 Hero、CoHero、友軍／中立角色或睡眠敵人，且至少要能新麻痺 1 名敵人，避免只為純充能浪費符石。撤退時仍依實際降低下一回合攻擊者／預期傷害的程度獨立判斷，不受法杖充能限制。充能數量比照原版，按符石命中的目標數計算，即使目標免疫麻痺仍算命中。
 - `StoneOfAggression` 只在至少 3 名可見清醒威脅時使用，目標必須不是 Boss / Miniboss，並偏好附近還有其他敵人且 HP 較高者，讓敵群互相轉火；已存在 Aggression 的目標不重複浪費。
 - `StoneOfDeepSleep` 主要用於兩名高價值威脅的戰鬥（例如存在遠程壓制、Boss / Miniboss 戰），優先讓非當前近戰目標退出戰鬥；retreat 且無安全走位時也可作單體緊急控制。免疫 Sleep、已睡眠或已存在 `MagicalSleep` 的目標不使用。
-- `StoneOfFear` 定位為 retreat 單體控制：無安全走位後，若目前一輪接近致命、TTD ≤ 2.5 回合或有 2+ 當前攻擊者，優先對最危險且可恐懼的敵人使用；免疫 Terror 或已在 Terror 中的目標不浪費。
+- `StoneOfFear` 定位為 retreat 單體控制：無安全走位後，若目前一輪接近致命、TTD ≤ 2.5 回合或有 2+ 當前攻擊者，優先對最危險且可恐懼的敵人使用；免疫 Terror 或已在 Terror/Dread 中的目標不浪費。
 - `StoneOfBlink` 定位為無安全相鄰逃生格時的直接脫離工具。目的地只從 CoHero 當前 FOV 內、已知、安全、可投射到達且至少讓最近敵人距離增加 2 格的格子選擇；可以在 Roots 定身時使用，因原版 `ScrollOfTeleportation.teleportToLocation()` 成功後會解除 Roots。
 - `StoneOfFlock` 定位為封鎖／拖延：單一遠程敵人若沒有免費 LOS cover 可用，且距離足夠遠時可用羊群包住其周圍；retreat 時也可在 2+ 威脅下作最後的阻隔。中心點必須離 Hero 與 CoHero 超過 2 格，至少有 3 個合法 sheep spawn cell，避免 AI 反而把自己人直接困死。
 - CoHero 有 `MagicImmune` 時不主動使用上述符石；免費走位、既有 wand escape utility 與 anti-ranged cover 仍優先於消耗符石。
