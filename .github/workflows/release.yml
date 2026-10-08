@@ -169,17 +169,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PREV_TAG: ${{ needs.prepare.outputs.prev_tag }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
           rm -f release-notes-ai.md
-
-          CURATED="docs/release-notes/${RELEASE_TAG}.md"
-          if [ -f "$CURATED" ]; then
-            echo "Using curated release notes: $CURATED"
-            exit 0
-          fi
 
           if [ -n "$PREV_TAG" ] && git rev-parse --verify "$PREV_TAG^{commit}" >/dev/null 2>&1; then
             SCOPE="Compare git tag $PREV_TAG to HEAD using git log and git diff. Describe the final player-visible changes introduced since that release."
@@ -193,10 +186,9 @@ jobs:
 
           Rules:
           - Describe only meaningful player-visible CoHero gameplay, UI, compatibility, or balance changes.
-          - Inspect the changed source and integration patches, then verify every claim against the final implementation at HEAD; commit titles and documentation alone are insufficient evidence.
-          - Check combat and target selection, Hero support, guarding and exploration, loot routing, consumables and healing, hazards, special-room transitions, and UI. Include only categories with verified player-visible changes.
-          - Include major additions and fixes even when many small commits are present; combine related changes into one bullet rather than silently omitting them.
-          - State meaningful thresholds and prerequisites accurately (for example, routine healing versus emergency item use).
+          - Examine the actual source diff and final code paths, including integration patches; do not rely on commit messages alone.
+          - Check combat, Hero support, exploration and guarding, loot routing, consumables, hazards, special floors, and UI. Include each category only when it has meaningful player-visible changes.
+          - Verify thresholds and conditions against the final implementation. Distinguish routine healing from emergency item usage.
           - Merge related commits into one bullet and describe final behavior, not intermediate implementation steps.
           - Ignore version bumps, CI/build/release workflow changes, documentation-only changes, refactors, cleanup, formatting, tests, and reverted or superseded changes unless they alter player-visible behavior.
           - Do not summarize Shattered Pixel Dungeon upstream changes; the workflow handles those separately.
@@ -219,17 +211,9 @@ jobs:
           SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
           COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
           SMM_VER: ${{ needs.prepare.outputs.smm_ver }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
-
-          CURATED="docs/release-notes/${RELEASE_TAG}.md"
-          if [ -f "$CURATED" ]; then
-            cp "$CURATED" release-notes.md
-            cat release-notes.md
-            exit 0
-          fi
 
           CHANGES_FILE="release-notes-changes.md"
           NOTES_FILE="release-notes.md"
