@@ -207,6 +207,9 @@ final class CoHeroCombatRiskEstimator {
         if (Dungeon.hero == null
                 || !Dungeon.hero.isAlive()
                 || Dungeon.hero.paralysed > 0
+                || Dungeon.hero.HT <= 0
+                || (Dungeon.hero.HP + Dungeon.hero.shielding()) * 100L
+                        < Dungeon.hero.HT * 35L
                 || Dungeon.level.distance(owner.pos, Dungeon.hero.pos) > 5) {
             return false;
         }
