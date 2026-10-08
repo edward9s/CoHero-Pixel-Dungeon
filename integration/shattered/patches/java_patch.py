@@ -469,14 +469,56 @@ def _insertion_fallback(source: str, old: str, new: str):
 
 
 class JavaSource(str):
-    """Drop-in source wrapper with exact-first, token-aware count/replace fallback."""
+    """Drop-in source wrapper with exact-first, token-aware string operations."""
+
+    def __getitem__(self, key):
+        result = super().__getitem__(key)
+        return JavaSource(result) if isinstance(key, slice) else result
+
+    def __add__(self, other):
+        return JavaSource(super().__add__(str(other)))
+
+    def __radd__(self, other):
+        return JavaSource(str(other) + str(self))
+
+    def __contains__(self, item):
+        if super().__contains__(item):
+            return True
+        if not isinstance(item, str):
+            return False
+        try:
+            return bool(_token_sequence_matches(self, item))
+        except JavaPatchError:
+            return False
 
     def count(self, sub, start=0, end=None):
         actual_end = len(self) if end is None else end
         exact = super().count(sub, start, actual_end)
-        if exact or start != 0 or actual_end != len(self) or not isinstance(sub, str):
+        if exact or not isinstance(sub, str):
             return exact
-        return len(_token_sequence_matches(self, sub))
+        try:
+            scoped = str(self)[start:actual_end]
+            return len(_token_sequence_matches(scoped, sub))
+        except JavaPatchError:
+            return 0
+
+    def find(self, sub, start=0, end=None):
+        actual_end = len(self) if end is None else end
+        exact = super().find(sub, start, actual_end)
+        if exact >= 0 or not isinstance(sub, str):
+            return exact
+        try:
+            scoped = str(self)[start:actual_end]
+            matches = _token_sequence_matches(scoped, sub)
+        except JavaPatchError:
+            return -1
+        return -1 if not matches else start + matches[0][0]
+
+    def index(self, sub, start=0, end=None):
+        result = self.find(sub, start, end)
+        if result < 0:
+            raise ValueError("substring not found")
+        return result
 
     def replace(self, old, new, count=-1):
         exact = super().count(old)
@@ -485,7 +527,11 @@ class JavaSource(str):
         if not isinstance(old, str) or not isinstance(new, str):
             return JavaSource(super().replace(old, new, count))
 
-        matches = _token_sequence_matches(self, old)
+        try:
+            matches = _token_sequence_matches(self, old)
+        except JavaPatchError:
+            return JavaSource(super().replace(old, new, count))
+
         if not matches and count == 1:
             inserted = _insertion_fallback(self, old, new)
             if inserted is not None:
@@ -499,8 +545,8 @@ class JavaSource(str):
 
         selected = matches if count < 0 else matches[:count]
         result = str(self)
-        for start, end in reversed(selected):
-            result = result[:start] + new + result[end:]
+        for match_start, match_end in reversed(selected):
+            result = result[:match_start] + new + result[match_end:]
         return JavaSource(result)
 
 
