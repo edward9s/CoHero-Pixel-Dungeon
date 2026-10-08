@@ -226,7 +226,8 @@ final class CoHeroCombatPositioning {
         if (owner.survival().tryUseInvisibilityPotion()) {
             return true;
         }
-        if (owner.survival().tryEmergencySurvivalPotion()) {
+        float incoming = owner.estimatedIncomingDptAtCell(owner.pos, invulnerableThreats);
+        if (owner.survival().tryEmergencySurvivalPotion(incoming, incoming)) {
             return true;
         }
 
