@@ -177,24 +177,24 @@ class Mob {
     protected class Sleeping implements AiState {
         public boolean act(boolean enemyInFOV, boolean justAlerted) {
             if (enemyInFOV || (enemy != null && enemy.invisible > 0)) {
-                float highestChance = Float.POSITIVE_INFINITY;
-                Char closestHostile = null;
+                float detectionAggregate = Float.POSITIVE_INFINITY;
+                Char candidate = null;
 
                 for (Char ch : Actor.chars()){
-                    float bestChance = detectionChance(ch);
+                    float candidateChance = detectionChance(ch);
                     if (ch.invisible > 0) {
-                        bestChance = Float.POSITIVE_INFINITY;
+                        candidateChance = Float.POSITIVE_INFINITY;
                     }
                     if (ch.flying) {
-                        bestChance = Float.POSITIVE_INFINITY;
+                        candidateChance = Float.POSITIVE_INFINITY;
                     }
-                    if (bestChance < highestChance){
-                        highestChance = bestChance;
-                        closestHostile = ch;
+                    if (candidateChance < detectionAggregate){
+                        detectionAggregate = candidateChance;
+                        candidate = ch;
                     }
                 }
 
-                if (closestHostile != null && Random.Float() < detectionChance(closestHostile)) {
+                if (candidate != null && Random.Float() < detectionChance(candidate)) {
                     return true;
                 }
             }
@@ -272,17 +272,17 @@ def test_mob_patch():
         "public boolean coHeroCanAttackFrom(",
         "public float coHeroSleepingDetectionChanceAt(",
         "|| coHeroHostileInFOV())",
-        "Char easiestHostileToDetect = null;",
-        "bestChance > highestChance",
-        "Random.Float() < highestChance",
+        "Char candidate = null;",
+        "candidateChance > detectionAggregate",
+        "Random.Float() < detectionAggregate",
         "com.spd.cohero.CoHeroRemoteView.attack(this, enemy.pos);",
         "&& !coHeroSurprisedBy(enemy)",
         "if (mob instanceof com.spd.cohero.CoHeroAlly)",
     )
     if any(token not in patched for token in required):
         raise AssertionError("Mob structural patch missed a required postcondition")
-    if "closestHostile" in patched:
-        raise AssertionError("Mob structural patch left the obsolete sleeping selector behind")
+    if "candidateChance = Float.POSITIVE_INFINITY" in patched:
+        raise AssertionError("Mob structural patch left the old stealth exclusion semantics behind")
 
 
 test_helper()
