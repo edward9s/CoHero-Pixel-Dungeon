@@ -419,6 +419,42 @@ def _token_sequence_matches(source: str, anchor: str):
     return matches
 
 
+class JavaSource(str):
+    """Drop-in source wrapper with exact-first, token-aware count/replace fallback."""
+
+    def count(self, sub, start=0, end=None):
+        actual_end = len(self) if end is None else end
+        exact = super().count(sub, start, actual_end)
+        if exact or start != 0 or actual_end != len(self) or not isinstance(sub, str):
+            return exact
+        return len(_token_sequence_matches(self, sub))
+
+    def replace(self, old, new, count=-1):
+        exact = super().count(old)
+        if exact:
+            return JavaSource(super().replace(old, new, count))
+        if not isinstance(old, str) or not isinstance(new, str):
+            return JavaSource(super().replace(old, new, count))
+
+        matches = _token_sequence_matches(self, old)
+        if not matches or count == 0:
+            return JavaSource(self)
+
+        if count == 1 and len(matches) != 1:
+            raise JavaPatchError(
+                f"ambiguous token-aware replacement: expected one match, found {len(matches)}")
+
+        selected = matches if count < 0 else matches[:count]
+        result = str(self)
+        for start, end in reversed(selected):
+            result = result[:start] + new + result[end:]
+        return JavaSource(result)
+
+
+def java_source(source: str) -> JavaSource:
+    return JavaSource(source)
+
+
 def code_match_count(source: str, anchor: str) -> int:
     exact = source.count(anchor)
     if exact:
