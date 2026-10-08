@@ -19,7 +19,11 @@ ward_budget_old = """	private boolean wardAvailable = true;
 	
 	@Override
 	public boolean tryToZap(Hero owner, int target) {
-		
+		if (cursed){
+			//we're not spawning a ward/sentry if cursed, so skip all special logic here
+			return super.tryToZap(owner, target);
+		}
+
 		int currentWardEnergy = 0;
 		for (Char ch : Actor.chars()){
 			if (ch instanceof Ward){
@@ -111,6 +115,10 @@ ward_budget_new = """	private boolean wardAvailable = true;
 
 	@Override
 	public boolean tryToZap(Hero owner, int target) {
+		if (cursed){
+			// Preserve Shattered v4.0.2+: cursed warding uses the normal cursed-zap path.
+			return super.tryToZap(owner, target);
+		}
 		return wardBudgetAllows(owner, target, false, true) && super.tryToZap(owner, target);
 	}
 
