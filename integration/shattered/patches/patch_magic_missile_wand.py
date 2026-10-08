@@ -2,13 +2,15 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 from java_patch import replace_code_once as replace_once
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_magic_missile_wand.py <WandOfMagicMissile.java>")
 
 path = Path(sys.argv[1])
-magic = path.read_text(encoding="utf-8")
+magic = java_source(path.read_text(encoding="utf-8"))
 
 
 magic_old = """			//apply the magic charge buff if we have another wand in inventory of a lower level, or already have the buff
