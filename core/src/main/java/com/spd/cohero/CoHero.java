@@ -180,7 +180,7 @@ public final class CoHero {
         try {
             timings.saveReport();
         } catch (GdxRuntimeException error) {
-            GLog.w("CoHero timing report could not be saved: " + error.getMessage());
+            GLog.w("CoHero diagnostics report could not be saved: " + error.getMessage());
         }
 
         if (companionState != null) {
