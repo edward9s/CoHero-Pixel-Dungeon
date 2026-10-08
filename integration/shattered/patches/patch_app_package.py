@@ -21,14 +21,16 @@ targets = (
 for key, upstream_value, cohero_value in targets:
     current_pattern = re.compile(
         rf"(?m)^(?P<indent>\s*){re.escape(key)}\s*=\s*"
-        rf"(?P<quote>['\"]){re.escape(cohero_value)}(?P=quote)\s*$"
+        rf"(?P<quote>['\"]){re.escape(cohero_value)}(?P=quote)"
+        rf"(?P<comment>\s*//.*)?\s*$"
     )
     if current_pattern.search(text):
         continue
 
     upstream_pattern = re.compile(
         rf"(?m)^(?P<indent>\s*){re.escape(key)}\s*=\s*"
-        rf"(?P<quote>['\"]){re.escape(upstream_value)}(?P=quote)\s*$"
+        rf"(?P<quote>['\"]){re.escape(upstream_value)}(?P=quote)"
+        rf"(?P<comment>\s*//.*)?\s*$"
     )
     matches = list(upstream_pattern.finditer(text))
     if len(matches) != 1:
@@ -41,6 +43,7 @@ for key, upstream_value, cohero_value in targets:
     replacement = (
         f"{match.group('indent')}{key} = "
         f"{match.group('quote')}{cohero_value}{match.group('quote')}"
+        f"{match.group('comment') or ''}"
     )
     text = text[:match.start()] + replacement + text[match.end():]
 
