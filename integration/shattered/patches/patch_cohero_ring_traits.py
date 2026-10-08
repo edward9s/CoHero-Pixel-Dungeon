@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 from java_patch import replace_code_once as replace_once
 
 if len(sys.argv) != 2:
@@ -10,7 +12,7 @@ if len(sys.argv) != 2:
     )
 
 arcana_path = Path(sys.argv[1])
-arcana = arcana_path.read_text(encoding="utf-8")
+arcana = java_source(arcana_path.read_text(encoding="utf-8"))
 
 
 
