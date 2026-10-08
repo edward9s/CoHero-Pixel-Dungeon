@@ -121,6 +121,13 @@ class Sample {
     wrapped = java_source(token_source)
     if wrapped.count(token_anchor) != 1:
         raise AssertionError("JavaSource.count did not use token-aware fallback")
+    if token_anchor not in wrapped:
+        raise AssertionError("JavaSource.__contains__ did not use token-aware fallback")
+    if wrapped.index(token_anchor) < 0:
+        raise AssertionError("JavaSource.index did not use token-aware fallback")
+    wrapped_slice = wrapped[:]
+    if type(wrapped_slice).__name__ != "JavaSource":
+        raise AssertionError("JavaSource slicing must preserve resilient matching")
     wrapped_patched = wrapped.replace(token_anchor, token_replacement, 1)
     if "int value = 3;" not in wrapped_patched:
         raise AssertionError("JavaSource.replace did not use token-aware fallback")
