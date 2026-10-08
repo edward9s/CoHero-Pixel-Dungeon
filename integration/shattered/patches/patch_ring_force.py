@@ -2,7 +2,7 @@
 from pathlib import Path
 import sys
 
-from java_patch import java_source
+from java_patch import insert_after_code_once, java_source
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_ring_force.py <RingOfForce.java>")
@@ -32,11 +32,6 @@ addition = """
 
 if "coHeroUnarmedMinDamage" in text or "coHeroUnarmedMaxDamage" in text:
     raise SystemExit("CoHero Ring of Force damage seam is already present")
-if text.count(anchor) != 1:
-    raise SystemExit(
-        f"expected exactly one Ring of Force anchor, found {text.count(anchor)}"
-    )
-
-text = text.replace(anchor, anchor + addition, 1)
+text = java_source(insert_after_code_once(text, anchor, addition, "Ring of Force"))
 path.write_text(text, encoding="utf-8")
 print(f"patched {path}")
