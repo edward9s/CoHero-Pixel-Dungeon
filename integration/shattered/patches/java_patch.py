@@ -267,6 +267,28 @@ def replace_regex_once(
     return source[:block.body_start] + new_body + source[block.body_end:]
 
 
+def replace_regex_count(
+        source: str,
+        block: JavaBlock,
+        pattern: str,
+        replacement: str,
+        expected: int,
+        label: str,
+        flags: int = re.MULTILINE | re.DOTALL) -> str:
+    body = source[block.body_start:block.body_end]
+    regex = re.compile(pattern, flags)
+    matches = list(regex.finditer(body))
+    if len(matches) != expected:
+        raise JavaPatchError(
+            f"expected {expected} {label} occurrence(s) in scoped block, found {len(matches)}")
+
+    body, replaced = regex.subn(replacement, body)
+    if replaced != expected:
+        raise JavaPatchError(
+            f"expected to replace {expected} {label} occurrence(s), replaced {replaced}")
+    return source[:block.body_start] + body + source[block.body_end:]
+
+
 def replace_literal_count(
         source: str,
         block: JavaBlock,
