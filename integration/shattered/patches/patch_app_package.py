@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 import sys
 
 if len(sys.argv) != 2:
@@ -8,26 +9,41 @@ if len(sys.argv) != 2:
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
-name_old = "appName = 'Shattered Pixel Dungeon'"
-name_new = "appName = 'CoShattered Pixel Dungeon'"
-package_old = "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon'"
-package_new = "appPackageName = 'com.shatteredpixel.shatteredpixeldungeon.cohero'"
+targets = (
+    ("appName", "Shattered Pixel Dungeon", "CoShattered Pixel Dungeon"),
+    (
+        "appPackageName",
+        "com.shatteredpixel.shatteredpixeldungeon",
+        "com.shatteredpixel.shatteredpixeldungeon.cohero",
+    ),
+)
 
-if name_new in text or package_new in text:
-    raise SystemExit("CoHero app identity is already present")
-
-name_count = text.count(name_old)
-if name_count != 1:
-    raise SystemExit(f"expected exactly one upstream appName anchor, found {name_count}")
-
-package_count = text.count(package_old)
-if package_count != 1:
-    raise SystemExit(
-        f"expected exactly one upstream appPackageName anchor, found {package_count}"
+for key, upstream_value, cohero_value in targets:
+    current_pattern = re.compile(
+        rf"(?m)^(?P<indent>\s*){re.escape(key)}\s*=\s*"
+        rf"(?P<quote>['\"]){re.escape(cohero_value)}(?P=quote)\s*$"
     )
+    if current_pattern.search(text):
+        continue
 
-text = text.replace(name_old, name_new, 1)
-text = text.replace(package_old, package_new, 1)
+    upstream_pattern = re.compile(
+        rf"(?m)^(?P<indent>\s*){re.escape(key)}\s*=\s*"
+        rf"(?P<quote>['\"]){re.escape(upstream_value)}(?P=quote)\s*$"
+    )
+    matches = list(upstream_pattern.finditer(text))
+    if len(matches) != 1:
+        raise SystemExit(
+            f"expected exactly one semantic {key} assignment for {upstream_value!r}, "
+            f"found {len(matches)}"
+        )
+
+    match = matches[0]
+    replacement = (
+        f"{match.group('indent')}{key} = "
+        f"{match.group('quote')}{cohero_value}{match.group('quote')}"
+    )
+    text = text[:match.start()] + replacement + text[match.end():]
+
 path.write_text(text, encoding="utf-8")
 print(
     f"patched {path}: CoShattered Pixel Dungeon / "
