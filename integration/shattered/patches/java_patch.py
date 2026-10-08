@@ -419,6 +419,55 @@ def _token_sequence_matches(source: str, anchor: str):
     return matches
 
 
+def _boundary_token_match(source: str, anchor: str, side: str):
+    source_tokens = java_tokens(source)
+    anchor_tokens = java_tokens(anchor)
+    if not anchor_tokens:
+        return None
+
+    widths = []
+    for width in (32, 24, 16, 12, 8, 6):
+        width = min(width, len(anchor_tokens))
+        if width > 0 && width not in widths:
+            widths.append(width)
+
+    haystack = [token.text for token in source_tokens]
+    for width in widths:
+        selected = anchor_tokens[:width] if side == "prefix" else anchor_tokens[-width:]
+        needle = [token.text for token in selected]
+        matches = []
+        for i in range(0, len(haystack) - width + 1):
+            if haystack[i:i + width] == needle:
+                matches.append(
+                    (source_tokens[i].start, source_tokens[i + width - 1].end))
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            # A shorter boundary can only be less specific.
+            return None
+    return None
+
+
+def _insertion_fallback(source: str, old: str, new: str):
+    if new.startswith(old):
+        addition = new[len(old):]
+        if addition:
+            match = _boundary_token_match(source, old, "suffix")
+            if match is not None:
+                _, end = match
+                return source[:end] + addition + source[end:]
+
+    if new.endswith(old):
+        addition = new[:-len(old)] if old else ""
+        if addition:
+            match = _boundary_token_match(source, old, "prefix")
+            if match is not None:
+                start, _ = match
+                return source[:start] + addition + source[start:]
+
+    return None
+
+
 class JavaSource(str):
     """Drop-in source wrapper with exact-first, token-aware count/replace fallback."""
 
@@ -437,6 +486,10 @@ class JavaSource(str):
             return JavaSource(super().replace(old, new, count))
 
         matches = _token_sequence_matches(self, old)
+        if not matches and count == 1:
+            inserted = _insertion_fallback(self, old, new)
+            if inserted is not None:
+                return JavaSource(inserted)
         if not matches or count == 0:
             return JavaSource(self)
 
@@ -471,12 +524,17 @@ def replace_code_once(source: str, old: str, new: str, label: str) -> str:
         raise JavaPatchError(f"expected exactly one {label} anchor, found {exact}")
 
     matches = _token_sequence_matches(source, old)
-    if len(matches) != 1:
-        raise JavaPatchError(
-            f"expected exactly one {label} anchor, found {len(matches)} token-equivalent matches")
+    if len(matches) == 1:
+        start, end = matches[0]
+        return source[:start] + new + source[end:]
 
-    start, end = matches[0]
-    return source[:start] + new + source[end:]
+    if not matches:
+        inserted = _insertion_fallback(source, old, new)
+        if inserted is not None:
+            return inserted
+
+    raise JavaPatchError(
+        f"expected exactly one {label} anchor, found {len(matches)} token-equivalent matches")
 
 
 def replace_code_count(
