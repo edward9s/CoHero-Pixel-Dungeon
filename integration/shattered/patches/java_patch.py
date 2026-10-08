@@ -428,7 +428,7 @@ def _boundary_token_match(source: str, anchor: str, side: str):
     widths = []
     for width in (32, 24, 16, 12, 8, 6):
         width = min(width, len(anchor_tokens))
-        if width > 0 && width not in widths:
+        if width > 0 and width not in widths:
             widths.append(width)
 
     haystack = [token.text for token in source_tokens]
