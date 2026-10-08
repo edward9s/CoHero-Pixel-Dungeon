@@ -3,6 +3,8 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Ooze;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
@@ -20,6 +22,7 @@ final class CoHeroNavigation {
 
     private static final int IDLE_HERO_TETHER_RADIUS = 10;
     private static final int IDLE_ROAM_RADIUS = 6;
+    private static final int MAX_WASH_DISTANCE = 4;
 
     private final CoHeroAlly owner;
     private int explorationTarget = -1;
@@ -230,6 +233,106 @@ final class CoHeroNavigation {
                 }
             }
         }
+    }
+
+    /**
+     * Briefly seek known water to remove Burning or Ooze. Only safe, short paths are considered;
+     * when there is no suitable water, ordinary combat and survival decisions stay in control.
+     */
+    Boolean tryWashInWater() {
+        if (owner.flying
+                || (owner.buff(Burning.class) == null && owner.buff(Ooze.class) == null)) {
+            return null;
+        }
+
+        ArrayList<Mob> threats = owner.visibleAwakeEnemies();
+        if (Dungeon.level.water[owner.pos]) {
+            // A full turn in water lets the stock buffs wash off. Do not wait under direct fire.
+            if (owner.anyThreatCanAttackNow(threats)) {
+                return null;
+            }
+            owner.setMovementDecision("wash_wait", owner.pos);
+            owner.spendActionTime(Actor.TICK);
+            return true;
+        }
+        if (owner.rooted) {
+            return null;
+        }
+
+        boolean[] safePassable = nonCombatSafePassable(true);
+        for (int cell = 0; cell < safePassable.length; cell++) {
+            if (cell != owner.pos && Actor.findChar(cell) != null) {
+                safePassable[cell] = false;
+            }
+        }
+        PathFinder.buildDistanceMap(owner.pos, safePassable, MAX_WASH_DISTANCE);
+
+        int currentAttackers = threats.isEmpty()
+                ? 0 : owner.countCurrentAttackersAtCell(owner.pos, threats);
+        float currentIncoming = threats.isEmpty()
+                ? 0f : owner.estimatedIncomingDptAtCell(owner.pos, threats);
+        int target = -1;
+        int bestDistance = Integer.MAX_VALUE;
+        int bestHeroDistance = Integer.MAX_VALUE;
+
+        for (int cell = 0; cell < safePassable.length; cell++) {
+            if (!Dungeon.level.water[cell]
+                    || !safePassable[cell]
+                    || !owner.fieldOfView[cell]
+                    || PathFinder.distance[cell] == Integer.MAX_VALUE
+                    || PathFinder.distance[cell] > MAX_WASH_DISTANCE) {
+                continue;
+            }
+
+            if (!threats.isEmpty()
+                    && !washStepSafe(cell, threats, currentAttackers, currentIncoming)) {
+                continue;
+            }
+
+            int distance = PathFinder.distance[cell];
+            int heroDistance = Dungeon.hero == null
+                    ? 0 : Dungeon.level.distance(cell, Dungeon.hero.pos);
+            if (target == -1 || distance < bestDistance
+                    || (distance == bestDistance && heroDistance < bestHeroDistance)) {
+                target = cell;
+                bestDistance = distance;
+                bestHeroDistance = heroDistance;
+            }
+        }
+        if (target == -1) {
+            return null;
+        }
+
+        int step = Dungeon.findStep(
+                owner, target, safePassable, owner.fieldOfView, true);
+        if (step == -1 || step == owner.pos || !safePassable[step]
+                || (!threats.isEmpty()
+                    && !washStepSafe(step, threats, currentAttackers, currentIncoming))) {
+            return null;
+        }
+
+        int oldPos = owner.pos;
+        owner.allowAnyGuardMovement();
+        owner.setMovementDecision("wash_in_water", target);
+        owner.clearNavigationPath();
+        owner.move(step, true);
+        if (owner.pos == oldPos) {
+            return null;
+        }
+        owner.spendActionTime(1 / owner.speed());
+        owner.refreshOwnFieldOfView();
+        return owner.finishMovementAnimation(oldPos);
+    }
+
+    private boolean washStepSafe(
+            int cell, ArrayList<Mob> threats, int currentAttackers, float currentIncoming) {
+        int attackers = owner.countCurrentAttackersAtCell(cell, threats);
+        if (attackers > currentAttackers) {
+            return false;
+        }
+        float incoming = owner.estimatedIncomingDptAtCell(cell, threats);
+        return incoming <= currentIncoming + 0.01f
+                && (attackers == 0 || incoming * 1.35f < owner.HP + owner.shielding());
     }
 
     Boolean tryAvoidHazard() {
