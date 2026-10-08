@@ -2,13 +2,15 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 from java_patch import replace_code_once as replace_once
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_wand_frost.py <WandOfFrost.java>")
 
 path = Path(sys.argv[1])
-frost = path.read_text(encoding="utf-8")
+frost = java_source(path.read_text(encoding="utf-8"))
 
 
 # Frost: only the visual path is Hero-static.
