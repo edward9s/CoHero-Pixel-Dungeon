@@ -357,6 +357,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Test CoHero emergency consumable rules
+        shell: bash
+        run: python cohero/scripts/test_cohero_combat_risk.py cohero
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
