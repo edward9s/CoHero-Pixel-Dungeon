@@ -2,13 +2,15 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 from java_patch import replace_code_once as replace_once
 
 if len(sys.argv) != 2:
     raise SystemExit("usage: patch_wand_transfusion.py <WandOfTransfusion.java>")
 
 path = Path(sys.argv[1])
-transfusion = path.read_text(encoding="utf-8")
+transfusion = java_source(path.read_text(encoding="utf-8"))
 
 
 # Transfusion: CoHero may support the player Hero; otherwise preserve normal Mob semantics.
