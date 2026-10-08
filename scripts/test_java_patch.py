@@ -367,7 +367,9 @@ def test_all_java_patch_scripts_use_resilient_source():
 
     for name in java_scripts:
         script = (patch_dir / name).read_text(encoding="utf-8")
-        if "from java_patch import java_source" not in script:
+        if not __import__("re").search(
+                r"(?m)^from\s+java_patch\s+import\s+[^\n]*\bjava_source\b",
+                script):
             raise AssertionError(f"{name} does not import java_source")
         read_lines = [line for line in script.splitlines() if ".read_text(" in line]
         if not read_lines:
