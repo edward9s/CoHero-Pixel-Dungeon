@@ -79,7 +79,25 @@ public class WndCompanionInventory extends Window {
         title.setPos(0, 1);
         add(title);
 
-        float contentY = title.bottom() + 4;
+        float comboY = title.bottom() + 3;
+        RenderedTextBlock comboEnergy = PixelScene.renderTextBlock(
+                CoHeroMessages.get("combo.energy", CoHeroCombo.energy(), CoHeroCombo.MAX_ENERGY), 7);
+        comboEnergy.setPos(0, comboY);
+        add(comboEnergy);
+
+        RedButton comboButton = new RedButton(CoHeroCombo.skillName(), 7) {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                hide();
+                CoHeroCombo.requestCast();
+            }
+        };
+        comboButton.setRect(0, comboEnergy.bottom() + 2, layoutWidth, 14);
+        comboButton.enable(CoHeroCombo.canCast());
+        add(comboButton);
+
+        float contentY = comboButton.bottom() + 4;
         if (landscape) {
             layoutLandscape(contentY);
         } else {
