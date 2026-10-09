@@ -253,7 +253,6 @@ public final class CoHeroCombo {
                             : "combo.detail.partner." + partnerClass);
             if ((heroClass == 0 && partnerClass == 5)
                     || (heroClass == 3 && partnerClass == 0)
-                    || (heroClass == 3 && partnerClass == 5)
                     || (heroClass == 4 && partnerClass == 5)) {
                 effects += " " + CoHeroMessages.get(
                         "combo.detail.extra." + heroClass + "." + partnerClass);
