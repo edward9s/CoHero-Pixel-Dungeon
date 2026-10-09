@@ -161,6 +161,29 @@ final class CoHeroCombatController {
         return targeting.nearestThreat(threats);
     }
 
+    /**
+     * Vertigo can randomize every ordinary walking step. Keep available attacks while
+     * refusing all positioning, chasing, recall and offensive movement.
+     */
+    Boolean tryStationaryAttack(ArrayList<Mob> visibleThreats) {
+        ArrayList<Mob> candidates = targeting.collectAttackableThreats(visibleThreats);
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        Mob target = targeting.selectCombatTarget(candidates, visibleThreats);
+        if (target != null && owner.canAttack(target)) {
+            return performMeleeAttack(target);
+        }
+        if (target != null && Dungeon.level.distance(owner.pos, target.pos) > 1) {
+            RangedChoice ranged = chooseRangedAttack(target);
+            if (ranged != null) {
+                return performRangedChoice(target, ranged);
+            }
+        }
+        return null;
+    }
+
     Mob selectCombatTarget(
             ArrayList<Mob> candidates, ArrayList<Mob> activeEnemies) {
         return targeting.selectCombatTarget(candidates, activeEnemies);
