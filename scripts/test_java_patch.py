@@ -552,6 +552,26 @@ def test_combo_attack_patch_and_catalog():
                                           validate=True)
     if not icon.startswith(b"\x89PNG\r\n\x1a\n") or icon[16:24] != bytes.fromhex("0000001000000010"):
         raise AssertionError("Combo icon must be a valid 16x16 PNG")
+    # The charge notches occupy the top of the Tag. Keep the icon's first
+    # four pixel rows completely transparent so no blade/gem covers the bars.
+    # A 16x16 8-bit RGBA PNG has one 65-byte filtered scanline per row.
+    import zlib
+    if icon[24] != 8 or icon[25] != 6:
+        raise AssertionError("Combo icon must be 8-bit RGBA")
+    cursor = 8
+    compressed = bytearray()
+    while cursor < len(icon):
+        size = int.from_bytes(icon[cursor:cursor + 4], "big")
+        chunk_type = icon[cursor + 4:cursor + 8]
+        if chunk_type == b"IDAT":
+            compressed.extend(icon[cursor + 8:cursor + 8 + size])
+        cursor += size + 12
+    pixels = zlib.decompress(bytes(compressed))
+    if len(pixels) != 16 * 65 or any(
+            pixels[y * 65 + 1:(y + 1) * 65] != bytes(64)
+            for y in range(4)):
+        raise AssertionError("Combo icon overlaps three top charge notches")
+
     integration_sh = (root / "integration/shattered/apply.sh").read_text(encoding="utf-8")
     if 'cohero_combo.png.b64' not in integration_sh or 'dest.write_bytes(png)' not in integration_sh:
         raise AssertionError("Integration must materialize the combo texture")
