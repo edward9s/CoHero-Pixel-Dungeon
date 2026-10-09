@@ -59,6 +59,17 @@ public final class CoHeroCombo {
         return energy;
     }
 
+    /**
+     * Test-only refill at the beginning of the next Hero turn.
+     * The meter deliberately stays at 60..179 until another legitimate cast
+     * drops it below 60. This does not alter an already earned charge mid-turn.
+     */
+    public static void onHeroTurn() {
+        if (CoHeroSettings.autoFillLinkEnabled() && energy < CAST_COST) {
+            energy = MAX_ENERGY;
+        }
+    }
+
     public static void store(Bundle bundle) {
         bundle.put(ENERGY_KEY, energy);
     }
