@@ -93,7 +93,28 @@ final class CoHeroCombatTargeting {
             return best;
         }
 
-        return nearestThreat(candidates);
+        Mob nearest = nearestThreat(candidates);
+        // Preserve an immediate melee engagement. Otherwise prioritize an active shooter
+        // only if CoHero already has a legal damaging ranged attack against it.
+        if (owner.canAttack(nearest)) {
+            return nearest;
+        }
+        Mob shooter = null;
+        float highestThreatDpt = 0f;
+        for (Mob candidate : candidates) {
+            if (!owner.isCurrentRangedPressure(candidate)
+                    || owner.estimateBestRangedDpt(candidate) <= 0f) {
+                continue;
+            }
+            float threatDpt = owner.estimatedThreatDamage(candidate, owner.pos)
+                    * owner.estimatedHitChance(candidate, owner.pos)
+                    / Math.max(0.25f, candidate.attackDelay());
+            if (threatDpt > highestThreatDpt) {
+                shooter = candidate;
+                highestThreatDpt = threatDpt;
+            }
+        }
+        return shooter == null ? nearest : shooter;
     }
 
     private Mob selectStrategicSource(
