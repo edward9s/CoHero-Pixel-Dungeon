@@ -65,5 +65,25 @@ if text.count(exp_old) != 1:
     raise SystemExit(f"expected exactly one Hero normal EXP anchor, found {text.count(exp_old)}")
 text = text.replace(exp_old, exp_new, 1)
 
+# Only run the test-only Link refill at the beginning of a newly scheduled
+# Hero turn, not each time an already-ready Hero UI refreshes.
+hero_turn_old = """	@Override
+	public boolean act() {
+
+		//calls to dungeon.observe will also update hero's local FOV.
+"""
+hero_turn_new = """	@Override
+	public boolean act() {
+
+		if (!ready) com.spd.cohero.CoHeroCombo.onHeroTurn();
+
+		//calls to dungeon.observe will also update hero's local FOV.
+"""
+if "CoHeroCombo.onHeroTurn()" in text:
+    raise SystemExit("CoHero Link turn hook is already present")
+if text.count(hero_turn_old) != 1:
+    raise SystemExit(f"expected exactly one Hero.act turn anchor, found {text.count(hero_turn_old)}")
+text = text.replace(hero_turn_old, hero_turn_new, 1)
+
 path.write_text(text, encoding="utf-8")
 print(f"patched {path}")
