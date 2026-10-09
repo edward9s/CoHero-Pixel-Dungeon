@@ -132,7 +132,8 @@ public final class CoHeroCombo {
             if (before.get(mob) > mob.HP) {
                 int rank = mob.id() == lastTargetId ? -1
                         : Dungeon.level.distance(mob.pos, bolt.collisionPos);
-                if (rank < best) {
+                if (rank < best || (rank == best && primary != null
+                        && mob.id() < primary.id())) {
                     best = rank;
                     primary = mob;
                 }
