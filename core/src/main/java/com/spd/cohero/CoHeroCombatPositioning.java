@@ -412,6 +412,46 @@ final class CoHeroCombatPositioning {
         return best;
     }
 
+    // Last-resort defensive cover when the only escape step risks waking a sleeper.
+    // Unlike pursuit, this is allowed for unseen shooters only if their attack line
+    // is actually broken by this single step. No unseen target is attacked.
+    int chooseUnseenFireEmergencyCoverStep(Mob shooter, ArrayList<Mob> attackers) {
+        if (owner.rooted || shooter == null || attackers == null || attackers.isEmpty()) {
+            return -1;
+        }
+
+        int currentAttackers = owner.countCurrentAttackersAtCell(owner.pos, attackers);
+        float currentIncoming = owner.estimatedIncomingDptAtCell(owner.pos, attackers);
+        int bestStep = -1;
+        float bestIncoming = currentIncoming;
+
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int cell = owner.pos + offset;
+            if (!Dungeon.level.insideMap(cell)
+                    || Dungeon.level.distance(owner.pos, cell) != 1
+                    || !owner.isKnown(cell)
+                    || !owner.fieldOfView[cell]
+                    || !Dungeon.level.passable[cell]
+                    || Actor.findChar(cell) != null
+                    || owner.isMovementSafe(cell)
+                    || !owner.isMovementSafeIgnoringSleep(cell)
+                    || owner.countCurrentAttackersAtCell(cell, attackers) >= currentAttackers) {
+                continue;
+            }
+
+            float incoming = owner.estimatedIncomingDptAtCell(cell, attackers);
+            if (incoming >= currentIncoming - 0.01f) {
+                continue;
+            }
+            if (bestStep == -1 || incoming < bestIncoming - 0.01f
+                    || (Math.abs(incoming - bestIncoming) <= 0.01f && cell < bestStep)) {
+                bestStep = cell;
+                bestIncoming = incoming;
+            }
+        }
+        return bestStep;
+    }
+
     boolean isRangedCoverCell(int cell, Mob targetMob) {
         if (targetMob == null
                 || targetMob.fieldOfView == null
@@ -433,6 +473,10 @@ final class CoHeroCombatPositioning {
     }
 
     boolean[] rangedLurePassable() {
+        return rangedLurePassable(false);
+    }
+
+    private boolean[] rangedLurePassable(boolean allowSleepingProximity) {
         boolean[] result = Dungeon.level.passable.clone();
         for (int cell = 0; cell < result.length; cell++) {
             if (cell == owner.pos) {
@@ -440,7 +484,10 @@ final class CoHeroCombatPositioning {
                 continue;
             }
 
-            if (!result[cell] || !owner.isKnown(cell) || !owner.isMovementSafe(cell)) {
+            if (!result[cell] || !owner.isKnown(cell)
+                    || !(allowSleepingProximity
+                        ? owner.isMovementSafeIgnoringSleep(cell)
+                        : owner.isMovementSafe(cell))) {
                 result[cell] = false;
                 continue;
             }
@@ -986,7 +1033,23 @@ final class CoHeroCombatPositioning {
             return -1;
         }
 
-        boolean[] passable = rangedLurePassable();
+        int safeStep = chooseRangedTargetClosingStep(targetMob, threats, rangedLurePassable());
+        if (safeStep != -1
+                || !owner.isCurrentRangedPressure(targetMob)
+                || owner.estimateBestRangedDpt(targetMob)
+                    > owner.estimatedIncomingDptAtCell(owner.pos, threats)) {
+            return safeStep;
+        }
+
+        // Under sustained ranged fire, do not get stuck because a sleeping enemy
+        // blocks every approach. Only relax the wake-up buffer after safe paths fail.
+        // Occupied cells, unknown cells, hazards and piranha danger remain blocked.
+        return chooseRangedTargetClosingStep(
+                targetMob, threats, rangedLurePassable(true));
+    }
+
+    private int chooseRangedTargetClosingStep(
+            Mob targetMob, ArrayList<Mob> threats, boolean[] passable) {
         int bestStep = -1;
         int bestScore = Integer.MAX_VALUE;
 
