@@ -71,8 +71,8 @@ CoHero aims to keep Shattered Pixel Dungeon's original mechanics intact while ad
 
 ## Dual ultimates
 
-Successful attacks by both heroes build a shared **Link** meter; attacking alone or waiting does not. A paired hit against the same enemy grants 8 Link, paired attacks within the same skirmish grant 5, and a shared kill grants another 4. Link carries between floors, up to **180**.
+Successful damaging weapon attacks **and immediate wand hits** by both heroes build a shared **Link** meter; attacking alone or waiting does not. Each wand cast counts as at most one attack for Link pairing; later damage from gas, fire or wards does not count. A paired hit against the same enemy grants 8 Link, paired attacks within the same skirmish grant 5, and a shared kill grants another 4. Link carries between floors, up to **180**.
 
-Open the companion inventory to see the meter and the ultimate for the current **ordered Hero + CoHero class pair** (36 combinations). Casting costs **60 Link**. Both heroes must be alive, able to act, and within six tiles of one another. Offensive ultimates need a reachable enemy target; Cleric-Hero ultimates provide immediate team support. Each cast consumes a normal action from both heroes. The same combination can be saved up to three times.
+The GameScene **Link Tag** displays current/max Link and casts the ultimate when tapped. The companion inventory shows the **name and effect description** for the current **ordered Hero + CoHero class pair** (36 combinations), without a Link meter or cast button. Casting costs **60 Link**. Both heroes must be alive, able to act, and within six tiles of one another. Offensive ultimates need a reachable enemy target; Cleric-Hero ultimates provide immediate team support. Each cast consumes a normal action from both heroes. The same combination can be saved up to three times.
 
 Ultimates respect enemy invulnerability. The first implementation combines class-specific attack patterns with partner-specific effects; precise balance and presentation remain subject to playtesting.
