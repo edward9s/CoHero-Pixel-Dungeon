@@ -1,0 +1,384 @@
+package com.spd.cohero;
+
+import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Bless;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Cripple;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vulnerable;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Weakness;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
+import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.watabou.utils.Bundle;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+
+/**
+ * Shared party resource: only attacks from BOTH heroes can earn combo energy.
+ * A paired action scores once, regardless of damage rolls, projectiles or attack procs.
+ */
+public final class CoHeroCombo {
+
+    public static final int MAX_ENERGY = 180;
+    public static final int CAST_COST = 60;
+    private static final float PAIR_WINDOW = 3f;
+    private static final int PARTY_RANGE = 6;
+    private static final int ENGAGEMENT_RANGE = 4;
+    private static final String ENERGY_KEY = "cohero_combo_energy";
+
+    private static int energy;
+    private static Level observedLevel;
+    private static float lastTime = -1f;
+    private static int lastRole;
+    private static int lastTargetId = -1;
+    private static int lastTargetCell = -1;
+    // Bitmask per enemy: 1 = Hero dealt damage, 2 = CoHero dealt damage.
+    private static final HashMap<Integer, Integer> participants = new HashMap<>();
+
+    private CoHeroCombo() {
+    }
+
+    public static void reset() {
+        energy = 0;
+        clearTransientState();
+    }
+
+    public static int energy() {
+        return energy;
+    }
+
+    public static void store(Bundle bundle) {
+        bundle.put(ENERGY_KEY, energy);
+    }
+
+    public static void restore(Bundle bundle) {
+        if (!bundle.contains(ENERGY_KEY)) {
+            throw new IllegalStateException("Save is missing combo energy");
+        }
+        energy = bundle.getInt(ENERGY_KEY);
+        if (energy < 0 || energy > MAX_ENERGY) {
+            throw new IllegalStateException("Invalid saved combo energy: " + energy);
+        }
+        clearTransientState();
+    }
+
+    public static void onLevelChanged() {
+        clearTransientState();
+    }
+
+    private static void clearTransientState() {
+        observedLevel = null;
+        lastTime = -1f;
+        lastRole = 0;
+        lastTargetId = -1;
+        lastTargetCell = -1;
+        participants.clear();
+    }
+
+    private static void gain(int points) {
+        energy = Math.min(MAX_ENERGY, energy + points);
+    }
+
+    /**
+     * Hooked at the single Char.attack damage application point, not attackProc.
+     * This excludes misses, zero-damage hits, DOT, and duplicate on-hit effects.
+     */
+    public static void onAttack(Char attacker, Char victim, int hpBefore) {
+        if (Dungeon.level == null || Dungeon.hero == null
+                || !(victim instanceof Mob) || victim.alignment != Char.Alignment.ENEMY
+                || hpBefore <= victim.HP) {
+            return;
+        }
+        CoHeroAlly companion = CoHero.findCompanion();
+        if (companion == null || !companion.isAlive()) {
+            return;
+        }
+        int role = attacker == Dungeon.hero ? 1 : attacker == companion ? 2 : 0;
+        if (role == 0) {
+            return;
+        }
+        if (observedLevel != Dungeon.level || Actor.now() < lastTime) {
+            clearTransientState();
+            observedLevel = Dungeon.level;
+        }
+
+        Mob mob = (Mob) victim;
+        int id = mob.id();
+        int mask = participants.containsKey(id) ? participants.get(id) : 0;
+        mask |= role;
+        if (mob.isAlive()) {
+            participants.put(id, mask);
+        } else {
+            participants.remove(id);
+        }
+
+        float now = Actor.now();
+        if (lastRole != 0 && lastRole != role
+                && now - lastTime <= PAIR_WINDOW
+                && Dungeon.level.distance(Dungeon.hero.pos, companion.pos) <= PARTY_RANGE) {
+            if (lastTargetId == id) {
+                gain(8);
+            } else if (Dungeon.level.distance(lastTargetCell, victim.pos) <= ENGAGEMENT_RANGE) {
+                gain(5);
+            }
+        }
+
+        if (!mob.isAlive() && mask == 3) {
+            gain(4);
+        }
+
+        // Only one pending event exists; H-H-C-H gives two pairings, not three.
+        lastRole = role;
+        lastTime = now;
+        lastTargetId = id;
+        lastTargetCell = victim.pos;
+    }
+
+    private static int classIndex(HeroClass heroClass) {
+        if (heroClass == null) {
+            throw new IllegalArgumentException("Combo requires an explicit hero class");
+        }
+        switch (heroClass) {
+            case WARRIOR: return 0;
+            case MAGE: return 1;
+            case ROGUE: return 2;
+            case HUNTRESS: return 3;
+            case DUELIST: return 4;
+            case CLERIC: return 5;
+            default: throw new IllegalStateException("Unsupported combo class: " + heroClass);
+        }
+    }
+
+    public static String skillName() {
+        if (Dungeon.hero == null) {
+            throw new IllegalStateException("Combo skill requested without Hero");
+        }
+        return CoHeroMessages.get("combo.skill." + classIndex(Dungeon.hero.heroClass)
+                + "." + classIndex(CoHero.companionClass()));
+    }
+
+    public static boolean canCast() {
+        Hero hero = Dungeon.hero;
+        CoHeroAlly companion = CoHero.findCompanion();
+        return energy >= CAST_COST && Dungeon.level != null
+                && hero != null && hero.isAlive() && hero.ready && hero.paralysed <= 0
+                && companion != null && companion.isAlive() && companion.paralysed <= 0
+                && Dungeon.level.distance(hero.pos, companion.pos) <= PARTY_RANGE;
+    }
+
+    /** Called only from a player-initiated UI action, never the CoHero AI loop. */
+    public static void requestCast() {
+        if (!canCast()) {
+            GLog.w(CoHeroMessages.get("combo.unavailable"));
+            return;
+        }
+        if (classIndex(Dungeon.hero.heroClass) == 5) {
+            cast(null);
+        } else {
+            GameScene.selectCell(new CellSelector.Listener() {
+                @Override
+                public void onSelect(Integer cell) {
+                    if (cell != null) {
+                        cast(cell);
+                    }
+                }
+
+                @Override
+                public String prompt() {
+                    return CoHeroMessages.get("combo.target");
+                }
+            });
+        }
+    }
+
+    private static void cast(Integer cell) {
+        if (!canCast()) {
+            GLog.w(CoHeroMessages.get("combo.unavailable"));
+            return;
+        }
+        Hero hero = Dungeon.hero;
+        CoHeroAlly companion = CoHero.findCompanion();
+        int mainClass = classIndex(hero.heroClass);
+        int partnerClass = classIndex(CoHero.companionClass());
+        Mob target = null;
+        if (mainClass != 5) {
+            if (cell == null || cell < 0 || cell >= Dungeon.level.length()) {
+                GLog.w(CoHeroMessages.get("combo.invalid_target"));
+                return;
+            }
+            Char selected = Actor.findChar(cell);
+            if (!(selected instanceof Mob)
+                    || selected.alignment != Char.Alignment.ENEMY || !selected.isAlive()
+                    || selected.isInvulnerable(hero.getClass())
+                    || (Dungeon.level.distance(hero.pos, cell) > 8
+                        && Dungeon.level.distance(companion.pos, cell) > 8)
+                    || !canTargetFromEitherHero(cell, hero, companion)) {
+                GLog.w(CoHeroMessages.get("combo.invalid_target"));
+                return;
+            }
+            target = (Mob) selected;
+        }
+
+        // Every validation above precedes both resource and actor-time consumption.
+        energy -= CAST_COST;
+        if (mainClass == 5) {
+            performClericUltimate(hero, companion, partnerClass);
+        } else {
+            performAttackUltimate(hero, companion, target, mainClass, partnerClass);
+        }
+        GLog.p(CoHeroMessages.get("combo.used", skillName()));
+        companion.spendComboTurn();
+        hero.spendAndNext(Actor.TICK);
+    }
+
+    private static boolean canTargetFromEitherHero(int cell, Hero hero, CoHeroAlly companion) {
+        return (Dungeon.level.heroFOV[cell]
+                    && new Ballistica(hero.pos, cell, Ballistica.PROJECTILE).collisionPos == cell)
+                || (companion.fieldOfView != null && companion.fieldOfView[cell]
+                    && new Ballistica(companion.pos, cell, Ballistica.PROJECTILE).collisionPos == cell);
+    }
+
+    private static void performAttackUltimate(
+            Hero hero, CoHeroAlly companion, Mob target, int mainClass, int partnerClass) {
+        int power = 9 + hero.lvl * 2;
+        switch (mainClass) {
+            case 0: // Warrior: heavy shockwave
+                damageArea(hero, target.pos, 1, power);
+                break;
+            case 1: // Mage: wider magical eruption
+                damageArea(hero, target.pos, 2, power);
+                break;
+            case 2: // Rogue: focused execution
+                damageEnemy(hero, target, power * 2 + (target.HP < target.HT / 2 ? power : 0));
+                break;
+            case 3: // Huntress: line attack, respecting the target's projectile lane
+                Ballistica line = new Ballistica(hero.pos, target.pos, Ballistica.PROJECTILE);
+                if (line.collisionPos != target.pos) {
+                    line = new Ballistica(companion.pos, target.pos, Ballistica.PROJECTILE);
+                }
+                for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+                    if (line.path.contains(mob.pos)) {
+                        damageEnemy(hero, mob, power + hero.lvl);
+                    }
+                }
+                break;
+            case 4: // Duelist: concentrated double strike
+                damageEnemy(hero, target, power * 3);
+                break;
+            default:
+                throw new IllegalStateException("Unexpected offensive combo class " + mainClass);
+        }
+
+        // Partner role adds a second component. Ordered pairs yield 36 distinct combinations.
+        switch (partnerClass) {
+            case 0:
+                shield(hero, 5 + hero.lvl);
+                shield(companion, 5 + hero.lvl);
+                break;
+            case 1:
+                damageArea(hero, target.pos, 1, 4 + hero.lvl);
+                break;
+            case 2:
+                if (target.isAlive()) {
+                    Buff.prolong(target, Vulnerable.class, 3f);
+                }
+                break;
+            case 3:
+                if (target.isAlive()) {
+                    Buff.prolong(target, Cripple.class, 3f);
+                }
+                break;
+            case 4:
+                damageEnemy(hero, target, 5 + hero.lvl * 2);
+                break;
+            case 5:
+                heal(hero, 4 + hero.lvl);
+                heal(companion, 4 + hero.lvl);
+                break;
+            default:
+                throw new IllegalStateException("Unexpected partner combo class " + partnerClass);
+        }
+    }
+
+    private static void performClericUltimate(
+            Hero hero, CoHeroAlly companion, int partnerClass) {
+        switch (partnerClass) {
+            case 0: // Guardian oath
+                shield(hero, 14 + hero.lvl * 2);
+                shield(companion, 14 + hero.lvl * 2);
+                break;
+            case 1: // Holy magic and recovery
+                damageArea(hero, hero.pos, 2, 7 + hero.lvl);
+                heal(hero, 5 + hero.lvl);
+                heal(companion, 5 + hero.lvl);
+                break;
+            case 2: // Protective invisibility
+                Buff.prolong(hero, Invisibility.class, 4f);
+                Buff.prolong(companion, Invisibility.class, 4f);
+                break;
+            case 3: // Sanctuary and ranged suppression
+                heal(hero, 6 + hero.lvl);
+                heal(companion, 6 + hero.lvl);
+                for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+                    if (mob.alignment == Char.Alignment.ENEMY && mob.isAlive()
+                            && Dungeon.level.distance(companion.pos, mob.pos) <= 4
+                            && canTargetFromEitherHero(mob.pos, hero, companion)) {
+                        damageEnemy(hero, mob, 3 + hero.lvl);
+                    }
+                }
+                break;
+            case 4: // Vow of counterattack
+                shield(hero, 8 + hero.lvl);
+                shield(companion, 8 + hero.lvl);
+                Buff.prolong(hero, Bless.class, 6f);
+                Buff.prolong(companion, Bless.class, 6f);
+                break;
+            case 5: // Double sanctuary
+                heal(hero, 12 + hero.lvl * 2);
+                heal(companion, 12 + hero.lvl * 2);
+                shield(hero, 7 + hero.lvl);
+                shield(companion, 7 + hero.lvl);
+                break;
+            default:
+                throw new IllegalStateException("Unexpected cleric partner " + partnerClass);
+        }
+    }
+
+    private static void damageArea(Hero caster, int center, int radius, int amount) {
+        for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+            if (Dungeon.level.distance(center, mob.pos) <= radius) {
+                damageEnemy(caster, mob, amount);
+            }
+        }
+    }
+
+    private static void damageEnemy(Hero caster, Mob mob, int amount) {
+        if (mob.alignment == Char.Alignment.ENEMY && mob.isAlive()
+                && !mob.isInvulnerable(caster.getClass()) && amount > 0) {
+            mob.damage(amount, caster);
+        }
+    }
+
+    private static void shield(Char hero, int amount) {
+        Barrier barrier = Buff.affect(hero, Barrier.class);
+        if (barrier != null) {
+            barrier.incShield(amount);
+        }
+    }
+
+    private static void heal(Char hero, int amount) {
+        if (hero.isAlive()) {
+            hero.HP = Math.min(hero.HT, hero.HP + amount);
+        }
+    }
+}
