@@ -421,7 +421,30 @@ final class CoHeroNavigation {
             // Keep the previous best-effort behavior when no emergency resource is available.
             // This also covers non-Eye hazards, which do not have an actor-action deadline here.
             if (target != -1) {
-                return moveTowardHazardSafety(target, escapePassable);
+                Boolean moved = moveTowardHazardSafety(target, escapePassable);
+                if (moved != null) {
+                    return moved;
+                }
+            }
+
+            // A companion trapped in harmful gas/fire must not resume scavenging just because
+            // every ordinary exit is blocked. Reuse existing defensive resources, then hold
+            // until an exit becomes available. Other telegraphed hazards retain their own logic.
+            if (CoHeroHazards.isPurityBlobDanger(owner, owner.pos)) {
+                if (owner.survival().tryUsePurityPotion()) {
+                    return true;
+                }
+                if (owner.controlItems().tryHazardBlinkRunestone(movementSafeMask())) {
+                    owner.setMovementDecision("environment_blink", owner.pos);
+                    return true;
+                }
+                if (owner.controlItems().tryUseTeleportationScroll()) {
+                    owner.setMovementDecision("environment_teleport", owner.pos);
+                    return true;
+                }
+                owner.setMovementDecision("environment_trapped", owner.pos);
+                owner.spendActionTime(Actor.TICK);
+                return true;
             }
             return null;
         } finally {
@@ -468,7 +491,8 @@ final class CoHeroNavigation {
             if (!result[cell]
                     || Actor.findChar(cell) != null
                     || !isSleepSafe(cell)
-                    || !isPiranhaSafe(cell)) {
+                    || !isPiranhaSafe(cell)
+                    || CoHeroHazards.blocksEnvironmentalEscape(owner, cell)) {
                 result[cell] = false;
             }
         }

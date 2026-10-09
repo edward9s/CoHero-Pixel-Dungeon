@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vertigo;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
@@ -49,6 +50,7 @@ public class CoHeroAlly extends DirectableAlly {
     private final CoHeroSurvivalController survival = new CoHeroSurvivalController(this);
     private final CoHeroControlItems controlItems = new CoHeroControlItems(this);
     private final CoHeroRevivalController revival = new CoHeroRevivalController(this);
+    private final CoHeroUnderFireController underFire = new CoHeroUnderFireController(this);
     private int syncedLevel = 1;
     private final CompanionInventory inventory = new CompanionInventory(this);
     MissileWeapon activeMissileWeapon;
@@ -214,6 +216,7 @@ public class CoHeroAlly extends DirectableAlly {
         debugLogEnabled = bundle.getBoolean(DEBUG_LOG);
 
         loot.restoreFromBundle(bundle);
+        underFire.reset();
 
         // Mob/DirectableAlly serializes its own AI state, but CoHero decisions are rebuilt from
         // live state. Never carry inherited HUNTING/enemy/target/path decisions across a load.
@@ -243,6 +246,7 @@ public class CoHeroAlly extends DirectableAlly {
         pos = cell;
         navigation.clearExplorationTarget();
         loot.resetForLevel();
+        underFire.reset();
         activeMissileWeapon = null;
         target = -1;
         enemy = null;
@@ -279,6 +283,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         pos = cell;
         navigation.clearExplorationTarget();
+        underFire.reset();
         path = null;
         target = -1;
         enemy = null;
@@ -443,6 +448,13 @@ public class CoHeroAlly extends DirectableAlly {
     public void move(int step, boolean travelling) {
         int oldPos = pos;
 
+        // SPD randomizes ordinary steps under Vertigo and can redirect them into a chasm.
+        // Non-travelling relocation (e.g. a scripted teleport) is not a walking decision.
+        if (travelling && buff(Vertigo.class) != null) {
+            logMovement("BLOCKED_VERTIGO", oldPos, step);
+            return;
+        }
+
         String blockedMovement = guard.blockedMovementReason(step);
         if (blockedMovement != null) {
             logMovement(blockedMovement, oldPos, step);
@@ -525,12 +537,21 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     @Override
+    public void fixTime(float decrement) {
+        super.fixTime(decrement);
+        underFire.fixTime(decrement);
+    }
+
+    @Override
     public void damage(int damage, Object source) {
         int adjusted = (int) Math.ceil(
                 Math.max(0, damage)
                         * RingOfTenacity.damageMultiplier(this)
                         * CoHeroClassTraits.intrinsicTenacityDamageMultiplier(this));
         super.damage(adjusted, source);
+        if (adjusted > 0 && isAlive()) {
+            underFire.observeDamage(source);
+        }
     }
 
     @Override
@@ -643,6 +664,29 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (paralysed > 0) {
             logBossDecision("paralysed", "paralysed");
+            spend(TICK);
+            return true;
+        }
+
+        // Never request a walking step while Vertigo can randomize its destination into a pit.
+        // Purity of the surrounding gas comes first: otherwise cleansing alone would be wasted
+        // because ConfusionGas reapplies Vertigo on the next blob tick.
+        if (buff(Vertigo.class) != null) {
+            if (survival.tryUsePurityPotion()) {
+                return true;
+            }
+            if (!CoHeroHazards.isPurityBlobDanger(this, pos)
+                    && survival.tryUseCleansingPotion(null)) {
+                return true;
+            }
+            if (survival.tryAutoSurvivalPotion()) {
+                return true;
+            }
+            Boolean stationaryAttack = combat.tryStationaryAttack(visibleThreats);
+            if (stationaryAttack != null) {
+                return stationaryAttack;
+            }
+            setMovementDecision("vertigo_hold", pos);
             spend(TICK);
             return true;
         }
@@ -1057,6 +1101,14 @@ public class CoHeroAlly extends DirectableAlly {
             }
         }
 
+        // A recently hit companion must resolve unseen enemy fire before gathering items.
+        // Only visible enemies enter normal combat targeting.
+        Boolean unseenFire = underFire.tryRespond();
+        if (unseenFire != null) {
+            inCombat = true;
+            return unseenFire;
+        }
+
         Boolean recoveryResource = survival.tryKnownRecoveryResource();
         if (recoveryResource != null) {
             return recoveryResource;
@@ -1313,6 +1365,7 @@ public class CoHeroAlly extends DirectableAlly {
 
     void resetNavigationAfterAnkhTeleport() {
         navigation.clearExplorationTarget();
+        underFire.reset();
         clearNavigationPath();
         target = -1;
         enemy = null;
@@ -1535,6 +1588,10 @@ public class CoHeroAlly extends DirectableAlly {
 
     int chooseRangedCoverCell(Mob targetMob, ArrayList<Mob> threats) {
         return combat.chooseRangedCoverCell(targetMob, threats);
+    }
+
+    Boolean tryUnseenRangedCover(Mob attacker, ArrayList<Mob> attackers) {
+        return combat.tryUnseenRangedCover(attacker, attackers);
     }
 
     CoHeroControlItems controlItems() {
