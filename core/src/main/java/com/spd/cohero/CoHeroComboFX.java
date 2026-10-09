@@ -217,7 +217,10 @@ public final class CoHeroComboFX {
         Char source = clearVisibleShot(preferred, cell) ? preferred
                 : clearVisibleShot(alternate, cell) ? alternate : null;
         if (source != null) {
-            MagicMissile.boltFromChar(source.sprite.parent, type, source.sprite, cell, null);
+            // Use the explicit cell endpoint: a lethal combo can remove the enemy
+            // before this render cue runs, leaving Actor.findChar(cell) stale.
+            ((MagicMissile) source.sprite.parent.recycle(MagicMissile.class))
+                    .reset(type, source.sprite, cell, null);
         }
     }
 
