@@ -112,19 +112,8 @@ public class WndCompanionInventory extends Window {
     }
 
     private void layoutPortrait(float startY) {
-        float statsY = startY;
-        addStatCell(0, 0, statsY, layoutWidth, text("inventory.level"),
-                Integer.toString(companion.level()));
-        addStatCell(1, 0, statsY, layoutWidth, text("inventory.health"), healthText());
-        addStatCell(2, 0, statsY, layoutWidth, text("inventory.strength"),
-                Integer.toString(companion.STR()));
-
-        statsY += 18;
-        addStatCell(0, 0, statsY, layoutWidth, text("inventory.damage"), damageText());
-        addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
-        addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
-
-        float afterEquipment = addEquipment(0, statsY + 19);
+        float statsBottom = addCompactStats(0, startY, layoutWidth);
+        float afterEquipment = addEquipment(0, statsBottom + 5);
 
         float backpackHeaderBottom = addBackpackHeader(0, afterEquipment + 3, layoutWidth);
 
@@ -149,19 +138,8 @@ public class WndCompanionInventory extends Window {
 
         int backpackX = leftWidth + LANDSCAPE_PANEL_GAP;
 
-        float statsY = startY;
-        addStatCell(0, 0, statsY, leftWidth, text("inventory.level"),
-                Integer.toString(companion.level()));
-        addStatCell(1, 0, statsY, leftWidth, text("inventory.health"), healthText());
-        addStatCell(2, 0, statsY, leftWidth, text("inventory.strength"),
-                Integer.toString(companion.STR()));
-
-        statsY += 18;
-        addStatCell(0, 0, statsY, leftWidth, text("inventory.damage"), damageText());
-        addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
-        addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
-
-        float leftBottom = addEquipment(0, statsY + 14);
+        float statsBottom = addCompactStats(0, startY, leftWidth);
+        float leftBottom = addEquipment(0, statsBottom + 5);
 
         float backpackHeaderBottom = addBackpackHeader(backpackX, startY, backpackWidth);
 
@@ -225,20 +203,40 @@ public class WndCompanionInventory extends Window {
         return label;
     }
 
-    private void addStatCell(
-            int column, float areaX, float y, float areaWidth, String label, String value) {
-        float cellWidth = areaWidth / 3f;
-        float x = areaX + column * cellWidth;
+    /**
+     * Keep each label immediately next to its value; wrap whole name/value pairs,
+     * rather than pre-allocating three narrow columns and a second value row.
+     * The layout follows actual localized pixel-font widths on both orientations.
+     */
+    private float addCompactStats(float startX, float startY, int availableWidth) {
+        String[] labels = {
+                text("inventory.level"), text("inventory.health"), text("inventory.strength"),
+                text("inventory.damage"), text("inventory.defense"), text("inventory.speed")
+        };
+        String[] values = {
+                Integer.toString(companion.level()), healthText(), Integer.toString(companion.STR()),
+                damageText(), defenseText(), speedText()
+        };
 
-        RenderedTextBlock statLabel = PixelScene.renderTextBlock(label, 6);
-        statLabel.maxWidth((int) cellWidth - 2);
-        statLabel.setPos(x, y);
-        add(statLabel);
-
-        RenderedTextBlock statValue = PixelScene.renderTextBlock(value, 7);
-        statValue.maxWidth((int) cellWidth - 2);
-        statValue.setPos(x, y + 8);
-        add(statValue);
+        final float gapX = 7f;
+        final float gapY = 2f;
+        float x = startX;
+        float y = startY;
+        float lineHeight = 0f;
+        for (int i = 0; i < labels.length; i++) {
+            RenderedTextBlock stat = PixelScene.renderTextBlock(labels[i] + " " + values[i], 7);
+            stat.maxWidth(availableWidth);
+            if (x > startX && x + stat.width() > startX + availableWidth) {
+                x = startX;
+                y += lineHeight + gapY;
+                lineHeight = 0;
+            }
+            stat.setPos(x, y);
+            add(stat);
+            x += stat.width() + gapX;
+            lineHeight = Math.max(lineHeight, stat.height());
+        }
+        return y + lineHeight;
     }
 
     private String healthText() {
