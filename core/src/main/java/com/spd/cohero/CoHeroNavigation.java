@@ -421,7 +421,10 @@ final class CoHeroNavigation {
             // Keep the previous best-effort behavior when no emergency resource is available.
             // This also covers non-Eye hazards, which do not have an actor-action deadline here.
             if (target != -1) {
-                return moveTowardHazardSafety(target, escapePassable);
+                Boolean moved = moveTowardHazardSafety(target, escapePassable);
+                if (moved != null) {
+                    return moved;
+                }
             }
 
             // A companion trapped in harmful gas/fire must not resume scavenging just because
