@@ -491,7 +491,8 @@ final class CoHeroNavigation {
             if (!result[cell]
                     || Actor.findChar(cell) != null
                     || !isSleepSafe(cell)
-                    || !isPiranhaSafe(cell)) {
+                    || !isPiranhaSafe(cell)
+                    || CoHeroHazards.blocksEnvironmentalEscape(owner, cell)) {
                 result[cell] = false;
             }
         }
