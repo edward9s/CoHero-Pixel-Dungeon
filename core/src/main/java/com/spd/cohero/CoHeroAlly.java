@@ -1586,6 +1586,10 @@ public class CoHeroAlly extends DirectableAlly {
         return navigation.isKnown(cell);
     }
 
+    boolean isMovementSafeIgnoringSleep(int cell) {
+        return navigation.isMovementSafeIgnoringSleep(cell);
+    }
+
     int chooseRangedCoverCell(Mob targetMob, ArrayList<Mob> threats) {
         return combat.chooseRangedCoverCell(targetMob, threats);
     }
