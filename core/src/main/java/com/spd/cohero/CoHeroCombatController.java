@@ -237,12 +237,13 @@ final class CoHeroCombatController {
             return null;
         }
         int cover = positioning.chooseRangedCoverCell(attacker, attackers);
-        if (cover == -1) {
-            return null;
-        }
-        int step = positioning.rangedLureStep(cover);
+        int step = cover == -1 ? -1 : positioning.rangedLureStep(cover);
         if (step == -1) {
-            return null;
+            step = positioning.chooseUnseenFireEmergencyCoverStep(attacker, attackers);
+            if (step == -1) {
+                return null;
+            }
+            cover = step;
         }
 
         int oldPos = owner.pos;
