@@ -445,7 +445,16 @@ final class CoHeroCombatRiskEstimator {
     }
 
     float estimatedThreatDamage(Mob threat, int defenderCell) {
-        return Math.max(0.5f, averageThreatDamage(threat, defenderCell) * 0.85f);
+        float damage = averageThreatDamage(threat, defenderCell);
+        // Non-adjacent spellcasters use their spell damage, not their melee damage roll.
+        if (Dungeon.level.distance(threat.pos, defenderCell) > 1
+                && canThreatAttackCell(threat, defenderCell)) {
+            float rangedDamage = averageRangedThreatDamage(threat, defenderCell);
+            if (rangedDamage >= 0f) {
+                damage = rangedDamage;
+            }
+        }
+        return Math.max(0.5f, damage * 0.85f);
     }
 
     float averageThreatDamage(Mob threat, int defenderCell) {
