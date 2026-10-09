@@ -235,6 +235,30 @@ public final class CoHeroCombo {
                 + "." + classIndex(CoHero.companionClass()));
     }
 
+    /** Text reflects the effects actually implemented for this ordered pair. */
+    public static String skillDescription() {
+        if (Dungeon.hero == null) {
+            throw new IllegalStateException("Combo description requested without Hero");
+        }
+        int heroClass = classIndex(Dungeon.hero.heroClass);
+        int partnerClass = classIndex(CoHero.companionClass());
+        String effects;
+        if (heroClass == 5) {
+            effects = CoHeroMessages.get("combo.detail.cleric." + partnerClass);
+        } else {
+            effects = CoHeroMessages.get("combo.detail.main." + heroClass) + " "
+                    + CoHeroMessages.get("combo.detail.partner." + partnerClass);
+            if ((heroClass == 0 && partnerClass == 5)
+                    || (heroClass == 3 && partnerClass == 0)
+                    || (heroClass == 3 && partnerClass == 5)
+                    || (heroClass == 4 && partnerClass == 5)) {
+                effects += " " + CoHeroMessages.get(
+                        "combo.detail.extra." + heroClass + "." + partnerClass);
+            }
+        }
+        return effects + " " + CoHeroMessages.get("combo.detail.requirement", CAST_COST);
+    }
+
     public static boolean canCast() {
         Hero hero = Dungeon.hero;
         CoHeroAlly companion = CoHero.findCompanion();
