@@ -555,15 +555,13 @@ def test_combo_attack_patch_and_catalog():
     ):
         if required not in fx:
             raise AssertionError(f"Missing composable, non-blocking combo FX: {required}")
-    for function in ("primary", "accent"):
-        matches = __import__("re").search(
-            rf"private static void {function}\\([^{{]+\\{{(.*?)\\n    \\}}",
-            fx, __import__("re").S)
-        if matches is None:
-            raise AssertionError(f"Missing {function} FX renderer")
-        arms = __import__("re").findall(r"case [0-5]:", matches.group(1))
+    # Bound each switch to its own Java method to avoid counting cases from elsewhere.
+    for name, next_name in (("primary", "accent"), ("accent", "casterFlare")):
+        begin = fx.index("private static void " + name + "(")
+        finish = fx.index("private static void " + next_name + "(", begin)
+        arms = __import__("re").findall(r"case [0-5]:", fx[begin:finish])
         if len(arms) != 6:
-            raise AssertionError(f"{function} must support all six ordered classes")
+            raise AssertionError(f"{name} must support all six ordered classes")
     for forbidden in ("Actor.", ".spend(", ".next(", ".busy(", "Callback"):
         if forbidden in fx:
             raise AssertionError(f"FX must not alter gameplay or wait for animation: {forbidden}")
