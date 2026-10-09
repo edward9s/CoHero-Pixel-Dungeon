@@ -15,6 +15,9 @@ locator_marker = "\t\tcom.spd.cohero.CoHeroLocator coHeroLocator = new com.spd.c
 inventory_tag_field_marker = "\tprivate com.spd.cohero.CoHeroInventoryIndicator coHeroInventory;"
 inventory_tag_create_marker = "\t\tcoHeroInventory = new com.spd.cohero.CoHeroInventoryIndicator();"
 inventory_tag_state_marker = "\tprivate boolean tagCoHeroInventory = false;"
+combo_tag_field_marker = "\tprivate com.spd.cohero.CoHeroComboIndicator coHeroCombo;"
+combo_tag_create_marker = "\t\tcoHeroCombo = new com.spd.cohero.CoHeroComboIndicator();"
+combo_tag_state_marker = "\tprivate boolean tagCoHeroCombo = false;"
 examine_actor_marker = "com.spd.cohero.CoHero.companionCanSee(cell)"
 hazard_marker = "\t\tcom.spd.cohero.CoHeroHazards.warn(pos, delay);"
 cleric_range_grid_marker = "\t\tcom.spd.cohero.CoHeroClericRangeGrid.install(levelVisuals);"
@@ -29,6 +32,9 @@ if (ready_marker in text
         or inventory_tag_field_marker in text
         or inventory_tag_create_marker in text
         or inventory_tag_state_marker in text
+        or combo_tag_field_marker in text
+        or combo_tag_create_marker in text
+        or combo_tag_state_marker in text
         or examine_actor_marker in text
         or hazard_marker in text
         or cleric_range_grid_marker in text
@@ -65,7 +71,7 @@ if text.count(inventory_create_anchor) != 1:
 
 text = text.replace(
     inventory_field_anchor,
-    inventory_field_anchor + inventory_tag_field_marker + "\n",
+    inventory_field_anchor + inventory_tag_field_marker + "\n" + combo_tag_field_marker + "\n",
     1,
 )
 
@@ -75,6 +81,10 @@ inventory_create_block = (
     + inventory_tag_create_marker + "\n"
     + "\t\tcoHeroInventory.camera = uiCamera;\n"
     + "\t\tadd( coHeroInventory );\n"
+    + "\n"
+    + combo_tag_create_marker + "\n"
+    + "\t\tcoHeroCombo.camera = uiCamera;\n"
+    + "\t\tadd( coHeroCombo );\n"
 )
 text = text.replace(inventory_create_anchor, inventory_create_block, 1)
 
@@ -164,7 +174,8 @@ if text.count(tag_assignment) != 2:
     )
 text = text.replace(
     tag_assignment,
-    tag_assignment + "\t\t\ttagCoHeroInventory = coHeroInventory.visible;\n",
+    tag_assignment + "\t\t\ttagCoHeroInventory = coHeroInventory.visible;\n"
+    + "\t\t\ttagCoHeroCombo = coHeroCombo.visible;\n",
 )
 
 tag_condition_anchor = (
@@ -183,7 +194,8 @@ text = text.replace(
     "\t\t\t\ttagLoot != loot.visible ||\n"
     "\t\t\t\ttagAction != action.visible ||\n"
     "\t\t\t\ttagResume != resume.visible ||\n"
-    "\t\t\t\ttagCoHeroInventory != coHeroInventory.visible) {\n",
+    "\t\t\t\ttagCoHeroInventory != coHeroInventory.visible ||\n"
+    "\t\t\t\ttagCoHeroCombo != coHeroCombo.visible) {\n",
     1,
 )
 
@@ -203,7 +215,8 @@ text = text.replace(
     "\t\t\t\t\t\t\t\t\t(loot.visible && !tagLoot) ||\n"
     "\t\t\t\t\t\t\t\t\t(action.visible && !tagAction) ||\n"
     "\t\t\t\t\t\t\t\t\t(resume.visible && !tagResume) ||\n"
-    "\t\t\t\t\t\t\t\t\t(coHeroInventory.visible && !tagCoHeroInventory);\n",
+    "\t\t\t\t\t\t\t\t\t(coHeroInventory.visible && !tagCoHeroInventory) ||\n"
+    "\t\t\t\t\t\t\t\t\t(coHeroCombo.visible && !tagCoHeroCombo);\n",
     1,
 )
 
@@ -214,7 +227,7 @@ if text.count(tag_state_anchor) != 1:
     )
 text = text.replace(
     tag_state_anchor,
-    tag_state_anchor + inventory_tag_state_marker + "\n",
+    tag_state_anchor + inventory_tag_state_marker + "\n" + combo_tag_state_marker + "\n",
     1,
 )
 
@@ -234,6 +247,11 @@ text = text.replace(
     "\t\t\tscene.coHeroInventory.setRect( tagLeft, pos - Tag.SIZE, tagWidth, Tag.SIZE );\n"
     "\t\t\tscene.coHeroInventory.flip(tagsOnLeft);\n"
     "\t\t\tpos = scene.coHeroInventory.top();\n"
+    "\t\t}\n"
+    "\t\tif (scene.tagCoHeroCombo) {\n"
+    "\t\t\tscene.coHeroCombo.setRect( tagLeft, pos - Tag.SIZE, tagWidth, Tag.SIZE );\n"
+    "\t\t\tscene.coHeroCombo.flip(tagsOnLeft);\n"
+    "\t\t\tpos = scene.coHeroCombo.top();\n"
     "\t\t}\n\n"
     + tag_layout_anchor,
     1,
