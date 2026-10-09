@@ -7,23 +7,17 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.Tag;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
 import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.ColorBlock;
+import com.watabou.noosa.Image;
 
-/**
- * Three-charge ultimate Tag. Its color and three charge notches show stored casts,
- * while the sword emblem separately dims when the pair cannot currently cast.
- * No new image resources or permanent animation state.
- */
+/** Three-charge Tag with dedicated pixel-art icon, safely contained within 24 pixels. */
 public final class CoHeroComboIndicator extends Tag {
 
     private static final int EMPTY_COLOR = 0x68717A;
     private static final int[] CHARGE_COLORS = {0x68717A, 0xB78941, 0xD6A84E, 0xEBC469};
-    private static final int SWORD_COLOR = 0xFFF1C9;
-    private static final int UNCHARGED_SWORD_COLOR = 0xAEB6BF;
+    private static final String ICON = "interfaces/cohero_combo.png";
 
     private final ColorBlock[] notches = new ColorBlock[3];
-    private final ColorBlock firstSword;
-    private final ColorBlock secondSword;
-    private final ColorBlock crystal;
+    private final Image icon;
     private final BitmapText count;
     private int displayedEnergy = -1;
     private int displayedCharges = -1;
@@ -37,21 +31,9 @@ public final class CoHeroComboIndicator extends Tag {
             add(notches[i]);
         }
 
-        // Crossed twin blades and central crystal, assembled from four tiny pixel shapes.
-        firstSword = new ColorBlock(2, 10, 0xFFFFFFFF);
-        firstSword.origin.set(1f, 5f);
-        firstSword.angle = 45;
-        add(firstSword);
-
-        secondSword = new ColorBlock(2, 10, 0xFFFFFFFF);
-        secondSword.origin.set(1f, 5f);
-        secondSword.angle = -45;
-        add(secondSword);
-
-        crystal = new ColorBlock(4, 4, 0xFFFFFFFF);
-        crystal.origin.set(2, 2);
-        crystal.angle = 45;
-        add(crystal);
+        // A real 16x16 icon texture; no rotated shapes extending beyond the Tag.
+        icon = new Image(ICON);
+        add(icon);
 
         count = new BitmapText(PixelScene.pixelFont);
         add(count);
@@ -95,15 +77,9 @@ public final class CoHeroComboIndicator extends Tag {
 
         // Stored energy and actual availability are deliberately distinct.
         float emblemAlpha = CoHeroCombo.canCast() ? 1f : 0.45f;
-        firstSword.alpha(emblemAlpha);
-        secondSword.alpha(emblemAlpha);
-        crystal.alpha(emblemAlpha);
+        icon.alpha(emblemAlpha);
         count.alpha(energy >= CoHeroCombo.CAST_COST ? 1f : 0.75f);
-        int swordColor = charges > 0 ? SWORD_COLOR : UNCHARGED_SWORD_COLOR;
-        firstSword.hardlight(swordColor);
-        secondSword.hardlight(swordColor);
-        crystal.hardlight(charges == 3 ? 0xFFFFFF : 0xE6B875);
-        super.update();
+         super.update();
     }
 
     @Override
@@ -135,16 +111,13 @@ public final class CoHeroComboIndicator extends Tag {
         float slotX = flipped ? x + width - SIZE : x;
         for (int i = 0; i < notches.length; i++) {
             notches[i].x = slotX + 3f + i * 7f;
-            notches[i].y = y + 2f;
+            notches[i].y = y + 1f;
         }
-        firstSword.x = slotX + 11f;
-        firstSword.y = y + 6f;
-        secondSword.x = slotX + 11f;
-        secondSword.y = y + 6f;
-        crystal.x = slotX + 10f;
-        crystal.y = y + 9f;
+        icon.x = slotX + (SIZE - icon.width()) / 2f;
+        icon.y = y + 2f;
+        PixelScene.align(icon);
         count.x = slotX + (SIZE - count.width()) / 2f;
-        count.y = y + height - count.height() - 2f;
+        count.y = y + SIZE - count.height() - 1f;
         PixelScene.align(count);
     }
 }
