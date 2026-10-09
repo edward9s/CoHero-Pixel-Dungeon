@@ -724,9 +724,12 @@ final class CoHeroNavigation {
     }
 
     boolean isMovementSafe(int cell) {
-        return !CoHeroHazards.isDangerous(owner, cell)
-                && isSleepSafe(cell)
-                && isPiranhaSafe(cell);
+        return isMovementSafeIgnoringSleep(cell) && isSleepSafe(cell);
+    }
+
+    // Restricted to combat under direct ranged fire. Never relax environmental or piranha safety.
+    boolean isMovementSafeIgnoringSleep(int cell) {
+        return !CoHeroHazards.isDangerous(owner, cell) && isPiranhaSafe(cell);
     }
 
     private boolean hasPiranhaDanger() {
