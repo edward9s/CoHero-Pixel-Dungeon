@@ -15,6 +15,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
+import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
@@ -284,6 +285,9 @@ public final class CoHeroCombo {
             case 0:
                 shield(hero, 5 + hero.lvl);
                 shield(companion, 5 + hero.lvl);
+                if (mainClass == 3 && target.isAlive()) {
+                    Buff.prolong(target, Vulnerable.class, 3f);
+                }
                 break;
             case 1:
                 damageArea(hero, target.pos, 1, 4 + hero.lvl);
@@ -302,8 +306,20 @@ public final class CoHeroCombo {
                 damageEnemy(hero, target, 5 + hero.lvl * 2);
                 break;
             case 5:
-                heal(hero, 4 + hero.lvl);
-                heal(companion, 4 + hero.lvl);
+                if (mainClass == 3) {
+                    shield(hero, 5 + hero.lvl);
+                    shield(companion, 5 + hero.lvl);
+                } else {
+                    heal(hero, 4 + hero.lvl);
+                    heal(companion, 4 + hero.lvl);
+                }
+                if (mainClass == 0 && target.isAlive()) {
+                    Buff.prolong(target, Weakness.class, 3f);
+                }
+                if (mainClass == 4) {
+                    PotionOfCleansing.cleanse(hero);
+                    PotionOfCleansing.cleanse(companion);
+                }
                 break;
             default:
                 throw new IllegalStateException("Unexpected partner combo class " + partnerClass);
@@ -319,6 +335,8 @@ public final class CoHeroCombo {
                 break;
             case 1: // Holy magic and recovery
                 damageArea(hero, hero.pos, 2, 7 + hero.lvl);
+                PotionOfCleansing.cleanse(hero);
+                PotionOfCleansing.cleanse(companion);
                 heal(hero, 5 + hero.lvl);
                 heal(companion, 5 + hero.lvl);
                 break;
@@ -344,6 +362,8 @@ public final class CoHeroCombo {
                 Buff.prolong(companion, Bless.class, 6f);
                 break;
             case 5: // Double sanctuary
+                PotionOfCleansing.cleanse(hero);
+                PotionOfCleansing.cleanse(companion);
                 heal(hero, 12 + hero.lvl * 2);
                 heal(companion, 12 + hero.lvl * 2);
                 shield(hero, 7 + hero.lvl);
