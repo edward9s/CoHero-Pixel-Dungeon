@@ -24,6 +24,20 @@ final class CoHeroCombatRisk {
                     && (!heroEngaged || survivalTurns <= 5f));
     }
 
+    // A visible ranged attacker can justify waking another enemy only when ordinary
+    // safe approaches fail and staying at range is at least as dangerous as our offense.
+    static boolean riskWakingEnemyForRangedApproach(
+            boolean safeApproachAvailable, boolean underFire,
+            float outgoingRangedDpt, float incomingDpt) {
+        if (outgoingRangedDpt < 0f || incomingDpt < 0f) {
+            throw new IllegalArgumentException("Combat damage rates must be non-negative");
+        }
+        return !safeApproachAvailable
+                && underFire
+                && incomingDpt > 0f
+                && outgoingRangedDpt <= incomingDpt;
+    }
+
     // Excludes hypothetical healing/shielding potions. They are only spent for a concrete
     // current threat, even when escape movement and control are unavailable.
     static boolean emergencyConsumableRequired(
