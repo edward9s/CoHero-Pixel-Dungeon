@@ -682,6 +682,10 @@ public class CoHeroAlly extends DirectableAlly {
             if (survival.tryAutoSurvivalPotion()) {
                 return true;
             }
+            Boolean stationaryAttack = combat.tryStationaryAttack(visibleThreats);
+            if (stationaryAttack != null) {
+                return stationaryAttack;
+            }
             setMovementDecision("vertigo_hold", pos);
             spend(TICK);
             return true;
