@@ -485,6 +485,18 @@ def main() -> int:
         return 1
 
     combat_source = (package_root / "CoHeroCombatController.java").read_text(encoding="utf-8")
+    stationary_start = combat_source.find("Boolean tryStationaryAttack(ArrayList<Mob> visibleThreats) {")
+    stationary_end = combat_source.find("Mob selectCombatTarget(", stationary_start)
+    stationary_source = combat_source[stationary_start:stationary_end]
+    if (stationary_start < 0 or stationary_end <= stationary_start
+            or "performMeleeAttack(target)" not in stationary_source
+            or "performRangedChoice(target, ranged)" not in stationary_source
+            or "owner.move(" in stationary_source
+            or "owner.getCloser(" in stationary_source
+            or "combat.tryStationaryAttack(visibleThreats)" not in ally_source):
+        print("Vertigo must retain only legal stationary combat without positioning.", file=sys.stderr)
+        return 1
+
     if combat_source.count(PIRANHA_SAFE_RANGED_METHOD) != 1:
         print(
             "CoHero combat must have one Piranha safe-ranged positioning phase.",
