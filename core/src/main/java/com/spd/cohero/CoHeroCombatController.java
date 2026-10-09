@@ -209,6 +209,34 @@ final class CoHeroCombatController {
         return positioning.chooseRangedCoverCell(targetMob, threats);
     }
 
+    Boolean tryUnseenRangedCover(Mob attacker, ArrayList<Mob> attackers) {
+        if (attacker == null || attackers == null || attackers.isEmpty() || owner.rooted) {
+            return null;
+        }
+        int cover = positioning.chooseRangedCoverCell(attacker, attackers);
+        if (cover == -1) {
+            return null;
+        }
+        int step = positioning.rangedLureStep(cover);
+        if (step == -1) {
+            return null;
+        }
+
+        int oldPos = owner.pos;
+        owner.clearCombatTarget();
+        owner.clearExplorationTarget();
+        owner.clearNavigationPath();
+        owner.allowAnyGuardMovement();
+        owner.setMovementDecision("unseen_ranged_cover", cover);
+        owner.move(step, true);
+        if (owner.pos == oldPos) {
+            return null;
+        }
+        owner.spendActionTime(1 / owner.speed());
+        owner.refreshOwnFieldOfView();
+        return owner.animateMoveFrom(oldPos);
+    }
+
     Boolean tryEncirclementPositioning(
             Mob targetMob, ArrayList<Mob> threats) {
         return positioning.tryEncirclementPositioning(targetMob, threats);
