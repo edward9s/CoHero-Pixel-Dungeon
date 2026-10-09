@@ -247,7 +247,9 @@ public final class CoHeroCombo {
             effects = CoHeroMessages.get("combo.detail.cleric." + partnerClass);
         } else {
             effects = CoHeroMessages.get("combo.detail.main." + heroClass) + " "
-                    + CoHeroMessages.get("combo.detail.partner." + partnerClass);
+                    + CoHeroMessages.get(heroClass == 3 && partnerClass == 5
+                            ? "combo.detail.partner.3.5"
+                            : "combo.detail.partner." + partnerClass);
             if ((heroClass == 0 && partnerClass == 5)
                     || (heroClass == 3 && partnerClass == 0)
                     || (heroClass == 3 && partnerClass == 5)
@@ -256,7 +258,9 @@ public final class CoHeroCombo {
                         "combo.detail.extra." + heroClass + "." + partnerClass);
             }
         }
-        return effects + " " + CoHeroMessages.get("combo.detail.requirement", CAST_COST);
+        return effects + " " + CoHeroMessages.get(
+                heroClass == 5 ? "combo.detail.requirement.support"
+                        : "combo.detail.requirement.attack", CAST_COST);
     }
 
     public static boolean canCast() {
