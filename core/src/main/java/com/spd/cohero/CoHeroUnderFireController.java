@@ -31,6 +31,12 @@ final class CoHeroUnderFireController {
         lastAttackTime = Float.NEGATIVE_INFINITY;
     }
 
+    void fixTime(float decrement) {
+        if (attackerType != null) {
+            lastAttackTime -= decrement;
+        }
+    }
+
     void observeDamage(Object source) {
         if (source == null) {
             return;
@@ -48,7 +54,11 @@ final class CoHeroUnderFireController {
     }
 
     Boolean tryRespond() {
-        if (attackerType == null || Actor.now() - lastAttackTime > ALERT_DURATION) {
+        if (attackerType == null) {
+            return null;
+        }
+        if (Actor.now() - lastAttackTime > ALERT_DURATION) {
+            reset();
             return null;
         }
 
@@ -75,6 +85,7 @@ final class CoHeroUnderFireController {
 
         // The shooter can no longer attack this cell. Do not prolong an alert on stale evidence.
         if (closestAttacker == null) {
+            reset();
             return null;
         }
 
