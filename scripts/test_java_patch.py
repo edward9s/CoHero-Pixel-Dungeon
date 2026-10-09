@@ -503,6 +503,34 @@ def test_combo_attack_patch_and_catalog():
         if required not in source:
             raise AssertionError(f"Combo gameplay invariant missing: {required}")
 
+    wand_patch = (patch_dir / "patch_wand_base.py").read_text(encoding="utf-8")
+    if wand_patch.count("CoHeroCombo.onWandZap(") != 2:
+        raise AssertionError("Both Hero and CoHero Wand cast paths must score Link")
+    if "onWandZap(Wand wand, Char caster," not in source:
+        raise AssertionError("Wand damage window is missing")
+    if "recordAttack(caster, primary, before.get(primary), true)" not in source:
+        raise AssertionError("Wand cast must choose exactly one pairing candidate")
+    if "recordAttack(caster, mob, before.get(mob), false)" not in source:
+        raise AssertionError("Secondary wand victims must be excluded from pairing")
+
+    hud_tag = (root / "core/src/main/java/com/spd/cohero/CoHeroComboIndicator.java").read_text(
+        encoding="utf-8")
+    if 'energy + "/" + CoHeroCombo.MAX_ENERGY' not in hud_tag:
+        raise AssertionError("Link Tag must display current/max values")
+    if "CoHeroCombo.requestCast()" not in hud_tag:
+        raise AssertionError("Link Tag must initiate the ultimate")
+    game_scene = (patch_dir / "patch_gamescene.py").read_text(encoding="utf-8")
+    for required in ("combo_tag_create_marker", "tagCoHeroCombo", "scene.coHeroCombo.flip(tagsOnLeft)"):
+        if required not in game_scene:
+            raise AssertionError(f"Combo Tag layout is incomplete: {required}")
+    inventory = (root / "core/src/main/java/com/spd/cohero/WndCompanionInventory.java").read_text(
+        encoding="utf-8")
+    if "CoHeroCombo.skillDescription()" not in inventory:
+        raise AssertionError("Inventory must explain its class-pair ultimate")
+    if ("CoHeroCombo.requestCast()" in inventory
+            or 'CoHeroMessages.get("combo.energy"' in inventory):
+        raise AssertionError("Inventory must not contain a combo meter or cast button")
+
     from importlib.util import spec_from_file_location, module_from_spec
     spec = spec_from_file_location("cohero_messages_patch", patch_dir / "patch_messages.py")
     module = module_from_spec(spec)
