@@ -542,6 +542,33 @@ def test_combo_attack_patch_and_catalog():
     ):
         if required not in hud_tag:
             raise AssertionError(f"Three-stage ultimate Tag missing: {required}")
+    # The icon is a real 16x16 PNG, not rotated ColorBlocks that can bleed outside.
+    if 'new Image(ICON)' not in hud_tag or 'interfaces/cohero_combo.png' not in hud_tag:
+        raise AssertionError("Ultimate Tag must use its dedicated pixel-art asset")
+    if any(token in hud_tag for token in ("firstSword", "secondSword", ".angle =")):
+        raise AssertionError("Ultimate Tag still uses out-of-bounds rotated primitives")
+    encoded_icon = root / "core/src/main/assets/interfaces/cohero_combo.png.b64"
+    icon = __import__("base64").b64decode(encoded_icon.read_text(encoding="ascii").strip(),
+                                          validate=True)
+    if not icon.startswith(b"\\x89PNG\\r\\n\\x1a\\n") or icon[16:24] != bytes.fromhex("0000001000000010"):
+        raise AssertionError("Combo icon must be a valid 16x16 PNG")
+    integration_sh = (root / "integration/shattered/apply.sh").read_text(encoding="utf-8")
+    if 'cohero_combo.png.b64' not in integration_sh or 'dest.write_bytes(png)' not in integration_sh:
+        raise AssertionError("Integration must materialize the combo texture")
+
+    # Test-only refill starts on the next non-ready Hero.act, not on click or UI redraw.
+    settings = (root / "core/src/main/java/com/spd/cohero/CoHeroSettings.java").read_text(encoding="utf-8")
+    tab = (root / "core/src/main/java/com/spd/cohero/CoHeroSettingsTab.java").read_text(encoding="utf-8")
+    hero_patch = (patch_dir / "patch_hero.py").read_text(encoding="utf-8")
+    if ("GameSettings.getBoolean(AUTO_FILL_LINK, false)" not in settings
+            or 'new CheckBox(CoHeroMessages.get("settings.auto_fill_link"))' not in tab
+            or "CoHeroSettings.setAutoFillLinkEnabled(checked())" not in tab):
+        raise AssertionError("Opt-in Link test flag must be disabled by default and editable")
+    if ('if (!ready) com.spd.cohero.CoHeroCombo.onHeroTurn();' not in hero_patch
+            or "CoHeroSettings.autoFillLinkEnabled() && energy < CAST_COST" not in source
+            or "energy = MAX_ENERGY;" not in source):
+        raise AssertionError("Link test refill must occur on next Hero turn under 60 only")
+
     game_scene = (patch_dir / "patch_gamescene.py").read_text(encoding="utf-8")
     for required in ("combo_tag_create_marker", "tagCoHeroCombo", "scene.coHeroCombo.flip(tagsOnLeft)"):
         if required not in game_scene:
