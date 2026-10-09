@@ -1034,10 +1034,11 @@ final class CoHeroCombatPositioning {
         }
 
         int safeStep = chooseRangedTargetClosingStep(targetMob, threats, rangedLurePassable());
-        if (safeStep != -1
-                || !owner.isCurrentRangedPressure(targetMob)
-                || owner.estimateBestRangedDpt(targetMob)
-                    > owner.estimatedIncomingDptAtCell(owner.pos, threats)) {
+        if (!CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
+                safeStep != -1,
+                owner.isCurrentRangedPressure(targetMob),
+                owner.estimateBestRangedDpt(targetMob),
+                owner.estimatedIncomingDptAtCell(owner.pos, threats))) {
             return safeStep;
         }
 
