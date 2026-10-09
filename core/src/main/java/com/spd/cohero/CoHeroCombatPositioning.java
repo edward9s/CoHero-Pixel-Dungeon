@@ -1034,12 +1034,15 @@ final class CoHeroCombatPositioning {
         }
 
         int safeStep = chooseRangedTargetClosingStep(targetMob, threats, rangedLurePassable());
+        if (safeStep != -1 || !owner.currentTurnContext().hasVisibleSleepingEnemy()) {
+            return safeStep;
+        }
         if (!CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
-                safeStep != -1,
+                false,
                 owner.isCurrentRangedPressure(targetMob),
                 owner.estimateBestRangedDpt(targetMob),
                 owner.estimatedIncomingDptAtCell(owner.pos, threats))) {
-            return safeStep;
+            return -1;
         }
 
         // Under sustained ranged fire, do not get stuck because a sleeping enemy
