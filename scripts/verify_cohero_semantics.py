@@ -425,6 +425,47 @@ def main() -> int:
         )
         return 1
 
+    # SPD Char.move() randomizes walking destinations while Vertigo is active.
+    # Protect both the decision layer and the last ordinary movement entry point.
+    vertigo_decision = ally_source.find("if (buff(Vertigo.class) != null) {")
+    paralyzed_decision = ally_source.find("if (paralysed > 0) {")
+    torch_decision = ally_source.find("if (tryAutoTorch())")
+    if not (0 <= paralyzed_decision < vertigo_decision < torch_decision
+            or ally_source.count("if (travelling && buff(Vertigo.class) != null)") != 1
+            or '"vertigo_hold"' not in ally_source):
+        print("CoHero must hold and block normal walking while Vertigo is active.", file=sys.stderr)
+        return 1
+
+    # Harmful cloud escape must never silently fall through to ordinary loot,
+    # even if all safe destinations are blocked or the chosen movement step fails.
+    hazard_start = navigation_source.find("Boolean tryAvoidHazard() {")
+    hazard_end = navigation_source.find("private boolean canReachHazardSafetyBefore(", hazard_start)
+    if hazard_start < 0 or hazard_end <= hazard_start:
+        print("Missing bounded hazard escape decision.", file=sys.stderr)
+        return 1
+    hazard_source = navigation_source[hazard_start:hazard_end]
+    required_hazard_routes = (
+        "CoHeroHazards.isPurityBlobDanger(owner, owner.pos)",
+        "owner.survival().tryUsePurityPotion()",
+        "owner.controlItems().tryHazardBlinkRunestone(movementSafeMask())",
+        "owner.controlItems().tryUseTeleportationScroll()",
+        'owner.setMovementDecision("environment_trapped", owner.pos)',
+        "owner.spendActionTime(Actor.TICK)",
+    )
+    if any(route not in hazard_source for route in required_hazard_routes):
+        print("A CoHero trapped in harmful gas/fire must not resume loot.", file=sys.stderr)
+        return 1
+    if "CoHeroHazards.blocksEnvironmentalEscape(owner, cell)" not in navigation_source:
+        print("Cloud escape must exclude known traps and discrete hazards.", file=sys.stderr)
+        return 1
+    hazards_source = (package_root / "CoHeroHazards.java").read_text(encoding="utf-8")
+    if ("public static boolean blocksEnvironmentalEscape(Char owner, int cell)"
+            not in hazards_source
+            or "isKnownActiveTrap(cell)" not in hazards_source
+            or "isDelayedPitDanger(owner, cell)" not in hazards_source):
+        print("Cloud escape must keep pit and trap exclusions.", file=sys.stderr)
+        return 1
+
     hazard_decision = ally_source.find("Boolean hazardAvoidance = tryAvoidHazard();")
     piranha_decision = ally_source.find("Boolean piranhaAvoidance = tryLeavePiranhaDanger();")
     wash_decision = ally_source.find(WATER_WASH_CALL)
