@@ -328,6 +328,12 @@ public final class CoHeroCombo {
 
         // Every validation above precedes both resource and actor-time consumption.
         energy -= CAST_COST;
+
+        // Presentation reads only the already-validated cast context. It neither delays
+        // this action nor owns any damage, Buff, targeting, or actor callback.
+        CoHeroComboFX.play(
+                hero, companion, target == null ? hero.pos : target.pos, mainClass, partnerClass);
+
         if (mainClass == 5) {
             performClericUltimate(hero, companion, partnerClass);
         } else {
