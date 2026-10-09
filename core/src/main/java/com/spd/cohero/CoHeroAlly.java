@@ -67,6 +67,10 @@ public class CoHeroAlly extends DirectableAlly {
         attacksAutomatically = false;
     }
 
+    void spendComboTurn() {
+        spend(Actor.TICK);
+    }
+
     public CompanionInventory inventory() {
         return inventory;
     }
