@@ -584,11 +584,11 @@ def test_combo_attack_patch_and_catalog():
     # key would show "No Text Found" for an otherwise usable ultimate.
     special_block = source[
         source.index("if ((heroClass == 0 && partnerClass == 5)"):
-        source.index('effects += " " + CoHeroMessages.get(', 
+        source.index('effects += " " + CoHeroMessages.get(',
                      source.index("if ((heroClass == 0 && partnerClass == 5)"))
     ]
     for hero_class, companion_class in __import__("re").findall(
-            r"heroClass == (\\d+) && partnerClass == (\\d+)", special_block):
+            r"heroClass == (\d+) && partnerClass == (\d+)", special_block):
         key = f"cohero.combo.detail.extra.{hero_class}.{companion_class}"
         if key not in base:
             raise AssertionError(f"Missing localized special ultimate effect: {key}")
