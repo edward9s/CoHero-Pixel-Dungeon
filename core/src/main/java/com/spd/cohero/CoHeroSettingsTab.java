@@ -28,6 +28,7 @@ public final class CoHeroSettingsTab extends Component {
     private RenderedTextBlock enemySpawnValue;
     private OptionSlider enemySpawnSlider;
     private CheckBox debugLog;
+    private CheckBox autoFillLink;
 
     private ColorBlock separatorTransfer;
     private RedButton exportSave;
@@ -84,6 +85,16 @@ public final class CoHeroSettingsTab extends Component {
         debugLog.checked(debugLogEnabled());
         add(debugLog);
 
+        autoFillLink = new CheckBox(CoHeroMessages.get("settings.auto_fill_link")) {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                CoHeroSettings.setAutoFillLinkEnabled(checked());
+            }
+        };
+        autoFillLink.checked(CoHeroSettings.autoFillLinkEnabled());
+        add(autoFillLink);
+
         if (DeviceCompat.isAndroid() || DeviceCompat.isDesktop()) {
             separatorTransfer = new ColorBlock(1, 1, 0xFF000000);
             add(separatorTransfer);
@@ -132,7 +143,8 @@ public final class CoHeroSettingsTab extends Component {
                 SLIDER_HEIGHT);
 
         debugLog.setRect(0, enemySpawnSlider.bottom() + GAP, width, BUTTON_HEIGHT);
-        bottom = debugLog.bottom();
+        autoFillLink.setRect(0, debugLog.bottom() + GAP, width, BUTTON_HEIGHT);
+        bottom = autoFillLink.bottom();
 
         if (separatorTransfer != null) {
             separatorTransfer.size(width, 1);
