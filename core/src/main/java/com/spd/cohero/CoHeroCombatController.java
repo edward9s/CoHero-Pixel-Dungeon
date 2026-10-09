@@ -429,6 +429,23 @@ final class CoHeroCombatController {
         boolean rangedAttacker = rangedPressure || owner.hasNonAdjacentAttackCapability(targetMob);
         boolean preferRanged = shouldPreferRangedAttack(targetMob);
 
+        // Avoid a long exposed charge or an expensive ranged exchange when a safe,
+        // immediate cover step is available. Keep a quick kill and one-step close.
+        if (rangedPressure && !owner.rooted
+                && Dungeon.level.distance(owner.pos, targetMob.pos) > 2) {
+            float ttk = owner.estimateTargetTtk(targetMob);
+            if (ttk > 1.5f
+                    && (ttk > 3f
+                        || owner.estimateBestRangedDpt(targetMob)
+                            < owner.estimatedIncomingDptAtCell(owner.pos, threats))) {
+                int coverStep = positioning.chooseImmediateRangedCoverStep(targetMob, threats);
+                if (coverStep != -1) {
+                    owner.releaseGuardAreaForCombat();
+                    return moveForRangedEngagement(coverStep, "ranged_immediate_cover");
+                }
+            }
+        }
+
         if (preferRanged) {
             int distance = Dungeon.level.distance(owner.pos, targetMob.pos);
             if (distance > 1) {
