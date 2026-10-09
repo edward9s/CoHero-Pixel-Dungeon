@@ -463,6 +463,69 @@ def test_non_java_patch_resilience():
             raise AssertionError("new upstream locale did not fall back to base CoHero messages")
 
 
+
+def test_combo_attack_patch_and_catalog():
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "Char.java"
+        source.write_text(
+            "class Char {\n"
+            "    void attack(Char enemy, int effectiveDamage) {\n"
+            "        enemy.damage( effectiveDamage, this );\n"
+            "    }\n"
+            "}\n", encoding="utf-8")
+        command = [sys.executable, str(patch_dir / "patch_combo_attack.py"), str(source)]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        patched = source.read_text(encoding="utf-8")
+        if patched.count("CoHeroCombo.onAttack(this, enemy, coHeroComboHpBefore)") != 1:
+            raise AssertionError("Combo hook must run exactly once after an applied attack")
+        if patched.index("int coHeroComboHpBefore") > patched.index("enemy.damage("):
+            raise AssertionError("Combo damage hook must capture HP before damage")
+        if subprocess.run(command, capture_output=True, text=True).returncode == 0:
+            raise AssertionError("Re-applying combo hook must fail fast")
+
+    # The combo patch must be part of the unattended integration pipeline.
+    integration = (root / "integration/shattered/apply.sh").read_text(encoding="utf-8")
+    if 'patch_combo_attack.py' not in integration:
+        raise AssertionError("Combo attack hook is missing from apply.sh")
+
+    source = (root / "core/src/main/java/com/spd/cohero/CoHeroCombo.java").read_text(
+        encoding="utf-8")
+    for required in (
+        "MAX_ENERGY = 180",
+        "CAST_COST = 60",
+        "PAIR_WINDOW = 3f",
+        "gain(8);",
+        "gain(5);",
+        "gain(4);",
+        "hero.spendAndNext(Actor.TICK)",
+        "companion.spendComboTurn()",
+    ):
+        if required not in source:
+            raise AssertionError(f"Combo gameplay invariant missing: {required}")
+
+    from importlib.util import spec_from_file_location, module_from_spec
+    spec = spec_from_file_location("cohero_messages_patch", patch_dir / "patch_messages.py")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source_dir = root / "messages"
+    base = dict(module.parse_messages(
+        (source_dir / "misc.properties").read_text(encoding="utf-8"),
+        source_dir / "misc.properties"))
+    names = [
+        f"cohero.combo.skill.{h}.{c}"
+        for h in range(6) for c in range(6)
+    ]
+    if len({base.get(key) for key in names}) != 36 or any(key not in base for key in names):
+        raise AssertionError("Every ordered 6x6 class pair must have a unique skill name")
+    for locale in source_dir.glob("misc*.properties"):
+        values = dict(module.parse_messages(locale.read_text(encoding="utf-8"), locale))
+        if values.keys() != base.keys():
+            raise AssertionError(f"Combo message keys differ for {locale.name}")
+        for key in base:
+            if module.placeholders(values[key]) != module.placeholders(base[key]):
+                raise AssertionError(f"Combo message placeholder mismatch: {locale.name}:{key}")
+
+test_combo_attack_patch_and_catalog()
 test_helper()
 test_warding_patch()
 test_mob_patch()
