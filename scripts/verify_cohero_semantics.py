@@ -148,25 +148,25 @@ def main() -> int:
     # Actor.fixTime() rebases the global clock on save; the transient alert clock must
     # shift by the same amount or an alert can survive indefinitely after a pause.
     ally_clock = re.search(
-        r"public\\s+void\\s+fixTime\\s*\\(\\s*float\\s+decrement\\s*\\)"
-        r"\\s*\\{\\s*super\\.fixTime\\s*\\(\\s*decrement\\s*\\)\\s*;"
-        r"\\s*underFire\\.fixTime\\s*\\(\\s*decrement\\s*\\)\\s*;\\s*\\}",
+        r"public\s+void\s+fixTime\s*\(\s*float\s+decrement\s*\)"
+        r"\s*\{\s*super\.fixTime\s*\(\s*decrement\s*\)\s*;"
+        r"\s*underFire\.fixTime\s*\(\s*decrement\s*\)\s*;\s*\}",
         ally_source,
     )
     under_fire_clock = re.search(
-        r"void\\s+fixTime\\s*\\(\\s*float\\s+decrement\\s*\\)"
-        r"\\s*\\{\\s*if\\s*\\(\\s*attackerType\\s*!=\\s*null\\s*\\)"
-        r"\\s*\\{\\s*lastAttackTime\\s*-=\\s*decrement\\s*;\\s*\\}\\s*\\}",
+        r"void\s+fixTime\s*\(\s*float\s+decrement\s*\)"
+        r"\s*\{\s*if\s*\(\s*attackerType\s*!=\s*null\s*\)"
+        r"\s*\{\s*lastAttackTime\s*-=\s*decrement\s*;\s*\}\s*\}",
         under_fire_source,
     )
     expiry_reset = re.search(
-        r"if\\s*\\(\\s*Actor\\.now\\(\\)\\s*-\\s*lastAttackTime"
-        r"\\s*>\\s*ALERT_DURATION\\s*\\)\\s*\\{\\s*reset\\(\\)\\s*;",
+        r"if\s*\(\s*Actor\.now\(\)\s*-\s*lastAttackTime"
+        r"\s*>\s*ALERT_DURATION\s*\)\s*\{\s*reset\(\)\s*;",
         under_fire_source,
     )
     lost_shooter_reset = re.search(
-        r"if\\s*\\(\\s*closestAttacker\\s*==\\s*null\\s*\\)"
-        r"\\s*\\{\\s*reset\\(\\)\\s*;",
+        r"if\s*\(\s*closestAttacker\s*==\s*null\s*\)"
+        r"\s*\{\s*reset\(\)\s*;",
         under_fire_source,
     )
     if not all((ally_clock, under_fire_clock, expiry_reset, lost_shooter_reset)):
