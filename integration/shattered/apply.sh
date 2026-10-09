@@ -26,11 +26,12 @@ from pathlib import Path
 import sys
 
 source, dest = map(Path, sys.argv[1:])
-png = base64.b64decode(source.read_text(encoding="ascii"), validate=True)
+png = base64.b64decode(source.read_text(encoding="ascii").strip(), validate=True)
 if not png.startswith(b"\x89PNG\r\n\x1a\n") or png[16:24] != bytes.fromhex("0000001000000010"):
     raise SystemExit("CoHero ultimate icon must be a 16x16 PNG")
 dest.write_bytes(png)
 PY
+    rm -f "$upstream/core/src/main/assets/interfaces/cohero_combo.png.b64"
     python "$patches/patch_app_package.py" "$upstream/build.gradle"
     python "$patches/patch_android_manifest.py" \
       "$upstream/android/src/main/AndroidManifest.xml"
