@@ -550,7 +550,7 @@ def test_combo_attack_patch_and_catalog():
         "Dungeon.level.heroFOV[cell]",
         "Dungeon.level != level || Dungeon.hero != hero",
         "killAndErase()",
-        "MagicMissile.boltFromChar(",
+        "recycle(MagicMissile.class)",
         "CellEmitter.center(cell).burst(",
     ):
         if required not in fx:
