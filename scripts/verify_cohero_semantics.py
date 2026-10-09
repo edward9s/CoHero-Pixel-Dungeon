@@ -430,7 +430,7 @@ def main() -> int:
     vertigo_decision = ally_source.find("if (buff(Vertigo.class) != null) {")
     paralyzed_decision = ally_source.find("if (paralysed > 0) {")
     torch_decision = ally_source.find("if (tryAutoTorch())")
-    if not (0 <= paralyzed_decision < vertigo_decision < torch_decision
+    if (not (0 <= paralyzed_decision < vertigo_decision < torch_decision)
             or ally_source.count("if (travelling && buff(Vertigo.class) != null)") != 1
             or '"vertigo_hold"' not in ally_source):
         print("CoHero must hold and block normal walking while Vertigo is active.", file=sys.stderr)
