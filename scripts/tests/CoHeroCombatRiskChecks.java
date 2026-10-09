@@ -29,6 +29,29 @@ public final class CoHeroCombatRiskChecks {
         check(CoHeroCombatRisk.retreatRequired(false, 2, 8f,
                 true, true, false), "unassisted losing race");
 
+        // Sleeping enemies remain protected unless they block every safe approach
+        // during an unfavorable active ranged exchange.
+        check(!CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
+                true, true, 0f, 8f), "safe path protects sleeping enemies");
+        check(!CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
+                false, false, 0f, 8f), "no actual ranged fire must not wake sleepers");
+        check(!CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
+                false, true, 8f, 2f), "winning the ranged exchange protects sleepers");
+        check(CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
+                false, true, 0f, 8f), "no ranged answer under fire permits necessary close");
+        check(CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
+                false, true, 4f, 8f), "losing ranged exchange permits necessary close");
+        check(!CoHeroCombatRisk.riskWakingEnemyForRangedApproach(
+                false, true, 0f, 0f), "no actual incoming damage protects sleepers");
+
+        boolean rejectedNegativeRangedRisk = false;
+        try {
+            CoHeroCombatRisk.riskWakingEnemyForRangedApproach(false, true, -1f, 5f);
+        } catch (IllegalArgumentException expected) {
+            rejectedNegativeRangedRisk = true;
+        }
+        check(rejectedNegativeRangedRisk, "negative combat damage estimate must fail fast");
+
         // No escape tile by itself must never spend healing/shielding.
         check(!CoHeroCombatRisk.emergencyConsumableRequired(99f, 1f, 1f),
                 "minor scratch is not an emergency");
