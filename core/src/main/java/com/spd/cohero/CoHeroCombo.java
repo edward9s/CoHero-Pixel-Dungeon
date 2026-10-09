@@ -269,6 +269,7 @@ public final class CoHeroCombo {
         return energy >= CAST_COST && Dungeon.level != null
                 && hero != null && hero.isAlive() && hero.ready && hero.paralysed <= 0
                 && companion != null && companion.isAlive() && companion.paralysed <= 0
+                && companion.canPerformCombo()
                 && Dungeon.level.distance(hero.pos, companion.pos) <= PARTY_RANGE;
     }
 
@@ -364,12 +365,15 @@ public final class CoHeroCombo {
                 damageEnemy(hero, target, power * 2 + (target.HP < target.HT / 2 ? power : 0));
                 break;
             case 3: // Huntress: line attack, respecting the target's projectile lane
-                Ballistica line = new Ballistica(hero.pos, target.pos, Ballistica.PROJECTILE);
+                // Ignore intervening mobs for a piercing attack, but never go through walls
+                // or beyond the chosen target (Ballistica.path contains cells past collision).
+                final int terrainLine = Ballistica.STOP_TARGET | Ballistica.STOP_SOLID;
+                Ballistica line = new Ballistica(hero.pos, target.pos, terrainLine);
                 if (line.collisionPos != target.pos) {
-                    line = new Ballistica(companion.pos, target.pos, Ballistica.PROJECTILE);
+                    line = new Ballistica(companion.pos, target.pos, terrainLine);
                 }
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                    if (line.path.contains(mob.pos)) {
+                    if (line.subPath(0, line.dist).contains(mob.pos)) {
                         damageEnemy(hero, mob, power + hero.lvl);
                     }
                 }
@@ -477,7 +481,10 @@ public final class CoHeroCombo {
 
     private static void damageArea(Hero caster, int center, int radius, int amount) {
         for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-            if (Dungeon.level.distance(center, mob.pos) <= radius) {
+            if (Dungeon.level.distance(center, mob.pos) <= radius
+                    && !Dungeon.level.solid[mob.pos]
+                    && new Ballistica(center, mob.pos,
+                        Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == mob.pos) {
                 damageEnemy(caster, mob, amount);
             }
         }
