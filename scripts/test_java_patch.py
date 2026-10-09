@@ -580,6 +580,21 @@ def test_combo_attack_patch_and_catalog():
     ]
     if len({base.get(key) for key in names}) != 36 or any(key not in base for key in names):
         raise AssertionError("Every ordered 6x6 class pair must have a unique skill name")
+    # Dynamically validate exceptional ordered-pair text lookups. A missing
+    # key would show "No Text Found" for an otherwise usable ultimate.
+    special_block = source[
+        source.index("if ((heroClass == 0 && partnerClass == 5)"):
+        source.index('effects += " " + CoHeroMessages.get(', 
+                     source.index("if ((heroClass == 0 && partnerClass == 5)"))
+    ]
+    for hero_class, companion_class in __import__("re").findall(
+            r"heroClass == (\\d+) && partnerClass == (\\d+)", special_block):
+        key = f"cohero.combo.detail.extra.{hero_class}.{companion_class}"
+        if key not in base:
+            raise AssertionError(f"Missing localized special ultimate effect: {key}")
+    if "cohero.combo.detail.partner.3.5" not in base:
+        raise AssertionError("Huntress + Cleric needs shield-specific effect text")
+
     for locale in source_dir.glob("misc*.properties"):
         values = dict(module.parse_messages(locale.read_text(encoding="utf-8"), locale))
         if values.keys() != base.keys():
