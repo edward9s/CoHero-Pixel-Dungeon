@@ -35,6 +35,17 @@ Each class has an innate passive ability. A second ability unlocks when the **He
 
 These are innate bonuses, generally equivalent to **+0 rings**. They use no ring slots, and equipped rings still work normally.
 
+## Cooperative ultimates
+
+The Hero and CoHero can unleash a powerful **cooperative ultimate** when they fight together.
+
+- **Build Link:** Damaging enemies with melee weapons, thrown weapons, the Spirit Bow, or wands builds Link when **both characters contribute to the same fight**. Attacking alone does not generate Link.
+- **Activate:** The **crossed-swords Tag** displays your Link as a current/max value (up to **180**). Each ultimate costs **60 Link**, so you can save enough for three uses.
+- **Choose your moment:** Tap the Tag to activate the ultimate. Both characters must be alive, able to act, and within **6 tiles** of one another. Offensive ultimates let you select an enemy; support ultimates activate immediately.
+- **Discover combinations:** Your **Hero's class and CoHero's class** determine the ultimate, with **36 ordered combinations**. Long-press the Tag or open the CoHero backpack to read your current ultimate's name and effects.
+
+Each ultimate uses one turn for both characters. Link is kept when changing floors.
+
 ## Settings
 
 - **Enemy spawn multiplier:** Adjust the spawn rate from **1.0x to 4.0x** (default **1.5x**).
@@ -68,9 +79,3 @@ For implementation details and current design rules, see [docs/DESIGN.zh-TW.md](
 ## About
 
 CoHero aims to keep Shattered Pixel Dungeon's original mechanics intact while adding the pressure of surviving with an autonomous second hero.
-
-## Dual ultimates
-
-Fight together to build **Link** with melee, thrown weapons, and direct wand hits. The **crossed-blades Tag** shows Link and stores up to three ultimate casts. Tap to use your class-pair ultimate or long-press to read its effects; the companion inventory also explains the current skill.
-
-There are **36 ordered Hero + CoHero class combinations**. The visuals combine each class's motifs, while Link builds only through cooperative attacks. See [detailed rules](docs/DESIGN.zh-TW.md).
