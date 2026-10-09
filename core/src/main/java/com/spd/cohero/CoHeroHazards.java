@@ -95,6 +95,25 @@ public final class CoHeroHazards {
         return isPurityEnvironmentalBlobDanger(owner, cell);
     }
 
+    /**
+     * Escape routes may cross harmful gas/fire to leave a large cloud, but must never
+     * deliberately cross a known trap, pit warning, charged beam or other discrete hazard.
+     * Keep this independent of the blob check because the two can overlap on one cell.
+     */
+    public static boolean blocksEnvironmentalEscape(Char owner, int cell) {
+        if (owner == null || Dungeon.level == null || !Dungeon.level.insideMap(cell)) {
+            return false;
+        }
+        return isWarned(cell)
+                || isKnownActiveTrap(cell)
+                || isDelayedPitDanger(owner, cell)
+                || isRipperLeapDanger(cell)
+                || isEyeDeathGazeDanger(owner, cell)
+                || isVaultMechanismDanger(owner, cell)
+                || isTenguBombDanger(cell)
+                || presentVaultFireWallFor(owner, cell);
+    }
+
     public static boolean hasActiveHazards(Char owner) {
         syncLevel();
         pruneExpired();
