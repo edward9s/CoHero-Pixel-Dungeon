@@ -519,6 +519,17 @@ def test_combo_attack_patch_and_catalog():
         raise AssertionError("Link Tag must display current/max values")
     if "CoHeroCombo.requestCast()" not in hud_tag:
         raise AssertionError("Link Tag must initiate the ultimate")
+    for required in (
+        "ColorBlock[] notches = new ColorBlock[3]",
+        "int charges = energy / CoHeroCombo.CAST_COST",
+        "CHARGE_COLORS[charges]",
+        "onLongClick()",
+        "CoHeroCombo.skillDescription()",
+        "count.measure()",
+        "Math.min(0.68f",
+    ):
+        if required not in hud_tag:
+            raise AssertionError(f"Three-stage ultimate Tag missing: {required}")
     game_scene = (patch_dir / "patch_gamescene.py").read_text(encoding="utf-8")
     for required in ("combo_tag_create_marker", "tagCoHeroCombo", "scene.coHeroCombo.flip(tagsOnLeft)"):
         if required not in game_scene:
@@ -530,6 +541,21 @@ def test_combo_attack_patch_and_catalog():
     if ("CoHeroCombo.requestCast()" in inventory
             or 'CoHeroMessages.get("combo.energy"' in inventory):
         raise AssertionError("Inventory must not contain a combo meter or cast button")
+    if "addStatCell(" in inventory or 'labels[i] + " " + values[i]' not in inventory:
+        raise AssertionError("Companion stats must be inline label/value text without fixed columns")
+    if "addCompactStats(0, startY, layoutWidth)" not in inventory:
+        raise AssertionError("Portrait stats must use compact localized flow")
+    if "addCompactStats(0, startY, leftWidth)" not in inventory:
+        raise AssertionError("Landscape stats must use compact localized flow")
+    if "companion.canPerformCombo()" not in source:
+        raise AssertionError("Combo must not interrupt a pending companion movement/decision")
+    for required in (
+        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID",
+        "line.subPath(0, line.dist).contains(mob.pos)",
+        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == mob.pos",
+    ):
+        if required not in source:
+            raise AssertionError(f"Ultimate must not reach enemies behind terrain: {required}")
 
     # Ultimate VFX are 6 main motifs + 6 partner accents: a display-only
     # Noosa cue; never a game Actor, asynchronous combat action, or saved state.
