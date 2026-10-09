@@ -67,7 +67,19 @@ public class CoHeroAlly extends DirectableAlly {
         attacksAutomatically = false;
     }
 
+    /**
+     * Combo casts must not interrupt an ongoing companion decision or its visible
+     * movement animation. The Actor engine already waits for pending attack/zap
+     * callbacks before scheduling the next Hero action.
+     */
+    boolean canPerformCombo() {
+        return !turnContext.isActive() && (sprite == null || !sprite.isMoving);
+    }
+
     void spendComboTurn() {
+        if (!canPerformCombo()) {
+            throw new IllegalStateException("Cannot cast combo during a companion action");
+        }
         spend(Actor.TICK);
     }
 
