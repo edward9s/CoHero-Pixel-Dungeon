@@ -503,6 +503,18 @@ def test_combo_attack_patch_and_catalog():
         if required not in source:
             raise AssertionError(f"Combo gameplay invariant missing: {required}")
 
+    # A missing Link field is normal in saves from before the feature existed.
+    # Keep saved values and fail fast for corrupt/out-of-range values.
+    restore_start = source.index("public static void restore(Bundle bundle)")
+    restore_end = source.index("public static void onLevelChanged()", restore_start)
+    restore = source[restore_start:restore_end]
+    if "bundle.contains(ENERGY_KEY) ? bundle.getInt(ENERGY_KEY) : 0" not in restore:
+        raise AssertionError("Old saves must start with zero Link instead of failing")
+    if "energy < 0 || energy > MAX_ENERGY" not in restore:
+        raise AssertionError("Existing out-of-range Link values must still fail")
+    if "clearTransientState()" not in restore:
+        raise AssertionError("Restoring a save must discard transient combo pairing")
+
     wand_patch = (patch_dir / "patch_wand_base.py").read_text(encoding="utf-8")
     if wand_patch.count("CoHeroCombo.onWandZap(") != 2:
         raise AssertionError("Both Hero and CoHero Wand cast paths must score Link")
