@@ -529,6 +529,12 @@ public class CoHeroAlly extends DirectableAlly {
     }
 
     @Override
+    public void fixTime(float decrement) {
+        super.fixTime(decrement);
+        underFire.fixTime(decrement);
+    }
+
+    @Override
     public void damage(int damage, Object source) {
         int adjusted = (int) Math.ceil(
                 Math.max(0, damage)
