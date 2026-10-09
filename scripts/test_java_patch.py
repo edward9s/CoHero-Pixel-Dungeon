@@ -531,6 +531,43 @@ def test_combo_attack_patch_and_catalog():
             or 'CoHeroMessages.get("combo.energy"' in inventory):
         raise AssertionError("Inventory must not contain a combo meter or cast button")
 
+    # Ultimate VFX are 6 main motifs + 6 partner accents: a display-only
+    # Noosa cue; never a game Actor, asynchronous combat action, or saved state.
+    fx = (root / "core/src/main/java/com/spd/cohero/CoHeroComboFX.java").read_text(
+        encoding="utf-8")
+    combo = source
+    if "CoHeroComboFX.play(" not in combo:
+        raise AssertionError("Confirmed ultimate must start visual presentation")
+    if combo.index("CoHeroComboFX.play(") > combo.index("performClericUltimate(hero, companion, partnerClass)"):
+        raise AssertionError("FX must capture its target before the skill can kill it")
+    for required in (
+        "private static void primary(",
+        "private static void accent(",
+        "private static final class Cue extends Visual",
+        "private static final float MAIN_START = 0.12f;",
+        "private static final float PARTNER_START = 0.30f;",
+        "private static final float TOTAL_DURATION = 0.58f;",
+        "Dungeon.level.heroFOV[cell]",
+        "Dungeon.level != level || Dungeon.hero != hero",
+        "killAndErase()",
+        "MagicMissile.boltFromChar(",
+        "CellEmitter.center(cell).burst(",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Missing composable, non-blocking combo FX: {required}")
+    for function in ("primary", "accent"):
+        matches = __import__("re").search(
+            rf"private static void {function}\\([^{{]+\\{{(.*?)\\n    \\}}",
+            fx, __import__("re").S)
+        if matches is None:
+            raise AssertionError(f"Missing {function} FX renderer")
+        arms = __import__("re").findall(r"case [0-5]:", matches.group(1))
+        if len(arms) != 6:
+            raise AssertionError(f"{function} must support all six ordered classes")
+    for forbidden in ("Actor.", ".spend(", ".next(", ".busy(", "Callback"):
+        if forbidden in fx:
+            raise AssertionError(f"FX must not alter gameplay or wait for animation: {forbidden}")
+
     from importlib.util import spec_from_file_location, module_from_spec
     spec = spec_from_file_location("cohero_messages_patch", patch_dir / "patch_messages.py")
     module = module_from_spec(spec)
