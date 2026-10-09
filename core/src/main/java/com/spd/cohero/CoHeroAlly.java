@@ -4,6 +4,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vertigo;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
@@ -447,6 +448,13 @@ public class CoHeroAlly extends DirectableAlly {
     public void move(int step, boolean travelling) {
         int oldPos = pos;
 
+        // SPD randomizes ordinary steps under Vertigo and can redirect them into a chasm.
+        // Non-travelling relocation (e.g. a scripted teleport) is not a walking decision.
+        if (travelling && buff(Vertigo.class) != null) {
+            logMovement("BLOCKED_VERTIGO", oldPos, step);
+            return;
+        }
+
         String blockedMovement = guard.blockedMovementReason(step);
         if (blockedMovement != null) {
             logMovement(blockedMovement, oldPos, step);
@@ -656,6 +664,25 @@ public class CoHeroAlly extends DirectableAlly {
 
         if (paralysed > 0) {
             logBossDecision("paralysed", "paralysed");
+            spend(TICK);
+            return true;
+        }
+
+        // Never request a walking step while Vertigo can randomize its destination into a pit.
+        // Purity of the surrounding gas comes first: otherwise cleansing alone would be wasted
+        // because ConfusionGas reapplies Vertigo on the next blob tick.
+        if (buff(Vertigo.class) != null) {
+            if (survival.tryUsePurityPotion()) {
+                return true;
+            }
+            if (!CoHeroHazards.isPurityBlobDanger(this, pos)
+                    && survival.tryUseCleansingPotion(null)) {
+                return true;
+            }
+            if (survival.tryAutoSurvivalPotion()) {
+                return true;
+            }
+            setMovementDecision("vertigo_hold", pos);
             spend(TICK);
             return true;
         }
