@@ -8,8 +8,11 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Flare;
 import com.shatteredpixel.shatteredpixeldungeon.effects.MagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
+import com.watabou.noosa.Game;
+import com.watabou.noosa.Visual;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.PathFinder;
 
@@ -24,6 +27,9 @@ public final class CoHeroComboFX {
 
     private static final float CHARGE_DURATION = 0.22f;
     private static final float IMPACT_DURATION = 0.36f;
+    private static final float MAIN_START = 0.12f;
+    private static final float PARTNER_START = 0.30f;
+    private static final float TOTAL_DURATION = 0.58f;
 
     private CoHeroComboFX() {
     }
@@ -46,9 +52,55 @@ public final class CoHeroComboFX {
         casterFlare(hero, heroColor(heroClass), CHARGE_DURATION);
         casterFlare(companion, partnerColor(companionClass), CHARGE_DURATION);
 
-        primary(hero, companion, center, heroClass);
-        accent(hero, companion, center, heroClass, companionClass);
-        Sample.INSTANCE.play(primarySound(heroClass), 0.85f);
+        // A short-lived Noosa visual drives the timing, not an Actor or a game turn.
+        // Releasing / switching scenes destroys it without touching combat resolution.
+        if (hero.sprite != null && hero.sprite.parent != null) {
+            hero.sprite.parent.add(new Cue(hero, companion, center, heroClass, companionClass));
+        }
+    }
+
+    private static final class Cue extends Visual {
+
+        private final Hero hero;
+        private final CoHeroAlly companion;
+        private final Level level;
+        private final int center;
+        private final int heroClass;
+        private final int companionClass;
+        private float elapsed;
+        private int stage;
+
+        Cue(Hero hero, CoHeroAlly companion, int center, int heroClass, int companionClass) {
+            super(0, 0, 0, 0);
+            this.hero = hero;
+            this.companion = companion;
+            this.level = Dungeon.level;
+            this.center = center;
+            this.heroClass = heroClass;
+            this.companionClass = companionClass;
+        }
+
+        @Override
+        public void update() {
+            super.update();
+            if (Dungeon.level != level || Dungeon.hero != hero) {
+                killAndErase();
+                return;
+            }
+            elapsed += Game.elapsed;
+            if (stage == 0 && elapsed >= MAIN_START) {
+                stage = 1;
+                primary(hero, companion, center, heroClass);
+                Sample.INSTANCE.play(primarySound(heroClass), 0.85f);
+            }
+            if (stage == 1 && elapsed >= PARTNER_START) {
+                stage = 2;
+                accent(hero, companion, center, heroClass, companionClass);
+            }
+            if (elapsed >= TOTAL_DURATION) {
+                killAndErase();
+            }
+        }
     }
 
     private static void primary(Hero hero, CoHeroAlly companion, int cell, int kind) {
