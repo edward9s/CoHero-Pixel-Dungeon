@@ -16,6 +16,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
@@ -95,19 +96,82 @@ public final class CoHeroCombo {
      * This excludes misses, zero-damage hits, DOT, and duplicate on-hit effects.
      */
     public static void onAttack(Char attacker, Char victim, int hpBefore) {
+        recordAttack(attacker, victim, hpBefore, true);
+    }
+
+    /**
+     * The normal and companion Wand cast routes call this once around onZap().
+     * Delayed gas/fire ticks and ward attacks occur outside this window.
+     * Only one pairing can be scored by a multi-target wand cast.
+     */
+    public static void onWandZap(Wand wand, Char caster,
+                                 Ballistica bolt) {
+        if (wand == null || caster == null || bolt == null) {
+            throw new IllegalArgumentException("Wand combo requires wand, caster and bolt");
+        }
+        if (Dungeon.level == null) {
+            throw new IllegalStateException("Wand combo cast requires a level");
+        }
+        int role = roleOf(caster);
+        if (role == 0) {
+            wand.onZap(bolt);
+            return;
+        }
+
+        HashMap<Mob, Integer> before = new HashMap<>();
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob.alignment == Char.Alignment.ENEMY && mob.isAlive()) {
+                before.put(mob, mob.HP);
+            }
+        }
+        wand.onZap(bolt);
+
+        Mob primary = null;
+        int best = Integer.MAX_VALUE;
+        for (Mob mob : before.keySet()) {
+            if (before.get(mob) > mob.HP) {
+                int rank = mob.id() == lastTargetId ? -1
+                        : Dungeon.level.distance(mob.pos, bolt.collisionPos);
+                if (rank < best) {
+                    best = rank;
+                    primary = mob;
+                }
+            }
+        }
+        if (primary == null) {
+            return;
+        }
+        recordAttack(caster, primary, before.get(primary), true);
+        for (Mob mob : before.keySet()) {
+            if (mob != primary && before.get(mob) > mob.HP) {
+                recordAttack(caster, mob, before.get(mob), false);
+            }
+        }
+    }
+
+    private static int roleOf(Char attacker) {
+        if (Dungeon.hero == null) {
+            return 0;
+        }
+        if (attacker == Dungeon.hero) {
+            return 1;
+        }
+        CoHeroAlly companion = CoHero.findCompanion();
+        return companion != null && companion.isAlive() && attacker == companion ? 2 : 0;
+    }
+
+    private static void recordAttack(
+            Char attacker, Char victim, int hpBefore, boolean allowPairing) {
         if (Dungeon.level == null || Dungeon.hero == null
                 || !(victim instanceof Mob) || victim.alignment != Char.Alignment.ENEMY
                 || hpBefore <= victim.HP) {
             return;
         }
-        CoHeroAlly companion = CoHero.findCompanion();
-        if (companion == null || !companion.isAlive()) {
-            return;
-        }
-        int role = attacker == Dungeon.hero ? 1 : attacker == companion ? 2 : 0;
+        int role = roleOf(attacker);
         if (role == 0) {
             return;
         }
+        CoHeroAlly companion = CoHero.findCompanion();
         if (observedLevel != Dungeon.level || Actor.now() < lastTime) {
             clearTransientState();
             observedLevel = Dungeon.level;
@@ -124,7 +188,7 @@ public final class CoHeroCombo {
         }
 
         float now = Actor.now();
-        if (lastRole != 0 && lastRole != role
+        if (allowPairing && lastRole != 0 && lastRole != role
                 && now - lastTime <= PAIR_WINDOW
                 && Dungeon.level.distance(Dungeon.hero.pos, companion.pos) <= PARTY_RANGE) {
             if (lastTargetId == id) {
@@ -138,11 +202,14 @@ public final class CoHeroCombo {
             gain(4);
         }
 
-        // Only one pending event exists; H-H-C-H gives two pairings, not three.
-        lastRole = role;
-        lastTime = now;
-        lastTargetId = id;
-        lastTargetCell = victim.pos;
+        // Secondary victims of an AoE cast can earn shared-kill credit,
+        // but must not replace the pending attack or trigger another pairing.
+        if (allowPairing) {
+            lastRole = role;
+            lastTime = now;
+            lastTargetId = id;
+            lastTargetCell = victim.pos;
+        }
     }
 
     private static int classIndex(HeroClass heroClass) {
