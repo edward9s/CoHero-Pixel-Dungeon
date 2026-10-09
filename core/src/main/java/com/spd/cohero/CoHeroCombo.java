@@ -64,10 +64,9 @@ public final class CoHeroCombo {
     }
 
     public static void restore(Bundle bundle) {
-        if (!bundle.contains(ENERGY_KEY)) {
-            throw new IllegalStateException("Save is missing combo energy");
-        }
-        energy = bundle.getInt(ENERGY_KEY);
+        // Older CoHero saves predate the Link meter. Start them at zero.
+        // A present but invalid value is still a corrupted save, not a missing field.
+        energy = bundle.contains(ENERGY_KEY) ? bundle.getInt(ENERGY_KEY) : 0;
         if (energy < 0 || energy > MAX_ENERGY) {
             throw new IllegalStateException("Invalid saved combo energy: " + energy);
         }
