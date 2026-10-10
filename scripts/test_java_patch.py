@@ -550,25 +550,27 @@ def test_combo_attack_patch_and_catalog():
         "import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;",
         "import com.shatteredpixel.shatteredpixeldungeon.ui.HeroIcon;",
         "icon = new HeroIcon(new Challenge());",
-        "private static final float ICON_SCALE = 0.70f;",
-        "icon.scale.set(ICON_SCALE, ICON_SCALE);",
-        "private static final float FRAME_SIZE = 14f;",
-        "new ColorBlock(FRAME_SIZE, 1, FRAME_COLOR)",
-        "new ColorBlock(1, FRAME_SIZE, FRAME_COLOR)",
-        "float frameY = y + 5f;",
-        "icon.y = frameY + 1f;",
+        "public static final int HEIGHT = 30;",
+        "private static final int EMPTY_COLOR = 0x404955;",
+        "icon.y = y + 6f;",
+        "count.y = y + height - count.height() - 1f;",
     ):
         if required not in hud_tag:
             raise AssertionError(f"Original Duelist icon and thin frame missing: {required}")
     if any(token in hud_tag for token in (
             "new Image(ICON)", "cohero_combo.png", "firstSword", "secondSword",
-            ".angle =")):
+            ".angle =", "ICON_SCALE", "FRAME_SIZE", "frameTop", "frameBottom",
+            "frameLeft", "frameRight", "icon.scale.set(")):
+
         raise AssertionError("Ultimate Tag still uses custom or rotated artwork")
     if (root / "core/src/main/assets/interfaces/cohero_combo.png.b64").exists():
         raise AssertionError("Obsolete custom combo PNG must be removed")
     integration_sh = (root / "integration/shattered/apply.sh").read_text(encoding="utf-8")
     if "cohero_combo.png" in integration_sh:
         raise AssertionError("No custom combo icon decoding should remain in the build")
+    if ("scene.coHeroCombo.setRect( tagLeft, pos - com.spd.cohero.CoHeroComboIndicator.HEIGHT," not in (
+                patch_dir / "patch_gamescene.py").read_text(encoding="utf-8")):
+        raise AssertionError("Combo Tag must reserve 30px without colliding with the counter")
 
     # Test-only refill starts on the next non-ready Hero.act, not on click or UI redraw.
     settings = (root / "core/src/main/java/com/spd/cohero/CoHeroSettings.java").read_text(encoding="utf-8")
