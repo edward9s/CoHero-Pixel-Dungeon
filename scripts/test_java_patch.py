@@ -591,6 +591,29 @@ def test_combo_attack_patch_and_catalog():
             or "energy = MAX_ENERGY;" not in source):
         raise AssertionError("Link test refill must occur on next Hero turn under 60 only")
 
+    # The test option's *visibility* is a separate global flag. Every eligible
+    # debug-log false->true transition toggles it; disabling debug never toggles.
+    for required in (
+        'private static final String TEST_OPTIONS_VISIBLE = "cohero_test_options_visible";',
+        "GameSettings.getBoolean(TEST_OPTIONS_VISIBLE, false)",
+        "GameSettings.put(TEST_OPTIONS_VISIBLE, !testOptionsVisible())",
+        "inventory.weapon() != null || inventory.armor() != null",
+        "inventory.ringOne() != null || inventory.ringTwo() != null",
+        "item instanceof Waterskin",
+        "item instanceof VelvetPouch",
+        "if (!hasWaterskin || !hasVelvetPouch)",
+    ):
+        if required not in settings:
+            raise AssertionError(f"Hidden test unlock rules incomplete: {required}")
+    for required in (
+        "if (checked() && CoHeroSettings.toggleTestOptionsIfEligible(companion))",
+        "updateTestOptionVisibility();",
+        "autoFillLink.visible = autoFillLink.active = CoHeroSettings.testOptionsVisible();",
+        "if (CoHeroSettings.testOptionsVisible())",
+    ):
+        if required not in tab:
+            raise AssertionError(f"Hidden test checkbox visibility incomplete: {required}")
+
     game_scene = (patch_dir / "patch_gamescene.py").read_text(encoding="utf-8")
     for required in ("combo_tag_create_marker", "tagCoHeroCombo", "scene.coHeroCombo.flip(tagsOnLeft)"):
         if required not in game_scene:
@@ -603,11 +626,33 @@ def test_combo_attack_patch_and_catalog():
             or 'CoHeroMessages.get("combo.energy"' in inventory):
         raise AssertionError("Inventory must not contain a combo meter or cast button")
     if "addStatCell(" in inventory or 'labels[i] + " " + values[i]' not in inventory:
-        raise AssertionError("Companion stats must be inline label/value text without fixed columns")
-    if "addCompactStats(0, startY, layoutWidth)" not in inventory:
-        raise AssertionError("Portrait stats must use compact localized flow")
-    if "addCompactStats(0, startY, leftWidth)" not in inventory:
-        raise AssertionError("Landscape stats must use compact localized flow")
+        raise AssertionError("Companion stats must show inline name/value pairs")
+    for required in (
+        "addTwoRowStats(0, startY, layoutWidth)",
+        "addTwoRowStats(0, startY, leftWidth)",
+        "for (int row = 0; row < 2; row++)",
+        "for (int col = 0; col < 3; col++)",
+        "float first = stats[0].width()",
+        "float second = stats[3].width()",
+    ):
+        if required not in inventory:
+            raise AssertionError(f"Both orientations must explicitly use two stats rows: {required}")
+    if "addCompactStats(" in inventory:
+        raise AssertionError("Remove former variable-wrapping stats layout")
+    # Portrait keeps its combo under the title; landscape moves the combo
+    # into the left column after the basic stats and before the equipment.
+    portrait = inventory[inventory.index("private void layoutPortrait("):
+                         inventory.index("private void layoutLandscape(")]
+    landscape = inventory[inventory.index("private void layoutLandscape("):
+                          inventory.index("private float addEquipment(")]
+    constructor = inventory[:inventory.index("private void layoutPortrait(")]
+    if ("layoutPortrait(addComboInfo(0, contentY, layoutWidth) + 4)" not in constructor
+            or "layoutLandscape(contentY)" not in constructor):
+        raise AssertionError("Only portrait may place the combo above the two-column layout")
+    if ('addComboInfo(0, statsBottom + 4, leftWidth)' not in landscape
+            or landscape.index("addTwoRowStats(") > landscape.index("addComboInfo(")
+            or "addComboInfo(" in portrait):
+        raise AssertionError("Landscape combo must appear solely in the left column")
     if "companion.canPerformCombo()" not in source:
         raise AssertionError("Combo must not interrupt a pending companion movement/decision")
     for required in (
