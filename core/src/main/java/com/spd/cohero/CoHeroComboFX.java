@@ -189,7 +189,7 @@ public final class CoHeroComboFX {
     /**
      * Visual-only bomb-style detonation using the stock SPD blast and smoke
      * particles. A large Mage primary burst has peripheral smoke; the companion
-     * accent is intentionally smaller. No Bomb.explode(), damage or terrain changes.
+     * accent is intentionally smaller. Never triggers a gameplay bomb, damage, or terrain changes.
      */
     private static void arcaneExplosion(int cell, boolean major) {
         if (!visible(cell)) {
