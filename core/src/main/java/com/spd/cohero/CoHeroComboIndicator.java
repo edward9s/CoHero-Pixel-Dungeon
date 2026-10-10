@@ -111,7 +111,7 @@ public final class CoHeroComboIndicator extends Tag {
         float slotX = flipped ? x + width - SIZE : x;
         for (int i = 0; i < notches.length; i++) {
             notches[i].x = slotX + 3f + i * 7f;
-            notches[i].y = y + 1f;
+            notches[i].y = y + 3f;
         }
         icon.x = slotX + (SIZE - icon.width()) / 2f;
         icon.y = y + 2f;
