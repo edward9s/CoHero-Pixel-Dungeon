@@ -410,7 +410,9 @@ public final class CoHeroCombo {
                 && !mob.isInvulnerable(hero.getClass())
                 && (Dungeon.level.distance(hero.pos, mob.pos) <= 8
                     || Dungeon.level.distance(companion.pos, mob.pos) <= 8)
-                && canTargetFromEitherHero(mob.pos, hero, companion);
+                && (classIndex(hero.heroClass) == 3
+                    ? (canSeePiercing(hero, mob.pos) || canSeePiercing(companion, mob.pos))
+                    : canTargetFromEitherHero(mob.pos, hero, companion));
     }
 
     private static void cast(Integer cell) {
@@ -560,13 +562,8 @@ public final class CoHeroCombo {
                 Buff.prolong(companion, Invisibility.class, 2f);
                 break;
             case 3: // Huntress: a second, independently calculated firing lane.
-                if (mainClass == 3) {
-                    pierceLane(hero, piercingLane(companion, hero, target.pos),
-                            target.pos, Math.max(1, power / 2), pierced);
-                } else {
-                    pierceLane(hero, piercingLane(companion, hero, target.pos),
-                            target.pos, Math.max(1, power / 2), pierced);
-                }
+                pierceLane(hero, piercingLane(companion, hero, target.pos),
+                        target.pos, Math.max(1, power / 2), pierced);
                 if (target.isAlive()) {
                     Buff.prolong(target, Blindness.class, 2f);
                 }
@@ -658,13 +655,15 @@ public final class CoHeroCombo {
     }
 
     private static Ballistica piercingLane(Char preferred, Char alternate, int cell) {
-        // STOP_SOLID allows piercing multiple mobs, never walls. Prefer the
-        // Hero's lane; fall back to the companion if only they have a clear ray.
+        // STOP_TARGET | STOP_SOLID stops exactly on the selected target,
+        // pierces intervening mobs, and never crosses walls.
         if (canSeePiercing(preferred, cell)) {
-            return new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID);
+            return new Ballistica(preferred.pos, cell,
+                    Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
         }
         if (canSeePiercing(alternate, cell)) {
-            return new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID);
+            return new Ballistica(alternate.pos, cell,
+                    Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
         }
         return null;
     }
@@ -673,8 +672,8 @@ public final class CoHeroCombo {
         boolean[] sight = attacker == Dungeon.hero
                 ? Dungeon.level.heroFOV : attacker.fieldOfView;
         return sight != null && sight[cell]
-                && new Ballistica(attacker.pos, cell, Ballistica.STOP_SOLID)
-                        .collisionPos == cell;
+                && new Ballistica(attacker.pos, cell,
+                        Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell;
     }
 
     private static void pierceLane(Hero caster, Ballistica line, int targetCell,
