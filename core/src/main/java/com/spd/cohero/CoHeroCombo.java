@@ -711,7 +711,8 @@ public final class CoHeroCombo {
                     && !Dungeon.level.openSpace[destination])) {
             return;
         }
-        Ballistica pushLine = new Ballistica(mob.pos, destination, Ballistica.MAGIC_BOLT);
+        // STOP_TARGET is essential: MAGIC_BOLT keeps travelling past an empty cell.
+        Ballistica pushLine = new Ballistica(mob.pos, destination, Ballistica.PROJECTILE);
         if (pushLine.collisionPos == destination) {
             WandOfBlastWave.throwChar(mob, pushLine, 1, false, false, CoHeroCombo.class);
         }
