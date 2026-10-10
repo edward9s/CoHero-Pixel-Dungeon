@@ -781,6 +781,46 @@ def test_combo_attack_patch_and_catalog():
     if "arcaneExplosion(cell, true);" not in fx[fx.index("private static void jointImpact("):
                                                fx.index("private static void arcaneExplosion(")]:
         raise AssertionError("Mage blast must detonate on the real hit, not at launch")
+    # Huntress must reuse the actual Prismatic Light wand ray, never the
+    # generic LIGHT_MISSILE projectile; both the Hero and companion accent
+    # have distinct ray origins and cannot reveal terrain outside Hero FOV.
+    for required in (
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.Beam;",
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.particles.RainbowParticle;",
+        "prismaticRay(hero, companion, cell);",
+        "prismaticRay(companion, hero, cell);",
+        "private static void prismaticRay(Char preferred, Char alternate, int cell)",
+        "new Beam.LightRay(source.sprite.center(),",
+        "DungeonTilemap.raisedTileCenterToWorld(cell)",
+        "Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);",
+        "Ballistica line = new Ballistica(source.pos, cell, Ballistica.PROJECTILE);",
+        "for (int pathCell : line.subPath(0, line.dist))",
+        "if (visible(pathCell) && !Dungeon.level.solid[pathCell])",
+        "CellEmitter.center(cell).burst(RainbowParticle.BURST, count);",
+        "private static void jointImpact(Hero hero, CoHeroAlly companion, int cell,",
+        "case 0: // Warrior:",
+        "case 2: // Rogue:",
+        "case 3: // Huntress:",
+        "case 4: // Duelist:",
+        "case 5: // Cleric:",
+        "impact(cell, 0xE7F5FF, 12, 27);",
+        "rainbow(cell, 14);",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Stock prismatic ray or stronger hit motif missing: {required}")
+    primary_fx = fx[fx.index("private static void primary("):
+                    fx.index("private static void accent(")]
+    partner_fx = fx[fx.index("private static void accent("):
+                    fx.index("private static void jointImpact(")]
+    if "MagicMissile.LIGHT_MISSILE" in primary_fx + partner_fx:
+        raise AssertionError("Huntress must not fall back to a normal light missile")
+    if fx.count("new Beam.LightRay(") != 1:
+        raise AssertionError("Use one shared Prismatic Light ray helper, not copied implementations")
+    if fx.index("prismaticRay(hero, companion, cell);") > fx.index("private static void jointImpact("):
+        raise AssertionError("Huntress's ray must launch in the primary stage")
+    if "jointImpact(hero, companion, center, heroClass, companionClass);" not in cue_update:
+        raise AssertionError("All roles must show their distinctive impact before damage")
+
     # A Mage-led combo should feel like a bomb, while the Mage companion adds a
     # lighter detonation. Neither effect may trigger actual Bomb gameplay.
     for required in (
@@ -802,8 +842,8 @@ def test_combo_attack_patch_and_catalog():
             raise AssertionError(f"Missing balanced bomb-style combo effect: {required}")
     if "new Bomb(" in fx or ".explode(" in fx:
         raise AssertionError("Combo FX must not detonate real game-world bombs")
-    # Bound each switch to its own Java method to avoid counting cases from elsewhere.
-    for name, next_name in (("primary", "accent"), ("accent", "casterFlare")):
+    # Bound each switch to its own Java method, not later impact switches.
+    for name, next_name in (("primary", "accent"), ("accent", "jointImpact")):
         begin = fx.index("private static void " + name + "(")
         finish = fx.index("private static void " + next_name + "(", begin)
         arms = __import__("re").findall(r"case [0-5]:", fx[begin:finish])
