@@ -3,6 +3,13 @@ package com.spd.cohero;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ConfusionGas;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.CorrosiveGas;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Electricity;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Fire;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ParalyticGas;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.ToxicGas;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Bless;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
@@ -701,12 +708,8 @@ public final class CoHeroCombo {
             return;
         }
         int destination = mob.pos + dx + dy * width;
-        if (!Dungeon.level.insideMap(destination)
+        if (!safeDisplacementCell(destination)
                 || Dungeon.level.distance(mob.pos, destination) != 1
-                || !Dungeon.level.passable[destination]
-                || Dungeon.level.avoid[destination] || Dungeon.level.pit[destination]
-                || Dungeon.level.traps.get(destination) != null
-                || Actor.findChar(destination) != null
                 || (Char.hasProp(mob, Char.Property.LARGE)
                     && !Dungeon.level.openSpace[destination])) {
             return;
@@ -729,14 +732,11 @@ public final class CoHeroCombo {
         int bestDistance = current;
         for (int offset : PathFinder.NEIGHBOURS8) {
             int candidate = origin + offset;
-            if (!Dungeon.level.insideMap(candidate)
+            if (!safeDisplacementCell(candidate)
                     || Dungeon.level.distance(origin, candidate) != 1
-                    || !Dungeon.level.passable[candidate]
-                    || Dungeon.level.avoid[candidate] || Dungeon.level.pit[candidate]
-                    || Dungeon.level.traps.get(candidate) != null
-                    || Actor.findChar(candidate) != null
                     || !Dungeon.level.heroFOV[candidate]
-                    || Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE) {
+                    || Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE
+                    || adjacentHostile(candidate)) {
                 continue;
             }
             int distance = Dungeon.level.distance(candidate, threatCell);
@@ -748,6 +748,31 @@ public final class CoHeroCombo {
         if (best != -1) {
             ScrollOfTeleportation.teleportToLocation(hero, best);
         }
+    }
+
+    /** Only relocate onto traversable, unoccupied and immediately harmless tiles. */
+    private static boolean safeDisplacementCell(int cell) {
+        return Dungeon.level.insideMap(cell)
+                && Dungeon.level.passable[cell]
+                && !Dungeon.level.avoid[cell] && !Dungeon.level.pit[cell]
+                && Dungeon.level.traps.get(cell) == null
+                && Actor.findChar(cell) == null
+                && Blob.volumeAt(cell, Fire.class) == 0
+                && Blob.volumeAt(cell, ToxicGas.class) == 0
+                && Blob.volumeAt(cell, ParalyticGas.class) == 0
+                && Blob.volumeAt(cell, CorrosiveGas.class) == 0
+                && Blob.volumeAt(cell, ConfusionGas.class) == 0
+                && Blob.volumeAt(cell, Electricity.class) == 0;
+    }
+
+    private static boolean adjacentHostile(int cell) {
+        for (Mob mob : Dungeon.level.mobs) {
+            if (mob.isAlive() && mob.alignment == Char.Alignment.ENEMY
+                    && Dungeon.level.distance(cell, mob.pos) <= 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean inClearArea(int center, int radius, Mob mob) {
