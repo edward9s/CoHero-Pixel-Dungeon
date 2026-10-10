@@ -41,7 +41,7 @@ The Hero and CoHero can unleash a powerful **cooperative ultimate** when they fi
 
 - **Build Link:** Damaging enemies with melee weapons, thrown weapons, the Spirit Bow, or wands builds Link when **both characters contribute to the same fight**. Attacking alone does not generate Link.
 - **Activate:** The **crossed-swords Tag** displays your Link as a current/max value (up to **180**). Each ultimate costs **60 Link**, so you can save enough for three uses.
-- **Choose your moment:** Tap the Tag to activate the ultimate. Both characters must be alive, able to act, and within **6 tiles** of one another. Offensive ultimates let you select an enemy; support ultimates activate immediately.
+- **Choose your moment:** Both characters must be able to act and within **6 tiles**. For offensive ultimates, tap the Tag to auto-aim at a visible enemy (preferring your last target), then tap again to cast—or tap another enemy on the map. Support ultimates activate immediately.
 - **Discover combinations:** Your **Hero's class and CoHero's class** determine the ultimate, with **36 ordered combinations**. Long-press the Tag or open the CoHero backpack to read your current ultimate's name and effects.
 
 Each ultimate uses one turn for both characters. Link is kept when changing floors.
