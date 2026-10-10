@@ -19,6 +19,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCle
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
 
@@ -46,6 +47,9 @@ public final class CoHeroCombo {
     private static int lastTargetCell = -1;
     // Bitmask per enemy: 1 = Hero dealt damage, 2 = CoHero dealt damage.
     private static final HashMap<Integer, Integer> participants = new HashMap<>();
+    // The aim is transient UI state, not combat state or a saved preference.
+    private static CellSelector.Listener targetSelector;
+    private static Mob aimedTarget;
 
     private CoHeroCombo() {
     }
@@ -53,6 +57,7 @@ public final class CoHeroCombo {
     public static void reset() {
         energy = 0;
         clearTransientState();
+        clearTargetSelection();
     }
 
     public static int energy() {
@@ -82,10 +87,12 @@ public final class CoHeroCombo {
             throw new IllegalStateException("Invalid saved combo energy: " + energy);
         }
         clearTransientState();
+        clearTargetSelection();
     }
 
     public static void onLevelChanged() {
         clearTransientState();
+        clearTargetSelection();
     }
 
     private static void clearTransientState() {
@@ -283,7 +290,12 @@ public final class CoHeroCombo {
                 && Dungeon.level.distance(hero.pos, companion.pos) <= PARTY_RANGE;
     }
 
-    /** Called only from a player-initiated UI action, never the CoHero AI loop. */
+    /**
+     * Follow the stock/ModAssassinate quickslot convention: start manual
+     * targeting with an automatically suggested legal enemy. Press the Tag
+     * again to confirm that target, or tap any other valid enemy on the map.
+     * Cleric-led support ultimates never require a target.
+     */
     public static void requestCast() {
         if (!canCast()) {
             GLog.w(CoHeroMessages.get("combo.unavailable"));
@@ -291,21 +303,100 @@ public final class CoHeroCombo {
         }
         if (classIndex(Dungeon.hero.heroClass) == 5) {
             cast(null);
-        } else {
-            GameScene.selectCell(new CellSelector.Listener() {
-                @Override
-                public void onSelect(Integer cell) {
-                    if (cell != null) {
-                        cast(cell);
-                    }
-                }
-
-                @Override
-                public String prompt() {
-                    return CoHeroMessages.get("combo.target");
-                }
-            });
+            return;
         }
+        if (targetSelector != null) {
+            Mob target = aimTarget();
+            if (target != null) {
+                GameScene.handleCell(target.pos);
+            } else {
+                GameScene.cancelCellSelector();
+            }
+            return;
+        }
+        CellSelector.Listener listener = new CellSelector.Listener() {
+            @Override
+            public void onSelect(Integer cell) {
+                clearTargetSelection();
+                if (cell != null) {
+                    cast(cell);
+                }
+            }
+
+            @Override
+            public String prompt() {
+                return CoHeroMessages.get("combo.target");
+            }
+        };
+        targetSelector = listener;
+        GameScene.selectCell(listener);
+        aimedTarget = preferredAutoTarget();
+    }
+
+    private static void clearTargetSelection() {
+        targetSelector = null;
+        aimedTarget = null;
+    }
+
+    /** Returns only visible, currently legal enemies for the aiming reticle. */
+    public static Mob aimTarget() {
+        if (targetSelector == null) {
+            return null;
+        }
+        if (!validAutoTarget(aimedTarget)) {
+            aimedTarget = preferredAutoTarget();
+        }
+        return aimedTarget;
+    }
+
+    private static boolean validAutoTarget(Mob mob) {
+        Hero hero = Dungeon.hero;
+        CoHeroAlly companion = CoHero.findCompanion();
+        // Never auto-aim into CoHero-only vision: the reticle would reveal an
+        // enemy the player cannot see.
+        return hero != null && companion != null && Dungeon.level != null
+                && mob != null && mob.pos >= 0 && mob.pos < Dungeon.level.length()
+                && Dungeon.level.heroFOV[mob.pos]
+                && mob.sprite != null && mob.sprite.parent != null
+                && validAttackTarget(mob, hero, companion);
+    }
+
+    private static Mob preferredAutoTarget() {
+        if (QuickSlotButton.lastTarget instanceof Mob) {
+            Mob last = (Mob) QuickSlotButton.lastTarget;
+            if (validAutoTarget(last)) {
+                return last;
+            }
+        }
+
+        Hero hero = Dungeon.hero;
+        Mob closest = null;
+        int distance = Integer.MAX_VALUE;
+        for (Mob mob : Dungeon.level.mobs) {
+            if (!validAutoTarget(mob)) {
+                continue;
+            }
+            int candidateDistance = Dungeon.level.distance(hero.pos, mob.pos);
+            if (candidateDistance < distance
+                    || (candidateDistance == distance && closest != null
+                        && mob.id() < closest.id())) {
+                distance = candidateDistance;
+                closest = mob;
+            }
+        }
+        return closest;
+    }
+
+    /** Same validation for auto-aim and user-chosen targets. */
+    private static boolean validAttackTarget(Mob mob, Hero hero, CoHeroAlly companion) {
+        return mob != null && mob.isAlive()
+                && mob.alignment == Char.Alignment.ENEMY
+                && mob.pos >= 0 && mob.pos < Dungeon.level.length()
+                && Actor.findChar(mob.pos) == mob
+                && !mob.isInvulnerable(hero.getClass())
+                && (Dungeon.level.distance(hero.pos, mob.pos) <= 8
+                    || Dungeon.level.distance(companion.pos, mob.pos) <= 8)
+                && canTargetFromEitherHero(mob.pos, hero, companion);
     }
 
     private static void cast(Integer cell) {
@@ -325,15 +416,12 @@ public final class CoHeroCombo {
             }
             Char selected = Actor.findChar(cell);
             if (!(selected instanceof Mob)
-                    || selected.alignment != Char.Alignment.ENEMY || !selected.isAlive()
-                    || selected.isInvulnerable(hero.getClass())
-                    || (Dungeon.level.distance(hero.pos, cell) > 8
-                        && Dungeon.level.distance(companion.pos, cell) > 8)
-                    || !canTargetFromEitherHero(cell, hero, companion)) {
+                    || !validAttackTarget((Mob) selected, hero, companion)) {
                 GLog.w(CoHeroMessages.get("combo.invalid_target"));
                 return;
             }
             target = (Mob) selected;
+            QuickSlotButton.target(target);
         }
 
         // Every validation above precedes both resource and actor-time consumption.
