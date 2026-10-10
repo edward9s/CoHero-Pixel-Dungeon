@@ -1,6 +1,8 @@
 name: Build CoHero + SMM
 
 on:
+  push:
+    branches: [feature/cohero-combo-ultimates-20261009]
   workflow_dispatch:
 
 permissions:
