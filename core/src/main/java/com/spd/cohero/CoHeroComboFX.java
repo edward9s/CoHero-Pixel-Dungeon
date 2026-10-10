@@ -4,11 +4,13 @@ import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.effects.Beam;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Flare;
 import com.shatteredpixel.shatteredpixeldungeon.effects.MagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.BlastParticle;
+import com.shatteredpixel.shatteredpixeldungeon.effects.particles.RainbowParticle;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.SmokeParticle;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
@@ -109,7 +111,7 @@ public final class CoHeroComboFX {
                 stage = 1;
                 primary(hero, companion, center, heroClass, this);
                 // Mage's explosion sound belongs at the actual hit, not launch.
-                if (heroClass != 1) {
+                if (heroClass != 1 && heroClass != 3) {
                     Sample.INSTANCE.play(primarySound(heroClass), 0.85f);
                 }
             }
@@ -123,7 +125,7 @@ public final class CoHeroComboFX {
                 // the level, or advance the Actor schedule.
                 stage = 3;
                 impactTime = elapsed;
-                jointImpact(center, heroClass, companionClass);
+                jointImpact(hero, companion, center, heroClass, companionClass);
             }
             if (stage == 3 && elapsed >= impactTime + HIT_SETTLE) {
                 // Give the final impact flash one visible moment before a
@@ -151,28 +153,25 @@ public final class CoHeroComboFX {
     private static void primary(Hero hero, CoHeroAlly companion, int cell, int kind,
                                 Cue cue) {
         switch (kind) {
-            case 0: // Warrior: crushing shockwave and flying fragments.
-                impact(cell, 0xFFAA66, 6, 18);
-                particles(cell, Speck.ROCK, 6);
-                ring(cell, Speck.DUST, 1);
+            case 0: // Warrior: heavy wind-up; the shockwave lands on impact.
+                casterFlare(hero, 0xFFAA66, IMPACT_DURATION);
+                particles(hero.pos, Speck.ROCK, 5);
                 break;
             case 1: // Mage: projectile first; actual explosion occurs on arrival.
                 missile(hero, companion, cell, MagicMissile.MAGIC_MISSILE, cue);
                 break;
-            case 2: // Rogue: shadow dash and a sharp, brief hit.
+            case 2: // Rogue: visible shadow approach before the final strike.
                 missile(hero, companion, cell, MagicMissile.SHADOW, cue);
-                impact(cell, 0x9976CB, 4, 16);
-                particles(cell, Speck.SMOKE, 5);
+                particles(hero.pos, Speck.SMOKE, 5);
                 break;
-            case 3: // Huntress: precise luminous shot and scattered star trails.
-                missile(hero, companion, cell, MagicMissile.LIGHT_MISSILE, cue);
-                particles(cell, Speck.STAR, 9);
-                impact(cell, 0x88DDAA, 5, 16);
+            case 3: // Huntress: the stock Prismatic Light wand's luminous ray.
+                prismaticRay(hero, companion, cell);
+                particles(hero.pos, Speck.STAR, 4);
                 break;
-            case 4: // Duelist: two crossing flashes with sparks.
-                impact(cell, 0xFFF3CF, 4, 20);
-                impact(cell, 0xA9E7FF, 3, 14);
-                particles(cell, Speck.STAR, 6);
+            case 4: // Duelist: charge both weapons before the twin impact.
+                casterFlare(hero, 0xFFF3CF, IMPACT_DURATION);
+                casterFlare(companion, 0xA9E7FF, IMPACT_DURATION);
+                particles(hero.pos, Speck.STAR, 4);
                 break;
             case 5: // Cleric: twin sanctuary halos and rising restorative lights.
                 impact(hero.pos, 0xFFE7A0, 8, 22);
@@ -203,11 +202,12 @@ public final class CoHeroComboFX {
                 impact(cell, 0x9B80B6, 3, 14);
                 particles(cell, Speck.SMOKE, 5);
                 break;
-            case 3: // Huntress: a second projectile trace and a marker.
+            case 3: // Huntress companion: a second prismatic ray.
                 if (heroClass != 5) {
-                    missile(companion, hero, cell, MagicMissile.LIGHT_MISSILE, cue);
+                    prismaticRay(companion, hero, cell);
+                } else {
+                    particles(companion.pos, Speck.STAR, 5);
                 }
-                particles(cell, Speck.STAR, 4);
                 break;
             case 4: // Duelist: crossing sword flashes.
                 impact(cell, 0xE2ECFF, 4, 17);
@@ -224,19 +224,113 @@ public final class CoHeroComboFX {
         }
     }
 
-    /** Last visible strike, immediately followed by its actual combat damage. */
-    private static void jointImpact(int cell, int heroClass, int companionClass) {
-        if (heroClass == 1) {
-            arcaneExplosion(cell, true);
-            Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.85f);
-        } else if (heroClass != 5) {
-            impact(cell, 0xE6F0FF, 5, 13);
+    /**
+     * Visually distinct final attacks, shown before the lethal damage callback.
+     * Particle bursts stay localized. A beam is not a Bomb or a gameplay spell.
+     */
+    private static void jointImpact(Hero hero, CoHeroAlly companion, int cell,
+                                    int heroClass, int companionClass) {
+        switch (heroClass) {
+            case 0: // Warrior: a large, concussive rock shockwave.
+                impact(cell, 0xFFBA7C, 12, 27);
+                particles(cell, Speck.ROCK, 12);
+                ring(cell, Speck.DUST, 1);
+                Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.8f);
+                break;
+            case 1: // Mage: one large magical bomb at actual contact.
+                arcaneExplosion(cell, true);
+                Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.85f);
+                break;
+            case 2: // Rogue: concentrated purple shadow strike.
+                impact(cell, 0xB68DFF, 10, 25);
+                particles(cell, Speck.SMOKE, 8);
+                particles(cell, Speck.STAR, 6);
+                Sample.INSTANCE.play(Assets.Sounds.HIT_STAB, 0.8f);
+                break;
+            case 3: // Huntress: prismatic ray converges in a rainbow burst.
+                impact(cell, 0xE7F5FF, 12, 27);
+                rainbow(cell, 14);
+                particles(cell, Speck.STAR, 6);
+                Sample.INSTANCE.play(Assets.Sounds.HIT_STRONG, 0.65f);
+                break;
+            case 4: // Duelist: twin crossing sword flashes.
+                impact(cell, 0xFFF3CF, 11, 27);
+                impact(cell, 0xA9E7FF, 8, 23);
+                particles(cell, Speck.STAR, 11);
+                Sample.INSTANCE.play(Assets.Sounds.HIT_SLASH, 0.8f);
+                break;
+            case 5: // Cleric: wide twin sanctuary halos, not an explosion.
+                impact(hero.pos, 0xFFF1B8, 11, 28);
+                impact(companion.pos, 0xFFF1B8, 11, 28);
+                particles(hero.pos, Speck.HEALING, 9);
+                particles(companion.pos, Speck.HEALING, 9);
+                Sample.INSTANCE.play(Assets.Sounds.EVOKE, 0.7f);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown Hero impact: " + heroClass);
         }
-        if (companionClass == 1 && heroClass != 5) {
-            arcaneExplosion(cell, false);
-            if (heroClass != 1) {
-                Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);
+
+        if (heroClass == 5) {
+            return;
+        }
+        switch (companionClass) {
+            case 0: // Warrior: protective reinforcement stays on the casters.
+                casterFlare(hero, 0xC3D1DA, IMPACT_DURATION);
+                casterFlare(companion, 0xC3D1DA, IMPACT_DURATION);
+                break;
+            case 1: // Mage: one lighter second detonation.
+                arcaneExplosion(cell, false);
+                if (heroClass != 1) {
+                    Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);
+                }
+                break;
+            case 2:
+                particles(cell, Speck.SMOKE, 5);
+                break;
+            case 3:
+                rainbow(cell, 5);
+                break;
+            case 4:
+                particles(cell, Speck.STAR, 5);
+                break;
+            case 5:
+                particles(hero.pos, Speck.HEALING, 5);
+                particles(companion.pos, Speck.HEALING, 5);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown companion impact: " + companionClass);
+        }
+    }
+
+    /**
+     * Same visual primitives as WandOfPrismaticLight.fx(): Beam.LightRay
+     * plus the RAY sound. The real wand immediately invokes its callback;
+     * the combo retains its separate impact/wind-up schedule.
+     */
+    private static void prismaticRay(Char preferred, Char alternate, int cell) {
+        Char source = clearVisibleShot(preferred, cell) ? preferred
+                : clearVisibleShot(alternate, cell) ? alternate : null;
+        if (source == null) {
+            return;
+        }
+        source.sprite.parent.add(
+                new Beam.LightRay(source.sprite.center(),
+                        DungeonTilemap.raisedTileCenterToWorld(cell)));
+        Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);
+
+        // The ray must not illuminate a wall-hidden cell, even if the
+        // companion has remote vision of the target.
+        Ballistica line = new Ballistica(source.pos, cell, Ballistica.PROJECTILE);
+        for (int pathCell : line.subPath(0, line.dist)) {
+            if (visible(pathCell) && !Dungeon.level.solid[pathCell]) {
+                rainbow(pathCell, 2);
             }
+        }
+    }
+
+    private static void rainbow(int cell, int count) {
+        if (visible(cell)) {
+            CellEmitter.center(cell).burst(RainbowParticle.BURST, count);
         }
     }
 
