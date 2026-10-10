@@ -433,22 +433,28 @@ public final class CoHeroCombo {
             QuickSlotButton.target(target);
         }
 
-        // Every validation above precedes both resource and actor-time consumption.
+        // Reserve this confirmed cast, but do not apply combat effects yet:
+        // dying enemies must remain on-screen until the joint impact lands.
         energy -= CAST_COST;
-
-        // Presentation reads only the already-validated cast context. It neither delays
-        // this action nor owns any damage, Buff, targeting, or actor callback.
+        hero.busy();
+        final Mob victim = target;
         CoHeroComboFX.play(
-                hero, companion, target == null ? hero.pos : target.pos, mainClass, partnerClass);
-
-        if (mainClass == 5) {
-            performClericUltimate(hero, companion, partnerClass);
-        } else {
-            performAttackUltimate(hero, companion, target, mainClass, partnerClass);
-        }
-        GLog.p(CoHeroMessages.get("combo.used", skillName()));
-        companion.spendComboTurn();
-        hero.spendAndNext(Actor.TICK);
+                hero, companion, victim == null ? hero.pos : victim.pos,
+                mainClass, partnerClass, new Runnable() {
+                    @Override
+                    public void run() {
+                        // The Hero turn has not advanced during the telegraph.
+                        // Resolve once at the animation's actual hit moment.
+                        if (mainClass == 5) {
+                            performClericUltimate(hero, companion, partnerClass);
+                        } else {
+                            performAttackUltimate(hero, companion, victim, mainClass, partnerClass);
+                        }
+                        GLog.p(CoHeroMessages.get("combo.used", skillName()));
+                        companion.spendComboTurn();
+                        hero.spendAndNext(Actor.TICK);
+                    }
+                });
     }
 
     private static boolean canTargetFromEitherHero(int cell, Hero hero, CoHeroAlly companion) {
