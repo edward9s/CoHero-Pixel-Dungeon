@@ -8,6 +8,8 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Flare;
 import com.shatteredpixel.shatteredpixeldungeon.effects.MagicMissile;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
+import com.shatteredpixel.shatteredpixeldungeon.effects.particles.BlastParticle;
+import com.shatteredpixel.shatteredpixeldungeon.effects.particles.SmokeParticle;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
@@ -110,11 +112,9 @@ public final class CoHeroComboFX {
                 particles(cell, Speck.ROCK, 6);
                 ring(cell, Speck.DUST, 1);
                 break;
-            case 1: // Mage: converging arcane bolt and diffuse energy.
+            case 1: // Mage: a magical projectile detonates with stock bomb particles.
                 missile(hero, companion, cell, MagicMissile.MAGIC_MISSILE);
-                impact(cell, 0x7AB6FF, 8, 22);
-                particles(cell, Speck.BLUE_LIGHT, 7);
-                ring(cell, Speck.STAR, 2);
+                arcaneExplosion(cell, true);
                 break;
             case 2: // Rogue: shadow dash and a sharp, brief hit.
                 missile(hero, companion, cell, MagicMissile.SHADOW);
@@ -149,9 +149,17 @@ public final class CoHeroComboFX {
                 casterFlare(hero, 0xC3D1DA, IMPACT_DURATION);
                 casterFlare(companion, 0xC3D1DA, IMPACT_DURATION);
                 break;
-            case 1: // Mage: a smaller violet secondary detonation.
-                impact(cell, 0xA58BFF, 5, 15);
-                particles(cell, Speck.BLUE_LIGHT, 4);
+            case 1: // Mage: smaller explosion; Cleric-led support stays luminous.
+                if (heroClass == 5) {
+                    impact(cell, 0xA58BFF, 5, 15);
+                    particles(cell, Speck.BLUE_LIGHT, 4);
+                } else {
+                    arcaneExplosion(cell, false);
+                    // A Mage-led combo has already played the full blast.
+                    if (heroClass != 1) {
+                        Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);
+                    }
+                }
                 break;
             case 2: // Rogue: shadow slashes over the target, or nearby ally for support.
                 impact(cell, 0x9B80B6, 3, 14);
@@ -175,6 +183,37 @@ public final class CoHeroComboFX {
                 break;
             default:
                 throw new IllegalArgumentException("Unknown CoHero combo accent: " + kind);
+        }
+    }
+
+    /**
+     * Visual-only bomb-style detonation using the stock SPD blast and smoke
+     * particles. A large Mage primary burst has peripheral smoke; the companion
+     * accent is intentionally smaller. No Bomb.explode(), damage or terrain changes.
+     */
+    private static void arcaneExplosion(int cell, boolean major) {
+        if (!visible(cell)) {
+            return;
+        }
+
+        impact(cell, major ? 0x7AB6FF : 0xA58BFF, major ? 10 : 5, major ? 23 : 15);
+        CellEmitter.center(cell).burst(BlastParticle.FACTORY, major ? 20 : 7);
+        CellEmitter.center(cell).burst(Speck.factory(Speck.BLUE_LIGHT), major ? 5 : 3);
+        CellEmitter.center(cell).burst(SmokeParticle.FACTORY, major ? 3 : 1);
+
+        if (major) {
+            // A few outward smoke puffs resemble a bomb without filling the room.
+            // Never draw into unseen or wall-blocked cells.
+            for (int offset : PathFinder.NEIGHBOURS8) {
+                int neighbor = cell + offset;
+                if (visible(neighbor) && !Dungeon.level.solid[neighbor]
+                        && Dungeon.level.distance(cell, neighbor) == 1
+                        && new Ballistica(cell, neighbor,
+                                Ballistica.STOP_TARGET | Ballistica.STOP_SOLID)
+                                .collisionPos == neighbor) {
+                    CellEmitter.get(neighbor).burst(SmokeParticle.FACTORY, 1);
+                }
+            }
         }
     }
 
@@ -262,7 +301,7 @@ public final class CoHeroComboFX {
     private static String primarySound(int kind) {
         switch (kind) {
             case 0: return Assets.Sounds.HIT_CRUSH;
-            case 1: return Assets.Sounds.HIT_MAGIC;
+            case 1: return Assets.Sounds.BLAST;
             case 2: return Assets.Sounds.HIT_STAB;
             case 3: return Assets.Sounds.HIT_ARROW;
             case 4: return Assets.Sounds.HIT_SLASH;
