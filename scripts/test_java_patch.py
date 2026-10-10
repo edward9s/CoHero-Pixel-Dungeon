@@ -665,6 +665,7 @@ def test_combo_attack_patch_and_catalog():
         "if (validAutoTarget(last))",
         "for (Mob mob : Dungeon.level.mobs)",
         "Dungeon.level.heroFOV[mob.pos]",
+        "mob.sprite != null && mob.sprite.visible && mob.sprite.parent != null",
         "validAttackTarget(mob, hero, companion)",
         "Actor.findChar(mob.pos) == mob",
         "QuickSlotButton.target(target);",
