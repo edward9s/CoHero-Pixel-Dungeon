@@ -632,8 +632,8 @@ def test_combo_attack_patch_and_catalog():
             raise AssertionError(f"Both orientations must explicitly use two stats rows: {required}")
     if "addCompactStats(" in inventory:
         raise AssertionError("Remove former variable-wrapping stats layout")
-    # Portrait keeps its combo under the title; landscape moves the combo
-    # into the left column after the basic stats and before the equipment.
+    # Both orientations must show combo -> stats -> equipment.
+    # Landscape keeps this sequence inside the left panel only.
     portrait = inventory[inventory.index("private void layoutPortrait("):
                          inventory.index("private void layoutLandscape(")]
     landscape = inventory[inventory.index("private void layoutLandscape("):
@@ -641,11 +641,14 @@ def test_combo_attack_patch_and_catalog():
     constructor = inventory[:inventory.index("private void layoutPortrait(")]
     if ("layoutPortrait(addComboInfo(0, contentY, layoutWidth) + 4)" not in constructor
             or "layoutLandscape(contentY)" not in constructor):
-        raise AssertionError("Only portrait may place the combo above the two-column layout")
-    if ('addComboInfo(0, statsBottom + 4, leftWidth)' not in landscape
-            or landscape.index("addTwoRowStats(") > landscape.index("addComboInfo(")
+        raise AssertionError("Portrait combo must precede portrait stats")
+    if ('addComboInfo(0, startY, leftWidth)' not in landscape
+            or 'addTwoRowStats(0, comboBottom + 4, leftWidth)' not in landscape
+            or 'addEquipment(0, statsBottom + 5)' not in landscape
+            or landscape.index("addComboInfo(") > landscape.index("addTwoRowStats(")
+            or landscape.index("addTwoRowStats(") > landscape.index("addEquipment(")
             or "addComboInfo(" in portrait):
-        raise AssertionError("Landscape combo must appear solely in the left column")
+        raise AssertionError("Landscape left panel must order combo, stats, equipment")
     if "companion.canPerformCombo()" not in source:
         raise AssertionError("Combo must not interrupt a pending companion movement/decision")
     for required in (
