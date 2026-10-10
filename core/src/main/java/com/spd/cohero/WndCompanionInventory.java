@@ -125,9 +125,9 @@ public class WndCompanionInventory extends Window {
 
         int backpackX = leftWidth + LANDSCAPE_PANEL_GAP;
 
-        float statsBottom = addTwoRowStats(0, startY, leftWidth);
-        float comboBottom = addComboInfo(0, statsBottom + 4, leftWidth);
-        float leftBottom = addEquipment(0, comboBottom + 5);
+        float comboBottom = addComboInfo(0, startY, leftWidth);
+        float statsBottom = addTwoRowStats(0, comboBottom + 4, leftWidth);
+        float leftBottom = addEquipment(0, statsBottom + 5);
 
         float backpackHeaderBottom = addBackpackHeader(backpackX, startY, backpackWidth);
 
