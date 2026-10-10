@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Barrier;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Bless;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Blindness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Cripple;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Invisibility;
@@ -16,15 +17,19 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
+import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
+import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfBlastWave;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.PathFinder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 /**
  * Shared party resource: only attacks from BOTH heroes can earn combo energy.
@@ -464,79 +469,127 @@ public final class CoHeroCombo {
                     && new Ballistica(companion.pos, cell, Ballistica.PROJECTILE).collisionPos == cell);
     }
 
+    /**
+     * Six tactical primaries composed with six active partner roles.
+     * Each role changes positioning, threat control or attack geometry:
+     * not six damage coefficients with six additive bonuses.
+     */
     private static void performAttackUltimate(
             Hero hero, CoHeroAlly companion, Mob target, int mainClass, int partnerClass) {
         int power = 9 + hero.lvl * 2;
+        HashSet<Integer> pierced = new HashSet<>();
         switch (mainClass) {
-            case 0: // Warrior: heavy shockwave
+            case 0: // Warrior: break the formation and clear space around the party.
                 damageArea(hero, target.pos, 1, power);
-                break;
-            case 1: // Mage: wider magical eruption
-                damageArea(hero, target.pos, 2, power);
-                break;
-            case 2: // Rogue: focused execution
-                damageEnemy(hero, target, power * 2 + (target.HP < target.HT / 2 ? power : 0));
-                break;
-            case 3: // Huntress: line attack, respecting the target's projectile lane
-                // Ignore intervening mobs for a piercing attack, but never go through walls
-                // or beyond the chosen target (Ballistica.path contains cells past collision).
-                final int terrainLine = Ballistica.STOP_TARGET | Ballistica.STOP_SOLID;
-                Ballistica line = new Ballistica(hero.pos, target.pos, terrainLine);
-                if (line.collisionPos != target.pos) {
-                    line = new Ballistica(companion.pos, target.pos, terrainLine);
-                }
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                    if (line.subPath(0, line.dist).contains(mob.pos)) {
-                        damageEnemy(hero, mob, power + hero.lvl);
+                    if (inClearArea(target.pos, 1, mob)) {
+                        pushAway(mob, hero, companion);
                     }
                 }
                 break;
-            case 4: // Duelist: concentrated double strike
-                damageEnemy(hero, target, power * 3);
+            case 1: // Mage: suppress even enemies outside the damaging center.
+                damageArea(hero, target.pos, 1, power);
+                for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+                    if (inClearArea(target.pos, 2, mob)) {
+                        Buff.prolong(mob, Weakness.class, 3f);
+                        Buff.prolong(mob, Cripple.class, 2f);
+                    }
+                }
+                break;
+            case 2: // Rogue: execute a weak target then disengage safely.
+                damageEnemy(hero, target, power * 2
+                        + (target.HP < target.HT / 2 ? power / 2 : 0));
+                retreatFrom(hero, companion, target.pos);
+                Buff.prolong(hero, Invisibility.class, 2f);
+                break;
+            case 3: // Huntress: terrain-bounded piercing ray and vision denial.
+                pierceLane(hero, piercingLane(hero, companion, target.pos),
+                        target.pos, power + hero.lvl, pierced);
+                if (target.isAlive()) {
+                    Buff.prolong(target, Blindness.class, 2f);
+                }
+                break;
+            case 4: // Duelist: focused duel plus close-range sword sweep.
+                damageEnemy(hero, target, power * 2);
+                int swept = 0;
+                for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+                    if (mob != target && mob.isAlive()
+                            && (Dungeon.level.distance(hero.pos, mob.pos) <= 1
+                                || Dungeon.level.distance(companion.pos, mob.pos) <= 1)
+                            && canTargetFromEitherHero(mob.pos, hero, companion)) {
+                        damageEnemy(hero, mob, power / 2);
+                        if (++swept == 2) {
+                            break;
+                        }
+                    }
+                }
+                Buff.prolong(hero, Bless.class, 3f);
+                Buff.prolong(companion, Bless.class, 3f);
                 break;
             default:
                 throw new IllegalStateException("Unexpected offensive combo class " + mainClass);
         }
 
-        // Partner role adds a second component. Ordered pairs yield 36 distinct combinations.
+        // Every companion has one recognizable cooperative action.
         switch (partnerClass) {
-            case 0:
+            case 0: // Warrior: guard the team and knock the target off balance.
                 shield(hero, 5 + hero.lvl);
                 shield(companion, 5 + hero.lvl);
-                if (mainClass == 3 && target.isAlive()) {
-                    Buff.prolong(target, Vulnerable.class, 3f);
+                if (mainClass != 0 && target.isAlive()) {
+                    pushAway(target, hero, companion);
                 }
                 break;
-            case 1:
-                damageArea(hero, target.pos, 1, 4 + hero.lvl);
+            case 1: // Mage: chain to two nearby, unobstructed enemies.
+                int chained = 0;
+                for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+                    if (mob != target && inClearArea(target.pos, 2, mob)) {
+                        damageEnemy(hero, mob, Math.max(1, power / 2));
+                        if (mob.isAlive()) {
+                            Buff.prolong(mob, Weakness.class, 2f);
+                        }
+                        if (++chained == 2) {
+                            break;
+                        }
+                    }
+                }
                 break;
-            case 2:
+            case 2: // Rogue: expose the prey and conceal the partner's approach.
                 if (target.isAlive()) {
                     Buff.prolong(target, Vulnerable.class, 3f);
                 }
+                Buff.prolong(companion, Invisibility.class, 2f);
                 break;
-            case 3:
-                if (target.isAlive()) {
-                    Buff.prolong(target, Cripple.class, 3f);
-                }
-                break;
-            case 4:
-                damageEnemy(hero, target, 5 + hero.lvl * 2);
-                break;
-            case 5:
+            case 3: // Huntress: a second, independently calculated firing lane.
                 if (mainClass == 3) {
+                    pierceLane(hero, piercingLane(companion, hero, target.pos),
+                            target.pos, Math.max(1, power / 2), pierced);
+                } else {
+                    pierceLane(hero, piercingLane(companion, hero, target.pos),
+                            target.pos, Math.max(1, power / 2), pierced);
+                }
+                if (target.isAlive()) {
+                    Buff.prolong(target, Blindness.class, 2f);
+                }
+                break;
+            case 4: // Duelist: close-range follow-up; otherwise pin the prey.
+                if (target.isAlive()) {
+                    if (Dungeon.level.distance(companion.pos, target.pos) <= 2) {
+                        damageEnemy(hero, target, 5 + hero.lvl);
+                    }
+                    if (target.isAlive()) {
+                        Buff.prolong(target, Cripple.class, 3f);
+                    }
+                }
+                Buff.prolong(companion, Bless.class, 2f);
+                break;
+            case 5: // Cleric: cleanse, recover, and reinforce in emergencies.
+                PotionOfCleansing.cleanse(hero);
+                PotionOfCleansing.cleanse(companion);
+                heal(hero, 4 + hero.lvl);
+                heal(companion, 4 + hero.lvl);
+                if (hero.HP * 2 <= hero.HT || companion.HP * 2 <= companion.HT) {
                     shield(hero, 5 + hero.lvl);
                     shield(companion, 5 + hero.lvl);
-                } else {
-                    heal(hero, 4 + hero.lvl);
-                    heal(companion, 4 + hero.lvl);
-                }
-                if (mainClass == 0 && target.isAlive()) {
-                    Buff.prolong(target, Weakness.class, 3f);
-                }
-                if (mainClass == 4) {
-                    PotionOfCleansing.cleanse(hero);
-                    PotionOfCleansing.cleanse(companion);
                 }
                 break;
             default:
@@ -547,22 +600,31 @@ public final class CoHeroCombo {
     private static void performClericUltimate(
             Hero hero, CoHeroAlly companion, int partnerClass) {
         switch (partnerClass) {
-            case 0: // Guardian oath
+            case 0: // Warrior: protective oath and space for regrouping.
                 shield(hero, 14 + hero.lvl * 2);
                 shield(companion, 14 + hero.lvl * 2);
+                Buff.prolong(hero, Bless.class, 3f);
+                Buff.prolong(companion, Bless.class, 3f);
                 break;
-            case 1: // Holy magic and recovery
+            case 1: // Mage: cleansing wave and enemy suppression.
                 damageArea(hero, hero.pos, 2, 7 + hero.lvl);
+                for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+                    if (inClearArea(hero.pos, 2, mob)) {
+                        Buff.prolong(mob, Cripple.class, 3f);
+                    }
+                }
                 PotionOfCleansing.cleanse(hero);
                 PotionOfCleansing.cleanse(companion);
                 heal(hero, 5 + hero.lvl);
                 heal(companion, 5 + hero.lvl);
                 break;
-            case 2: // Protective invisibility
+            case 2: // Rogue: protect the retreat without moving through hazards.
                 Buff.prolong(hero, Invisibility.class, 4f);
                 Buff.prolong(companion, Invisibility.class, 4f);
+                heal(hero, 3 + hero.lvl);
+                heal(companion, 3 + hero.lvl);
                 break;
-            case 3: // Sanctuary and ranged suppression
+            case 3: // Huntress: sanctuary plus suppression of visible ranged threats.
                 heal(hero, 6 + hero.lvl);
                 heal(companion, 6 + hero.lvl);
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
@@ -570,16 +632,19 @@ public final class CoHeroCombo {
                             && Dungeon.level.distance(companion.pos, mob.pos) <= 4
                             && canTargetFromEitherHero(mob.pos, hero, companion)) {
                         damageEnemy(hero, mob, 3 + hero.lvl);
+                        if (mob.isAlive()) {
+                            Buff.prolong(mob, Blindness.class, 3f);
+                        }
                     }
                 }
                 break;
-            case 4: // Vow of counterattack
+            case 4: // Duelist: guarded counterattack stance.
                 shield(hero, 8 + hero.lvl);
                 shield(companion, 8 + hero.lvl);
                 Buff.prolong(hero, Bless.class, 6f);
                 Buff.prolong(companion, Bless.class, 6f);
                 break;
-            case 5: // Double sanctuary
+            case 5: // Cleric: the strongest emergency rescue.
                 PotionOfCleansing.cleanse(hero);
                 PotionOfCleansing.cleanse(companion);
                 heal(hero, 12 + hero.lvl * 2);
@@ -592,12 +657,118 @@ public final class CoHeroCombo {
         }
     }
 
+    private static Ballistica piercingLane(Char preferred, Char alternate, int cell) {
+        // STOP_SOLID allows piercing multiple mobs, never walls. Prefer the
+        // Hero's lane; fall back to the companion if only they have a clear ray.
+        if (canSeePiercing(preferred, cell)) {
+            return new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID);
+        }
+        if (canSeePiercing(alternate, cell)) {
+            return new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID);
+        }
+        return null;
+    }
+
+    private static boolean canSeePiercing(Char attacker, int cell) {
+        boolean[] sight = attacker == Dungeon.hero
+                ? Dungeon.level.heroFOV : attacker.fieldOfView;
+        return sight != null && sight[cell]
+                && new Ballistica(attacker.pos, cell, Ballistica.STOP_SOLID)
+                        .collisionPos == cell;
+    }
+
+    private static void pierceLane(Hero caster, Ballistica line, int targetCell,
+                                   int amount, HashSet<Integer> alreadyHit) {
+        if (line == null) {
+            return;
+        }
+        // Do not hit beyond the selected target or through solid terrain.
+        for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+            if (line.subPath(0, line.dist).contains(mob.pos)
+                    && Dungeon.level.distance(line.sourcePos, mob.pos)
+                       <= Dungeon.level.distance(line.sourcePos, targetCell)
+                    && alreadyHit.add(mob.id())) {
+                damageEnemy(caster, mob, amount);
+            }
+        }
+    }
+
+    /** Tactical push: one traversable tile only, never into pits or traps. */
+    private static void pushAway(Mob mob, Hero hero, CoHeroAlly companion) {
+        if (!mob.isAlive() || mob.rooted
+                || Char.hasProp(mob, Char.Property.BOSS)
+                || Char.hasProp(mob, Char.Property.IMMOVABLE)) {
+            return;
+        }
+        int origin = Dungeon.level.distance(hero.pos, mob.pos)
+                <= Dungeon.level.distance(companion.pos, mob.pos)
+                ? hero.pos : companion.pos;
+        int width = Dungeon.level.width();
+        int dx = Integer.signum(mob.pos % width - origin % width);
+        int dy = Integer.signum(mob.pos / width - origin / width);
+        if (dx == 0 && dy == 0) {
+            return;
+        }
+        int destination = mob.pos + dx + dy * width;
+        if (!Dungeon.level.insideMap(destination)
+                || Dungeon.level.distance(mob.pos, destination) != 1
+                || !Dungeon.level.passable[destination]
+                || Dungeon.level.avoid[destination] || Dungeon.level.pit[destination]
+                || Dungeon.level.traps.get(destination) != null
+                || Actor.findChar(destination) != null
+                || (Char.hasProp(mob, Char.Property.LARGE)
+                    && !Dungeon.level.openSpace[destination])) {
+            return;
+        }
+        Ballistica pushLine = new Ballistica(mob.pos, destination, Ballistica.MAGIC_BOLT);
+        if (pushLine.collisionPos == destination) {
+            WandOfBlastWave.throwChar(mob, pushLine, 1, false, false, CoHeroCombo.class);
+        }
+    }
+
+    /** Optional safe one-tile disengage; no teleports into pits/traps or CoHero's square. */
+    private static void retreatFrom(Hero hero, CoHeroAlly companion, int threatCell) {
+        if (hero.rooted) {
+            return;
+        }
+        int origin = hero.pos;
+        int current = Dungeon.level.distance(origin, threatCell);
+        int best = -1;
+        int bestDistance = current;
+        for (int offset : PathFinder.NEIGHBOURS8) {
+            int candidate = origin + offset;
+            if (!Dungeon.level.insideMap(candidate)
+                    || Dungeon.level.distance(origin, candidate) != 1
+                    || !Dungeon.level.passable[candidate]
+                    || Dungeon.level.avoid[candidate] || Dungeon.level.pit[candidate]
+                    || Dungeon.level.traps.get(candidate) != null
+                    || Actor.findChar(candidate) != null
+                    || !Dungeon.level.heroFOV[candidate]
+                    || Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE) {
+                continue;
+            }
+            int distance = Dungeon.level.distance(candidate, threatCell);
+            if (distance > bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        if (best != -1) {
+            ScrollOfTeleportation.teleportToLocation(hero, best);
+        }
+    }
+
+    private static boolean inClearArea(int center, int radius, Mob mob) {
+        return mob.isAlive() && mob.alignment == Char.Alignment.ENEMY
+                && Dungeon.level.distance(center, mob.pos) <= radius
+                && !Dungeon.level.solid[mob.pos]
+                && new Ballistica(center, mob.pos,
+                        Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == mob.pos;
+    }
+
     private static void damageArea(Hero caster, int center, int radius, int amount) {
         for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-            if (Dungeon.level.distance(center, mob.pos) <= radius
-                    && !Dungeon.level.solid[mob.pos]
-                    && new Ballistica(center, mob.pos,
-                        Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == mob.pos) {
+            if (inClearArea(center, radius, mob)) {
                 damageEnemy(caster, mob, amount);
             }
         }
