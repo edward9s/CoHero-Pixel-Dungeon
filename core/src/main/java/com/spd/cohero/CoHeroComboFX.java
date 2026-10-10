@@ -16,15 +16,15 @@ import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Visual;
 import com.watabou.noosa.audio.Sample;
+import com.watabou.utils.Callback;
 import com.watabou.utils.PathFinder;
 
 /**
  * Presentation only. Six Hero motifs and six CoHero accents compose all 36 ultimates.
  *
- * The visual cue triggers exactly one gameplay impact at the joint strike.
- * Until then the Hero is busy and the Actor schedule is paused; only the impact
- * callback spends the two turns. Never create world particles outside the Hero FOV.
- * companion-only remote vision must not make hidden enemies visually apparent.
+ * The Hero's turn remains busy until the real projectiles arrive and the joint
+ * hit cue resolves once. Render callbacks never create a game Actor or expose
+ * enemies outside the Hero's gameplay field of view.
  */
 public final class CoHeroComboFX {
 
@@ -32,15 +32,18 @@ public final class CoHeroComboFX {
     private static final float IMPACT_DURATION = 0.36f;
     private static final float MAIN_START = 0.12f;
     private static final float PARTNER_START = 0.30f;
-    private static final float TOTAL_DURATION = 0.58f;
+    private static final float HIT_MIN_START = 0.62f;
+    private static final float MAX_PROJECTILE_WAIT = 1.80f;
+    private static final float HIT_TAIL = 0.18f;
 
     private CoHeroComboFX() {
     }
 
     /**
-     * Start the telegraph. Gameplay resolves exactly once at PARTNER_START,
-     * while both actors are paused. If there is no renderable sprite, resolve
-     * immediately rather than leaving the Hero busy without a visual cue.
+     * Start the telegraph. Gameplay resolves once after both outgoing missiles
+     * reach the target (and no earlier than the joint wind-up). A bounded wait
+     * prevents a missing render callback from leaving the Hero busy indefinitely.
+     * With no drawable scene, resolve immediately.
      *
      * @param center offensive target cell, or Hero cell for a support ultimate
      */
@@ -77,6 +80,8 @@ public final class CoHeroComboFX {
         private final int companionClass;
         private final Runnable onImpact;
         private float elapsed;
+        private float impactTime;
+        private int pendingMissiles;
         private int stage;
 
         Cue(Hero hero, CoHeroAlly companion, int center, int heroClass,
@@ -101,40 +106,60 @@ public final class CoHeroComboFX {
             elapsed += Game.elapsed;
             if (stage == 0 && elapsed >= MAIN_START) {
                 stage = 1;
-                primary(hero, companion, center, heroClass);
-                Sample.INSTANCE.play(primarySound(heroClass), 0.85f);
+                primary(hero, companion, center, heroClass, this);
+                // Mage's explosion sound belongs at the actual hit, not launch.
+                if (heroClass != 1) {
+                    Sample.INSTANCE.play(primarySound(heroClass), 0.85f);
+                }
             }
             if (stage == 1 && elapsed >= PARTNER_START) {
-                // Set the state before invoking gameplay: the callback may kill
-                // sprites, update the level, or schedule the next Actor turn.
                 stage = 2;
-                accent(hero, companion, center, heroClass, companionClass);
+                accent(hero, companion, center, heroClass, companionClass, this);
+            }
+            if (stage == 2 && elapsed >= HIT_MIN_START
+                    && (pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT)) {
+                // Commit this stage before gameplay can kill sprites, change
+                // the level, or advance the Actor schedule.
+                stage = 3;
+                impactTime = elapsed;
+                jointImpact(center, heroClass, companionClass);
                 onImpact.run();
             }
-            if (elapsed >= TOTAL_DURATION) {
+            if (stage == 3 && elapsed >= impactTime + HIT_TAIL) {
                 killAndErase();
             }
         }
+
+        private void missileArrived() {
+            // Callbacks may outlive this cue if the scene was replaced.
+            if (stage >= 3) {
+                return;
+            }
+            if (pendingMissiles <= 0) {
+                throw new IllegalStateException("Unexpected combo missile callback");
+            }
+            pendingMissiles--;
+        }
     }
 
-    private static void primary(Hero hero, CoHeroAlly companion, int cell, int kind) {
+    private static void primary(Hero hero, CoHeroAlly companion, int cell, int kind,
+                                Cue cue) {
         switch (kind) {
             case 0: // Warrior: crushing shockwave and flying fragments.
                 impact(cell, 0xFFAA66, 6, 18);
                 particles(cell, Speck.ROCK, 6);
                 ring(cell, Speck.DUST, 1);
                 break;
-            case 1: // Mage: a magical projectile detonates with stock bomb particles.
-                missile(hero, companion, cell, MagicMissile.MAGIC_MISSILE);
-                arcaneExplosion(cell, true);
+            case 1: // Mage: projectile first; actual explosion occurs on arrival.
+                missile(hero, companion, cell, MagicMissile.MAGIC_MISSILE, cue);
                 break;
             case 2: // Rogue: shadow dash and a sharp, brief hit.
-                missile(hero, companion, cell, MagicMissile.SHADOW);
+                missile(hero, companion, cell, MagicMissile.SHADOW, cue);
                 impact(cell, 0x9976CB, 4, 16);
                 particles(cell, Speck.SMOKE, 5);
                 break;
             case 3: // Huntress: precise luminous shot and scattered star trails.
-                missile(hero, companion, cell, MagicMissile.LIGHT_MISSILE);
+                missile(hero, companion, cell, MagicMissile.LIGHT_MISSILE, cue);
                 particles(cell, Speck.STAR, 9);
                 impact(cell, 0x88DDAA, 5, 16);
                 break;
@@ -155,7 +180,7 @@ public final class CoHeroComboFX {
     }
 
     private static void accent(Hero hero, CoHeroAlly companion, int cell,
-                               int heroClass, int kind) {
+                               int heroClass, int kind, Cue cue) {
         switch (kind) {
             case 0: // Warrior: armor-strengthening metallic shield glow.
                 casterFlare(hero, 0xC3D1DA, IMPACT_DURATION);
@@ -165,13 +190,8 @@ public final class CoHeroComboFX {
                 if (heroClass == 5) {
                     impact(cell, 0xA58BFF, 5, 15);
                     particles(cell, Speck.BLUE_LIGHT, 4);
-                } else {
-                    arcaneExplosion(cell, false);
-                    // A Mage-led combo has already played the full blast.
-                    if (heroClass != 1) {
-                        Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);
-                    }
                 }
+                // Offensive Mage blast and sound wait for the joint hit.
                 break;
             case 2: // Rogue: shadow slashes over the target, or nearby ally for support.
                 impact(cell, 0x9B80B6, 3, 14);
@@ -179,7 +199,7 @@ public final class CoHeroComboFX {
                 break;
             case 3: // Huntress: a second projectile trace and a marker.
                 if (heroClass != 5) {
-                    missile(companion, hero, cell, MagicMissile.LIGHT_MISSILE);
+                    missile(companion, hero, cell, MagicMissile.LIGHT_MISSILE, cue);
                 }
                 particles(cell, Speck.STAR, 4);
                 break;
@@ -195,6 +215,22 @@ public final class CoHeroComboFX {
                 break;
             default:
                 throw new IllegalArgumentException("Unknown CoHero combo accent: " + kind);
+        }
+    }
+
+    /** Last visible strike, immediately followed by its actual combat damage. */
+    private static void jointImpact(int cell, int heroClass, int companionClass) {
+        if (heroClass == 1) {
+            arcaneExplosion(cell, true);
+            Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.85f);
+        } else if (heroClass != 5) {
+            impact(cell, 0xE6F0FF, 5, 13);
+        }
+        if (companionClass == 1 && heroClass != 5) {
+            arcaneExplosion(cell, false);
+            if (heroClass != 1) {
+                Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);
+            }
         }
     }
 
@@ -264,14 +300,21 @@ public final class CoHeroComboFX {
         }
     }
 
-    private static void missile(Char preferred, Char alternate, int cell, int type) {
+    private static void missile(Char preferred, Char alternate, int cell,
+                                int type, Cue cue) {
         Char source = clearVisibleShot(preferred, cell) ? preferred
                 : clearVisibleShot(alternate, cell) ? alternate : null;
         if (source != null) {
-            // Use the explicit cell endpoint: a lethal combo can remove the enemy
-            // before this render cue runs, leaving the target sprite unavailable.
+            // Wait for the actual stock SPD missile callback; fixed wall-clock
+            // timing can kill an enemy before a long-range projectile arrives.
+            cue.pendingMissiles++;
             ((MagicMissile) source.sprite.parent.recycle(MagicMissile.class))
-                    .reset(type, source.sprite, cell, null);
+                    .reset(type, source.sprite, cell, new Callback() {
+                        @Override
+                        public void call() {
+                            cue.missileArrived();
+                        }
+                    });
         }
     }
 
