@@ -751,7 +751,7 @@ def test_combo_attack_patch_and_catalog():
         "stage = 2;",
         "pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT",
         "stage = 3;",
-        "jointImpact(hero, companion, center, heroClass, companionClass);",
+        "jointImpact(",
         "elapsed >= impactTime + HIT_SETTLE",
         "stage = 4;",
         "onImpact.run();",
@@ -766,13 +766,14 @@ def test_combo_attack_patch_and_catalog():
             raise AssertionError(f"Projectile-synchronized impact rule missing: {required}")
     if fx.count("onImpact.run();") != 2:
         raise AssertionError("Only the actual hit and headless fallback may resolve gameplay")
+    # Keep timing assertions robust when the joint-hit helper gains parameters.
     cue_update = fx[fx.index("public void update()"):
                     fx.index("private static void primary(")]
     if not (cue_update.index("elapsed >= PARTNER_START")
             < cue_update.index("accent(hero, companion, center, heroClass, companionClass, this);")
             < cue_update.index("pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT")
             < cue_update.index("stage = 3;")
-            < cue_update.index("jointImpact(hero, companion, center, heroClass, companionClass);")
+            < cue_update.index("jointImpact(")
             < cue_update.index("elapsed >= impactTime + HIT_SETTLE")
             < cue_update.index("stage = 4;")
             < cue_update.index("onImpact.run();")
@@ -818,7 +819,7 @@ def test_combo_attack_patch_and_catalog():
         raise AssertionError("Use one shared Prismatic Light ray helper, not copied implementations")
     if fx.index("prismaticRay(hero, companion, cell);") > fx.index("private static void jointImpact("):
         raise AssertionError("Huntress's ray must launch in the primary stage")
-    if "jointImpact(hero, companion, center, heroClass, companionClass);" not in cue_update:
+    if "jointImpact(" not in cue_update:
         raise AssertionError("All roles must show their distinctive impact before damage")
 
     # A Mage-led combo should feel like a bomb, while the Mage companion adds a
