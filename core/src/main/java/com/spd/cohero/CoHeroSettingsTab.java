@@ -80,6 +80,10 @@ public final class CoHeroSettingsTab extends Component {
                 if (hasLiveCompanion()) {
                     companion.setDebugLogEnabled(checked());
                 }
+                // Toggling debug ON is the only entrance to the hidden test menu.
+                if (checked() && CoHeroSettings.toggleTestOptionsIfEligible(companion)) {
+                    updateTestOptionVisibility();
+                }
             }
         };
         debugLog.checked(debugLogEnabled());
@@ -94,6 +98,7 @@ public final class CoHeroSettingsTab extends Component {
         };
         autoFillLink.checked(CoHeroSettings.autoFillLinkEnabled());
         add(autoFillLink);
+        autoFillLink.visible = autoFillLink.active = CoHeroSettings.testOptionsVisible();
 
         if (DeviceCompat.isAndroid() || DeviceCompat.isDesktop()) {
             separatorTransfer = new ColorBlock(1, 1, 0xFF000000);
@@ -143,8 +148,11 @@ public final class CoHeroSettingsTab extends Component {
                 SLIDER_HEIGHT);
 
         debugLog.setRect(0, enemySpawnSlider.bottom() + GAP, width, BUTTON_HEIGHT);
-        autoFillLink.setRect(0, debugLog.bottom() + GAP, width, BUTTON_HEIGHT);
-        bottom = autoFillLink.bottom();
+        bottom = debugLog.bottom();
+        if (CoHeroSettings.testOptionsVisible()) {
+            autoFillLink.setRect(0, bottom + GAP, width, BUTTON_HEIGHT);
+            bottom = autoFillLink.bottom();
+        }
 
         if (separatorTransfer != null) {
             separatorTransfer.size(width, 1);
@@ -165,6 +173,11 @@ public final class CoHeroSettingsTab extends Component {
         }
 
         height = bottom;
+    }
+
+    private void updateTestOptionVisibility() {
+        autoFillLink.visible = autoFillLink.active = CoHeroSettings.testOptionsVisible();
+        layout();
     }
 
     private void layoutEnemySpawnValue() {
