@@ -706,6 +706,56 @@ def test_combo_attack_patch_and_catalog():
         if required not in source:
             raise AssertionError(f"Ultimate must not reach enemies behind terrain: {required}")
 
+    # Six tactical main effects and six companion roles must compose one
+    # deterministic, bounded action without adding 36 bespoke abilities.
+    tactical = source[source.index("private static void performAttackUltimate("):
+                      source.index("private static void performClericUltimate(")]
+    main = tactical[tactical.index("switch (mainClass)"):
+                    tactical.index("switch (partnerClass)")]
+    partner = tactical[tactical.index("switch (partnerClass)"):]
+    import re
+    if len(re.findall(r"case [0-4]:", main)) != 5:
+        raise AssertionError("Missing one of five offensive tactical identities")
+    if len(re.findall(r"case [0-5]:", partner)) != 6:
+        raise AssertionError("Missing one of six companion cooperative roles")
+    for required in (
+        "pushAway(mob, hero, companion);",
+        "inClearArea(target.pos, 2, mob)",
+        "Buff.prolong(mob, Weakness.class, 3f);",
+        "retreatFrom(hero, companion, target.pos);",
+        "Buff.prolong(hero, Invisibility.class, 2f);",
+        "pierceLane(hero, piercingLane(hero, companion, target.pos)",
+        "Buff.prolong(target, Blindness.class, 2f);",
+        "if (++swept == 2)",
+        "Buff.prolong(hero, Bless.class, 3f);",
+        "if (++chained == 2)",
+        "pierceLane(hero, piercingLane(companion, hero, target.pos)",
+        "PotionOfCleansing.cleanse(companion);",
+        "if (hero.HP * 2 <= hero.HT || companion.HP * 2 <= companion.HT)",
+    ):
+        if required not in tactical:
+            raise AssertionError(f"Cooperative tactical effect missing: {required}")
+    for required in (
+        "private static void pushAway(Mob mob, Hero hero, CoHeroAlly companion)",
+        "WandOfBlastWave.throwChar(mob, pushLine, 1, false, false, CoHeroCombo.class);",
+        "Char.hasProp(mob, Char.Property.BOSS)",
+        "Dungeon.level.avoid[destination] || Dungeon.level.pit[destination]",
+        "Dungeon.level.traps.get(destination) != null",
+        "Actor.findChar(destination) != null",
+        "private static void retreatFrom(Hero hero, CoHeroAlly companion, int threatCell)",
+        "!Dungeon.level.passable[candidate]",
+        "Dungeon.level.traps.get(candidate) != null",
+        "Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE",
+        "ScrollOfTeleportation.teleportToLocation(hero, best);",
+        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell",
+        "line.subPath(0, line.dist).contains(mob.pos)",
+        "alreadyHit.add(mob.id())",
+    ):
+        if required not in source:
+            raise AssertionError(f"Safe movement or piercing invariant missing: {required}")
+    if "case 1: // Mage:" not in source or "case 2: // Rogue:" not in source:
+        raise AssertionError("Cleric support pairings must retain tactical class identities")
+
     # Six main motifs and partner accents remain visual-only, but confirmed
     # combo damage waits until all visible SPD missiles have actually arrived.
     # This is essential at long range: a 0.30s fixed hit can precede the shot.
@@ -794,7 +844,9 @@ def test_combo_attack_patch_and_catalog():
         "new Beam.LightRay(source.sprite.center(),",
         "DungeonTilemap.raisedTileCenterToWorld(cell)",
         "Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);",
-        "Ballistica line = new Ballistica(source.pos, cell, Ballistica.PROJECTILE);",
+        "Ballistica line = new Ballistica(source.pos, cell,",
+        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);",
+        "private static boolean clearVisiblePiercingShot(Char actor, int cell)",
         "for (int pathCell : line.subPath(0, line.dist))",
         "if (visible(pathCell) && !Dungeon.level.solid[pathCell])",
         "CellEmitter.center(cell).burst(RainbowParticle.BURST, count);",
@@ -870,20 +922,18 @@ def test_combo_attack_patch_and_catalog():
     ]
     if len({base.get(key) for key in names}) != 36 or any(key not in base for key in names):
         raise AssertionError("Every ordered 6x6 class pair must have a unique skill name")
-    # Dynamically validate exceptional ordered-pair text lookups. A missing
-    # key would show "No Text Found" for an otherwise usable ultimate.
-    special_block = source[
-        source.index("if ((heroClass == 0 && partnerClass == 5)"):
-        source.index('effects += " " + CoHeroMessages.get(',
-                     source.index("if ((heroClass == 0 && partnerClass == 5)"))
-    ]
-    for hero_class, companion_class in __import__("re").findall(
-            r"heroClass == (\d+) && partnerClass == (\d+)", special_block):
-        key = f"cohero.combo.detail.extra.{hero_class}.{companion_class}"
+    # Tactical descriptions are shared role primitives, not obsolete
+    # exceptions that silently diverge from gameplay.
+    for key in ([f"cohero.combo.detail.main.{i}" for i in range(5)]
+                + [f"cohero.combo.detail.partner.{i}" for i in range(6)]
+                + [f"cohero.combo.detail.cleric.{i}" for i in range(6)]):
         if key not in base:
-            raise AssertionError(f"Missing localized special ultimate effect: {key}")
-    if "cohero.combo.detail.partner.3.5" not in base:
-        raise AssertionError("Huntress + Cleric needs shield-specific effect text")
+            raise AssertionError(f"Missing localized tactical combo effect: {key}")
+    if ("cohero.combo.detail.extra.0.5" in base
+            or "cohero.combo.detail.partner.3.5" in base
+            or "combo.detail.extra." in source
+            or "combo.detail.partner.3.5" in source):
+        raise AssertionError("Obsolete pair-specific descriptions must be removed")
 
     for locale in source_dir.glob("misc*.properties"):
         values = dict(module.parse_messages(locale.read_text(encoding="utf-8"), locale))
