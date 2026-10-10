@@ -622,7 +622,7 @@ def test_combo_attack_patch_and_catalog():
         raise AssertionError("Companion stats must show inline name/value pairs")
     for required in (
         "addTwoRowStats(0, startY, layoutWidth)",
-        "addTwoRowStats(0, startY, leftWidth)",
+        "addTwoRowStats(0, comboBottom + 4, leftWidth)",
         "for (int row = 0; row < 2; row++)",
         "for (int col = 0; col < 3; col++)",
         "float first = stats[0].width()",
