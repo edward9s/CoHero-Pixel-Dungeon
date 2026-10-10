@@ -649,6 +649,52 @@ def test_combo_attack_patch_and_catalog():
             or landscape.index("addTwoRowStats(") > landscape.index("addEquipment(")
             or "addComboInfo(" in portrait):
         raise AssertionError("Landscape left panel must order combo, stats, equipment")
+    # Only Cleric-led (6) ultimates self-cast. The other 30 should open
+    # auto-aim targeting, reusing ModAssassinate's preferred-last-target flow.
+    # A second Tag press confirms the reticle; manual map selection still works.
+    for required in (
+        "if (classIndex(Dungeon.hero.heroClass) == 5)",
+        "cast(null);",
+        "targetSelector = listener;",
+        "GameScene.selectCell(listener);",
+        "aimedTarget = preferredAutoTarget();",
+        "if (targetSelector != null)",
+        "GameScene.handleCell(target.pos);",
+        "GameScene.cancelCellSelector();",
+        "QuickSlotButton.lastTarget instanceof Mob",
+        "if (validAutoTarget(last))",
+        "for (Mob mob : Dungeon.level.mobs)",
+        "Dungeon.level.heroFOV[mob.pos]",
+        "validAttackTarget(mob, hero, companion)",
+        "Actor.findChar(mob.pos) == mob",
+        "QuickSlotButton.target(target);",
+        "clearTargetSelection();",
+        "if (cell != null)",
+    ):
+        if required not in source:
+            raise AssertionError(f"Combo auto-target and manual selection rule missing: {required}")
+    # Only the cast path consumes a charge; aiming/cancelling must not spend
+    # either actor's turn or expose an unseen CoHero-only enemy.
+    pre_cast = source[source.index("public static void requestCast()"):
+                      source.index("private static void cast(Integer cell)")]
+    for forbidden in ("energy -= CAST_COST", "spendComboTurn()", "spendAndNext("):
+        if forbidden in pre_cast:
+            raise AssertionError(f"Combo aim should not spend resources: {forbidden}")
+    if "public static Mob aimTarget()" not in source or "aimedTarget = preferredAutoTarget();" in (
+            source[source.index("public static Mob aimTarget()"):
+                   source.index("private static boolean validAutoTarget(")]):
+        raise AssertionError("HUD must not redo full auto-target search every frame")
+    for required in (
+        "crosshair = Icons.TARGET.get();",
+        "refreshCrosshair();",
+        "CoHeroCombo.aimTarget();",
+        "crosshair.point(aim.sprite.center(crosshair));",
+        "crosshair.remove();",
+        "public void destroy()",
+    ):
+        if required not in hud_tag:
+            raise AssertionError(f"Combo auto-target reticle missing: {required}")
+
     if "companion.canPerformCombo()" not in source:
         raise AssertionError("Combo must not interrupt a pending companion movement/decision")
     for required in (
