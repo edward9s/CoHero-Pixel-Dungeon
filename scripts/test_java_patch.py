@@ -642,6 +642,27 @@ def test_combo_attack_patch_and_catalog():
     ):
         if required not in fx:
             raise AssertionError(f"Missing composable, non-blocking combo FX: {required}")
+    # A Mage-led combo should feel like a bomb, while the Mage companion adds a
+    # lighter detonation. Neither effect may trigger actual Bomb gameplay.
+    for required in (
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.particles.BlastParticle;",
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.particles.SmokeParticle;",
+        "private static void arcaneExplosion(int cell, boolean major)",
+        "arcaneExplosion(cell, true);",
+        "arcaneExplosion(cell, false);",
+        "BlastParticle.FACTORY, major ? 20 : 7",
+        "SmokeParticle.FACTORY, major ? 3 : 1",
+        "case 1: return Assets.Sounds.BLAST;",
+        "Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);",
+        "if (heroClass == 5)",
+        "if (heroClass != 1)",
+        "if (!visible(cell))",
+        "new Ballistica(cell, neighbor,",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Missing balanced bomb-style combo effect: {required}")
+    if "new Bomb(" in fx or ".explode(" in fx:
+        raise AssertionError("Combo FX must not detonate real game-world bombs")
     # Bound each switch to its own Java method to avoid counting cases from elsewhere.
     for name, next_name in (("primary", "accent"), ("accent", "casterFlare")):
         begin = fx.index("private static void " + name + "(")
