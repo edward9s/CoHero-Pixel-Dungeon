@@ -21,8 +21,9 @@ import com.watabou.utils.PathFinder;
 /**
  * Presentation only. Six Hero motifs and six CoHero accents compose all 36 ultimates.
  *
- * All effects are fire-and-forget: no callback advances an Actor or owns gameplay state.
- * Never create world particles at cells outside the player's gameplay FOV. In particular,
+ * The visual cue triggers exactly one gameplay impact at the joint strike.
+ * Until then the Hero is busy and the Actor schedule is paused; only the impact
+ * callback spends the two turns. Never create world particles outside the Hero FOV.
  * companion-only remote vision must not make hidden enemies visually apparent.
  */
 public final class CoHeroComboFX {
@@ -37,12 +38,15 @@ public final class CoHeroComboFX {
     }
 
     /**
-     * Called once by a confirmed cast before applying its immediate gameplay effects.
+     * Start the telegraph. Gameplay resolves exactly once at PARTNER_START,
+     * while both actors are paused. If there is no renderable sprite, resolve
+     * immediately rather than leaving the Hero busy without a visual cue.
+     *
      * @param center offensive target cell, or Hero cell for a support ultimate
      */
     public static void play(Hero hero, CoHeroAlly companion, int center,
-                            int heroClass, int companionClass) {
-        if (hero == null || companion == null
+                            int heroClass, int companionClass, Runnable onImpact) {
+        if (hero == null || companion == null || onImpact == null
                 || heroClass < 0 || heroClass >= 6
                 || companionClass < 0 || companionClass >= 6
                 || Dungeon.level == null
@@ -54,10 +58,12 @@ public final class CoHeroComboFX {
         casterFlare(hero, heroColor(heroClass), CHARGE_DURATION);
         casterFlare(companion, partnerColor(companionClass), CHARGE_DURATION);
 
-        // A short-lived Noosa visual drives the timing, not an Actor or a game turn.
-        // Releasing / switching scenes destroys it without touching combat resolution.
         if (hero.sprite != null && hero.sprite.parent != null) {
-            hero.sprite.parent.add(new Cue(hero, companion, center, heroClass, companionClass));
+            hero.sprite.parent.add(new Cue(
+                    hero, companion, center, heroClass, companionClass, onImpact));
+        } else {
+            // No scene to animate: finish the already-confirmed action now.
+            onImpact.run();
         }
     }
 
@@ -69,10 +75,12 @@ public final class CoHeroComboFX {
         private final int center;
         private final int heroClass;
         private final int companionClass;
+        private final Runnable onImpact;
         private float elapsed;
         private int stage;
 
-        Cue(Hero hero, CoHeroAlly companion, int center, int heroClass, int companionClass) {
+        Cue(Hero hero, CoHeroAlly companion, int center, int heroClass,
+            int companionClass, Runnable onImpact) {
             super(0, 0, 0, 0);
             this.hero = hero;
             this.companion = companion;
@@ -80,6 +88,7 @@ public final class CoHeroComboFX {
             this.center = center;
             this.heroClass = heroClass;
             this.companionClass = companionClass;
+            this.onImpact = onImpact;
         }
 
         @Override
@@ -96,8 +105,11 @@ public final class CoHeroComboFX {
                 Sample.INSTANCE.play(primarySound(heroClass), 0.85f);
             }
             if (stage == 1 && elapsed >= PARTNER_START) {
+                // Set the state before invoking gameplay: the callback may kill
+                // sprites, update the level, or schedule the next Actor turn.
                 stage = 2;
                 accent(hero, companion, center, heroClass, companionClass);
+                onImpact.run();
             }
             if (elapsed >= TOTAL_DURATION) {
                 killAndErase();
