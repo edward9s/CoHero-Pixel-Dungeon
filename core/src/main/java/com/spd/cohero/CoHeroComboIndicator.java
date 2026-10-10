@@ -2,13 +2,16 @@ package com.spd.cohero;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Tag;
 import com.shatteredpixel.shatteredpixeldungeon.ui.HeroIcon;
+import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
 import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.ColorBlock;
+import com.watabou.noosa.Image;
 
 /** Three-charge Tag using the original Duelist Challenge (duel) ability icon. */
 public final class CoHeroComboIndicator extends Tag {
@@ -25,6 +28,7 @@ public final class CoHeroComboIndicator extends Tag {
     private final ColorBlock[] notches = new ColorBlock[3];
     private final HeroIcon icon;
     private final BitmapText count;
+    private final Image crosshair;
     private int displayedEnergy = -1;
     private int displayedCharges = -1;
 
@@ -44,6 +48,7 @@ public final class CoHeroComboIndicator extends Tag {
 
         count = new BitmapText(PixelScene.pixelFont);
         add(count);
+        crosshair = Icons.TARGET.get();
         setSize(SIZE, HEIGHT);
     }
 
@@ -57,9 +62,11 @@ public final class CoHeroComboIndicator extends Tag {
         }
         visible = show;
         if (!show) {
+            removeCrosshair();
            super.update();
             return;
         }
+        refreshCrosshair();
 
         int energy = CoHeroCombo.energy();
         int charges = energy / CoHeroCombo.CAST_COST;
@@ -87,6 +94,32 @@ public final class CoHeroComboIndicator extends Tag {
         icon.alpha(emblemAlpha);
         count.alpha(energy >= CoHeroCombo.CAST_COST ? 1f : 0.75f);
          super.update();
+    }
+
+    private void refreshCrosshair() {
+        Mob aim = CoHeroCombo.aimTarget();
+        if (aim == null || aim.sprite == null || !aim.sprite.visible
+                || aim.sprite.parent == null) {
+            removeCrosshair();
+            return;
+        }
+        if (crosshair.parent != aim.sprite.parent) {
+            removeCrosshair();
+            aim.sprite.parent.addToFront(crosshair);
+        }
+        crosshair.point(aim.sprite.center(crosshair));
+    }
+
+    private void removeCrosshair() {
+        if (crosshair.parent != null) {
+            crosshair.remove();
+        }
+    }
+
+    @Override
+    public void destroy() {
+        removeCrosshair();
+        super.destroy();
     }
 
     @Override
