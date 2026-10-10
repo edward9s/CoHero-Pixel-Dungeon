@@ -270,15 +270,7 @@ public final class CoHeroCombo {
             effects = CoHeroMessages.get("combo.detail.cleric." + partnerClass);
         } else {
             effects = CoHeroMessages.get("combo.detail.main." + heroClass) + " "
-                    + CoHeroMessages.get(heroClass == 3 && partnerClass == 5
-                            ? "combo.detail.partner.3.5"
-                            : "combo.detail.partner." + partnerClass);
-            if ((heroClass == 0 && partnerClass == 5)
-                    || (heroClass == 3 && partnerClass == 0)
-                    || (heroClass == 4 && partnerClass == 5)) {
-                effects += " " + CoHeroMessages.get(
-                        "combo.detail.extra." + heroClass + "." + partnerClass);
-            }
+                    + CoHeroMessages.get("combo.detail.partner." + partnerClass);
         }
         return effects + " " + CoHeroMessages.get(
                 heroClass == 5 ? "combo.detail.requirement.support"
