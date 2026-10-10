@@ -706,21 +706,18 @@ def test_combo_attack_patch_and_catalog():
         if required not in source:
             raise AssertionError(f"Ultimate must not reach enemies behind terrain: {required}")
 
-    # Six main motifs plus six partner accents. The impact is a single
-    # render-timed callback, not a deferred game Actor or a saved pending state.
-    # The Hero turn is held until the 0.30s impact so lethal hits happen with
-    # the effect, not before the first animation frame.
+    # Six main motifs and partner accents remain visual-only, but confirmed
+    # combo damage waits until all visible SPD missiles have actually arrived.
+    # This is essential at long range: a 0.30s fixed hit can precede the shot.
     fx = (root / "core/src/main/java/com/spd/cohero/CoHeroComboFX.java").read_text(
         encoding="utf-8")
-    combo = source
-    if "CoHeroComboFX.play(" not in combo:
-        raise AssertionError("Confirmed ultimate must start visual presentation")
     cast = source[source.index("private static void cast(Integer cell)"):
                   source.index("private static boolean canTargetFromEitherHero(")]
     for required in (
         "energy -= CAST_COST;",
         "hero.busy();",
         "final Mob victim = target;",
+        "CoHeroComboFX.play(",
         "new Runnable()",
         "public void run()",
         "performClericUltimate(hero, companion, partnerClass)",
@@ -729,48 +726,61 @@ def test_combo_attack_patch_and_catalog():
         "hero.spendAndNext(Actor.TICK);",
     ):
         if required not in cast:
-            raise AssertionError(f"Combo impact reservation/resolution incomplete: {required}")
+            raise AssertionError(f"Combo deferred impact missing: {required}")
     if not (cast.index("energy -= CAST_COST;") < cast.index("hero.busy();")
             < cast.index("CoHeroComboFX.play(") < cast.index("public void run()")
             < cast.index("performAttackUltimate(") < cast.index("spendComboTurn()")
             < cast.index("hero.spendAndNext(")):
-        raise AssertionError("Ultimate must wait for impact before damage and turn advancement")
+        raise AssertionError("Damage and both actor turns must wait for the impact")
 
     for required in (
         "int companionClass, Runnable onImpact)",
         "private final Runnable onImpact;",
         "hero.sprite.parent.add(new Cue(",
-        "onImpact.run();",
-        "stage = 2;",
-        "accent(hero, companion, center, heroClass, companionClass);",
-    ):
-        if required not in fx:
-            raise AssertionError(f"Impact callback missing or incomplete: {required}")
-    if fx.count("onImpact.run();") != 2:
-        raise AssertionError("Impact must have exactly one timed call and one headless fallback")
-    cue_update = fx[fx.index("public void update()"):
-                    fx.index("private static void primary(")]
-    if not (cue_update.index("elapsed >= PARTNER_START")
-            < cue_update.index("stage = 2;")
-            < cue_update.index("accent(hero, companion, center, heroClass, companionClass);")
-            < cue_update.index("onImpact.run();")
-            < cue_update.index("if (elapsed >= TOTAL_DURATION)")):
-        raise AssertionError("Damage must align with one 0.30s hit, not at cast or cue end")
-    for required in (
-        "private static void primary(",
-        "private static void accent(",
-        "private static final class Cue extends Visual",
         "private static final float MAIN_START = 0.12f;",
         "private static final float PARTNER_START = 0.30f;",
-        "private static final float TOTAL_DURATION = 0.58f;",
+        "private static final float HIT_MIN_START = 0.62f;",
+        "private static final float MAX_PROJECTILE_WAIT = 1.80f;",
+        "private static final float HIT_SETTLE = 0.14f;",
+        "private static final float HIT_TAIL = 0.30f;",
+        "private int pendingMissiles;",
+        "cue.pendingMissiles++;",
+        "new Callback()",
+        "cue.missileArrived();",
+        "pendingMissiles--;",
+        "stage = 2;",
+        "pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT",
+        "stage = 3;",
+        "jointImpact(center, heroClass, companionClass);",
+        "elapsed >= impactTime + HIT_SETTLE",
+        "stage = 4;",
+        "onImpact.run();",
+        "elapsed >= impactTime + HIT_TAIL",
+        "killAndErase()",
         "Dungeon.level.heroFOV[cell]",
         "Dungeon.level != level || Dungeon.hero != hero",
-        "killAndErase()",
         "recycle(MagicMissile.class)",
         "CellEmitter.center(cell).burst(",
     ):
         if required not in fx:
-            raise AssertionError(f"Missing composable, non-blocking combo FX: {required}")
+            raise AssertionError(f"Projectile-synchronized impact rule missing: {required}")
+    if fx.count("onImpact.run();") != 2:
+        raise AssertionError("Only the actual hit and headless fallback may resolve gameplay")
+    cue_update = fx[fx.index("public void update()"):
+                    fx.index("private static void primary(")]
+    if not (cue_update.index("elapsed >= PARTNER_START")
+            < cue_update.index("accent(hero, companion, center, heroClass, companionClass, this);")
+            < cue_update.index("pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT")
+            < cue_update.index("stage = 3;")
+            < cue_update.index("jointImpact(center, heroClass, companionClass);")
+            < cue_update.index("elapsed >= impactTime + HIT_SETTLE")
+            < cue_update.index("stage = 4;")
+            < cue_update.index("onImpact.run();")
+            < cue_update.index("elapsed >= impactTime + HIT_TAIL")):
+        raise AssertionError("Last strike must visibly occur after missiles arrive, before damage")
+    if "arcaneExplosion(cell, true);" not in fx[fx.index("private static void jointImpact("):
+                                               fx.index("private static void arcaneExplosion(")]:
+        raise AssertionError("Mage blast must detonate on the real hit, not at launch")
     # A Mage-led combo should feel like a bomb, while the Mage companion adds a
     # lighter detonation. Neither effect may trigger actual Bomb gameplay.
     for required in (
