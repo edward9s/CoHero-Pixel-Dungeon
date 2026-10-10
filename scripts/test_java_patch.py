@@ -556,12 +556,11 @@ def test_combo_attack_patch_and_catalog():
         "count.y = y + height - count.height() - 1f;",
     ):
         if required not in hud_tag:
-            raise AssertionError(f"Original Duelist icon and thin frame missing: {required}")
+            raise AssertionError(f"Frameless original Duelist icon layout missing: {required}")
     if any(token in hud_tag for token in (
             "new Image(ICON)", "cohero_combo.png", "firstSword", "secondSword",
             ".angle =", "ICON_SCALE", "FRAME_SIZE", "frameTop", "frameBottom",
             "frameLeft", "frameRight", "icon.scale.set(")):
-
         raise AssertionError("Ultimate Tag still uses custom or rotated artwork")
     if (root / "core/src/main/assets/interfaces/cohero_combo.png.b64").exists():
         raise AssertionError("Obsolete custom combo PNG must be removed")
