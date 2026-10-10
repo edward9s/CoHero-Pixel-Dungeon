@@ -544,39 +544,31 @@ def test_combo_attack_patch_and_catalog():
             raise AssertionError(f"Three-stage ultimate Tag missing: {required}")
     if "notches[i].y = y + 3f;" not in hud_tag:
         raise AssertionError("Link charge notches must sit two pixels below their original edge")
-    # The icon is a real 16x16 PNG, not rotated ColorBlocks that can bleed outside.
-    if 'new Image(ICON)' not in hud_tag or 'interfaces/cohero_combo.png' not in hud_tag:
-        raise AssertionError("Ultimate Tag must use its dedicated pixel-art asset")
-    if any(token in hud_tag for token in ("firstSword", "secondSword", ".angle =")):
-        raise AssertionError("Ultimate Tag still uses out-of-bounds rotated primitives")
-    encoded_icon = root / "core/src/main/assets/interfaces/cohero_combo.png.b64"
-    icon = __import__("base64").b64decode(encoded_icon.read_text(encoding="ascii").strip(),
-                                          validate=True)
-    if not icon.startswith(b"\x89PNG\r\n\x1a\n") or icon[16:24] != bytes.fromhex("0000001000000010"):
-        raise AssertionError("Combo icon must be a valid 16x16 PNG")
-    # The charge notches occupy the top of the Tag. Keep the icon's first
-    # four pixel rows completely transparent so no blade/gem covers the bars.
-    # A 16x16 8-bit RGBA PNG has one 65-byte filtered scanline per row.
-    import zlib
-    if icon[24] != 8 or icon[25] != 6:
-        raise AssertionError("Combo icon must be 8-bit RGBA")
-    cursor = 8
-    compressed = bytearray()
-    while cursor < len(icon):
-        size = int.from_bytes(icon[cursor:cursor + 4], "big")
-        chunk_type = icon[cursor + 4:cursor + 8]
-        if chunk_type == b"IDAT":
-            compressed.extend(icon[cursor + 8:cursor + 8 + size])
-        cursor += size + 12
-    pixels = zlib.decompress(bytes(compressed))
-    if len(pixels) != 16 * 65 or any(
-            pixels[y * 65 + 1:(y + 1) * 65] != bytes(64)
-            for y in range(4)):
-        raise AssertionError("Combo icon overlaps three top charge notches")
-
+    # The original Duelist armor ability 'Challenge' uses HeroIcon.CHALLENGE
+    # on SPD's shared 16x16 hero-icons sheet; never ship a replacement PNG.
+    for required in (
+        "import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;",
+        "import com.shatteredpixel.shatteredpixeldungeon.ui.HeroIcon;",
+        "icon = new HeroIcon(new Challenge());",
+        "private static final float ICON_SCALE = 0.70f;",
+        "icon.scale.set(ICON_SCALE, ICON_SCALE);",
+        "private static final float FRAME_SIZE = 14f;",
+        "new ColorBlock(FRAME_SIZE, 1, FRAME_COLOR)",
+        "new ColorBlock(1, FRAME_SIZE, FRAME_COLOR)",
+        "float frameY = y + 5f;",
+        "icon.y = frameY + 1f;",
+    ):
+        if required not in hud_tag:
+            raise AssertionError(f"Original Duelist icon and thin frame missing: {required}")
+    if any(token in hud_tag for token in (
+            "new Image(ICON)", "cohero_combo.png", "firstSword", "secondSword",
+            ".angle =")):
+        raise AssertionError("Ultimate Tag still uses custom or rotated artwork")
+    if (root / "core/src/main/assets/interfaces/cohero_combo.png.b64").exists():
+        raise AssertionError("Obsolete custom combo PNG must be removed")
     integration_sh = (root / "integration/shattered/apply.sh").read_text(encoding="utf-8")
-    if 'cohero_combo.png.b64' not in integration_sh or 'dest.write_bytes(png)' not in integration_sh:
-        raise AssertionError("Integration must materialize the combo texture")
+    if "cohero_combo.png" in integration_sh:
+        raise AssertionError("No custom combo icon decoding should remain in the build")
 
     # Test-only refill starts on the next non-ready Hero.act, not on click or UI redraw.
     settings = (root / "core/src/main/java/com/spd/cohero/CoHeroSettings.java").read_text(encoding="utf-8")
