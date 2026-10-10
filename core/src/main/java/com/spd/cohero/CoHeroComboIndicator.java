@@ -13,18 +13,17 @@ import com.watabou.noosa.ColorBlock;
 /** Three-charge Tag using the original Duelist Challenge (duel) ability icon. */
 public final class CoHeroComboIndicator extends Tag {
 
-    private static final int EMPTY_COLOR = 0x68717A;
-    private static final int[] CHARGE_COLORS = {0x68717A, 0xB78941, 0xD6A84E, 0xEBC469};
-    private static final float ICON_SCALE = 0.70f;
-    private static final float FRAME_SIZE = 14f;
-    private static final int FRAME_COLOR = 0xFFE6D6A9;
+    // Slightly taller than a normal Tag so the original 16px sprite, three
+    // charge notches and numeric meter can each occupy their own row.
+    public static final int HEIGHT = 30;
+
+    // Cool slate backgrounds preserve the stock Challenge icon's reds and
+    // keep its warm pixels from blending into an increasingly golden Tag.
+    private static final int EMPTY_COLOR = 0x404955;
+    private static final int[] CHARGE_COLORS = {0x404955, 0x4B5B6D, 0x526C81, 0x587B92};
 
     private final ColorBlock[] notches = new ColorBlock[3];
     private final HeroIcon icon;
-    private final ColorBlock frameTop;
-    private final ColorBlock frameBottom;
-    private final ColorBlock frameLeft;
-    private final ColorBlock frameRight;
     private final BitmapText count;
     private int displayedEnergy = -1;
     private int displayedCharges = -1;
@@ -38,24 +37,14 @@ public final class CoHeroComboIndicator extends Tag {
             add(notches[i]);
         }
 
-        // Use SPD's actual Duelist crown ability icon, not a reproduced sprite.
+        // Directly display SPD's original red Challenge sprite at native 16x16.
+        // No recolored replacement, scaling, border or shadow layer.
         icon = new HeroIcon(new Challenge());
-        icon.scale.set(ICON_SCALE, ICON_SCALE);
         add(icon);
-
-        // Four 1px hairlines around the 70%-size icon.
-        frameTop = new ColorBlock(FRAME_SIZE, 1, FRAME_COLOR);
-        frameBottom = new ColorBlock(FRAME_SIZE, 1, FRAME_COLOR);
-        frameLeft = new ColorBlock(1, FRAME_SIZE, FRAME_COLOR);
-        frameRight = new ColorBlock(1, FRAME_SIZE, FRAME_COLOR);
-        add(frameTop);
-        add(frameBottom);
-        add(frameLeft);
-        add(frameRight);
 
         count = new BitmapText(PixelScene.pixelFont);
         add(count);
-        setSize(SIZE, SIZE);
+        setSize(SIZE, HEIGHT);
     }
 
     @Override
@@ -89,7 +78,7 @@ public final class CoHeroComboIndicator extends Tag {
             displayedCharges = charges;
             setColor(CHARGE_COLORS[charges]);
             for (int i = 0; i < notches.length; i++) {
-                notches[i].hardlight(i < charges ? 0xFFE19A : 0x41434A);
+                notches[i].hardlight(i < charges ? 0xDCE9FF : 0x353F4B);
             }
         }
 
@@ -131,22 +120,13 @@ public final class CoHeroComboIndicator extends Tag {
             notches[i].x = slotX + 3f + i * 7f;
             notches[i].y = y + 3f;
         }
-        // The charge bars end at y+5; the icon frame starts immediately below.
-        float frameX = slotX + (SIZE - FRAME_SIZE) / 2f;
-        float frameY = y + 5f;
+        // Bars occupy y+3..5, then 16px art at y+6..22, and meter below.
         icon.x = slotX + (SIZE - icon.width()) / 2f;
-        icon.y = frameY + 1f;
+        icon.y = y + 6f;
         PixelScene.align(icon);
 
-        frameTop.x = frameBottom.x = frameX;
-        frameTop.y = frameY;
-        frameBottom.y = frameY + FRAME_SIZE - 1;
-        frameLeft.x = frameX;
-        frameLeft.y = frameY;
-        frameRight.x = frameX + FRAME_SIZE - 1;
-        frameRight.y = frameY;
         count.x = slotX + (SIZE - count.width()) / 2f;
-        count.y = y + SIZE - count.height() - 1f;
+        count.y = y + height - count.height() - 1f;
         PixelScene.align(count);
     }
 }
