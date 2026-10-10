@@ -50,7 +50,6 @@ Each ultimate uses one turn for both characters. Link is kept when changing floo
 
 - **Enemy spawn multiplier:** Adjust the spawn rate from **1.0x to 4.0x** (default **1.5x**).
 - **CoHero debug log:** Records AI decisions and performance information to help diagnose problems. When enabled, exported saves include `cohero-diagnostics.txt`.
-- **Auto-fill Link (test):** Off by default. If Link is below 60, it refills to 180 at the start of the next Hero turn. Values of 60–179 are not changed.
 
 Save export/import uses `Documents/spd_saves/<app name>/` on Android and Desktop. CoHero and CoHero + SMM have different app names and therefore keep separate snapshots.
 
