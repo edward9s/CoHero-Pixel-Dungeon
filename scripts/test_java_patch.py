@@ -706,15 +706,56 @@ def test_combo_attack_patch_and_catalog():
         if required not in source:
             raise AssertionError(f"Ultimate must not reach enemies behind terrain: {required}")
 
-    # Ultimate VFX are 6 main motifs + 6 partner accents: a display-only
-    # Noosa cue; never a game Actor, asynchronous combat action, or saved state.
+    # Six main motifs plus six partner accents. The impact is a single
+    # render-timed callback, not a deferred game Actor or a saved pending state.
+    # The Hero turn is held until the 0.30s impact so lethal hits happen with
+    # the effect, not before the first animation frame.
     fx = (root / "core/src/main/java/com/spd/cohero/CoHeroComboFX.java").read_text(
         encoding="utf-8")
     combo = source
     if "CoHeroComboFX.play(" not in combo:
         raise AssertionError("Confirmed ultimate must start visual presentation")
-    if combo.index("CoHeroComboFX.play(") > combo.index("performClericUltimate(hero, companion, partnerClass)"):
-        raise AssertionError("FX must capture its target before the skill can kill it")
+    cast = source[source.index("private static void cast(Integer cell)"):
+                  source.index("private static boolean canTargetFromEitherHero(")]
+    for required in (
+        "energy -= CAST_COST;",
+        "hero.busy();",
+        "final Mob victim = target;",
+        "new Runnable()",
+        "public void run()",
+        "performClericUltimate(hero, companion, partnerClass)",
+        "performAttackUltimate(hero, companion, victim, mainClass, partnerClass)",
+        "companion.spendComboTurn();",
+        "hero.spendAndNext(Actor.TICK);",
+    ):
+        if required not in cast:
+            raise AssertionError(f"Combo impact reservation/resolution incomplete: {required}")
+    if not (cast.index("energy -= CAST_COST;") < cast.index("hero.busy();")
+            < cast.index("CoHeroComboFX.play(") < cast.index("public void run()")
+            < cast.index("performAttackUltimate(") < cast.index("spendComboTurn()")
+            < cast.index("hero.spendAndNext(")):
+        raise AssertionError("Ultimate must wait for impact before damage and turn advancement")
+
+    for required in (
+        "int companionClass, Runnable onImpact)",
+        "private final Runnable onImpact;",
+        "hero.sprite.parent.add(new Cue(",
+        "onImpact.run();",
+        "stage = 2;",
+        "accent(hero, companion, center, heroClass, companionClass);",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Impact callback missing or incomplete: {required}")
+    if fx.count("onImpact.run();") != 2:
+        raise AssertionError("Impact must have exactly one timed call and one headless fallback")
+    cue_update = fx[fx.index("public void update()"):
+                    fx.index("private static void primary(")]
+    if not (cue_update.index("elapsed >= PARTNER_START")
+            < cue_update.index("stage = 2;")
+            < cue_update.index("accent(hero, companion, center, heroClass, companionClass);")
+            < cue_update.index("onImpact.run();")
+            < cue_update.index("if (elapsed >= TOTAL_DURATION)")):
+        raise AssertionError("Damage must align with one 0.30s hit, not at cast or cue end")
     for required in (
         "private static void primary(",
         "private static void accent(",
@@ -758,9 +799,11 @@ def test_combo_attack_patch_and_catalog():
         arms = __import__("re").findall(r"case [0-5]:", fx[begin:finish])
         if len(arms) != 6:
             raise AssertionError(f"{name} must support all six ordered classes")
-    for forbidden in ("Actor.", ".spend(", ".next(", ".busy(", "Callback"):
+    # FX cannot consume game turns directly; one callback fires into the
+    # pending cast resolution and Actor scheduling remains in CoHeroCombo.
+    for forbidden in ("Actor.", ".spend(", ".next(", ".busy("):
         if forbidden in fx:
-            raise AssertionError(f"FX must not alter gameplay or wait for animation: {forbidden}")
+            raise AssertionError(f"FX must not consume actor time directly: {forbidden}")
 
     from importlib.util import spec_from_file_location, module_from_spec
     spec = spec_from_file_location("cohero_messages_patch", patch_dir / "patch_messages.py")
