@@ -1,5 +1,8 @@
 package com.spd.cohero;
 
+import com.shatteredpixel.shatteredpixeldungeon.items.Item;
+import com.shatteredpixel.shatteredpixeldungeon.items.Waterskin;
+import com.shatteredpixel.shatteredpixeldungeon.items.bags.VelvetPouch;
 import com.watabou.utils.GameSettings;
 
 /** Global defaults used when a new CoHero run is created. */
@@ -10,6 +13,7 @@ final class CoHeroSettings {
     private static final String DEBUG_LOG =
             "cohero_default_debug_log";
     private static final String AUTO_FILL_LINK = "cohero_auto_fill_link";
+    private static final String TEST_OPTIONS_VISIBLE = "cohero_test_options_visible";
 
     private CoHeroSettings() {
     }
@@ -42,6 +46,38 @@ final class CoHeroSettings {
 
     static void setAutoFillLinkEnabled(boolean enabled) {
         GameSettings.put(AUTO_FILL_LINK, enabled);
+    }
+
+    /** Visibility is global across runs, and independent of the test option's value. */
+    static boolean testOptionsVisible() {
+        return GameSettings.getBoolean(TEST_OPTIONS_VISIBLE, false);
+    }
+
+    /**
+     * Secret trigger, called only on a debug-log OFF -> ON click.
+     * No hidden state is attached to the companion or its save.
+     */
+    static boolean toggleTestOptionsIfEligible(CoHeroAlly companion) {
+        if (companion == null || !companion.isAlive()) {
+            return false;
+        }
+        CompanionInventory inventory = companion.inventory();
+        if (inventory.weapon() != null || inventory.armor() != null
+                || inventory.ringOne() != null || inventory.ringTwo() != null) {
+            return false;
+        }
+
+        boolean hasWaterskin = false;
+        boolean hasVelvetPouch = false;
+        for (Item item : inventory.backpack()) {
+            hasWaterskin |= item instanceof Waterskin;
+            hasVelvetPouch |= item instanceof VelvetPouch;
+        }
+        if (!hasWaterskin || !hasVelvetPouch) {
+            return false;
+        }
+        GameSettings.put(TEST_OPTIONS_VISIBLE, !testOptionsVisible());
+        return true;
     }
 
     private static void validateEnemySpawnMultiplierQuarters(int value) {
