@@ -5,7 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Waterskin;
 import com.shatteredpixel.shatteredpixeldungeon.items.bags.VelvetPouch;
 import com.watabou.utils.GameSettings;
 
-/** Global defaults used when a new CoHero run is created. */
+/** Global CoHero preferences and the hidden test-options visibility toggle. */
 final class CoHeroSettings {
 
     private static final String ENEMY_SPAWN_MULTIPLIER_QUARTERS =
