@@ -542,6 +542,8 @@ def test_combo_attack_patch_and_catalog():
     ):
         if required not in hud_tag:
             raise AssertionError(f"Three-stage ultimate Tag missing: {required}")
+    if "notches[i].y = y + 3f;" not in hud_tag:
+        raise AssertionError("Link charge notches must sit two pixels below their original edge")
     # The icon is a real 16x16 PNG, not rotated ColorBlocks that can bleed outside.
     if 'new Image(ICON)' not in hud_tag or 'interfaces/cohero_combo.png' not in hud_tag:
         raise AssertionError("Ultimate Tag must use its dedicated pixel-art asset")
