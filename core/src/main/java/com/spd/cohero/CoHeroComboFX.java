@@ -308,8 +308,10 @@ public final class CoHeroComboFX {
      * the combo retains its separate impact/wind-up schedule.
      */
     private static void prismaticRay(Char preferred, Char alternate, int cell) {
-        Char source = clearVisibleShot(preferred, cell) ? preferred
-                : clearVisibleShot(alternate, cell) ? alternate : null;
+        // Match gameplay's Huntress ray: pass through intervening mobs, but
+        // stop at the chosen cell and never project through walls.
+        Char source = clearVisiblePiercingShot(preferred, cell) ? preferred
+                : clearVisiblePiercingShot(alternate, cell) ? alternate : null;
         if (source == null) {
             return;
         }
@@ -320,7 +322,8 @@ public final class CoHeroComboFX {
 
         // The ray must not illuminate a wall-hidden cell, even if the
         // companion has remote vision of the target.
-        Ballistica line = new Ballistica(source.pos, cell, Ballistica.PROJECTILE);
+        Ballistica line = new Ballistica(source.pos, cell,
+                Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
         for (int pathCell : line.subPath(0, line.dist)) {
             if (visible(pathCell) && !Dungeon.level.solid[pathCell]) {
                 rainbow(pathCell, 2);
@@ -416,6 +419,14 @@ public final class CoHeroComboFX {
                         }
                     });
         }
+    }
+
+    private static boolean clearVisiblePiercingShot(Char actor, int cell) {
+        return visible(cell) && visible(actor.pos)
+                && actor.sprite != null && actor.sprite.visible
+                && actor.sprite.parent != null
+                && new Ballistica(actor.pos, cell,
+                        Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell;
     }
 
     private static boolean clearVisibleShot(Char actor, int cell) {
