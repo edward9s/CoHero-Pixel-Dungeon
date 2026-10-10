@@ -366,7 +366,7 @@ public final class CoHeroCombo {
         return hero != null && companion != null && Dungeon.level != null
                 && mob != null && mob.pos >= 0 && mob.pos < Dungeon.level.length()
                 && Dungeon.level.heroFOV[mob.pos]
-                && mob.sprite != null && mob.sprite.parent != null
+                && mob.sprite != null && mob.sprite.visible && mob.sprite.parent != null
                 && validAttackTarget(mob, hero, companion);
     }
 
