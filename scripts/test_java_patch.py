@@ -751,7 +751,7 @@ def test_combo_attack_patch_and_catalog():
         "stage = 2;",
         "pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT",
         "stage = 3;",
-        "jointImpact(center, heroClass, companionClass);",
+        "jointImpact(hero, companion, center, heroClass, companionClass);",
         "elapsed >= impactTime + HIT_SETTLE",
         "stage = 4;",
         "onImpact.run();",
@@ -772,7 +772,7 @@ def test_combo_attack_patch_and_catalog():
             < cue_update.index("accent(hero, companion, center, heroClass, companionClass, this);")
             < cue_update.index("pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT")
             < cue_update.index("stage = 3;")
-            < cue_update.index("jointImpact(center, heroClass, companionClass);")
+            < cue_update.index("jointImpact(hero, companion, center, heroClass, companionClass);")
             < cue_update.index("elapsed >= impactTime + HIT_SETTLE")
             < cue_update.index("stage = 4;")
             < cue_update.index("onImpact.run();")
