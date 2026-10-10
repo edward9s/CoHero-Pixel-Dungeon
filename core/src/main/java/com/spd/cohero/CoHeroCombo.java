@@ -307,6 +307,10 @@ public final class CoHeroCombo {
         }
         if (targetSelector != null) {
             Mob target = aimTarget();
+            if (!validAutoTarget(target)) {
+                aimedTarget = preferredAutoTarget();
+                target = aimedTarget;
+            }
             if (target != null) {
                 GameScene.handleCell(target.pos);
             } else {
@@ -340,11 +344,16 @@ public final class CoHeroCombo {
 
     /** Returns only visible, currently legal enemies for the aiming reticle. */
     public static Mob aimTarget() {
-        if (targetSelector == null) {
+        if (targetSelector == null || aimedTarget == null) {
             return null;
         }
-        if (!validAutoTarget(aimedTarget)) {
-            aimedTarget = preferredAutoTarget();
+        // The HUD calls this every frame. Avoid repeating costly Ballistica
+        // scans while merely displaying the chosen enemy's crosshair.
+        if (Dungeon.level == null || !aimedTarget.isAlive()
+                || aimedTarget.pos < 0 || aimedTarget.pos >= Dungeon.level.length()
+                || !Dungeon.level.heroFOV[aimedTarget.pos]
+                || Actor.findChar(aimedTarget.pos) != aimedTarget) {
+            aimedTarget = null;
         }
         return aimedTarget;
     }
