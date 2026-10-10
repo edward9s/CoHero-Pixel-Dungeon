@@ -738,6 +738,7 @@ def test_combo_attack_patch_and_catalog():
     for required in (
         "private static void pushAway(Mob mob, Hero hero, CoHeroAlly companion)",
         "WandOfBlastWave.throwChar(mob, pushLine, 1, false, false, CoHeroCombo.class);",
+        "new Ballistica(mob.pos, destination, Ballistica.PROJECTILE)",
         "Char.hasProp(mob, Char.Property.BOSS)",
         "Dungeon.level.avoid[destination] || Dungeon.level.pit[destination]",
         "Dungeon.level.traps.get(destination) != null",
