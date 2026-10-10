@@ -458,7 +458,7 @@ public final class CoHeroComboFX {
             case 0: return Assets.Sounds.HIT_CRUSH;
             case 1: return Assets.Sounds.BLAST;
             case 2: return Assets.Sounds.HIT_STAB;
-            case 3: return Assets.Sounds.HIT_ARROW;
+            case 3: return Assets.Sounds.RAY;
             case 4: return Assets.Sounds.HIT_SLASH;
             case 5: return Assets.Sounds.EVOKE;
             default: throw new IllegalArgumentException("Unknown combo sound");
