@@ -34,7 +34,8 @@ public final class CoHeroComboFX {
     private static final float PARTNER_START = 0.30f;
     private static final float HIT_MIN_START = 0.62f;
     private static final float MAX_PROJECTILE_WAIT = 1.80f;
-    private static final float HIT_TAIL = 0.18f;
+    private static final float HIT_SETTLE = 0.14f;
+    private static final float HIT_TAIL = 0.30f;
 
     private CoHeroComboFX() {
     }
@@ -123,9 +124,14 @@ public final class CoHeroComboFX {
                 stage = 3;
                 impactTime = elapsed;
                 jointImpact(center, heroClass, companionClass);
+            }
+            if (stage == 3 && elapsed >= impactTime + HIT_SETTLE) {
+                // Give the final impact flash one visible moment before a
+                // lethal hit removes the target sprite from the scene.
+                stage = 4;
                 onImpact.run();
             }
-            if (stage == 3 && elapsed >= impactTime + HIT_TAIL) {
+            if (stage == 4 && elapsed >= impactTime + HIT_TAIL) {
                 killAndErase();
             }
         }
