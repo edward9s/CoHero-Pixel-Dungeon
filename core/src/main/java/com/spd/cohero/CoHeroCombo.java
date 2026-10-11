@@ -654,15 +654,14 @@ public final class CoHeroCombo {
     }
 
     private static Ballistica piercingLane(Char preferred, Char alternate, int cell) {
-        // STOP_TARGET | STOP_SOLID stops exactly on the selected target,
-        // pierces intervening mobs, and never crosses walls.
+        // As with a Disintegration wand, the selected enemy defines the
+        // direction, not the beam's end. Stop at terrain, never at characters.
+        // Unlike Disintegration, this combo does NOT pierce solid walls.
         if (canSeePiercing(preferred, cell)) {
-            return new Ballistica(preferred.pos, cell,
-                    Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
+            return new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID);
         }
         if (canSeePiercing(alternate, cell)) {
-            return new Ballistica(alternate.pos, cell,
-                    Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
+            return new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID);
         }
         return null;
     }
@@ -670,6 +669,7 @@ public final class CoHeroCombo {
     private static boolean canSeePiercing(Char attacker, int cell) {
         boolean[] sight = attacker == Dungeon.hero
                 ? Dungeon.level.heroFOV : attacker.fieldOfView;
+        // Validate the aimed-at enemy before extending the line beyond it.
         return sight != null && sight[cell]
                 && new Ballistica(attacker.pos, cell,
                         Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell;
@@ -680,13 +680,17 @@ public final class CoHeroCombo {
         if (line == null) {
             return;
         }
-        // Do not hit beyond the selected target or through solid terrain.
-        for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-            if (line.subPath(0, line.dist).contains(mob.pos)
-                    && Dungeon.level.distance(line.sourcePos, mob.pos)
-                       <= Dungeon.level.distance(line.sourcePos, targetCell)
-                    && alreadyHit.add(mob.id())) {
-                damageEnemy(caster, mob, amount);
+        // Trace all cells through and BEYOND the selected enemy to the first
+        // solid obstacle. A single enemy can be hit only once by the combo,
+        // even when the Huntress is paired with another Huntress.
+        if (!line.subPath(1, line.dist).contains(targetCell)) {
+            throw new IllegalStateException("Piercing ray missed its selected target");
+        }
+        for (int cell : line.subPath(1, line.dist)) {
+            Char ch = Actor.findChar(cell);
+            if (ch instanceof Mob && ch.alignment == Char.Alignment.ENEMY
+                    && alreadyHit.add(ch.id())) {
+                damageEnemy(caster, (Mob) ch, amount);
             }
         }
     }
