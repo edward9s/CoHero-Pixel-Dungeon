@@ -724,12 +724,12 @@ def test_combo_attack_patch_and_catalog():
         "Buff.prolong(mob, Weakness.class, 3f);",
         "retreatFrom(hero, companion, target.pos);",
         "Buff.prolong(hero, Invisibility.class, 2f);",
-        "pierceLane(hero, piercingLane(hero, companion, target.pos)",
+        "pierceLane(hero, piercingLane(hero, impactCell)",
         "Buff.prolong(target, Blindness.class, 2f);",
         "if (++swept == 2)",
         "Buff.prolong(hero, Bless.class, 3f);",
         "if (++chained == 2)",
-        "pierceLane(hero, piercingLane(companion, hero, target.pos)",
+        "pierceLane(hero, piercingLane(companion, impactCell)",
         "PotionOfCleansing.cleanse(companion);",
         "if (hero.HP * 2 <= hero.HT || companion.HP * 2 <= companion.HT)",
     ):
@@ -757,8 +757,7 @@ def test_combo_attack_patch_and_catalog():
         "Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE",
         "ScrollOfTeleportation.teleportToLocation(hero, best);",
         "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell",
-        "new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID)",
-        "new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID)",
+        "new Ballistica(source.pos, cell, Ballistica.STOP_SOLID)",
         "for (int cell : line.subPath(1, line.dist))",
         "alreadyHit.add(ch.id())",
     ):
@@ -766,6 +765,35 @@ def test_combo_attack_patch_and_catalog():
             raise AssertionError(f"Safe movement or piercing invariant missing: {required}")
     if "case 1: // Mage:" not in source or "case 2: // Rogue:" not in source:
         raise AssertionError("Cleric support pairings must retain tactical class identities")
+
+    # Warrior moves survivors only after all partner skills are resolved.
+    # AoE damage and post-hit knockback share the original target cell.
+    attack = source[source.index("private static void performAttackUltimate("):
+                    source.index("private static void performClericUltimate(")]
+    primary_end = attack.index("// Every companion has one recognizable cooperative action.")
+    partner_start = attack.index("switch (partnerClass)", primary_end)
+    final_push = attack.index("if (mainClass == 0)", partner_start)
+    if not (attack.index("int impactCell = target.pos;")
+            < attack.index("damageArea(hero, impactCell, 1, power);")
+            < partner_start < final_push
+            < attack.index("pushAway(mob, hero, companion);")):
+        raise AssertionError("Warrior knockback must follow companion damage")
+    if ("pushAway(mob, hero, companion);" in attack[:primary_end]
+            or "inClearArea(target.pos, 1, mob)" in attack):
+        raise AssertionError("Warrior cannot move enemies during its initial strike")
+    if "inClearArea(impactCell, 1, mob)" not in attack[final_push:]:
+        raise AssertionError("Warrior shockwave must keep its original center")
+    for required in (
+        "piercingLane(hero, impactCell)",
+        "piercingLane(companion, impactCell)",
+        "private static Ballistica piercingLane(Char source, int cell)",
+        "static boolean canSeePiercing(Char attacker, int cell)",
+    ):
+        if required not in source:
+            raise AssertionError(f"Fixed owner piercing lane missing: {required}")
+    if ("piercingLane(hero, companion," in attack
+            or "piercingLane(companion, hero," in attack):
+        raise AssertionError("Ray damage must not borrow another character's source")
 
     # Six main motifs and partner accents remain visual-only, but confirmed
     # combo damage waits until all visible SPD missiles have actually arrived.
@@ -850,8 +878,7 @@ def test_combo_attack_patch_and_catalog():
     gameplay_ray = source[source.index("private static Ballistica piercingLane("):
                           source.index("private static void pushAway(")]
     for required in (
-        "new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID)",
-        "new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID)",
+        "new Ballistica(source.pos, cell, Ballistica.STOP_SOLID)",
         "for (int cell : line.subPath(1, line.dist))",
         "Char ch = Actor.findChar(cell);",
         "alreadyHit.add(ch.id())",
@@ -861,8 +888,9 @@ def test_combo_attack_patch_and_catalog():
             raise AssertionError(f"Piercing beam cannot stop at marked enemy: {required}")
     if "distance(line.sourcePos, targetCell)" in gameplay_ray:
         raise AssertionError("Piercing range must not be truncated at selected enemy")
-    if "new Ballistica(preferred.pos, cell, Ballistica.STOP_TARGET" in gameplay_ray:
-        raise AssertionError("Actual Huntress ray must not stop on marked enemy")
+    if ("new Ballistica(source.pos, cell, Ballistica.STOP_TARGET" in gameplay_ray
+            or "alternate" in gameplay_ray or "preferred" in gameplay_ray):
+        raise AssertionError("Huntress damage must use only its own piercing lane")
 
     # Huntress must reuse the actual Prismatic Light wand ray, never the
     # generic LIGHT_MISSILE projectile; both the Hero and companion accent
@@ -878,6 +906,7 @@ def test_combo_attack_patch_and_catalog():
         "Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);",
         "Ballistica line = new Ballistica(source.pos, cell, Ballistica.STOP_SOLID);",
         "private static boolean clearVisiblePiercingShot(Char actor, int cell)",
+        "CoHeroCombo.canSeePiercing(actor, cell);",
         "for (int pathCell : line.subPath(1, line.dist))",
         "if (!visible(pathCell) || Dungeon.level.solid[pathCell])",
         "visualEnd = pathCell;",
