@@ -308,27 +308,33 @@ public final class CoHeroComboFX {
      * the combo retains its separate impact/wind-up schedule.
      */
     private static void prismaticRay(Char preferred, Char alternate, int cell) {
-        // Match gameplay's Huntress ray: pass through intervening mobs, but
-        // stop at the chosen cell and never project through walls.
+        // The selected enemy aims the ray, but does not terminate it. Mirror
+        // CoHeroCombo.piercingLane: extend through mobs up to solid terrain.
         Char source = clearVisiblePiercingShot(preferred, cell) ? preferred
                 : clearVisiblePiercingShot(alternate, cell) ? alternate : null;
         if (source == null) {
             return;
         }
+        Ballistica line = new Ballistica(source.pos, cell, Ballistica.STOP_SOLID);
+
+        // Gameplay may strike foes beyond Hero vision, just like a normal
+        // piercing wand. The visible beam stops at the LAST consecutive cell
+        // in Hero FOV, so it cannot expose unknown corridors or enemies.
+        int visualEnd = source.pos;
+        for (int pathCell : line.subPath(1, line.dist)) {
+            if (!visible(pathCell) || Dungeon.level.solid[pathCell]) {
+                break;
+            }
+            visualEnd = pathCell;
+            rainbow(pathCell, 2);
+        }
+        if (visualEnd == source.pos) {
+            return;
+        }
         source.sprite.parent.add(
                 new Beam.LightRay(source.sprite.center(),
-                        DungeonTilemap.raisedTileCenterToWorld(cell)));
+                        DungeonTilemap.raisedTileCenterToWorld(visualEnd)));
         Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);
-
-        // The ray must not illuminate a wall-hidden cell, even if the
-        // companion has remote vision of the target.
-        Ballistica line = new Ballistica(source.pos, cell,
-                Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
-        for (int pathCell : line.subPath(0, line.dist)) {
-            if (visible(pathCell) && !Dungeon.level.solid[pathCell]) {
-                rainbow(pathCell, 2);
-            }
-        }
     }
 
     private static void rainbow(int cell, int count) {
