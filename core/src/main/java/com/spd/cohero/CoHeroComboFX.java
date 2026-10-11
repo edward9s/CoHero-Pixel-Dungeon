@@ -432,8 +432,7 @@ public final class CoHeroComboFX {
         return visible(cell) && visible(actor.pos)
                 && actor.sprite != null && actor.sprite.visible
                 && actor.sprite.parent != null
-                && new Ballistica(actor.pos, cell,
-                        Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell;
+                && CoHeroCombo.canSeePiercing(actor, cell);
     }
 
     private static boolean clearVisibleShot(Char actor, int cell) {
