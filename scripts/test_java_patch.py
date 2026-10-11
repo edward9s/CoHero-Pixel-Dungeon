@@ -666,7 +666,8 @@ def test_combo_attack_patch_and_catalog():
         "for (Mob mob : Dungeon.level.mobs)",
         "Dungeon.level.heroFOV[mob.pos]",
         "mob.sprite != null && mob.sprite.visible && mob.sprite.parent != null",
-        "validAttackTarget(mob, hero, companion)",
+        "validAttackTarget(mob, hero, companion, false)",
+        "validAttackTarget((Mob) selected, hero, companion, true)",
         "Actor.findChar(mob.pos) == mob",
         "QuickSlotButton.target(target);",
         "clearTargetSelection();",
@@ -729,7 +730,7 @@ def test_combo_attack_patch_and_catalog():
         raise AssertionError("Missing one of six companion cooperative roles")
     for required in (
         "pushAway(mob, hero, companion);",
-        "inClearArea(target.pos, 2, mob)",
+        "inClearArea(target.pos, 2, mob, target)",
         "Buff.prolong(mob, Weakness.class, 3f);",
         "retreatFrom(hero, companion, target.pos);",
         "Buff.prolong(hero, Invisibility.class, 2f);",
@@ -783,14 +784,14 @@ def test_combo_attack_patch_and_catalog():
     partner_start = attack.index("switch (partnerClass)", primary_end)
     final_push = attack.index("if (mainClass == 0)", partner_start)
     if not (attack.index("int impactCell = target.pos;")
-            < attack.index("damageArea(hero, impactCell, 1, power);")
+            < attack.index("damageArea(hero, impactCell, 1, power, target);")
             < partner_start < final_push
             < attack.index("pushAway(mob, hero, companion);")):
         raise AssertionError("Warrior knockback must follow companion damage")
     if ("pushAway(mob, hero, companion);" in attack[:primary_end]
             or "inClearArea(target.pos, 1, mob)" in attack):
         raise AssertionError("Warrior cannot move enemies during its initial strike")
-    if "inClearArea(impactCell, 1, mob)" not in attack[final_push:]:
+    if "inClearArea(impactCell, 1, mob, target)" not in attack[final_push:]:
         raise AssertionError("Warrior shockwave must keep its original center")
     for required in (
         "piercingLane(hero, impactCell)",
@@ -891,7 +892,7 @@ def test_combo_attack_patch_and_catalog():
         "for (int cell : line.subPath(1, line.dist))",
         "Char ch = Actor.findChar(cell);",
         "alreadyHit.add(ch.id())",
-        "damageEnemy(caster, (Mob) ch, amount);",
+        "damageEnemy(caster, (Mob) ch, amount, selectedTarget);",
     ):
         if required not in gameplay_ray:
             raise AssertionError(f"Piercing beam cannot stop at marked enemy: {required}")
