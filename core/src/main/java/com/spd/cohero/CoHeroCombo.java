@@ -478,15 +478,12 @@ public final class CoHeroCombo {
     private static void performAttackUltimate(
             Hero hero, CoHeroAlly companion, Mob target, int mainClass, int partnerClass) {
         int power = 9 + hero.lvl * 2;
+        // Anchor the shockwave to the selected tile even after enemies die.
+        int impactCell = target.pos;
         HashSet<Integer> pierced = new HashSet<>();
         switch (mainClass) {
-            case 0: // Warrior: break the formation and clear space around the party.
-                damageArea(hero, target.pos, 1, power);
-                for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                    if (inClearArea(target.pos, 1, mob)) {
-                        pushAway(mob, hero, companion);
-                    }
-                }
+            case 0: // Warrior: hit now; push only after CoHero follows up.
+                damageArea(hero, impactCell, 1, power);
                 break;
             case 1: // Mage: suppress even enemies outside the damaging center.
                 damageArea(hero, target.pos, 1, power);
@@ -504,8 +501,8 @@ public final class CoHeroCombo {
                 Buff.prolong(hero, Invisibility.class, 2f);
                 break;
             case 3: // Huntress: terrain-bounded piercing ray and vision denial.
-                pierceLane(hero, piercingLane(hero, companion, target.pos),
-                        target.pos, power + hero.lvl, pierced);
+                pierceLane(hero, piercingLane(hero, impactCell),
+                        impactCell, power + hero.lvl, pierced);
                 if (target.isAlive()) {
                     Buff.prolong(target, Blindness.class, 2f);
                 }
@@ -561,8 +558,8 @@ public final class CoHeroCombo {
                 Buff.prolong(companion, Invisibility.class, 2f);
                 break;
             case 3: // Huntress: a second, independently calculated firing lane.
-                pierceLane(hero, piercingLane(companion, hero, target.pos),
-                        target.pos, Math.max(1, power / 2), pierced);
+                pierceLane(hero, piercingLane(companion, impactCell),
+                        impactCell, Math.max(1, power / 2), pierced);
                 if (target.isAlive()) {
                     Buff.prolong(target, Blindness.class, 2f);
                 }
@@ -590,6 +587,16 @@ public final class CoHeroCombo {
                 break;
             default:
                 throw new IllegalStateException("Unexpected partner combo class " + partnerClass);
+        }
+
+        // The shockwave moves survivors only after the partner finishes,
+        // preserving the partner's follow-up range and piercing direction.
+        if (mainClass == 0) {
+            for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
+                if (inClearArea(impactCell, 1, mob)) {
+                    pushAway(mob, hero, companion);
+                }
+            }
         }
     }
 
@@ -653,20 +660,17 @@ public final class CoHeroCombo {
         }
     }
 
-    private static Ballistica piercingLane(Char preferred, Char alternate, int cell) {
-        // As with a Disintegration wand, the selected enemy defines the
-        // direction, not the beam's end. Stop at terrain, never at characters.
-        // Unlike Disintegration, this combo does NOT pierce solid walls.
-        if (canSeePiercing(preferred, cell)) {
-            return new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID);
+    private static Ballistica piercingLane(Char source, int cell) {
+        // The enemy fixes the direction, not the endpoint; the caster must
+        // own a valid ray. Never borrow the other hero's position.
+        if (!canSeePiercing(source, cell)) {
+            return null;
         }
-        if (canSeePiercing(alternate, cell)) {
-            return new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID);
-        }
-        return null;
+        return new Ballistica(source.pos, cell, Ballistica.STOP_SOLID);
     }
 
-    private static boolean canSeePiercing(Char attacker, int cell) {
+    // Shared with CoHeroComboFX: visual and gameplay ray eligibility must agree.
+    static boolean canSeePiercing(Char attacker, int cell) {
         boolean[] sight = attacker == Dungeon.hero
                 ? Dungeon.level.heroFOV : attacker.fieldOfView;
         // Validate the aimed-at enemy before extending the line beyond it.
