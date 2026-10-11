@@ -25,7 +25,7 @@ import com.watabou.utils.PathFinder;
  * Presentation only. Six Hero motifs and six CoHero accents compose all 36 ultimates.
  *
  * The Hero's turn remains busy until the real projectiles arrive and the joint
- * hit cue resolves once. Render callbacks never create a game Actor or expose
+ * hit cue resolves once. Each caster owns their own launch origin. Render callbacks never create a game Actor or expose
  * enemies outside the Hero's gameplay field of view.
  */
 public final class CoHeroComboFX {
@@ -109,7 +109,7 @@ public final class CoHeroComboFX {
             elapsed += Game.elapsed;
             if (stage == 0 && elapsed >= MAIN_START) {
                 stage = 1;
-                primary(hero, companion, center, heroClass, this);
+                primary(hero, center, heroClass, this);
                 // Mage's explosion sound belongs at the actual hit, not launch.
                 if (heroClass != 1 && heroClass != 3) {
                     Sample.INSTANCE.play(primarySound(heroClass), 0.85f);
@@ -150,34 +150,30 @@ public final class CoHeroComboFX {
         }
     }
 
-    private static void primary(Hero hero, CoHeroAlly companion, int cell, int kind,
-                                Cue cue) {
+    private static void primary(Hero hero, int cell, int kind, Cue cue) {
         switch (kind) {
             case 0: // Warrior: heavy wind-up; the shockwave lands on impact.
                 casterFlare(hero, 0xFFAA66, IMPACT_DURATION);
                 particles(hero.pos, Speck.ROCK, 5);
                 break;
             case 1: // Mage: projectile first; actual explosion occurs on arrival.
-                missile(hero, companion, cell, MagicMissile.MAGIC_MISSILE, cue);
+                missile(hero, cell, MagicMissile.MAGIC_MISSILE, cue);
                 break;
             case 2: // Rogue: visible shadow approach before the final strike.
-                missile(hero, companion, cell, MagicMissile.SHADOW, cue);
+                missile(hero, cell, MagicMissile.SHADOW, cue);
                 particles(hero.pos, Speck.SMOKE, 5);
                 break;
             case 3: // Huntress: the stock Prismatic Light wand's luminous ray.
-                prismaticRay(hero, companion, cell);
+                prismaticRay(hero, cell);
                 particles(hero.pos, Speck.STAR, 4);
                 break;
-            case 4: // Duelist: charge both weapons before the twin impact.
+            case 4: // Duelist: Hero prepares the opening strike.
                 casterFlare(hero, 0xFFF3CF, IMPACT_DURATION);
-                casterFlare(companion, 0xA9E7FF, IMPACT_DURATION);
                 particles(hero.pos, Speck.STAR, 4);
                 break;
-            case 5: // Cleric: twin sanctuary halos and rising restorative lights.
+            case 5: // Cleric: Hero begins the sanctuary invocation.
                 impact(hero.pos, 0xFFE7A0, 8, 22);
-                impact(companion.pos, 0xFFE7A0, 8, 22);
                 particles(hero.pos, Speck.HEALING, 5);
-                particles(companion.pos, Speck.HEALING, 5);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown Hero combo motif: " + kind);
@@ -186,38 +182,45 @@ public final class CoHeroComboFX {
 
     private static void accent(Hero hero, CoHeroAlly companion, int cell,
                                int heroClass, int kind, Cue cue) {
+        // Every partner motif begins at CoHero. Only an unobstructed shot
+        // may travel to the enemy; never borrow Hero's sprite as its source.
         switch (kind) {
-            case 0: // Warrior: armor-strengthening metallic shield glow.
-                casterFlare(hero, 0xC3D1DA, IMPACT_DURATION);
+            case 0: // Warrior: raise the guard from CoHero's position.
                 casterFlare(companion, 0xC3D1DA, IMPACT_DURATION);
+                particles(companion.pos, Speck.STAR, 5);
                 break;
-            case 1: // Mage: smaller explosion; Cleric-led support stays luminous.
+            case 1: // Mage: a second missile, or a local support spell.
                 if (heroClass == 5) {
-                    impact(cell, 0xA58BFF, 5, 15);
-                    particles(cell, Speck.BLUE_LIGHT, 4);
-                }
-                // Offensive Mage blast and sound wait for the joint hit.
-                break;
-            case 2: // Rogue: shadow slashes over the target, or nearby ally for support.
-                impact(cell, 0x9B80B6, 3, 14);
-                particles(cell, Speck.SMOKE, 5);
-                break;
-            case 3: // Huntress companion: a second prismatic ray.
-                if (heroClass != 5) {
-                    prismaticRay(companion, hero, cell);
+                    casterFlare(companion, 0xA58BFF, IMPACT_DURATION);
+                    impact(companion.pos, 0xA58BFF, 5, 15);
+                    particles(companion.pos, Speck.BLUE_LIGHT, 4);
                 } else {
-                    particles(companion.pos, Speck.STAR, 5);
+                    missile(companion, cell, MagicMissile.MAGIC_MISSILE, cue);
+                    particles(companion.pos, Speck.BLUE_LIGHT, 4);
                 }
                 break;
-            case 4: // Duelist: crossing sword flashes.
-                impact(cell, 0xE2ECFF, 4, 17);
-                particles(cell, Speck.STAR, 5);
+            case 2: // Rogue: launch a distinct shadow strike from CoHero.
+                particles(companion.pos, Speck.SMOKE, 5);
+                if (heroClass == 5) {
+                    casterFlare(companion, 0x9B80B6, IMPACT_DURATION);
+                } else {
+                    missile(companion, cell, MagicMissile.SHADOW, cue);
+                }
                 break;
-            case 5: // Cleric: both allies glow with healing or protective light.
-                casterFlare(hero, 0xFFE3A2, IMPACT_DURATION);
+            case 3: // Huntress: CoHero owns this second prismatic ray.
+                if (heroClass != 5) {
+                    prismaticRay(companion, cell);
+                }
+                particles(companion.pos, Speck.STAR, 5);
+                break;
+            case 4: // Duelist: the follow-up slash is prepared by CoHero.
+                casterFlare(companion, 0xA9E7FF, IMPACT_DURATION);
+                particles(companion.pos, Speck.STAR, 6);
+                break;
+            case 5: // Cleric: support energy rises from CoHero.
                 casterFlare(companion, 0xFFE3A2, IMPACT_DURATION);
-                particles(hero.pos, Speck.HEALING, 4);
-                particles(companion.pos, Speck.HEALING, 4);
+                impact(companion.pos, 0xFFE7A0, 8, 22);
+                particles(companion.pos, Speck.HEALING, 5);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown CoHero combo accent: " + kind);
@@ -284,13 +287,15 @@ public final class CoHeroComboFX {
                     Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);
                 }
                 break;
-            case 2:
+            case 2: // The shadow strike reaches its target at the joint impact.
+                impact(cell, 0x9B80B6, 3, 14);
                 particles(cell, Speck.SMOKE, 5);
                 break;
             case 3:
                 rainbow(cell, 5);
                 break;
-            case 4:
+            case 4: // CoHero's crossing slash lands here, not at launch.
+                impact(cell, 0xE2ECFF, 4, 17);
                 particles(cell, Speck.STAR, 5);
                 break;
             case 5:
@@ -307,12 +312,11 @@ public final class CoHeroComboFX {
      * plus the RAY sound. The real wand immediately invokes its callback;
      * the combo retains its separate impact/wind-up schedule.
      */
-    private static void prismaticRay(Char preferred, Char alternate, int cell) {
+    private static void prismaticRay(Char source, int cell) {
         // The selected enemy aims the ray, but does not terminate it. Mirror
         // CoHeroCombo.piercingLane: extend through mobs up to solid terrain.
-        Char source = clearVisiblePiercingShot(preferred, cell) ? preferred
-                : clearVisiblePiercingShot(alternate, cell) ? alternate : null;
-        if (source == null) {
+        // A blocked caster keeps their own wind-up; never fire from their partner.
+        if (!clearVisiblePiercingShot(source, cell)) {
             return;
         }
         Ballistica line = new Ballistica(source.pos, cell, Ballistica.STOP_SOLID);
@@ -409,11 +413,8 @@ public final class CoHeroComboFX {
         }
     }
 
-    private static void missile(Char preferred, Char alternate, int cell,
-                                int type, Cue cue) {
-        Char source = clearVisibleShot(preferred, cell) ? preferred
-                : clearVisibleShot(alternate, cell) ? alternate : null;
-        if (source != null) {
+    private static void missile(Char source, int cell, int type, Cue cue) {
+        if (clearVisibleShot(source, cell)) {
             // Wait for the actual stock SPD missile callback; fixed wall-clock
             // timing can kill an enemy before a long-range projectile arrives.
             cue.pendingMissiles++;
