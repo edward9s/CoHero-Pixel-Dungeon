@@ -20,6 +20,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vulnerable;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Weakness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
@@ -371,7 +372,7 @@ public final class CoHeroCombo {
                 && mob != null && mob.pos >= 0 && mob.pos < Dungeon.level.length()
                 && Dungeon.level.heroFOV[mob.pos]
                 && mob.sprite != null && mob.sprite.visible && mob.sprite.parent != null
-                && validAttackTarget(mob, hero, companion);
+                && validAttackTarget(mob, hero, companion, false);
     }
 
     private static Mob preferredAutoTarget() {
@@ -400,10 +401,18 @@ public final class CoHeroCombo {
         return closest;
     }
 
-    /** Same validation for auto-aim and user-chosen targets. */
-    private static boolean validAttackTarget(Mob mob, Hero hero, CoHeroAlly companion) {
+    // Only the explicitly chosen target may be a disguised neutral Mimic.
+    // Automatic selection and collateral damage must not reveal other Mimics.
+    private static boolean isComboEnemy(Mob mob, Mob selectedTarget) {
+        return mob != null && (mob.alignment == Char.Alignment.ENEMY
+                || (mob == selectedTarget && mob instanceof Mimic
+                    && mob.alignment == Char.Alignment.NEUTRAL));
+    }
+
+    private static boolean validAttackTarget(Mob mob, Hero hero, CoHeroAlly companion,
+                                             boolean manualSelection) {
         return mob != null && mob.isAlive()
-                && mob.alignment == Char.Alignment.ENEMY
+                && isComboEnemy(mob, manualSelection ? mob : null)
                 && mob.pos >= 0 && mob.pos < Dungeon.level.length()
                 && Actor.findChar(mob.pos) == mob
                 && !mob.isInvulnerable(hero.getClass())
@@ -435,7 +444,7 @@ public final class CoHeroCombo {
             }
             Char selected = Actor.findChar(cell);
             if (!(selected instanceof Mob)
-                    || !validAttackTarget((Mob) selected, hero, companion)) {
+                    || !validAttackTarget((Mob) selected, hero, companion, true)) {
                 GLog.w(CoHeroMessages.get("combo.invalid_target"));
                 return;
             }
@@ -487,12 +496,12 @@ public final class CoHeroCombo {
         HashSet<Integer> pierced = new HashSet<>();
         switch (mainClass) {
             case 0: // Warrior: hit now; push only after CoHero follows up.
-                damageArea(hero, impactCell, 1, power);
+                damageArea(hero, impactCell, 1, power, target);
                 break;
             case 1: // Mage: suppress even enemies outside the damaging center.
-                damageArea(hero, target.pos, 1, power);
+                damageArea(hero, target.pos, 1, power, target);
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                    if (inClearArea(target.pos, 2, mob)) {
+                    if (inClearArea(target.pos, 2, mob, target)) {
                         Buff.prolong(mob, Weakness.class, 3f);
                         Buff.prolong(mob, Cripple.class, 2f);
                     }
@@ -500,26 +509,26 @@ public final class CoHeroCombo {
                 break;
             case 2: // Rogue: execute a weak target then disengage safely.
                 damageEnemy(hero, target, power * 2
-                        + (target.HP < target.HT / 2 ? power / 2 : 0));
+                        + (target.HP < target.HT / 2 ? power / 2 : 0), target);
                 retreatFrom(hero, companion, target.pos);
                 Buff.prolong(hero, Invisibility.class, 2f);
                 break;
             case 3: // Huntress: terrain-bounded piercing ray and vision denial.
                 pierceLane(hero, piercingLane(hero, impactCell),
-                        impactCell, power + hero.lvl, pierced);
+                        impactCell, power + hero.lvl, pierced, target);
                 if (target.isAlive()) {
                     Buff.prolong(target, Blindness.class, 2f);
                 }
                 break;
             case 4: // Duelist: focused duel plus close-range sword sweep.
-                damageEnemy(hero, target, power * 2);
+                damageEnemy(hero, target, power * 2, target);
                 int swept = 0;
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
                     if (mob != target && mob.isAlive()
                             && (Dungeon.level.distance(hero.pos, mob.pos) <= 1
                                 || Dungeon.level.distance(companion.pos, mob.pos) <= 1)
                             && canTargetFromEitherHero(mob.pos, hero, companion)) {
-                        damageEnemy(hero, mob, power / 2);
+                        damageEnemy(hero, mob, power / 2, null);
                         if (++swept == 2) {
                             break;
                         }
@@ -544,8 +553,8 @@ public final class CoHeroCombo {
             case 1: // Mage: chain to two nearby, unobstructed enemies.
                 int chained = 0;
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                    if (mob != target && inClearArea(target.pos, 2, mob)) {
-                        damageEnemy(hero, mob, Math.max(1, power / 2));
+                    if (mob != target && inClearArea(target.pos, 2, mob, null)) {
+                        damageEnemy(hero, mob, Math.max(1, power / 2), null);
                         if (mob.isAlive()) {
                             Buff.prolong(mob, Weakness.class, 2f);
                         }
@@ -563,7 +572,7 @@ public final class CoHeroCombo {
                 break;
             case 3: // Huntress: a second, independently calculated firing lane.
                 pierceLane(hero, piercingLane(companion, impactCell),
-                        impactCell, Math.max(1, power / 2), pierced);
+                        impactCell, Math.max(1, power / 2), pierced, target);
                 if (target.isAlive()) {
                     Buff.prolong(target, Blindness.class, 2f);
                 }
@@ -571,7 +580,7 @@ public final class CoHeroCombo {
             case 4: // Duelist: close-range follow-up; otherwise pin the prey.
                 if (target.isAlive()) {
                     if (Dungeon.level.distance(companion.pos, target.pos) <= 2) {
-                        damageEnemy(hero, target, 5 + hero.lvl);
+                        damageEnemy(hero, target, 5 + hero.lvl, target);
                     }
                     if (target.isAlive()) {
                         Buff.prolong(target, Cripple.class, 3f);
@@ -597,7 +606,7 @@ public final class CoHeroCombo {
         // preserving the partner's follow-up range and piercing direction.
         if (mainClass == 0) {
             for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                if (inClearArea(impactCell, 1, mob)) {
+                if (inClearArea(impactCell, 1, mob, target)) {
                     pushAway(mob, hero, companion);
                 }
             }
@@ -614,9 +623,9 @@ public final class CoHeroCombo {
                 Buff.prolong(companion, Bless.class, 3f);
                 break;
             case 1: // Mage: cleansing wave and enemy suppression.
-                damageArea(hero, hero.pos, 2, 7 + hero.lvl);
+                damageArea(hero, hero.pos, 2, 7 + hero.lvl, null);
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                    if (inClearArea(hero.pos, 2, mob)) {
+                    if (inClearArea(hero.pos, 2, mob, null)) {
                         Buff.prolong(mob, Cripple.class, 3f);
                     }
                 }
@@ -638,7 +647,7 @@ public final class CoHeroCombo {
                     if (mob.alignment == Char.Alignment.ENEMY && mob.isAlive()
                             && Dungeon.level.distance(companion.pos, mob.pos) <= 4
                             && canTargetFromEitherHero(mob.pos, hero, companion)) {
-                        damageEnemy(hero, mob, 3 + hero.lvl);
+                        damageEnemy(hero, mob, 3 + hero.lvl, null);
                         if (mob.isAlive()) {
                             Buff.prolong(mob, Blindness.class, 3f);
                         }
@@ -684,7 +693,8 @@ public final class CoHeroCombo {
     }
 
     private static void pierceLane(Hero caster, Ballistica line, int targetCell,
-                                   int amount, HashSet<Integer> alreadyHit) {
+                                   int amount, HashSet<Integer> alreadyHit,
+                                   Mob selectedTarget) {
         if (line == null) {
             return;
         }
@@ -696,9 +706,9 @@ public final class CoHeroCombo {
         }
         for (int cell : line.subPath(1, line.dist)) {
             Char ch = Actor.findChar(cell);
-            if (ch instanceof Mob && ch.alignment == Char.Alignment.ENEMY
+            if (ch instanceof Mob && isComboEnemy((Mob) ch, selectedTarget)
                     && alreadyHit.add(ch.id())) {
-                damageEnemy(caster, (Mob) ch, amount);
+                damageEnemy(caster, (Mob) ch, amount, selectedTarget);
             }
         }
     }
@@ -787,24 +797,27 @@ public final class CoHeroCombo {
         return false;
     }
 
-    private static boolean inClearArea(int center, int radius, Mob mob) {
-        return mob.isAlive() && mob.alignment == Char.Alignment.ENEMY
+    private static boolean inClearArea(int center, int radius, Mob mob,
+                                       Mob selectedTarget) {
+        return mob.isAlive() && isComboEnemy(mob, selectedTarget)
                 && Dungeon.level.distance(center, mob.pos) <= radius
                 && !Dungeon.level.solid[mob.pos]
                 && new Ballistica(center, mob.pos,
                         Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == mob.pos;
     }
 
-    private static void damageArea(Hero caster, int center, int radius, int amount) {
+    private static void damageArea(Hero caster, int center, int radius, int amount,
+                                   Mob selectedTarget) {
         for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-            if (inClearArea(center, radius, mob)) {
-                damageEnemy(caster, mob, amount);
+            if (inClearArea(center, radius, mob, selectedTarget)) {
+                damageEnemy(caster, mob, amount, selectedTarget);
             }
         }
     }
 
-    private static void damageEnemy(Hero caster, Mob mob, int amount) {
-        if (mob.alignment == Char.Alignment.ENEMY && mob.isAlive()
+    private static void damageEnemy(Hero caster, Mob mob, int amount,
+                                    Mob selectedTarget) {
+        if (isComboEnemy(mob, selectedTarget) && mob.isAlive()
                 && !mob.isInvulnerable(caster.getClass()) && amount > 0) {
             mob.damage(amount, caster);
         }
