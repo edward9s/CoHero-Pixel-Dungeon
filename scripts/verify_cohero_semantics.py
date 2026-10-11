@@ -163,6 +163,12 @@ def verify_combo_semantics(root: Path, package_root: Path):
     require_calls("validAutoTarget", "validAttackTarget", ("false",))
     require_calls("cast", "validAttackTarget", ("true",))
     require_calls("preferredAutoTarget", "validAutoTarget", ("last", "mob"))
+    auto = re.sub(r"\s+", "", body("validAutoTarget"))
+    reticle = re.sub(r"\s+", "", body("aimTarget"))
+    if ("Dungeon.level.heroFOV[mob.pos]" not in auto
+            or "mob.sprite.visible" not in auto
+            or "!Dungeon.level.heroFOV[aimedTarget.pos]" not in reticle):
+        raise AssertionError("Auto-aim and reticle must respect Hero vision")
     predicate = re.sub(r"\s+", "", body("isComboEnemy"))
     for term in (
         "mob.alignment==Char.Alignment.ENEMY",
