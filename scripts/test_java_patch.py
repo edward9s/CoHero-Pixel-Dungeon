@@ -463,6 +463,555 @@ def test_non_java_patch_resilience():
             raise AssertionError("new upstream locale did not fall back to base CoHero messages")
 
 
+
+def test_combo_attack_patch_and_catalog():
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "Char.java"
+        source.write_text(
+            "class Char {\n"
+            "    void attack(Char enemy, int effectiveDamage) {\n"
+            "        enemy.damage( effectiveDamage, this );\n"
+            "    }\n"
+            "}\n", encoding="utf-8")
+        command = [sys.executable, str(patch_dir / "patch_combo_attack.py"), str(source)]
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        patched = source.read_text(encoding="utf-8")
+        if patched.count("CoHeroCombo.onAttack(this, enemy, coHeroComboHpBefore)") != 1:
+            raise AssertionError("Combo hook must run exactly once after an applied attack")
+        if patched.index("int coHeroComboHpBefore") > patched.index("enemy.damage("):
+            raise AssertionError("Combo damage hook must capture HP before damage")
+        if subprocess.run(command, capture_output=True, text=True).returncode == 0:
+            raise AssertionError("Re-applying combo hook must fail fast")
+
+    # The combo patch must be part of the unattended integration pipeline.
+    integration = (root / "integration/shattered/apply.sh").read_text(encoding="utf-8")
+    if 'patch_combo_attack.py' not in integration:
+        raise AssertionError("Combo attack hook is missing from apply.sh")
+
+    source = (root / "core/src/main/java/com/spd/cohero/CoHeroCombo.java").read_text(
+        encoding="utf-8")
+    for required in (
+        "MAX_ENERGY = 180",
+        "CAST_COST = 60",
+        "PAIR_WINDOW = 3f",
+        "gain(8);",
+        "gain(5);",
+        "gain(4);",
+        "hero.spendAndNext(Actor.TICK)",
+        "companion.spendComboTurn()",
+    ):
+        if required not in source:
+            raise AssertionError(f"Combo gameplay invariant missing: {required}")
+
+    # A missing Link field is normal in saves from before the feature existed.
+    # Keep saved values and fail fast for corrupt/out-of-range values.
+    restore_start = source.index("public static void restore(Bundle bundle)")
+    restore_end = source.index("public static void onLevelChanged()", restore_start)
+    restore = source[restore_start:restore_end]
+    if "bundle.contains(ENERGY_KEY) ? bundle.getInt(ENERGY_KEY) : 0" not in restore:
+        raise AssertionError("Old saves must start with zero Link instead of failing")
+    if "energy < 0 || energy > MAX_ENERGY" not in restore:
+        raise AssertionError("Existing out-of-range Link values must still fail")
+    if "clearTransientState()" not in restore:
+        raise AssertionError("Restoring a save must discard transient combo pairing")
+
+    wand_patch = (patch_dir / "patch_wand_base.py").read_text(encoding="utf-8")
+    if wand_patch.count("CoHeroCombo.onWandZap(") != 2:
+        raise AssertionError("Both Hero and CoHero Wand cast paths must score Link")
+    if "onWandZap(Wand wand, Char caster," not in source:
+        raise AssertionError("Wand damage window is missing")
+    if "recordAttack(caster, primary, before.get(primary), true)" not in source:
+        raise AssertionError("Wand cast must choose exactly one pairing candidate")
+    if "recordAttack(caster, mob, before.get(mob), false)" not in source:
+        raise AssertionError("Secondary wand victims must be excluded from pairing")
+
+    hud_tag = (root / "core/src/main/java/com/spd/cohero/CoHeroComboIndicator.java").read_text(
+        encoding="utf-8")
+    if 'energy + "/" + CoHeroCombo.MAX_ENERGY' not in hud_tag:
+        raise AssertionError("Link Tag must display current/max values")
+    if "CoHeroCombo.requestCast()" not in hud_tag:
+        raise AssertionError("Link Tag must initiate the ultimate")
+    for required in (
+        "ColorBlock[] notches = new ColorBlock[3]",
+        "int charges = energy / CoHeroCombo.CAST_COST",
+        "CHARGE_COLORS[charges]",
+        "onLongClick()",
+        "CoHeroCombo.skillDescription()",
+        "count.measure()",
+        "Math.min(0.68f",
+    ):
+        if required not in hud_tag:
+            raise AssertionError(f"Three-stage ultimate Tag missing: {required}")
+    if "notches[i].y = y + 3f;" not in hud_tag:
+        raise AssertionError("Link charge notches must sit two pixels below their original edge")
+    # The original Duelist armor ability 'Challenge' uses HeroIcon.CHALLENGE
+    # on SPD's shared 16x16 hero-icons sheet; never ship a replacement PNG.
+    for required in (
+        "import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;",
+        "import com.shatteredpixel.shatteredpixeldungeon.ui.HeroIcon;",
+        "icon = new HeroIcon(new Challenge());",
+        "public static final int HEIGHT = 30;",
+        "private static final int EMPTY_COLOR = 0x404955;",
+        "icon.y = y + 6f;",
+        "count.y = y + height - count.height() - 1f;",
+    ):
+        if required not in hud_tag:
+            raise AssertionError(f"Frameless original Duelist icon layout missing: {required}")
+    if any(token in hud_tag for token in (
+            "new Image(ICON)", "cohero_combo.png", "firstSword", "secondSword",
+            ".angle =", "ICON_SCALE", "FRAME_SIZE", "frameTop", "frameBottom",
+            "frameLeft", "frameRight", "icon.scale.set(")):
+        raise AssertionError("Ultimate Tag still uses custom or rotated artwork")
+    if (root / "core/src/main/assets/interfaces/cohero_combo.png.b64").exists():
+        raise AssertionError("Obsolete custom combo PNG must be removed")
+    integration_sh = (root / "integration/shattered/apply.sh").read_text(encoding="utf-8")
+    if "cohero_combo.png" in integration_sh:
+        raise AssertionError("No custom combo icon decoding should remain in the build")
+    if ("scene.coHeroCombo.setRect( tagLeft, pos - com.spd.cohero.CoHeroComboIndicator.HEIGHT," not in (
+                patch_dir / "patch_gamescene.py").read_text(encoding="utf-8")):
+        raise AssertionError("Combo Tag must reserve 30px without colliding with the counter")
+
+    # Test-only refill starts on the next non-ready Hero.act, not on click or UI redraw.
+    settings = (root / "core/src/main/java/com/spd/cohero/CoHeroSettings.java").read_text(encoding="utf-8")
+    tab = (root / "core/src/main/java/com/spd/cohero/CoHeroSettingsTab.java").read_text(encoding="utf-8")
+    hero_patch = (patch_dir / "patch_hero.py").read_text(encoding="utf-8")
+    if ("GameSettings.getBoolean(AUTO_FILL_LINK, false)" not in settings
+            or 'new CheckBox(CoHeroMessages.get("settings.auto_fill_link"))' not in tab
+            or "CoHeroSettings.setAutoFillLinkEnabled(checked())" not in tab):
+        raise AssertionError("Opt-in Link test flag must be disabled by default and editable")
+    if ('if (!ready) com.spd.cohero.CoHeroCombo.onHeroTurn();' not in hero_patch
+            or "CoHeroSettings.autoFillLinkEnabled() && energy < CAST_COST" not in source
+            or "energy = MAX_ENERGY;" not in source):
+        raise AssertionError("Link test refill must occur on next Hero turn under 60 only")
+
+    # The test option's *visibility* is a separate global flag. Every eligible
+    # debug-log false->true transition toggles it; disabling debug never toggles.
+    for required in (
+        'private static final String TEST_OPTIONS_VISIBLE = "cohero_test_options_visible";',
+        "GameSettings.getBoolean(TEST_OPTIONS_VISIBLE, false)",
+        "GameSettings.put(TEST_OPTIONS_VISIBLE, !testOptionsVisible())",
+        "inventory.weapon() != null || inventory.armor() != null",
+        "inventory.ringOne() != null || inventory.ringTwo() != null",
+        "item instanceof Waterskin",
+        "item instanceof VelvetPouch",
+        "if (!hasWaterskin || !hasVelvetPouch)",
+    ):
+        if required not in settings:
+            raise AssertionError(f"Hidden test unlock rules incomplete: {required}")
+    for required in (
+        "if (checked() && CoHeroSettings.toggleTestOptionsIfEligible(companion))",
+        "updateTestOptionVisibility();",
+        "autoFillLink.visible = autoFillLink.active = CoHeroSettings.testOptionsVisible();",
+        "if (CoHeroSettings.testOptionsVisible())",
+    ):
+        if required not in tab:
+            raise AssertionError(f"Hidden test checkbox visibility incomplete: {required}")
+
+    game_scene = (patch_dir / "patch_gamescene.py").read_text(encoding="utf-8")
+    for required in ("combo_tag_create_marker", "tagCoHeroCombo", "scene.coHeroCombo.flip(tagsOnLeft)"):
+        if required not in game_scene:
+            raise AssertionError(f"Combo Tag layout is incomplete: {required}")
+    inventory = (root / "core/src/main/java/com/spd/cohero/WndCompanionInventory.java").read_text(
+        encoding="utf-8")
+    if "CoHeroCombo.skillDescription()" not in inventory:
+        raise AssertionError("Inventory must explain its class-pair ultimate")
+    if ("CoHeroCombo.requestCast()" in inventory
+            or 'CoHeroMessages.get("combo.energy"' in inventory):
+        raise AssertionError("Inventory must not contain a combo meter or cast button")
+    if "addStatCell(" in inventory or 'labels[i] + " " + values[i]' not in inventory:
+        raise AssertionError("Companion stats must show inline name/value pairs")
+    for required in (
+        "addTwoRowStats(0, startY, layoutWidth)",
+        "addTwoRowStats(0, comboBottom + 4, leftWidth)",
+        "for (int row = 0; row < 2; row++)",
+        "for (int col = 0; col < 3; col++)",
+        "float first = stats[0].width()",
+        "float second = stats[3].width()",
+    ):
+        if required not in inventory:
+            raise AssertionError(f"Both orientations must explicitly use two stats rows: {required}")
+    if "addCompactStats(" in inventory:
+        raise AssertionError("Remove former variable-wrapping stats layout")
+    # Both orientations must show combo -> stats -> equipment.
+    # Landscape keeps this sequence inside the left panel only.
+    portrait = inventory[inventory.index("private void layoutPortrait("):
+                         inventory.index("private void layoutLandscape(")]
+    landscape = inventory[inventory.index("private void layoutLandscape("):
+                          inventory.index("private float addEquipment(")]
+    constructor = inventory[:inventory.index("private void layoutPortrait(")]
+    if ("layoutPortrait(addComboInfo(0, contentY, layoutWidth) + 4)" not in constructor
+            or "layoutLandscape(contentY)" not in constructor):
+        raise AssertionError("Portrait combo must precede portrait stats")
+    if ('addComboInfo(0, startY, leftWidth)' not in landscape
+            or 'addTwoRowStats(0, comboBottom + 4, leftWidth)' not in landscape
+            or 'addEquipment(0, statsBottom + 5)' not in landscape
+            or landscape.index("addComboInfo(") > landscape.index("addTwoRowStats(")
+            or landscape.index("addTwoRowStats(") > landscape.index("addEquipment(")
+            or "addComboInfo(" in portrait):
+        raise AssertionError("Landscape left panel must order combo, stats, equipment")
+    # Only Cleric-led (6) ultimates self-cast. The other 30 should open
+    # auto-aim targeting, reusing ModAssassinate's preferred-last-target flow.
+    # A second Tag press confirms the reticle; manual map selection still works.
+    for required in (
+        "if (classIndex(Dungeon.hero.heroClass) == 5)",
+        "cast(null);",
+        "targetSelector = listener;",
+        "GameScene.selectCell(listener);",
+        "aimedTarget = preferredAutoTarget();",
+        "if (targetSelector != null)",
+        "GameScene.handleCell(target.pos);",
+        "GameScene.cancelCellSelector();",
+        "QuickSlotButton.lastTarget instanceof Mob",
+        "if (validAutoTarget(last))",
+        "for (Mob mob : Dungeon.level.mobs)",
+        "Dungeon.level.heroFOV[mob.pos]",
+        "mob.sprite != null && mob.sprite.visible && mob.sprite.parent != null",
+        "validAttackTarget(mob, hero, companion)",
+        "Actor.findChar(mob.pos) == mob",
+        "QuickSlotButton.target(target);",
+        "clearTargetSelection();",
+        "if (cell != null)",
+    ):
+        if required not in source:
+            raise AssertionError(f"Combo auto-target and manual selection rule missing: {required}")
+    # Only the cast path consumes a charge; aiming/cancelling must not spend
+    # either actor's turn or expose an unseen CoHero-only enemy.
+    pre_cast = source[source.index("public static void requestCast()"):
+                      source.index("private static void cast(Integer cell)")]
+    for forbidden in ("energy -= CAST_COST", "spendComboTurn()", "spendAndNext("):
+        if forbidden in pre_cast:
+            raise AssertionError(f"Combo aim should not spend resources: {forbidden}")
+    if "public static Mob aimTarget()" not in source or "aimedTarget = preferredAutoTarget();" in (
+            source[source.index("public static Mob aimTarget()"):
+                   source.index("private static boolean validAutoTarget(")]):
+        raise AssertionError("HUD must not redo full auto-target search every frame")
+    for required in (
+        "crosshair = Icons.TARGET.get();",
+        "refreshCrosshair();",
+        "CoHeroCombo.aimTarget();",
+        "crosshair.point(aim.sprite.center(crosshair));",
+        "crosshair.remove();",
+        "public void destroy()",
+    ):
+        if required not in hud_tag:
+            raise AssertionError(f"Combo auto-target reticle missing: {required}")
+
+    if "companion.canPerformCombo()" not in source:
+        raise AssertionError("Combo must not interrupt a pending companion movement/decision")
+    for required in (
+        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID",
+        "for (int cell : line.subPath(1, line.dist))",
+        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == mob.pos",
+    ):
+        if required not in source:
+            raise AssertionError(f"Ultimate must not reach enemies behind terrain: {required}")
+
+    # Six tactical main effects and six companion roles must compose one
+    # deterministic, bounded action without adding 36 bespoke abilities.
+    tactical = source[source.index("private static void performAttackUltimate("):
+                      source.index("private static void performClericUltimate(")]
+    main = tactical[tactical.index("switch (mainClass)"):
+                    tactical.index("switch (partnerClass)")]
+    partner = tactical[tactical.index("switch (partnerClass)"):]
+    import re
+    if len(re.findall(r"case [0-4]:", main)) != 5:
+        raise AssertionError("Missing one of five offensive tactical identities")
+    if len(re.findall(r"case [0-5]:", partner)) != 6:
+        raise AssertionError("Missing one of six companion cooperative roles")
+    for required in (
+        "pushAway(mob, hero, companion);",
+        "inClearArea(target.pos, 2, mob)",
+        "Buff.prolong(mob, Weakness.class, 3f);",
+        "retreatFrom(hero, companion, target.pos);",
+        "Buff.prolong(hero, Invisibility.class, 2f);",
+        "pierceLane(hero, piercingLane(hero, companion, target.pos)",
+        "Buff.prolong(target, Blindness.class, 2f);",
+        "if (++swept == 2)",
+        "Buff.prolong(hero, Bless.class, 3f);",
+        "if (++chained == 2)",
+        "pierceLane(hero, piercingLane(companion, hero, target.pos)",
+        "PotionOfCleansing.cleanse(companion);",
+        "if (hero.HP * 2 <= hero.HT || companion.HP * 2 <= companion.HT)",
+    ):
+        if required not in tactical:
+            raise AssertionError(f"Cooperative tactical effect missing: {required}")
+    for required in (
+        "private static void pushAway(Mob mob, Hero hero, CoHeroAlly companion)",
+        "WandOfBlastWave.throwChar(mob, pushLine, 1, false, false, CoHeroCombo.class);",
+        "new Ballistica(mob.pos, destination, Ballistica.PROJECTILE)",
+        "Char.hasProp(mob, Char.Property.BOSS)",
+        "safeDisplacementCell(destination)",
+        "private static boolean safeDisplacementCell(int cell)",
+        "!Dungeon.level.avoid[cell] && !Dungeon.level.pit[cell]",
+        "Dungeon.level.traps.get(cell) == null",
+        "Actor.findChar(cell) == null",
+        "Blob.volumeAt(cell, Fire.class) == 0",
+        "Blob.volumeAt(cell, ToxicGas.class) == 0",
+        "Blob.volumeAt(cell, ParalyticGas.class) == 0",
+        "Blob.volumeAt(cell, CorrosiveGas.class) == 0",
+        "Blob.volumeAt(cell, ConfusionGas.class) == 0",
+        "Blob.volumeAt(cell, Electricity.class) == 0",
+        "private static void retreatFrom(Hero hero, CoHeroAlly companion, int threatCell)",
+        "safeDisplacementCell(candidate)",
+        "adjacentHostile(candidate)",
+        "Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE",
+        "ScrollOfTeleportation.teleportToLocation(hero, best);",
+        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell",
+        "new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID)",
+        "new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID)",
+        "for (int cell : line.subPath(1, line.dist))",
+        "alreadyHit.add(ch.id())",
+    ):
+        if required not in source:
+            raise AssertionError(f"Safe movement or piercing invariant missing: {required}")
+    if "case 1: // Mage:" not in source or "case 2: // Rogue:" not in source:
+        raise AssertionError("Cleric support pairings must retain tactical class identities")
+
+    # Six main motifs and partner accents remain visual-only, but confirmed
+    # combo damage waits until all visible SPD missiles have actually arrived.
+    # This is essential at long range: a 0.30s fixed hit can precede the shot.
+    fx = (root / "core/src/main/java/com/spd/cohero/CoHeroComboFX.java").read_text(
+        encoding="utf-8")
+    cast = source[source.index("private static void cast(Integer cell)"):
+                  source.index("private static boolean canTargetFromEitherHero(")]
+    for required in (
+        "energy -= CAST_COST;",
+        "hero.busy();",
+        "final Mob victim = target;",
+        "CoHeroComboFX.play(",
+        "new Runnable()",
+        "public void run()",
+        "performClericUltimate(hero, companion, partnerClass)",
+        "performAttackUltimate(hero, companion, victim, mainClass, partnerClass)",
+        "companion.spendComboTurn();",
+        "hero.spendAndNext(Actor.TICK);",
+    ):
+        if required not in cast:
+            raise AssertionError(f"Combo deferred impact missing: {required}")
+    if not (cast.index("energy -= CAST_COST;") < cast.index("hero.busy();")
+            < cast.index("CoHeroComboFX.play(") < cast.index("public void run()")
+            < cast.index("performAttackUltimate(") < cast.index("spendComboTurn()")
+            < cast.index("hero.spendAndNext(")):
+        raise AssertionError("Damage and both actor turns must wait for the impact")
+
+    for required in (
+        "int companionClass, Runnable onImpact)",
+        "private final Runnable onImpact;",
+        "hero.sprite.parent.add(new Cue(",
+        "private static final float MAIN_START = 0.12f;",
+        "private static final float PARTNER_START = 0.30f;",
+        "private static final float HIT_MIN_START = 0.62f;",
+        "private static final float MAX_PROJECTILE_WAIT = 1.80f;",
+        "private static final float HIT_SETTLE = 0.14f;",
+        "private static final float HIT_TAIL = 0.30f;",
+        "private int pendingMissiles;",
+        "cue.pendingMissiles++;",
+        "new Callback()",
+        "cue.missileArrived();",
+        "pendingMissiles--;",
+        "stage = 2;",
+        "pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT",
+        "stage = 3;",
+        "jointImpact(",
+        "elapsed >= impactTime + HIT_SETTLE",
+        "stage = 4;",
+        "onImpact.run();",
+        "elapsed >= impactTime + HIT_TAIL",
+        "killAndErase()",
+        "Dungeon.level.heroFOV[cell]",
+        "Dungeon.level != level || Dungeon.hero != hero",
+        "recycle(MagicMissile.class)",
+        "CellEmitter.center(cell).burst(",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Projectile-synchronized impact rule missing: {required}")
+    if fx.count("onImpact.run();") != 2:
+        raise AssertionError("Only the actual hit and headless fallback may resolve gameplay")
+    # Keep timing assertions robust when the joint-hit helper gains parameters.
+    cue_update = fx[fx.index("public void update()"):
+                    fx.index("private static void primary(")]
+    if not (cue_update.index("elapsed >= PARTNER_START")
+            < cue_update.index("accent(hero, companion, center, heroClass, companionClass, this);")
+            < cue_update.index("pendingMissiles == 0 || elapsed >= MAX_PROJECTILE_WAIT")
+            < cue_update.index("stage = 3;")
+            < cue_update.index("jointImpact(")
+            < cue_update.index("elapsed >= impactTime + HIT_SETTLE")
+            < cue_update.index("stage = 4;")
+            < cue_update.index("onImpact.run();")
+            < cue_update.index("elapsed >= impactTime + HIT_TAIL")):
+        raise AssertionError("Last strike must visibly occur after missiles arrive, before damage")
+    if "arcaneExplosion(cell, true);" not in fx[fx.index("private static void jointImpact("):
+                                               fx.index("private static void arcaneExplosion(")]:
+        raise AssertionError("Mage blast must detonate on the real hit, not at launch")
+    # Disintegration-style piercing: selecting an enemy fixes the direction,
+    # NOT the endpoint. Travel past that enemy and hit each mob once, stopping
+    # at solid terrain. Target legality still uses STOP_TARGET on a separate
+    # validation ray, but the actual ray uses only STOP_SOLID.
+    gameplay_ray = source[source.index("private static Ballistica piercingLane("):
+                          source.index("private static void pushAway(")]
+    for required in (
+        "new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID)",
+        "new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID)",
+        "for (int cell : line.subPath(1, line.dist))",
+        "Char ch = Actor.findChar(cell);",
+        "alreadyHit.add(ch.id())",
+        "damageEnemy(caster, (Mob) ch, amount);",
+    ):
+        if required not in gameplay_ray:
+            raise AssertionError(f"Piercing beam cannot stop at marked enemy: {required}")
+    if "distance(line.sourcePos, targetCell)" in gameplay_ray:
+        raise AssertionError("Piercing range must not be truncated at selected enemy")
+    if "new Ballistica(preferred.pos, cell, Ballistica.STOP_TARGET" in gameplay_ray:
+        raise AssertionError("Actual Huntress ray must not stop on marked enemy")
+
+    # Huntress must reuse the actual Prismatic Light wand ray, never the
+    # generic LIGHT_MISSILE projectile; both the Hero and companion accent
+    # have distinct ray origins and cannot reveal terrain outside Hero FOV.
+    for required in (
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.Beam;",
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.particles.RainbowParticle;",
+        "prismaticRay(hero, cell);",
+        "prismaticRay(companion, cell);",
+        "private static void prismaticRay(Char source, int cell)",
+        "new Beam.LightRay(source.sprite.center(),",
+        "DungeonTilemap.raisedTileCenterToWorld(visualEnd)",
+        "Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);",
+        "Ballistica line = new Ballistica(source.pos, cell, Ballistica.STOP_SOLID);",
+        "private static boolean clearVisiblePiercingShot(Char actor, int cell)",
+        "for (int pathCell : line.subPath(1, line.dist))",
+        "if (!visible(pathCell) || Dungeon.level.solid[pathCell])",
+        "visualEnd = pathCell;",
+        "CellEmitter.center(cell).burst(RainbowParticle.BURST, count);",
+        "private static void jointImpact(Hero hero, CoHeroAlly companion, int cell,",
+        "case 0: // Warrior:",
+        "case 2: // Rogue:",
+        "case 3: // Huntress:",
+        "case 4: // Duelist:",
+        "case 5: // Cleric:",
+        "impact(cell, 0xE7F5FF, 12, 27);",
+        "rainbow(cell, 14);",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Stock prismatic ray or stronger hit motif missing: {required}")
+    primary_fx = fx[fx.index("private static void primary("):
+                    fx.index("private static void accent(")]
+    partner_fx = fx[fx.index("private static void accent("):
+                    fx.index("private static void jointImpact(")]
+    if "MagicMissile.LIGHT_MISSILE" in primary_fx + partner_fx:
+        raise AssertionError("Huntress must not fall back to a normal light missile")
+    # Both visible actors must start their own motifs, never silently
+    # switch the missile/beam origin to the other character.
+    for required in (
+        "missile(hero, cell, MagicMissile.MAGIC_MISSILE, cue);",
+        "missile(hero, cell, MagicMissile.SHADOW, cue);",
+        "missile(companion, cell, MagicMissile.MAGIC_MISSILE, cue);",
+        "missile(companion, cell, MagicMissile.SHADOW, cue);",
+        "private static void missile(Char source, int cell, int type, Cue cue)",
+        "if (clearVisibleShot(source, cell))",
+        "if (!clearVisiblePiercingShot(source, cell))",
+        "casterFlare(companion, 0xC3D1DA, IMPACT_DURATION);",
+        "casterFlare(companion, 0xA9E7FF, IMPACT_DURATION);",
+        "casterFlare(companion, 0xFFE3A2, IMPACT_DURATION);",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Independent partner origin missing: {required}")
+    for forbidden in (
+        "missile(hero, companion, cell,",
+        "prismaticRay(hero, companion, cell)",
+        "prismaticRay(companion, hero, cell)",
+        "clearVisibleShot(alternate, cell)",
+        "clearVisiblePiercingShot(alternate, cell)",
+    ):
+        if forbidden in fx:
+            raise AssertionError(f"Combo FX borrowed a different caster: {forbidden}")
+    if "casterFlare(companion" in primary_fx or "impact(companion.pos" in primary_fx:
+        raise AssertionError("Hero's primary motif must not animate CoHero's spell")
+    if partner_fx.count("case ") != 6:
+        raise AssertionError("Companion motifs must cover all six roles")
+    prismatic = fx[fx.index("private static void prismaticRay("):
+                   fx.index("private static void rainbow(")]
+    if ("Ballistica.STOP_TARGET" in prismatic
+            or "raisedTileCenterToWorld(cell)" in prismatic
+            or "visualEnd = pathCell;" not in prismatic):
+        raise AssertionError("Visual beam must extend beyond enemy without leaking Hero FOV")
+
+    if fx.count("new Beam.LightRay(") != 1:
+        raise AssertionError("Use one shared Prismatic Light ray helper, not copied implementations")
+    if fx.index("prismaticRay(hero, cell);") > fx.index("private static void jointImpact("):
+        raise AssertionError("Huntress's ray must launch in the primary stage")
+    if "jointImpact(" not in cue_update:
+        raise AssertionError("All roles must show their distinctive impact before damage")
+
+    # A Mage-led combo should feel like a bomb, while the Mage companion adds a
+    # lighter detonation. Neither effect may trigger actual Bomb gameplay.
+    for required in (
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.particles.BlastParticle;",
+        "import com.shatteredpixel.shatteredpixeldungeon.effects.particles.SmokeParticle;",
+        "private static void arcaneExplosion(int cell, boolean major)",
+        "arcaneExplosion(cell, true);",
+        "arcaneExplosion(cell, false);",
+        "BlastParticle.FACTORY, major ? 20 : 7",
+        "SmokeParticle.FACTORY, major ? 3 : 1",
+        "case 1: return Assets.Sounds.BLAST;",
+        "Sample.INSTANCE.play(Assets.Sounds.BLAST, 0.45f);",
+        "if (heroClass == 5)",
+        "if (heroClass != 1)",
+        "if (!visible(cell))",
+        "new Ballistica(cell, neighbor,",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Missing balanced bomb-style combo effect: {required}")
+    if "new Bomb(" in fx or ".explode(" in fx:
+        raise AssertionError("Combo FX must not detonate real game-world bombs")
+    # Bound each switch to its own Java method, not later impact switches.
+    for name, next_name in (("primary", "accent"), ("accent", "jointImpact")):
+        begin = fx.index("private static void " + name + "(")
+        finish = fx.index("private static void " + next_name + "(", begin)
+        arms = __import__("re").findall(r"case [0-5]:", fx[begin:finish])
+        if len(arms) != 6:
+            raise AssertionError(f"{name} must support all six ordered classes")
+    # FX cannot consume game turns directly; one callback fires into the
+    # pending cast resolution and Actor scheduling remains in CoHeroCombo.
+    for forbidden in ("Actor.", ".spend(", ".next(", ".busy("):
+        if forbidden in fx:
+            raise AssertionError(f"FX must not consume actor time directly: {forbidden}")
+
+    from importlib.util import spec_from_file_location, module_from_spec
+    spec = spec_from_file_location("cohero_messages_patch", patch_dir / "patch_messages.py")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source_dir = root / "messages"
+    base = dict(module.parse_messages(
+        (source_dir / "misc.properties").read_text(encoding="utf-8"),
+        source_dir / "misc.properties"))
+    names = [
+        f"cohero.combo.skill.{h}.{c}"
+        for h in range(6) for c in range(6)
+    ]
+    if len({base.get(key) for key in names}) != 36 or any(key not in base for key in names):
+        raise AssertionError("Every ordered 6x6 class pair must have a unique skill name")
+    # Tactical descriptions are shared role primitives, not obsolete
+    # exceptions that silently diverge from gameplay.
+    for key in ([f"cohero.combo.detail.main.{i}" for i in range(5)]
+                + [f"cohero.combo.detail.partner.{i}" for i in range(6)]
+                + [f"cohero.combo.detail.cleric.{i}" for i in range(6)]):
+        if key not in base:
+            raise AssertionError(f"Missing localized tactical combo effect: {key}")
+    if ("cohero.combo.detail.extra.0.5" in base
+            or "cohero.combo.detail.partner.3.5" in base
+            or "combo.detail.extra." in source
+            or "combo.detail.partner.3.5" in source):
+        raise AssertionError("Obsolete pair-specific descriptions must be removed")
+
+    for locale in source_dir.glob("misc*.properties"):
+        values = dict(module.parse_messages(locale.read_text(encoding="utf-8"), locale))
+        if values.keys() != base.keys():
+            raise AssertionError(f"Combo message keys differ for {locale.name}")
+        for key in base:
+            if module.placeholders(values[key]) != module.placeholders(base[key]):
+                raise AssertionError(f"Combo message placeholder mismatch: {locale.name}:{key}")
+
+test_combo_attack_patch_and_catalog()
 test_helper()
 test_warding_patch()
 test_mob_patch()

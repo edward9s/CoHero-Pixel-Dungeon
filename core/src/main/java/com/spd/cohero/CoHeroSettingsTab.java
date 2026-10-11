@@ -28,6 +28,7 @@ public final class CoHeroSettingsTab extends Component {
     private RenderedTextBlock enemySpawnValue;
     private OptionSlider enemySpawnSlider;
     private CheckBox debugLog;
+    private CheckBox autoFillLink;
 
     private ColorBlock separatorTransfer;
     private RedButton exportSave;
@@ -79,10 +80,25 @@ public final class CoHeroSettingsTab extends Component {
                 if (hasLiveCompanion()) {
                     companion.setDebugLogEnabled(checked());
                 }
+                // Toggling debug ON is the only entrance to the hidden test menu.
+                if (checked() && CoHeroSettings.toggleTestOptionsIfEligible(companion)) {
+                    updateTestOptionVisibility();
+                }
             }
         };
         debugLog.checked(debugLogEnabled());
         add(debugLog);
+
+        autoFillLink = new CheckBox(CoHeroMessages.get("settings.auto_fill_link")) {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                CoHeroSettings.setAutoFillLinkEnabled(checked());
+            }
+        };
+        autoFillLink.checked(CoHeroSettings.autoFillLinkEnabled());
+        add(autoFillLink);
+        autoFillLink.visible = autoFillLink.active = CoHeroSettings.testOptionsVisible();
 
         if (DeviceCompat.isAndroid() || DeviceCompat.isDesktop()) {
             separatorTransfer = new ColorBlock(1, 1, 0xFF000000);
@@ -133,6 +149,10 @@ public final class CoHeroSettingsTab extends Component {
 
         debugLog.setRect(0, enemySpawnSlider.bottom() + GAP, width, BUTTON_HEIGHT);
         bottom = debugLog.bottom();
+        if (CoHeroSettings.testOptionsVisible()) {
+            autoFillLink.setRect(0, bottom + GAP, width, BUTTON_HEIGHT);
+            bottom = autoFillLink.bottom();
+        }
 
         if (separatorTransfer != null) {
             separatorTransfer.size(width, 1);
@@ -153,6 +173,11 @@ public final class CoHeroSettingsTab extends Component {
         }
 
         height = bottom;
+    }
+
+    private void updateTestOptionVisibility() {
+        autoFillLink.visible = autoFillLink.active = CoHeroSettings.testOptionsVisible();
+        layout();
     }
 
     private void layoutEnemySpawnValue() {

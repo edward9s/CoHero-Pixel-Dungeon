@@ -35,6 +35,17 @@ Each class has an innate passive ability. A second ability unlocks when the **He
 
 These are innate bonuses, generally equivalent to **+0 rings**. They use no ring slots, and equipped rings still work normally.
 
+## Cooperative ultimates
+
+The Hero and CoHero can unleash a powerful **cooperative ultimate** when they fight together.
+
+- **Build Link:** Damaging enemies with melee weapons, thrown weapons, the Spirit Bow, or wands builds Link when **both characters contribute to the same fight**. Attacking alone does not generate Link.
+- **Activate:** The **crossed-swords Tag** displays your Link as a current/max value (up to **180**). Each ultimate costs **60 Link**, so you can save enough for three uses.
+- **Choose your moment:** Both characters must be able to act and within **6 tiles**. For offensive ultimates, tap the Tag to auto-aim at a visible enemy (preferring your last target), then tap again to cast—or tap another enemy on the map. Support ultimates activate immediately.
+- **Discover combinations:** The **Hero's class** determines the main tactic (Warrior knockback, Mage suppression, Rogue hit-and-retreat, Huntress piercing ray, Duelist sweeping strikes, or Cleric rescue); the **CoHero's class** changes how that tactic plays out (guard, chain magic, stealth, second firing lane, close-range follow-up, or cleansing). Together they form **36 ordered combinations**. Long-press the Tag or check CoHero's backpack for the current effects.
+
+Each ultimate uses one turn for both characters. Link is kept when changing floors.
+
 ## Settings
 
 - **Enemy spawn multiplier:** Adjust the spawn rate from **1.0x to 4.0x** (default **1.5x**).
