@@ -649,3 +649,9 @@ Talent 是否能以有限、安全的方式加入，保留為後續研究問題�
 - CoHero 設定分頁提供 `Auto-fill Link (test)`（繁體中文為「測試：自動補滿連攜」）。補滿功能本身以 `GameSettings` 保存，**預設關閉**；另一個獨立的全域 `cohero_test_options_visible` flag 決定是否顯示這個 checkbox（預設隱藏），不占用遊戲存檔欄位。
 - 隱藏選項解鎖／隱藏暗號：先把 **水袋 `Waterskin` 與絨布袋 `VelvetPouch` 兩件道具**放進 CoHero 背包，並讓其 **武器、護甲、兩個戒指欄全部為空**。接著在 CoHero 設定把 **Debug Log 從關閉切換為開啟**，就翻轉一次全域測試 checkbox 顯示 flag；要再次翻轉，先關閉 Debug Log，再重新開啟。缺任一條件、關閉 Debug Log、沒有活著的 CoHero 時，都不可翻轉。這個顯示 flag 與 Debug Log 的啟用狀態、補滿選項的勾選狀態互不連動；隱藏不會悄悄取消已勾選的補滿選項。原版 `WndBag` 的絨布袋分頁會顯示袋子本身，可用 CoHero 背包加號的物品選取器轉移。
 - 若設定開啟且 `energy < 60`，只在**下一次 Hero 回合排程進入 `Hero.act()`、且 Hero 尚未 ready**時，把連攜值直接設為 180。當值是 60～179 時完全不動；技能消耗使數值低於 60 後，下回合才會再次補滿。可避免在按下按鈕、重繪 UI、角色行動中途直接增加資源。
+
+### 自動編譯驗證分工
+
+- `scripts/test_java_patch.py` 只測 Patch 引擎與注入 fixture：定位、替換、容錯及重複套用必須明確失敗。組合技的 `Char.attack` 注入 hook 也在此使用最小 Java fixture 驗證。
+- `scripts/verify_cohero_semantics.py` 檢查遊戲規則與資料不變條件。組合技特別驗證手動／自動選敵界線、偽裝 Mimic 不洩漏、連帶傷害限制、命中特效後才結算傷害，以及 36 種配對名稱和多語系佔位符。
+- 正式 Java 編譯仍由 Gradle 工作流程負責。避免以 UI 座標、圖片色碼、函式參數字面字串等細節作為阻擋編譯的檢查；改動語意時才需要同步更新語意測試。
