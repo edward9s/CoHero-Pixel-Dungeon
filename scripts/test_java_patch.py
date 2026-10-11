@@ -674,6 +674,15 @@ def test_combo_attack_patch_and_catalog():
     ):
         if required not in source:
             raise AssertionError(f"Combo auto-target and manual selection rule missing: {required}")
+    # A Huntress-led skill cannot spend Link on a target neither actual
+    # Huntress caster can reach (other partner classes never lend their ray).
+    validation = source[source.index("private static boolean validAttackTarget("):
+                        source.index("private static void cast(Integer cell)")]
+    if ("canSeePiercing(hero, mob.pos)" not in validation
+            or "classIndex(CoHero.companionClass()) == 3" not in validation
+            or "&& canSeePiercing(companion, mob.pos)" not in validation):
+        raise AssertionError("Huntress-only aiming must match independent ray origins")
+
     # Only the cast path consumes a charge; aiming/cancelling must not spend
     # either actor's turn or expose an unseen CoHero-only enemy.
     pre_cast = source[source.index("public static void requestCast()"):
