@@ -700,7 +700,7 @@ def test_combo_attack_patch_and_catalog():
         raise AssertionError("Combo must not interrupt a pending companion movement/decision")
     for required in (
         "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID",
-        "line.subPath(0, line.dist).contains(mob.pos)",
+        "for (int cell : line.subPath(1, line.dist))",
         "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == mob.pos",
     ):
         if required not in source:
@@ -757,8 +757,10 @@ def test_combo_attack_patch_and_catalog():
         "Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE",
         "ScrollOfTeleportation.teleportToLocation(hero, best);",
         "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID).collisionPos == cell",
-        "line.subPath(0, line.dist).contains(mob.pos)",
-        "alreadyHit.add(mob.id())",
+        "new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID)",
+        "new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID)",
+        "for (int cell : line.subPath(1, line.dist))",
+        "alreadyHit.add(ch.id())",
     ):
         if required not in source:
             raise AssertionError(f"Safe movement or piercing invariant missing: {required}")
@@ -841,6 +843,27 @@ def test_combo_attack_patch_and_catalog():
     if "arcaneExplosion(cell, true);" not in fx[fx.index("private static void jointImpact("):
                                                fx.index("private static void arcaneExplosion(")]:
         raise AssertionError("Mage blast must detonate on the real hit, not at launch")
+    # Disintegration-style piercing: selecting an enemy fixes the direction,
+    # NOT the endpoint. Travel past that enemy and hit each mob once, stopping
+    # at solid terrain. Target legality still uses STOP_TARGET on a separate
+    # validation ray, but the actual ray uses only STOP_SOLID.
+    gameplay_ray = source[source.index("private static Ballistica piercingLane("):
+                          source.index("private static void pushAway(")]
+    for required in (
+        "new Ballistica(preferred.pos, cell, Ballistica.STOP_SOLID)",
+        "new Ballistica(alternate.pos, cell, Ballistica.STOP_SOLID)",
+        "for (int cell : line.subPath(1, line.dist))",
+        "Char ch = Actor.findChar(cell);",
+        "alreadyHit.add(ch.id())",
+        "damageEnemy(caster, (Mob) ch, amount);",
+    ):
+        if required not in gameplay_ray:
+            raise AssertionError(f"Piercing beam cannot stop at marked enemy: {required}")
+    if "distance(line.sourcePos, targetCell)" in gameplay_ray:
+        raise AssertionError("Piercing range must not be truncated at selected enemy")
+    if "new Ballistica(preferred.pos, cell, Ballistica.STOP_TARGET" in gameplay_ray:
+        raise AssertionError("Actual Huntress ray must not stop on marked enemy")
+
     # Huntress must reuse the actual Prismatic Light wand ray, never the
     # generic LIGHT_MISSILE projectile; both the Hero and companion accent
     # have distinct ray origins and cannot reveal terrain outside Hero FOV.
@@ -851,13 +874,13 @@ def test_combo_attack_patch_and_catalog():
         "prismaticRay(companion, hero, cell);",
         "private static void prismaticRay(Char preferred, Char alternate, int cell)",
         "new Beam.LightRay(source.sprite.center(),",
-        "DungeonTilemap.raisedTileCenterToWorld(cell)",
+        "DungeonTilemap.raisedTileCenterToWorld(visualEnd)",
         "Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);",
-        "Ballistica line = new Ballistica(source.pos, cell,",
-        "Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);",
+        "Ballistica line = new Ballistica(source.pos, cell, Ballistica.STOP_SOLID);",
         "private static boolean clearVisiblePiercingShot(Char actor, int cell)",
-        "for (int pathCell : line.subPath(0, line.dist))",
-        "if (visible(pathCell) && !Dungeon.level.solid[pathCell])",
+        "for (int pathCell : line.subPath(1, line.dist))",
+        "if (!visible(pathCell) || Dungeon.level.solid[pathCell])",
+        "visualEnd = pathCell;",
         "CellEmitter.center(cell).burst(RainbowParticle.BURST, count);",
         "private static void jointImpact(Hero hero, CoHeroAlly companion, int cell,",
         "case 0: // Warrior:",
@@ -876,6 +899,13 @@ def test_combo_attack_patch_and_catalog():
                     fx.index("private static void jointImpact(")]
     if "MagicMissile.LIGHT_MISSILE" in primary_fx + partner_fx:
         raise AssertionError("Huntress must not fall back to a normal light missile")
+    prismatic = fx[fx.index("private static void prismaticRay("):
+                   fx.index("private static void rainbow(")]
+    if ("Ballistica.STOP_TARGET" in prismatic
+            or "raisedTileCenterToWorld(cell)" in prismatic
+            or "visualEnd = pathCell;" not in prismatic):
+        raise AssertionError("Visual beam must extend beyond enemy without leaking Hero FOV")
+
     if fx.count("new Beam.LightRay(") != 1:
         raise AssertionError("Use one shared Prismatic Light ray helper, not copied implementations")
     if fx.index("prismaticRay(hero, companion, cell);") > fx.index("private static void jointImpact("):
