@@ -112,6 +112,122 @@ AUTO_LOOT_SPECIAL_ROUTES = (
 )
 
 
+
+def call_last_arguments(method_body: str, name: str):
+    """Read a call's last argument, allowing nested expressions and formatting changes."""
+    from java_patch import mask_java
+
+    masked = mask_java(method_body)
+    arguments = []
+    for match in re.finditer(r"\b" + re.escape(name) + r"\s*\(", masked):
+        opening = masked.find("(", match.start())
+        depth = 1
+        last = opening + 1
+        for pos in range(opening + 1, len(masked)):
+            char = masked[pos]
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    arguments.append(masked[last:pos].strip())
+                    break
+            elif char == "," and depth == 1:
+                last = pos + 1
+        else:
+            raise AssertionError(f"Unclosed {name} call in combo code")
+    return arguments
+
+
+def verify_combo_semantics(root: Path, package_root: Path):
+    """Check player-visible rules; Java parsing/compilation owns syntax details."""
+    patch_dir = root / "integration" / "shattered" / "patches"
+    sys.path.insert(0, str(patch_dir))
+    from java_patch import find_class, find_method, mask_java
+
+    source = (package_root / "CoHeroCombo.java").read_text(encoding="utf-8")
+    combo_class = find_class(source, "CoHeroCombo")
+
+    def body(name):
+        method = find_method(source, name, within=combo_class)
+        return mask_java(source[method.body_start:method.body_end])
+
+    def require_calls(owner, callee, accepted):
+        actual = call_last_arguments(body(owner), callee)
+        if not actual or set(actual) != set(accepted):
+            raise AssertionError(
+                f"{owner} must pass {set(accepted)} to {callee}; got {actual}"
+            )
+
+    # Automatic candidates, including lastTarget, cannot identify hidden Mimics.
+    require_calls("validAutoTarget", "validAttackTarget", ("false",))
+    require_calls("cast", "validAttackTarget", ("true",))
+    require_calls("preferredAutoTarget", "validAutoTarget", ("last", "mob"))
+    predicate = re.sub(r"\s+", "", body("isComboEnemy"))
+    for term in (
+        "mob.alignment==Char.Alignment.ENEMY",
+        "mob==selectedTarget&&mobinstanceofMimic",
+        "mob.alignment==Char.Alignment.NEUTRAL",
+    ):
+        if term not in predicate:
+            raise AssertionError(f"Combo enemy eligibility lost: {term}")
+
+    # Only the player's selected neutral Mimic may receive offensive damage.
+    for owner in ("damageEnemy", "inClearArea"):
+        if "isComboEnemy(mob,selectedTarget)" not in re.sub(r"\s+", "", body(owner)):
+            raise AssertionError(f"{owner} must enforce the same target policy")
+    ray = re.sub(r"\s+", "", body("pierceLane"))
+    if ("isComboEnemy((Mob)ch,selectedTarget)" not in ray
+            or "damageEnemy(caster,(Mob)ch,amount,selectedTarget)" not in ray):
+        raise AssertionError("Piercing must hit only explicitly selected neutral Mimics")
+    require_calls("damageArea", "inClearArea", ("selectedTarget",))
+    require_calls("damageArea", "damageEnemy", ("selectedTarget",))
+    require_calls("performAttackUltimate", "damageArea", ("target",))
+    require_calls("performAttackUltimate", "pierceLane", ("target",))
+    require_calls("performAttackUltimate", "damageEnemy", ("target", "null"))
+    require_calls("performAttackUltimate", "inClearArea", ("target", "null"))
+    require_calls("performClericUltimate", "damageArea", ("null",))
+    require_calls("performClericUltimate", "damageEnemy", ("null",))
+
+    # The selection UI must not spend energy before confirmation.
+    if "energy -= CAST_COST" in body("requestCast"):
+        raise AssertionError("Aiming a combo must not consume energy")
+
+    # Combo presentation stays asynchronous and visual; the gameplay action
+    # remains in CoHeroCombo's impact callback.
+    fx = (package_root / "CoHeroComboFX.java").read_text(encoding="utf-8")
+    if fx.count("onImpact.run();") != 2 or any(
+            forbidden in fx for forbidden in ("Actor.", ".spend(", ".next(", ".busy(")):
+        raise AssertionError("Combo FX must only resolve gameplay via its impact callback")
+
+    # Player-visible names, effect descriptions, and placeholders must remain
+    # complete across all localized catalogs.
+    from importlib.util import module_from_spec, spec_from_file_location
+    spec = spec_from_file_location("cohero_combo_messages", patch_dir / "patch_messages.py")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    source_dir = root / "messages"
+    base_path = source_dir / "misc.properties"
+    base = dict(module.parse_messages(base_path.read_text(encoding="utf-8"), base_path))
+    names = [f"cohero.combo.skill.{hero}.{ally}"
+             for hero in range(6) for ally in range(6)]
+    if any(name not in base for name in names) or len({base[name] for name in names}) != 36:
+        raise AssertionError("Combo must have 36 distinct, ordered skill names")
+    descriptions = ([f"cohero.combo.detail.main.{i}" for i in range(5)]
+                    + [f"cohero.combo.detail.partner.{i}" for i in range(6)]
+                    + [f"cohero.combo.detail.cleric.{i}" for i in range(6)])
+    if any(name not in base for name in descriptions):
+        raise AssertionError("Missing combo tactical descriptions")
+
+    for locale in source_dir.glob("misc*.properties"):
+        values = dict(module.parse_messages(locale.read_text(encoding="utf-8"), locale))
+        if values.keys() != base.keys():
+            raise AssertionError(f"Combo message keys differ: {locale.name}")
+        if any(module.placeholders(values[key]) != module.placeholders(base[key])
+               for key in base):
+            raise AssertionError(f"Combo message placeholders differ: {locale.name}")
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: verify_cohero_semantics.py <repo-root>", file=sys.stderr)
@@ -295,24 +411,7 @@ def main() -> int:
         )
         return 1
 
-    combo_source = (package_root / "CoHeroCombo.java").read_text(encoding="utf-8")
-    combo_requirements = (
-        "validAttackTarget(mob, hero, companion, false)",
-        "validAttackTarget((Mob) selected, hero, companion, true)",
-        "mob == selectedTarget && mob instanceof Mimic",
-        "damageArea(hero, impactCell, 1, power, target)",
-        "damageArea(hero, target.pos, 1, power, target)",
-        "damageArea(hero, hero.pos, 2, 7 + hero.lvl, null)",
-        "isComboEnemy((Mob) ch, selectedTarget)",
-        "damageEnemy(caster, mob, amount, selectedTarget)",
-    )
-    if any(combo_source.count(requirement) != 1 for requirement in combo_requirements):
-        print(
-            "Manual combo selection must permit disguised Mimics without leaking "
-            "them through automatic targeting or collateral damage.",
-            file=sys.stderr,
-        )
-        return 1
+    verify_combo_semantics(root, package_root)
 
     turn_context_source = (package_root / "CoHeroTurnContext.java").read_text(encoding="utf-8")
     if turn_context_source.count(PASSIVE_STATUE_FILTER) != 1:
