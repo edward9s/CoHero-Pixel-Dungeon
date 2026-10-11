@@ -870,9 +870,9 @@ def test_combo_attack_patch_and_catalog():
     for required in (
         "import com.shatteredpixel.shatteredpixeldungeon.effects.Beam;",
         "import com.shatteredpixel.shatteredpixeldungeon.effects.particles.RainbowParticle;",
-        "prismaticRay(hero, companion, cell);",
-        "prismaticRay(companion, hero, cell);",
-        "private static void prismaticRay(Char preferred, Char alternate, int cell)",
+        "prismaticRay(hero, cell);",
+        "prismaticRay(companion, cell);",
+        "private static void prismaticRay(Char source, int cell)",
         "new Beam.LightRay(source.sprite.center(),",
         "DungeonTilemap.raisedTileCenterToWorld(visualEnd)",
         "Sample.INSTANCE.play(Assets.Sounds.RAY, 0.85f);",
@@ -899,6 +899,35 @@ def test_combo_attack_patch_and_catalog():
                     fx.index("private static void jointImpact(")]
     if "MagicMissile.LIGHT_MISSILE" in primary_fx + partner_fx:
         raise AssertionError("Huntress must not fall back to a normal light missile")
+    # Both visible actors must start their own motifs, never silently
+    # switch the missile/beam origin to the other character.
+    for required in (
+        "missile(hero, cell, MagicMissile.MAGIC_MISSILE, cue);",
+        "missile(hero, cell, MagicMissile.SHADOW, cue);",
+        "missile(companion, cell, MagicMissile.MAGIC_MISSILE, cue);",
+        "missile(companion, cell, MagicMissile.SHADOW, cue);",
+        "private static void missile(Char source, int cell, int type, Cue cue)",
+        "if (clearVisibleShot(source, cell))",
+        "if (!clearVisiblePiercingShot(source, cell))",
+        "casterFlare(companion, 0xC3D1DA, IMPACT_DURATION);",
+        "casterFlare(companion, 0xA9E7FF, IMPACT_DURATION);",
+        "casterFlare(companion, 0xFFE3A2, IMPACT_DURATION);",
+    ):
+        if required not in fx:
+            raise AssertionError(f"Independent partner origin missing: {required}")
+    for forbidden in (
+        "missile(hero, companion, cell,",
+        "prismaticRay(hero, companion, cell)",
+        "prismaticRay(companion, hero, cell)",
+        "clearVisibleShot(alternate, cell)",
+        "clearVisiblePiercingShot(alternate, cell)",
+    ):
+        if forbidden in fx:
+            raise AssertionError(f"Combo FX borrowed a different caster: {forbidden}")
+    if "casterFlare(companion" in primary_fx or "impact(companion.pos" in primary_fx:
+        raise AssertionError("Hero's primary motif must not animate CoHero's spell")
+    if partner_fx.count("case ") != 6:
+        raise AssertionError("Companion motifs must cover all six roles")
     prismatic = fx[fx.index("private static void prismaticRay("):
                    fx.index("private static void rainbow(")]
     if ("Ballistica.STOP_TARGET" in prismatic
@@ -908,7 +937,7 @@ def test_combo_attack_patch_and_catalog():
 
     if fx.count("new Beam.LightRay(") != 1:
         raise AssertionError("Use one shared Prismatic Light ray helper, not copied implementations")
-    if fx.index("prismaticRay(hero, companion, cell);") > fx.index("private static void jointImpact("):
+    if fx.index("prismaticRay(hero, cell);") > fx.index("private static void jointImpact("):
         raise AssertionError("Huntress's ray must launch in the primary stage")
     if "jointImpact(" not in cue_update:
         raise AssertionError("All roles must show their distinctive impact before damage")
