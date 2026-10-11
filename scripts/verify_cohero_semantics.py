@@ -200,6 +200,36 @@ def verify_combo_semantics(root: Path, package_root: Path):
             forbidden in fx for forbidden in ("Actor.", ".spend(", ".next(", ".busy(")):
         raise AssertionError("Combo FX must only resolve gameplay via its impact callback")
 
+    cue = find_class(fx, "Cue", within=find_class(fx, "CoHeroComboFX"))
+    update = find_method(fx, "update", within=cue)
+    cue_update = re.sub(r"\s+", "", mask_java(fx[update.body_start:update.body_end]))
+    phases = (
+        "elapsed>=PARTNER_START",
+        "pendingMissiles==0||elapsed>=MAX_PROJECTILE_WAIT",
+        "stage=3;",
+        "jointImpact(",
+        "elapsed>=impactTime+HIT_SETTLE",
+        "stage=4;",
+        "onImpact.run();",
+    )
+    offsets = [cue_update.find(phase) for phase in phases]
+    if any(index < 0 for index in offsets) or offsets != sorted(offsets):
+        raise AssertionError("Combo damage must follow the projectile and impact animations")
+
+    cast_body = re.sub(r"\s+", "", body("cast"))
+    cast_phases = (
+        "energy-=CAST_COST;",
+        "hero.busy();",
+        "CoHeroComboFX.play(",
+        "publicvoidrun()",
+        "performAttackUltimate(",
+        "companion.spendComboTurn();",
+        "hero.spendAndNext(",
+    )
+    offsets = [cast_body.find(phase) for phase in cast_phases]
+    if any(index < 0 for index in offsets) or offsets != sorted(offsets):
+        raise AssertionError("Combo must resolve gameplay only inside its impact callback")
+
     # Player-visible names, effect descriptions, and placeholders must remain
     # complete across all localized catalogs.
     from importlib.util import module_from_spec, spec_from_file_location
