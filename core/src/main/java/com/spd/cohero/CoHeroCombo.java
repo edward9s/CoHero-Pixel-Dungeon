@@ -410,7 +410,11 @@ public final class CoHeroCombo {
                 && (Dungeon.level.distance(hero.pos, mob.pos) <= 8
                     || Dungeon.level.distance(companion.pos, mob.pos) <= 8)
                 && (classIndex(hero.heroClass) == 3
-                    ? (canSeePiercing(hero, mob.pos) || canSeePiercing(companion, mob.pos))
+                    // A Huntress-led attack must have at least one actual
+                    // firing lane; a different-class partner cannot substitute.
+                    ? (canSeePiercing(hero, mob.pos)
+                        || (classIndex(CoHero.companionClass()) == 3
+                            && canSeePiercing(companion, mob.pos)))
                     : canTargetFromEitherHero(mob.pos, hero, companion));
     }
 
