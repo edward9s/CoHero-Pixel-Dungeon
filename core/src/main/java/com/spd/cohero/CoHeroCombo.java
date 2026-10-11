@@ -25,7 +25,6 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfCleansing;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.Wand;
 import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfBlastWave;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.CellSelector;
@@ -33,7 +32,6 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.utils.Bundle;
-import com.watabou.utils.PathFinder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -507,11 +505,10 @@ public final class CoHeroCombo {
                     }
                 }
                 break;
-            case 2: // Rogue: execute a weak target then disengage safely.
+            case 2: // Rogue: execute a weak target and vanish in place.
                 damageEnemy(hero, target, power * 2
                         + (target.HP < target.HT / 2 ? power / 2 : 0), target);
-                retreatFrom(hero, companion, target.pos);
-                Buff.prolong(hero, Invisibility.class, 2f);
+                Buff.prolong(hero, Invisibility.class, 6f);
                 break;
             case 3: // Huntress: terrain-bounded piercing ray and vision denial.
                 pierceLane(hero, piercingLane(hero, impactCell),
@@ -743,35 +740,6 @@ public final class CoHeroCombo {
         }
     }
 
-    /** Optional safe one-tile disengage; no teleports into pits/traps or CoHero's square. */
-    private static void retreatFrom(Hero hero, CoHeroAlly companion, int threatCell) {
-        if (hero.rooted) {
-            return;
-        }
-        int origin = hero.pos;
-        int current = Dungeon.level.distance(origin, threatCell);
-        int best = -1;
-        int bestDistance = current;
-        for (int offset : PathFinder.NEIGHBOURS8) {
-            int candidate = origin + offset;
-            if (!safeDisplacementCell(candidate)
-                    || Dungeon.level.distance(origin, candidate) != 1
-                    || !Dungeon.level.heroFOV[candidate]
-                    || Dungeon.level.distance(candidate, companion.pos) > PARTY_RANGE
-                    || adjacentHostile(candidate)) {
-                continue;
-            }
-            int distance = Dungeon.level.distance(candidate, threatCell);
-            if (distance > bestDistance) {
-                bestDistance = distance;
-                best = candidate;
-            }
-        }
-        if (best != -1) {
-            ScrollOfTeleportation.teleportToLocation(hero, best);
-        }
-    }
-
     /** Only relocate onto traversable, unoccupied and immediately harmless tiles. */
     private static boolean safeDisplacementCell(int cell) {
         return Dungeon.level.insideMap(cell)
@@ -785,16 +753,6 @@ public final class CoHeroCombo {
                 && Blob.volumeAt(cell, CorrosiveGas.class) == 0
                 && Blob.volumeAt(cell, ConfusionGas.class) == 0
                 && Blob.volumeAt(cell, Electricity.class) == 0;
-    }
-
-    private static boolean adjacentHostile(int cell) {
-        for (Mob mob : Dungeon.level.mobs) {
-            if (mob.isAlive() && mob.alignment == Char.Alignment.ENEMY
-                    && Dungeon.level.distance(cell, mob.pos) <= 1) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean inClearArea(int center, int radius, Mob mob,

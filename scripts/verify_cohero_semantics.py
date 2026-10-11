@@ -195,6 +195,14 @@ def verify_combo_semantics(root: Path, package_root: Path):
     require_calls("performClericUltimate", "damageArea", ("null",))
     require_calls("performClericUltimate", "damageEnemy", ("null",))
 
+    # Rogue-led combos must grant six turns of invisibility without moving the Hero.
+    attack = body("performAttackUltimate")
+    rogue = attack.split("case 2:", 1)[1].split("case 3:", 1)[0]
+    if ("Buff.prolong(hero, Invisibility.class, 6f);" not in rogue
+            or "retreatFrom(" in source
+            or "ScrollOfTeleportation.teleportToLocation(hero" in source):
+        raise AssertionError("Rogue-led combo must vanish for six turns without moving Hero")
+
     # The selection UI must not spend energy before confirmation.
     if "energy -= CAST_COST" in body("requestCast"):
         raise AssertionError("Aiming a combo must not consume energy")
