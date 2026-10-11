@@ -20,6 +20,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vulnerable;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Weakness;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mimic;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
@@ -400,10 +401,16 @@ public final class CoHeroCombo {
         return closest;
     }
 
+    // Hidden Mimics are neutral until awakened, but are still legitimate
+    // combo enemies. Leave other neutral NPCs and allies untargetable.
+    private static boolean isComboEnemy(Mob mob) {
+        return mob != null && (mob.alignment == Char.Alignment.ENEMY
+                || (mob instanceof Mimic && mob.alignment == Char.Alignment.NEUTRAL));
+    }
+
     /** Same validation for auto-aim and user-chosen targets. */
     private static boolean validAttackTarget(Mob mob, Hero hero, CoHeroAlly companion) {
-        return mob != null && mob.isAlive()
-                && mob.alignment == Char.Alignment.ENEMY
+        return isComboEnemy(mob) && mob.isAlive()
                 && mob.pos >= 0 && mob.pos < Dungeon.level.length()
                 && Actor.findChar(mob.pos) == mob
                 && !mob.isInvulnerable(hero.getClass())
@@ -635,7 +642,7 @@ public final class CoHeroCombo {
                 heal(hero, 6 + hero.lvl);
                 heal(companion, 6 + hero.lvl);
                 for (Mob mob : new ArrayList<>(Dungeon.level.mobs)) {
-                    if (mob.alignment == Char.Alignment.ENEMY && mob.isAlive()
+                    if (isComboEnemy(mob) && mob.isAlive()
                             && Dungeon.level.distance(companion.pos, mob.pos) <= 4
                             && canTargetFromEitherHero(mob.pos, hero, companion)) {
                         damageEnemy(hero, mob, 3 + hero.lvl);
@@ -696,7 +703,7 @@ public final class CoHeroCombo {
         }
         for (int cell : line.subPath(1, line.dist)) {
             Char ch = Actor.findChar(cell);
-            if (ch instanceof Mob && ch.alignment == Char.Alignment.ENEMY
+            if (ch instanceof Mob && isComboEnemy((Mob) ch)
                     && alreadyHit.add(ch.id())) {
                 damageEnemy(caster, (Mob) ch, amount);
             }
@@ -788,7 +795,7 @@ public final class CoHeroCombo {
     }
 
     private static boolean inClearArea(int center, int radius, Mob mob) {
-        return mob.isAlive() && mob.alignment == Char.Alignment.ENEMY
+        return isComboEnemy(mob) && mob.isAlive()
                 && Dungeon.level.distance(center, mob.pos) <= radius
                 && !Dungeon.level.solid[mob.pos]
                 && new Ballistica(center, mob.pos,
@@ -804,7 +811,7 @@ public final class CoHeroCombo {
     }
 
     private static void damageEnemy(Hero caster, Mob mob, int amount) {
-        if (mob.alignment == Char.Alignment.ENEMY && mob.isAlive()
+        if (isComboEnemy(mob) && mob.isAlive()
                 && !mob.isInvulnerable(caster.getClass()) && amount > 0) {
             mob.damage(amount, caster);
         }
