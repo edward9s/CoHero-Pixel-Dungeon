@@ -49,7 +49,7 @@ To use an ultimate, both heroes must be nearby and able to act. Tap the **crosse
 | --- | --- |
 | **Warrior** | A shockwave damages enemies around the target, then safely knocks surviving foes back **after CoHero's follow-up**. |
 | **Mage** | A magical blast damages clustered enemies and weakens and cripples foes in a wider area. |
-| **Rogue** | A powerful strike deals extra damage to wounded prey; the Hero then retreats to a safe nearby tile if possible and briefly turns invisible. |
+| **Rogue** | A powerful strike deals extra damage to wounded prey, then grants the Hero 6 turns of invisibility without moving. |
 | **Huntress** | Fires a prismatic ray from the Hero that pierces enemies along its path until blocked by terrain, and briefly blinds the target. |
 | **Duelist** | Strikes the target, sweeps nearby enemies around either hero, and grants Bless to both. |
 | **Cleric** | Uses a dedicated rescue or support skill based on CoHero's class, listed below. No enemy target is needed. |
