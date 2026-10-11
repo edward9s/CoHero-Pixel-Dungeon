@@ -82,7 +82,7 @@ proc_new = """	protected void wandProc(Char target, int chargesUsed){
 			// Gameplay is resolved before FX construction. The caller decides whether the actor
 			// waits for the FX callback; remote CoHero casts skip real FX and use CoHeroRemoteView.
 			coHeroPrepareZap(owner, target, bolt);
-			onZap(bolt);
+			com.spd.cohero.CoHeroCombo.onWandZap(this, owner, bolt);
 			coHeroFinishZap(owner);
 
 			if (showFx) {
@@ -148,6 +148,14 @@ fx_new = """	public void fx(Ballistica bolt, Callback callback) {
 	}
 """
 wand = replace_once(wand, fx_old, fx_new, "Wand fx")
+
+# Player Wand shots resolve onZap in the animation callback. Use the same
+# damage-window hook as CoHero's synchronous casting seam.
+hero_zap_old = "\t\t\t\t\t\t\t\tcurWand.onZap(shot);\n"
+hero_zap_new = ("\t\t\t\t\t\t\t\t"
+                "com.spd.cohero.CoHeroCombo.onWandZap(curWand, curUser, shot);\n")
+wand = replace_once(wand, hero_zap_old, hero_zap_new, "Hero Wand zap")
+
 
 
 path.write_text(wand, encoding="utf-8")

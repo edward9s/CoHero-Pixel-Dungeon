@@ -99,6 +99,7 @@ public final class CoHero {
         excludedDepth = -1;
         excludedBranch = -1;
         timings = new CoHeroTimings();
+        CoHeroCombo.reset();
     }
 
     public static boolean onHeroSelectionConfirmed(HeroClass selectedClass) {
@@ -108,6 +109,7 @@ public final class CoHero {
 
         if (!selectingCompanion) {
             playerSelection = selectedClass;
+            CoHeroCombo.reset();
             companionState = null;
             companionDeathEndedRun = false;
         companionDeathFailureSubmitted = false;
@@ -173,6 +175,7 @@ public final class CoHero {
             throw new IllegalStateException("CoHero run has no selected companion class");
         }
         bundle.put(SAVE_COHERO_VERSION, CoHeroVersion.version());
+        CoHeroCombo.store(bundle);
         bundle.put(SAVE_COMPANION_CLASS, heroClass.name());
 
         captureCompanionState();
@@ -197,6 +200,7 @@ public final class CoHero {
         if (bundle == null) {
             throw new IllegalArgumentException("bundle must not be null");
         }
+        CoHeroCombo.restore(bundle);
         if (!bundle.contains(SAVE_COMPANION_CLASS)) {
             throw new IllegalStateException("Save is missing CoHero companion class");
         }
@@ -273,6 +277,8 @@ public final class CoHero {
 
         timings.sceneStarted();
 
+        // Only the meter persists across floors; attack pairings are scene-local.
+        CoHeroCombo.onLevelChanged();
         // Remote observation is scene-local. Never carry proxy state across floor/scene loads.
         CoHeroRemoteView.reset();
 

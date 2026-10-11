@@ -79,11 +79,11 @@ public class WndCompanionInventory extends Window {
         title.setPos(0, 1);
         add(title);
 
-        float contentY = title.bottom() + 4;
+        float contentY = title.bottom() + 3;
         if (landscape) {
             layoutLandscape(contentY);
         } else {
-            layoutPortrait(contentY);
+            layoutPortrait(addComboInfo(0, contentY, layoutWidth) + 4);
         }
     }
 
@@ -99,19 +99,8 @@ public class WndCompanionInventory extends Window {
     }
 
     private void layoutPortrait(float startY) {
-        float statsY = startY;
-        addStatCell(0, 0, statsY, layoutWidth, text("inventory.level"),
-                Integer.toString(companion.level()));
-        addStatCell(1, 0, statsY, layoutWidth, text("inventory.health"), healthText());
-        addStatCell(2, 0, statsY, layoutWidth, text("inventory.strength"),
-                Integer.toString(companion.STR()));
-
-        statsY += 18;
-        addStatCell(0, 0, statsY, layoutWidth, text("inventory.damage"), damageText());
-        addStatCell(1, 0, statsY, layoutWidth, text("inventory.defense"), defenseText());
-        addStatCell(2, 0, statsY, layoutWidth, text("inventory.speed"), speedText());
-
-        float afterEquipment = addEquipment(0, statsY + 19);
+        float statsBottom = addTwoRowStats(0, startY, layoutWidth);
+        float afterEquipment = addEquipment(0, statsBottom + 5);
 
         float backpackHeaderBottom = addBackpackHeader(0, afterEquipment + 3, layoutWidth);
 
@@ -136,19 +125,9 @@ public class WndCompanionInventory extends Window {
 
         int backpackX = leftWidth + LANDSCAPE_PANEL_GAP;
 
-        float statsY = startY;
-        addStatCell(0, 0, statsY, leftWidth, text("inventory.level"),
-                Integer.toString(companion.level()));
-        addStatCell(1, 0, statsY, leftWidth, text("inventory.health"), healthText());
-        addStatCell(2, 0, statsY, leftWidth, text("inventory.strength"),
-                Integer.toString(companion.STR()));
-
-        statsY += 18;
-        addStatCell(0, 0, statsY, leftWidth, text("inventory.damage"), damageText());
-        addStatCell(1, 0, statsY, leftWidth, text("inventory.defense"), defenseText());
-        addStatCell(2, 0, statsY, leftWidth, text("inventory.speed"), speedText());
-
-        float leftBottom = addEquipment(0, statsY + 14);
+        float comboBottom = addComboInfo(0, startY, leftWidth);
+        float statsBottom = addTwoRowStats(0, comboBottom + 4, leftWidth);
+        float leftBottom = addEquipment(0, statsBottom + 5);
 
         float backpackHeaderBottom = addBackpackHeader(backpackX, startY, backpackWidth);
 
@@ -212,20 +191,64 @@ public class WndCompanionInventory extends Window {
         return label;
     }
 
-    private void addStatCell(
-            int column, float areaX, float y, float areaWidth, String label, String value) {
-        float cellWidth = areaWidth / 3f;
-        float x = areaX + column * cellWidth;
+    /** Displays the class-pair skill only in its owning panel. */
+    private float addComboInfo(float x, float y, int width) {
+        RenderedTextBlock name = PixelScene.renderTextBlock(CoHeroCombo.skillName(), 7);
+        name.hardlight(TITLE_COLOR);
+        name.maxWidth(width);
+        name.setPos(x, y);
+        add(name);
 
-        RenderedTextBlock statLabel = PixelScene.renderTextBlock(label, 6);
-        statLabel.maxWidth((int) cellWidth - 2);
-        statLabel.setPos(x, y);
-        add(statLabel);
+        RenderedTextBlock details = PixelScene.renderTextBlock(CoHeroCombo.skillDescription(), 6);
+        details.maxWidth(width);
+        details.setPos(x, name.bottom() + 2);
+        add(details);
+        return details.bottom();
+    }
 
-        RenderedTextBlock statValue = PixelScene.renderTextBlock(value, 7);
-        statValue.maxWidth((int) cellWidth - 2);
-        statValue.setPos(x, y + 8);
-        add(statValue);
+    /**
+     * Always exactly two rows of three label/value pairs, in either orientation.
+     * Choose one pixel-font size for both rows based on the actual localized text
+     * widths. Never let RenderedTextBlock decide where to wrap individual stats.
+     */
+    private float addTwoRowStats(float startX, float startY, int availableWidth) {
+        String[] labels = {
+                text("inventory.level"), text("inventory.health"), text("inventory.strength"),
+                text("inventory.damage"), text("inventory.defense"), text("inventory.speed")
+        };
+        String[] values = {
+                Integer.toString(companion.level()), healthText(), Integer.toString(companion.STR()),
+                damageText(), defenseText(), speedText()
+        };
+        final float gapX = 3f;
+        final float gapY = 2f;
+        RenderedTextBlock[] stats = null;
+        for (int fontSize = 7; fontSize >= 3; fontSize--) {
+            stats = new RenderedTextBlock[6];
+            for (int i = 0; i < stats.length; i++) {
+                stats[i] = PixelScene.renderTextBlock(labels[i] + " " + values[i], fontSize);
+            }
+            float first = stats[0].width() + stats[1].width() + stats[2].width() + 2 * gapX;
+            float second = stats[3].width() + stats[4].width() + stats[5].width() + 2 * gapX;
+            if (Math.max(first, second) <= availableWidth || fontSize == 3) {
+                break;
+            }
+        }
+
+        float y = startY;
+        for (int row = 0; row < 2; row++) {
+            float x = startX;
+            float rowHeight = 0f;
+            for (int col = 0; col < 3; col++) {
+                RenderedTextBlock stat = stats[row * 3 + col];
+                stat.setPos(x, y);
+                add(stat);
+                x += stat.width() + gapX;
+                rowHeight = Math.max(rowHeight, stat.height());
+            }
+            y += rowHeight + (row == 0 ? gapY : 0f);
+        }
+        return y;
     }
 
     private String healthText() {

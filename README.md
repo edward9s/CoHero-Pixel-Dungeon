@@ -35,6 +35,53 @@ Each class has an innate passive ability. A second ability unlocks when the **He
 
 These are innate bonuses, generally equivalent to **+0 rings**. They use no ring slots, and equipped rings still work normally.
 
+## Cooperative ultimates
+
+> **Highly experimental:** Cooperative ultimates are still being tested. Their names, effects, balance, and even underlying mechanics are likely to change substantially in future updates.
+
+When **both the Hero and CoHero damage enemies in the same fight**, they build **Link** for a cooperative ultimate. Solo attacks do not build Link. The Hero's class determines the main attack, while CoHero's class adds a follow-up, creating **36 ordered class combinations**.
+
+To use an ultimate, both heroes must be nearby and able to act. Tap the **crossed-swords Tag** to select an enemy (tap again to confirm, or choose another enemy on the map). Cleric-led support skills activate immediately instead. Both heroes spend a turn, and saved Link carries between floors.
+
+### Hero's main skill
+
+| Hero class | Main effect |
+| --- | --- |
+| **Warrior** | A shockwave damages enemies around the target, then safely knocks surviving foes back **after CoHero's follow-up**. |
+| **Mage** | A magical blast damages clustered enemies and weakens and cripples foes in a wider area. |
+| **Rogue** | A powerful strike deals extra damage to wounded prey; the Hero then retreats to a safe nearby tile if possible and briefly turns invisible. |
+| **Huntress** | Fires a prismatic ray from the Hero that pierces enemies along its path until blocked by terrain, and briefly blinds the target. |
+| **Duelist** | Strikes the target, sweeps nearby enemies around either hero, and grants Bless to both. |
+| **Cleric** | Uses a dedicated rescue or support skill based on CoHero's class, listed below. No enemy target is needed. |
+
+### CoHero's follow-up
+
+These effects accompany the five offensive Hero skills:
+
+| CoHero class | Follow-up effect |
+| --- | --- |
+| **Warrior** | Shields both heroes and, when safe, knocks the surviving target back. |
+| **Mage** | Chains damage to other nearby enemies through clear terrain and weakens survivors. |
+| **Rogue** | Makes the surviving target vulnerable and briefly hides CoHero. |
+| **Huntress** | Fires a second prismatic ray **from CoHero's position** and blinds the target. Enemies already hit by the first ray are not hit again. |
+| **Duelist** | Strikes the surviving target again when close enough, cripples it, and gains Bless. |
+| **Cleric** | Cleanses and heals both heroes, adding protective shields if either is still badly wounded. |
+
+### Cleric-led ultimates
+
+When the **Hero is a Cleric**, CoHero's class selects one of six standalone support skills:
+
+| CoHero class | Ultimate | Effect |
+| --- | --- | --- |
+| **Warrior** | **Guardian's Oath** | Gives both heroes strong shields and Bless. |
+| **Mage** | **Holy Purification** | Damages and cripples enemies around the Hero while cleansing and healing both heroes. |
+| **Rogue** | **Veiled Blessing** | Heals both heroes and makes them temporarily invisible for a retreat. |
+| **Huntress** | **Sanctuary Arrows** | Heals both heroes while damaging and blinding reachable enemies near CoHero. |
+| **Duelist** | **Oathbound Riposte** | Grants both heroes protective shields and a longer Bless for holding their ground. |
+| **Cleric** | **Twin Sanctuary** | Strongly heals, cleanses, and shields both heroes. |
+
+Each pairing has its own name. **Long-press the crossed-swords Tag or open CoHero's backpack** to see the name and full effects of your current combination.
+
 ## Settings
 
 - **Enemy spawn multiplier:** Adjust the spawn rate from **1.0x to 4.0x** (default **1.5x**).

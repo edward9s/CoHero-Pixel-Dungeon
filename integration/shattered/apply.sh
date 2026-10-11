@@ -26,6 +26,8 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/tiles/FogOfWar.java"
     python "$patches/patch_cohero_class_traits.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java"
+    python "$patches/patch_combo_attack.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/actors/Char.java"
     python "$patches/patch_cohero_ring_traits.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/rings/RingOfArcana.java"
     python "$patches/patch_weapon_identification.py" \
