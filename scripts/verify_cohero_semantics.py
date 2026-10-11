@@ -295,6 +295,25 @@ def main() -> int:
         )
         return 1
 
+    combo_source = (package_root / "CoHeroCombo.java").read_text(encoding="utf-8")
+    combo_requirements = (
+        "validAttackTarget(mob, hero, companion, false)",
+        "validAttackTarget((Mob) selected, hero, companion, true)",
+        "mob == selectedTarget && mob instanceof Mimic",
+        "damageArea(hero, impactCell, 1, power, target)",
+        "damageArea(hero, target.pos, 1, power, target)",
+        "damageArea(hero, hero.pos, 2, 7 + hero.lvl, null)",
+        "isComboEnemy((Mob) ch, selectedTarget)",
+        "damageEnemy(caster, mob, amount, selectedTarget)",
+    )
+    if any(combo_source.count(requirement) != 1 for requirement in combo_requirements):
+        print(
+            "Manual combo selection must permit disguised Mimics without leaking "
+            "them through automatic targeting or collateral damage.",
+            file=sys.stderr,
+        )
+        return 1
+
     turn_context_source = (package_root / "CoHeroTurnContext.java").read_text(encoding="utf-8")
     if turn_context_source.count(PASSIVE_STATUE_FILTER) != 1:
         print(
