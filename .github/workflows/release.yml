@@ -265,7 +265,7 @@ jobs:
           name: changelog
           path: cohero/release-notes.md
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
   build:
     needs: prepare
@@ -417,7 +417,7 @@ jobs:
           name: release-${{ matrix.variant }}
           path: out/*
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
   release:
     needs: [prepare, build, notes]
