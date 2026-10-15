@@ -4,48 +4,59 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: cohero-test-release
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout CoHero source
         uses: actions/checkout@v4
         with:
           path: cohero
 
-      - name: Resolve latest Shattered Pixel Dungeon release
-        id: upstream
+      - name: Checkout Shattered Master Mode main
+        uses: actions/checkout@v4
+        with:
+          repository: edward9s/Shattered-Master-Mode
+          ref: main
+          path: mod
+
+      - name: Resolve versions
+        id: versions
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name // empty')
-          if [ -z "$TAG" ]; then
-            echo "::error::Unable to resolve the latest SPD release tag."
-            exit 1
-          fi
-
-          COHERO_VER=$(python cohero/scripts/extract_version.py \
-            cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
-          if [ -z "$COHERO_VER" ]; then
-            echo "::error::Unable to resolve the CoHero version."
-            exit 1
-          fi
-
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          SPD_TAG=$(gh api repos/00-Evan/shattered-pixel-dungeon/releases/latest --jq '.tag_name // empty')
+          test -n "$SPD_TAG"
+          COHERO_VER=$(python cohero/scripts/extract_version.py cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
+          SMM_VER=$(python mod/scripts/extract_version.py mod/core/src/main/java/com/spd/mod/ModGame.java)
+          test -n "$COHERO_VER"
+          test -n "$SMM_VER"
+          echo "spd_tag=$SPD_TAG" >> "$GITHUB_OUTPUT"
           echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
-          echo "Using CoHero $COHERO_VER with SPD $TAG"
+          echo "smm_ver=$SMM_VER" >> "$GITHUB_OUTPUT"
+          echo "Building CoHero $COHERO_VER, SPD $SPD_TAG, SMM main $(git -C mod rev-parse HEAD) (m$SMM_VER)"
 
-      - name: Checkout Shattered Pixel Dungeon
+      - name: Checkout Shattered Pixel Dungeon for CoHero
         uses: actions/checkout@v4
         with:
           repository: 00-Evan/shattered-pixel-dungeon
-          ref: ${{ steps.upstream.outputs.tag }}
-          path: spd
+          ref: ${{ steps.versions.outputs.spd_tag }}
+          path: spd-cohero
+
+      - name: Checkout Shattered Pixel Dungeon for SMM
+        uses: actions/checkout@v4
+        with:
+          repository: 00-Evan/shattered-pixel-dungeon
+          ref: ${{ steps.versions.outputs.spd_tag }}
+          path: spd-smm
 
       - name: Verify CoHero source isolation
         shell: bash
@@ -60,20 +71,48 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp -a cohero/core/. spd/core/
+          for target in spd-cohero spd-smm; do
+            cp -a cohero/core/. "$target/core/"
+          done
 
       - name: Patch CoHero integration seams
         shell: bash
         run: |
           set -euo pipefail
-          bash cohero/integration/shattered/apply.sh base spd cohero
-          bash cohero/integration/shattered/apply.sh wndgame spd cohero
+          for target in spd-cohero spd-smm; do
+            bash cohero/integration/shattered/apply.sh base "$target" cohero
+          done
+
+      - name: Patch and merge SMM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python mod/scripts/rebase_source.py spd-smm mod
+          python mod/scripts/patch_android.py spd-smm
+          python mod/scripts/inject_mod.py spd-smm
+
+          cp -a mod/core spd-smm/ 2>/dev/null || true
+          cp -a mod/android spd-smm/ 2>/dev/null || true
+          cp -a mod/desktop spd-smm/ 2>/dev/null || true
+          cp -a mod/assets spd-smm/ 2>/dev/null || true
+
+          python mod/scripts/patch_depth.py 26 spd-smm
+
+      - name: Patch CoHero WndGame
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in spd-cohero spd-smm; do
+            bash cohero/integration/shattered/apply.sh wndgame "$target" cohero
+          done
 
       - name: Patch CoHero messages
         shell: bash
         run: |
           set -euo pipefail
-          bash cohero/integration/shattered/apply.sh messages spd cohero
+          for target in spd-cohero spd-smm; do
+            bash cohero/integration/shattered/apply.sh messages "$target" cohero
+          done
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -88,66 +127,117 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build release APK and JAR
-        working-directory: spd
+      - name: Install Android build tools for signer
+        shell: bash
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
+
+      - name: Build CoHero release APK and JAR
+        working-directory: spd-cohero
         shell: bash
         run: |
           set -euo pipefail
           chmod +x ./gradlew
           ./gradlew :android:assembleRelease :desktop:release
 
-      - name: Determine artifact names
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APK=$(find spd/android/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -1)
-          JAR=$(find spd/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
-
-          test -n "$APK" -a -f "$APK"
-          test -n "$JAR" -a -f "$JAR"
-
-          BASE_NAME="CoHero-v${{ steps.upstream.outputs.cohero_ver }}-SPD-${{ steps.upstream.outputs.tag }}"
-
-          echo "SOURCE_JAR=$JAR" >> "$GITHUB_ENV"
-          echo "BASE_NAME=$BASE_NAME" >> "$GITHUB_ENV"
-          echo "OUTPUT_APK=${BASE_NAME}.apk" >> "$GITHUB_ENV"
-          echo "OUTPUT_JAR=${BASE_NAME}.jar" >> "$GITHUB_ENV"
-
-      - name: Install Android build tools for signer
-        shell: bash
-        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
-
-      - name: Sign Android APK
+      - name: Sign CoHero Android APK
         uses: r0adkll/sign-android-release@v1
-        id: sign
+        id: sign_cohero
         with:
-          releaseDirectory: spd/android/build/outputs/apk/release
+          releaseDirectory: spd-cohero/android/build/outputs/apk/release
           signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Prepare artifacts
+      - name: Stage CoHero release files
+        shell: bash
+        env:
+          SPD_TAG: ${{ steps.versions.outputs.spd_tag }}
+          COHERO_VER: ${{ steps.versions.outputs.cohero_ver }}
+        run: |
+          set -euo pipefail
+          JAR=$(find spd-cohero/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
+          test -n "$JAR" -a -f "$JAR"
+          test -f "${{ steps.sign_cohero.outputs.signedReleaseFile }}"
+          BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}"
+          mkdir -p out
+          cp "${{ steps.sign_cohero.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
+          cp "$JAR" "out/${BASE_NAME}.jar"
+
+      - name: Build SMM release APK and JAR
+        working-directory: spd-smm
         shell: bash
         run: |
           set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :android:assembleRelease :desktop:release
+
+      - name: Sign SMM Android APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_smm
+        with:
+          releaseDirectory: spd-smm/android/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Stage SMM release files
+        shell: bash
+        env:
+          SPD_TAG: ${{ steps.versions.outputs.spd_tag }}
+          COHERO_VER: ${{ steps.versions.outputs.cohero_ver }}
+          SMM_VER: ${{ steps.versions.outputs.smm_ver }}
+        run: |
+          set -euo pipefail
+          JAR=$(find spd-smm/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
+          test -n "$JAR" -a -f "$JAR"
+          test -f "${{ steps.sign_smm.outputs.signedReleaseFile }}"
+          BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}-SMM-m${SMM_VER}"
           mkdir -p out
-          cp "${{ steps.sign.outputs.signedReleaseFile }}" "out/$OUTPUT_APK"
-          cp "$SOURCE_JAR" "out/$OUTPUT_JAR"
+          cp "${{ steps.sign_smm.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
+          cp "$JAR" "out/${BASE_NAME}.jar"
 
-      - name: Upload signed APK
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 3
-          name: ${{ env.BASE_NAME }}-APK
-          path: out/${{ env.OUTPUT_APK }}
-          if-no-files-found: error
+      - name: Verify four build files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find out -maxdepth 1 -type f \( -name '*.jar' -o -name '*.apk' \) | wc -l)" -eq 4
 
-      - name: Upload JAR
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 3
-          name: ${{ env.BASE_NAME }}-JAR
-          path: out/${{ env.OUTPUT_JAR }}
-          if-no-files-found: error
+      - name: Publish rolling test release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPD_TAG: ${{ steps.versions.outputs.spd_tag }}
+          TEST_TAG: build-test
+        run: |
+          set -euo pipefail
+          notes=$(printf 'Latest successful manual CoHero test build.\n\nCoHero commit: %s\nSPD: %s\nSMM main commit: %s\n' \
+            "$GITHUB_SHA" "$SPD_TAG" "$(git -C mod rev-parse HEAD)")
+          if gh release view "$TEST_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TEST_TAG" out/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TEST_TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "CoHero test build" --notes "$notes" --prerelease
+          else
+            gh release create "$TEST_TAG" out/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "CoHero test build" \
+              --notes "$notes" \
+              --prerelease \
+              --latest=false
+          fi
+          while IFS='|' read -r asset_id asset_name; do
+            case "$asset_name" in
+              *.apk|*.jar)
+                if [[ ! -f "out/$asset_name" ]]; then
+                  gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+                fi
+                ;;
+            esac
+          done < <(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TEST_TAG" \
+            --jq '.assets[] | "\(.id)|\(.name)"')
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TEST_TAG" \
+            -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          actual_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TEST_TAG" --jq '.object.sha')
+          test "$actual_sha" = "$GITHUB_SHA"
