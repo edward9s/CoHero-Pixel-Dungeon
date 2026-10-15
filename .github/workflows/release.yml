@@ -143,7 +143,7 @@ jobs:
             echo "No previous CoHero release found."
           fi
 
-  notes:
+  build:
     needs: prepare
     if: needs.prepare.outputs.skip == 'false'
     runs-on: ubuntu-latest
@@ -154,6 +154,167 @@ jobs:
         with:
           path: cohero
           fetch-depth: 0
+
+      - name: Checkout Shattered Master Mode
+        uses: actions/checkout@v4
+        with:
+          repository: edward9s/Shattered-Master-Mode
+          ref: ${{ needs.prepare.outputs.smm_tag }}
+          path: mod
+
+      - name: Checkout Shattered Pixel Dungeon for CoHero
+        uses: actions/checkout@v4
+        with:
+          repository: 00-Evan/shattered-pixel-dungeon
+          ref: ${{ needs.prepare.outputs.spd_tag }}
+          path: spd-cohero
+
+      - name: Checkout Shattered Pixel Dungeon for SMM
+        uses: actions/checkout@v4
+        with:
+          repository: 00-Evan/shattered-pixel-dungeon
+          ref: ${{ needs.prepare.outputs.spd_tag }}
+          path: spd-smm
+
+      - name: Verify CoHero source isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q cohero/integration/shattered/patches cohero/scripts
+          python cohero/scripts/verify_source_layout.py cohero
+          python cohero/scripts/verify_cohero_semantics.py cohero
+          python cohero/scripts/test_java_patch.py cohero
+
+      - name: Overlay CoHero source
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in spd-cohero spd-smm; do
+            cp -a cohero/core/. "$target/core/"
+          done
+
+      - name: Patch CoHero integration seams
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in spd-cohero spd-smm; do
+            bash cohero/integration/shattered/apply.sh base "$target" cohero
+          done
+
+      - name: Patch and merge SMM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python mod/scripts/rebase_source.py spd-smm mod
+          python mod/scripts/patch_android.py spd-smm
+          python mod/scripts/inject_mod.py spd-smm
+
+          cp -a mod/core spd-smm/ 2>/dev/null || true
+          cp -a mod/android spd-smm/ 2>/dev/null || true
+          cp -a mod/desktop spd-smm/ 2>/dev/null || true
+          cp -a mod/assets spd-smm/ 2>/dev/null || true
+
+          python mod/scripts/patch_depth.py 26 spd-smm
+
+      - name: Patch CoHero WndGame
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in spd-cohero spd-smm; do
+            bash cohero/integration/shattered/apply.sh wndgame "$target" cohero
+          done
+
+      - name: Patch CoHero messages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in spd-cohero spd-smm; do
+            bash cohero/integration/shattered/apply.sh messages "$target" cohero
+          done
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Test CoHero emergency consumable rules
+        shell: bash
+        run: python cohero/scripts/test_cohero_combat_risk.py cohero
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Android build tools for signer
+        shell: bash
+        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
+
+      - name: Build CoHero release APK and JAR
+        working-directory: spd-cohero
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :android:assembleRelease :desktop:release
+
+      - name: Sign CoHero Android APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_cohero
+        with:
+          releaseDirectory: spd-cohero/android/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Stage CoHero release files
+        shell: bash
+        env:
+          SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
+          COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
+        run: |
+          set -euo pipefail
+          JAR=$(find spd-cohero/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
+          test -n "$JAR" -a -f "$JAR"
+          test -f "${{ steps.sign_cohero.outputs.signedReleaseFile }}"
+          BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}"
+          mkdir -p out
+          cp "${{ steps.sign_cohero.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
+          cp "$JAR" "out/${BASE_NAME}.jar"
+
+      - name: Build SMM release APK and JAR
+        working-directory: spd-smm
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ./gradlew
+          ./gradlew :android:assembleRelease :desktop:release
+
+      - name: Sign SMM Android APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_smm
+        with:
+          releaseDirectory: spd-smm/android/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Stage SMM release files
+        shell: bash
+        env:
+          SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
+          COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
+          SMM_VER: ${{ needs.prepare.outputs.smm_ver }}
+        run: |
+          set -euo pipefail
+          JAR=$(find spd-smm/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
+          test -n "$JAR" -a -f "$JAR"
+          test -f "${{ steps.sign_smm.outputs.signedReleaseFile }}"
+          BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}-SMM-m${SMM_VER}"
+          mkdir -p out
+          cp "${{ steps.sign_smm.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
+          cp "$JAR" "out/${BASE_NAME}.jar"
 
       - name: Set up Node.js for Copilot
         uses: actions/setup-node@v4
@@ -259,179 +420,6 @@ jobs:
 
           cat "$NOTES_FILE"
 
-      - name: Upload release notes
-        uses: actions/upload-artifact@v4
-        with:
-          name: changelog
-          path: cohero/release-notes.md
-          if-no-files-found: error
-          retention-days: 3
-
-  build:
-    needs: prepare
-    if: needs.prepare.outputs.skip == 'false'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [cohero, smm]
-
-    steps:
-      - name: Checkout CoHero source
-        uses: actions/checkout@v4
-        with:
-          path: cohero
-
-      - name: Checkout Shattered Master Mode
-        if: matrix.variant == 'smm'
-        uses: actions/checkout@v4
-        with:
-          repository: edward9s/Shattered-Master-Mode
-          ref: ${{ needs.prepare.outputs.smm_tag }}
-          path: mod
-
-      - name: Checkout Shattered Pixel Dungeon
-        uses: actions/checkout@v4
-        with:
-          repository: 00-Evan/shattered-pixel-dungeon
-          ref: ${{ needs.prepare.outputs.spd_tag }}
-          path: spd
-
-      - name: Verify CoHero source isolation
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m compileall -q cohero/integration/shattered/patches cohero/scripts
-          python cohero/scripts/verify_source_layout.py cohero
-          python cohero/scripts/verify_cohero_semantics.py cohero
-          python cohero/scripts/test_java_patch.py cohero
-
-      - name: Overlay CoHero source
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -a cohero/core/. spd/core/
-
-      - name: Patch CoHero integration seams
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash cohero/integration/shattered/apply.sh base spd cohero
-
-      - name: Patch and merge SMM
-        if: matrix.variant == 'smm'
-        shell: bash
-        run: |
-          set -euo pipefail
-          python mod/scripts/rebase_source.py spd mod
-          python mod/scripts/patch_android.py spd
-          python mod/scripts/inject_mod.py spd
-
-          cp -a mod/core spd/ 2>/dev/null || true
-          cp -a mod/android spd/ 2>/dev/null || true
-          cp -a mod/desktop spd/ 2>/dev/null || true
-          cp -a mod/assets spd/ 2>/dev/null || true
-
-          python mod/scripts/patch_depth.py 26 spd
-
-      - name: Patch CoHero WndGame after SMM injection
-        if: matrix.variant == 'smm'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash cohero/integration/shattered/apply.sh wndgame spd cohero
-
-      - name: Patch CoHero WndGame
-        if: matrix.variant == 'cohero'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash cohero/integration/shattered/apply.sh wndgame spd cohero
-
-      - name: Patch CoHero messages
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash cohero/integration/shattered/apply.sh messages spd cohero
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Test CoHero emergency consumable rules
-        shell: bash
-        run: python cohero/scripts/test_cohero_combat_risk.py cohero
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build release APK and JAR
-        working-directory: spd
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x ./gradlew
-          ./gradlew :android:assembleRelease :desktop:release
-
-      - name: Install Android build tools for signer
-        shell: bash
-        run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
-
-      - name: Sign Android APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign
-        with:
-          releaseDirectory: spd/android/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Prepare release files
-        shell: bash
-        env:
-          SPD_TAG: ${{ needs.prepare.outputs.spd_tag }}
-          COHERO_VER: ${{ needs.prepare.outputs.cohero_ver }}
-          SMM_VER: ${{ needs.prepare.outputs.smm_ver }}
-        run: |
-          set -euo pipefail
-
-          JAR=$(find spd/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
-          test -n "$JAR" -a -f "$JAR"
-
-          if [ "${{ matrix.variant }}" = "smm" ]; then
-            BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}-SMM-m${SMM_VER}"
-          else
-            BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}"
-          fi
-
-          mkdir -p out
-          cp "${{ steps.sign.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
-          cp "$JAR" "out/${BASE_NAME}.jar"
-
-      - name: Upload release files
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.variant }}
-          path: out/*
-          if-no-files-found: error
-          retention-days: 3
-
-  release:
-    needs: [prepare, build, notes]
-    if: needs.prepare.outputs.skip == 'false'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download release files
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          path: out
-          merge-multiple: true
-
       - name: Verify release payload
         shell: bash
         run: |
@@ -442,12 +430,6 @@ jobs:
             find out -maxdepth 1 -type f -print
             exit 1
           fi
-
-      - name: Download release notes
-        uses: actions/download-artifact@v4
-        with:
-          name: changelog
-          path: notes
 
       - name: Move existing release tag to this build
         if: github.event_name == 'workflow_dispatch' && needs.prepare.outputs.existing == 'true'
@@ -479,7 +461,7 @@ jobs:
           tag_name: ${{ needs.prepare.outputs.release_tag }}
           name: ${{ needs.prepare.outputs.release_tag }}
           target_commitish: ${{ github.sha }}
-          body_path: notes/release-notes.md
+          body_path: cohero/release-notes.md
           files: out/*
           overwrite_files: true
           fail_on_unmatched_files: true
