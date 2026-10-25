@@ -6,7 +6,10 @@ import com.shatteredpixel.shatteredpixeldungeon.items.bags.VelvetPouch;
 import com.watabou.utils.GameSettings;
 
 /** Global CoHero preferences and the hidden test-options visibility toggle. */
-final class CoHeroSettings {
+public final class CoHeroSettings {
+
+    /** Show the original Shattered supporter button and first Worn Key prompt. */
+    public static final boolean SHOW_SHATTERED_SUPPORT = false;
 
     private static final String ENEMY_SPAWN_MULTIPLIER_QUARTERS =
             "cohero_default_enemy_spawn_multiplier_quarters";
