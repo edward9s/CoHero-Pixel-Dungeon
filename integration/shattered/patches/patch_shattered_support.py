@@ -15,13 +15,15 @@ def replace_once(source, old, new, label):
 
 
 def main():
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: patch_shattered_support.py <TitleScene.java> <WornKey.java>")
+    if len(sys.argv) != 4:
+        raise SystemExit("usage: patch_shattered_support.py <TitleScene.java> <WornKey.java> <WndVictoryCongrats.java>")
 
     title_path = Path(sys.argv[1])
     key_path = Path(sys.argv[2])
+    victory_path = Path(sys.argv[3])
     title = java_source(title_path.read_text(encoding="utf-8"))
     key = java_source(key_path.read_text(encoding="utf-8"))
+    victory = java_source(victory_path.read_text(encoding="utf-8"))
 
     title = replace_once(
         title,
@@ -84,9 +86,42 @@ def main():
         "worn key support prompt",
     )
 
+    victory = replace_once(
+        victory,
+        "\t\tRedButton btnSupport = new RedButton(Messages.get(this, \"support\")) {\n"
+        "\t\t\t@Override\n"
+        "\t\t\tprotected void onClick() {\n"
+        "\t\t\t\tShatteredPixelDungeon.switchScene(SupporterScene.class);\n"
+        "\t\t\t}\n"
+        "\t\t};\n"
+        "\t\tbtnSupport.icon(Icons.GOLD.get());\n"
+        "\t\tbtnSupport.setRect(0, height, width / 2, 18);\n"
+        "\t\tadd(btnSupport);",
+        '\t\tif (' + SUPPORT_FLAG + ') {\n'
+        + "\t\t\tRedButton btnSupport = new RedButton(Messages.get(this, \"support\")) {\n"
+        "\t\t\t\t@Override\n"
+        "\t\t\t\tprotected void onClick() {\n"
+        "\t\t\t\t\tShatteredPixelDungeon.switchScene(SupporterScene.class);\n"
+        "\t\t\t\t}\n"
+        "\t\t\t};\n"
+        "\t\t\tbtnSupport.icon(Icons.GOLD.get());\n"
+        "\t\t\tbtnSupport.setRect(0, height, width / 2, 18);\n"
+        "\t\t\tadd(btnSupport);"
+        + '\n\t\t}',
+        "victory support button creation",
+    )
+    victory = replace_once(
+        victory,
+        '\t\tbtnClose.setRect(btnSupport.right() + 1, height, width / 2 - 1, 18);',
+        '\t\tbtnClose.setRect(' + SUPPORT_FLAG + ' ? width / 2 + 1 : 0, height,\n'
+        '\t\t\t\t' + SUPPORT_FLAG + ' ? width / 2 - 1 : width, 18);',
+        "victory close button layout",
+    )
+
     title_path.write_text(title, encoding="utf-8")
     key_path.write_text(key, encoding="utf-8")
-    print("patched TitleScene and WornKey: Shattered support UI guarded by " + SUPPORT_FLAG)
+    victory_path.write_text(victory, encoding="utf-8")
+    print("patched TitleScene, WornKey, and WndVictoryCongrats: Shattered support UI guarded by " + SUPPORT_FLAG)
 
 
 if __name__ == "__main__":

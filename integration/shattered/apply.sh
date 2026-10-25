@@ -54,7 +54,8 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java"
     python "$patches/patch_shattered_support.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/scenes/TitleScene.java" \
-      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/keys/WornKey.java"
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/keys/WornKey.java" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndVictoryCongrats.java"
     python "$patches/patch_menu_pane.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java"
     python "$patches/patch_wndsettings.py" \
