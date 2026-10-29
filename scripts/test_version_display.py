@@ -48,6 +48,9 @@ def check_patches(root: Path, upstream: Path) -> None:
                     raise AssertionError(f"{patch} missing {marker}")
             if result.count("CoHeroUpdates.checkForUpdate();") != 1:
                 raise AssertionError(f"{patch} should start exactly one update check")
+            if "CoHeroVersion.display(Game.version" in result or (
+                    "Game.version, com.spd.cohero.CoHeroUpdates.latestVersion()" in result):
+                raise AssertionError(f"{patch} must not display the SPD version")
     print("CoHero version UI integration checks passed")
 
 
