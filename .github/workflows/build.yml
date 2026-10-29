@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
 
+# Test builds are manual-only; one publication may update build-test at a time.
 concurrency:
   group: cohero-test-release
   cancel-in-progress: false
@@ -37,8 +38,11 @@ jobs:
           test -n "$SPD_TAG"
           COHERO_VER=$(python cohero/scripts/extract_version.py cohero/core/src/main/java/com/spd/cohero/CoHeroVersion.java)
           SMM_VER=$(python mod/scripts/extract_version.py mod/core/src/main/java/com/spd/mod/ModGame.java)
+          SMM_TAG=$(gh api repos/edward9s/Shattered-Master-Mode/releases/latest --jq '.tag_name // empty')
           test -n "$COHERO_VER"
           test -n "$SMM_VER"
+          test -n "$SMM_TAG"
+          echo "smm_tag=$SMM_TAG" >> "$GITHUB_OUTPUT"
           echo "spd_tag=$SPD_TAG" >> "$GITHUB_OUTPUT"
           echo "cohero_ver=$COHERO_VER" >> "$GITHUB_OUTPUT"
           echo "smm_ver=$SMM_VER" >> "$GITHUB_OUTPUT"
@@ -91,10 +95,10 @@ jobs:
           python mod/scripts/patch_android.py spd-smm
           python mod/scripts/inject_mod.py spd-smm
 
-          cp -a mod/core spd-smm/ 2>/dev/null || true
-          cp -a mod/android spd-smm/ 2>/dev/null || true
-          cp -a mod/desktop spd-smm/ 2>/dev/null || true
-          cp -a mod/assets spd-smm/ 2>/dev/null || true
+          cp -a mod/core/. spd-smm/core/
+          if [[ -d mod/android ]]; then cp -a mod/android/. spd-smm/android/; fi
+          if [[ -d mod/desktop ]]; then cp -a mod/desktop/. spd-smm/desktop/; fi
+          if [[ -d mod/assets ]]; then cp -a mod/assets/. spd-smm/assets/; fi
 
           python mod/scripts/patch_depth.py 26 spd-smm
 
@@ -127,6 +131,22 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Verify signing secrets
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in KEYSTORE_BASE64 KEY_ALIAS STORE_PASSWORD KEY_PASSWORD; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Missing required signing secret: $key"
+              exit 1
+            fi
+          done
+
       - name: Install Android build tools for signer
         shell: bash
         run: $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
@@ -156,9 +176,10 @@ jobs:
           COHERO_VER: ${{ steps.versions.outputs.cohero_ver }}
         run: |
           set -euo pipefail
-          JAR=$(find spd-cohero/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
-          test -n "$JAR" -a -f "$JAR"
+          JAR=$(find spd-cohero/desktop/build/libs -maxdepth 1 -type f -name '*.jar' -print -quit)
+          test -f "$JAR"
           test -f "${{ steps.sign_cohero.outputs.signedReleaseFile }}"
+          "$ANDROID_HOME/build-tools/29.0.3/apksigner" verify --verbose "${{ steps.sign_cohero.outputs.signedReleaseFile }}"
           BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}"
           mkdir -p out
           cp "${{ steps.sign_cohero.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
@@ -190,9 +211,10 @@ jobs:
           SMM_VER: ${{ steps.versions.outputs.smm_ver }}
         run: |
           set -euo pipefail
-          JAR=$(find spd-smm/desktop/build/libs -maxdepth 1 -type f -name '*.jar' | head -1)
-          test -n "$JAR" -a -f "$JAR"
+          JAR=$(find spd-smm/desktop/build/libs -maxdepth 1 -type f -name '*.jar' -print -quit)
+          test -f "$JAR"
           test -f "${{ steps.sign_smm.outputs.signedReleaseFile }}"
+          "$ANDROID_HOME/build-tools/29.0.3/apksigner" verify --verbose "${{ steps.sign_smm.outputs.signedReleaseFile }}"
           BASE_NAME="CoHero-v${COHERO_VER}-SPD-${SPD_TAG}-SMM-m${SMM_VER}"
           mkdir -p out
           cp "${{ steps.sign_smm.outputs.signedReleaseFile }}" "out/${BASE_NAME}.apk"
@@ -209,17 +231,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SPD_TAG: ${{ steps.versions.outputs.spd_tag }}
+          SMM_TAG: ${{ steps.versions.outputs.smm_tag }}
           TEST_TAG: build-test
         run: |
           set -euo pipefail
-          notes=$(printf 'Latest successful manual CoHero test build.\n\nCoHero commit: %s\nSPD: %s\nSMM main commit: %s\n' \
-            "$GITHUB_SHA" "$SPD_TAG" "$(git -C mod rev-parse HEAD)")
+          shopt -s nullglob
+          files=(out/*.apk out/*.jar)
+          if [[ ${#files[@]} -ne 4 ]]; then
+            echo "::error::Expected exactly four APK/JAR files"
+            exit 1
+          fi
+          notes=$(printf 'Latest successful manual CoHero test build.\n\nCoHero commit: %s\nSPD: %s\nSMM main commit: %s\nSMM release: %s\n' \
+            "$GITHUB_SHA" "$SPD_TAG" "$(git -C mod rev-parse HEAD)" "$SMM_TAG")
           if gh release view "$TEST_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TEST_TAG" out/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TEST_TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$TEST_TAG" --repo "$GITHUB_REPOSITORY" \
               --title "CoHero test build" --notes "$notes" --prerelease
           else
-            gh release create "$TEST_TAG" out/* \
+            gh release create "$TEST_TAG" "${files[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "CoHero test build" \
@@ -227,16 +256,12 @@ jobs:
               --prerelease \
               --latest=false
           fi
-          while IFS='|' read -r asset_id asset_name; do
-            case "$asset_name" in
-              *.apk|*.jar)
-                if [[ ! -f "out/$asset_name" ]]; then
-                  gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
-                fi
-                ;;
-            esac
-          done < <(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TEST_TAG" \
-            --jq '.assets[] | "\(.id)|\(.name)"')
+          assets=$(gh release view "$TEST_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          while IFS= read -r asset; do
+            if [[ -n "$asset" && ! -f "out/$asset" ]]; then
+              gh release delete-asset "$TEST_TAG" "$asset" --repo "$GITHUB_REPOSITORY" --yes
+            fi
+          done <<< "$assets"
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TEST_TAG" \
             -f sha="$GITHUB_SHA" -F force=true >/dev/null
           actual_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TEST_TAG" --jq '.object.sha')
