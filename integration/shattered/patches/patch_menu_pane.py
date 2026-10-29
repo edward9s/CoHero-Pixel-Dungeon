@@ -11,7 +11,10 @@ path = Path(sys.argv[1])
 menu = java_source(path.read_text(encoding="utf-8"))
 
 menu_old = 'version = new BitmapText( "v" + Game.version , PixelScene.pixelFont);'
-menu_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), PixelScene.pixelFont);'
+menu_new = ('com.spd.cohero.CoHeroUpdates.checkForUpdate();\n\t\t'
+    'version = new BitmapText( '
+    'com.spd.cohero.CoHeroVersion.display(Game.version, '
+    'com.spd.cohero.CoHeroUpdates.latestVersion()), PixelScene.pixelFont);')
 
 
 if menu_new in menu:
