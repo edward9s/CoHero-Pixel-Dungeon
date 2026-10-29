@@ -9,6 +9,12 @@ permissions:
   contents: write
   copilot-requests: write
 
+# The official release is keyed only by CoHero and SPD versions.
+# Keep scheduled and manual official publishing from racing each other.
+concurrency:
+  group: cohero-official-release
+  cancel-in-progress: false
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
