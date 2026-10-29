@@ -11,3 +11,7 @@ The CoHero version is manually set in `core/src/main/java/com/spd/cohero/CoHeroV
 - **Manual `Build CoHero`:** Always compile and replace the four APK/JAR assets in the rolling **`build-test` prerelease**. This workflow has **no schedule**, uses the latest published SPD and SMM `main`, checks the required signing secrets, and verifies the signed APK files before uploading. Replaced test assets also lose their download counts.
 
 Official releases use the latest published SMM version for the bundled variant, but **SMM is not part of the official Release tag or automatic build trigger**.
+
+## Diagnostics
+
+- **CoHero debug log:** Records AI decisions and performance information to help diagnose problems. When enabled, exported saves include `cohero-diagnostics.txt`.
