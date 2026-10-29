@@ -85,7 +85,6 @@ Each pairing has its own name. **Long-press the crossed-swords Tag or open CoHer
 ## Settings
 
 - **Enemy spawn multiplier:** Adjust the spawn rate from **1.0x to 4.0x** (default **1.5x**).
-- **CoHero debug log:** Records AI decisions and performance information to help diagnose problems. When enabled, exported saves include `cohero-diagnostics.txt`.
 
 Save export/import uses `Documents/spd_saves/<app name>/` on Android and Desktop. CoHero and CoHero + SMM have different app names and therefore keep separate snapshots.
 
