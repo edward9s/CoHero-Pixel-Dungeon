@@ -185,6 +185,9 @@ jobs:
           ref: ${{ needs.prepare.outputs.spd_tag }}
           path: spd-smm
 
+      - name: Test CoHero version label UI integration
+        run: python cohero/scripts/test_version_display.py cohero --upstream spd-cohero
+
       - name: Verify CoHero source isolation
         shell: bash
         run: |
@@ -246,6 +249,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Test CoHero version label formatting
+        run: python cohero/scripts/test_version_display.py cohero
 
       - name: Test CoHero emergency consumable rules
         shell: bash

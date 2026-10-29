@@ -11,7 +11,10 @@ path = Path(sys.argv[1])
 title = java_source(path.read_text(encoding="utf-8"))
 
 title_version_old = 'version = new BitmapText( "v" + Game.version, pixelFont);'
-title_version_new = 'version = new BitmapText( com.spd.cohero.CoHeroVersion.display(Game.version), pixelFont);'
+title_version_new = ('com.spd.cohero.CoHeroUpdates.checkForUpdate();\n\t\t'
+    'version = new BitmapText( '
+    'com.spd.cohero.CoHeroVersion.display(Game.version, '
+    'com.spd.cohero.CoHeroUpdates.latestVersion()), pixelFont);')
 
 
 title_field_old = """\tprivate Image title;
@@ -77,6 +80,27 @@ for label, old, new in anchors:
         raise SystemExit(f"expected exactly one {label} anchor, found {count}")
     title = title.replace(old, new, 1)
 
+
+# Refresh the version label after the asynchronous release check completes.
+update_anchor = "\tprivate float uiAlpha;"
+if title.count(update_anchor) != 1:
+    raise SystemExit("expected exactly one TitleScene version-update anchor")
+update_hook = """
+\t@Override
+\tpublic void update() {
+\t\tsuper.update();
+\t\tString display = com.spd.cohero.CoHeroVersion.display(
+\t\t\t\tGame.version, com.spd.cohero.CoHeroUpdates.latestVersion());
+\t\tif (!display.equals(version.text())) {
+\t\t\tfloat right = version.x + version.width();
+\t\t\tversion.text(display);
+\t\t\tversion.measure();
+\t\t\tversion.x = right - version.width();
+\t\t}
+\t}
+
+"""
+title = title.replace(update_anchor, update_hook + update_anchor, 1)
 
 path.write_text(title, encoding="utf-8")
 print(f"patched {path}")
