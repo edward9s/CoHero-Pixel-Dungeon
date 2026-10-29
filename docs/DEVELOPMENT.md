@@ -18,4 +18,4 @@ Official releases use the latest published SMM version for the bundled variant, 
 
 ## Version label
 
-The title screen and in-game menu show the mod version before the base game: `CoH v0.1.7 | SPD v4.0.2`. When `CoHeroUpdates` detects a newer published CoHero version, its label becomes `CoH v0.1.7 | new 0.1.8 | SPD v4.0.2`. The version checker runs when either screen opens and the text updates after the asynchronous check. CoHero's manually assigned `CoHeroVersion.VERSION` remains unchanged until the maintainer edits it.
+The title screen and in-game menu show only the mod version: `CoH v0.1.7`. When `CoHeroUpdates` detects a newer published CoHero version, the label becomes `CoH v0.1.7 | new 0.1.8`. The version checker runs when either screen opens and the text updates after the asynchronous check. SPD is still part of release tags and build policy, but not part of the in-game label. CoHero's manually assigned `CoHeroVersion.VERSION` remains unchanged until the maintainer edits it.
