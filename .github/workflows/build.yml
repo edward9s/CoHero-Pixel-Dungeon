@@ -20,6 +20,9 @@ jobs:
         with:
           path: cohero
 
+      - name: Check CoHero release workflow rules
+        run: python cohero/scripts/test_release_workflows.py
+
       - name: Checkout Shattered Master Mode main
         uses: actions/checkout@v4
         with:
