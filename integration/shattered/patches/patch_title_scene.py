@@ -13,7 +13,7 @@ title = java_source(path.read_text(encoding="utf-8"))
 title_version_old = 'version = new BitmapText( "v" + Game.version, pixelFont);'
 title_version_new = ('com.spd.cohero.CoHeroUpdates.checkForUpdate();\n\t\t'
     'version = new BitmapText( '
-    'com.spd.cohero.CoHeroVersion.display(Game.version, '
+    'com.spd.cohero.CoHeroVersion.display('
     'com.spd.cohero.CoHeroUpdates.latestVersion()), pixelFont);')
 
 
@@ -90,7 +90,7 @@ update_hook = """
 \tpublic void update() {
 \t\tsuper.update();
 \t\tString display = com.spd.cohero.CoHeroVersion.display(
-\t\t\t\tGame.version, com.spd.cohero.CoHeroUpdates.latestVersion());
+\t\t\t\tcom.spd.cohero.CoHeroUpdates.latestVersion());
 \t\tif (!display.equals(version.text())) {
 \t\t\tfloat right = version.x + version.width();
 \t\t\tversion.text(display);
