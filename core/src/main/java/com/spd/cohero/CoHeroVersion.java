@@ -18,6 +18,12 @@ public final class CoHeroVersion {
     }
 
     public static String display(String spdVersion) {
-        return "SPD v" + spdVersion + " | CoH v" + VERSION;
+        return display(spdVersion, null);
+    }
+
+    public static String display(String spdVersion, String latestVersion) {
+        return "CoH v" + VERSION
+                + (latestVersion == null ? "" : " | new " + latestVersion)
+                + " | SPD v" + spdVersion;
     }
 }
