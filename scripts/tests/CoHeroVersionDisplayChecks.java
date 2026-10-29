@@ -9,12 +9,10 @@ public final class CoHeroVersionDisplayChecks {
     }
 
     public static void main(String[] args) {
-        String normal = "CoH v" + CoHeroVersion.VERSION + " | SPD v4.0.2";
-        String newer = "CoH v" + CoHeroVersion.VERSION
-                + " | new 9.9.9 | SPD v4.0.2";
-        assertEquals(normal, CoHeroVersion.display("4.0.2"));
-        assertEquals(normal, CoHeroVersion.display("4.0.2", null));
-        assertEquals(newer, CoHeroVersion.display("4.0.2", "9.9.9"));
+        String normal = "CoH v" + CoHeroVersion.VERSION;
+        String newer = "CoH v" + CoHeroVersion.VERSION + " | new 9.9.9";
+        assertEquals(normal, CoHeroVersion.display(null));
+        assertEquals(newer, CoHeroVersion.display("9.9.9"));
         System.out.println("CoHero version display checks passed");
     }
 }
