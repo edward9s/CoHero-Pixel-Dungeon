@@ -3,6 +3,8 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 
 STONE_TO_SCROLL = """
 \tpublic static class StoneToScroll extends Recipe {
@@ -60,7 +62,7 @@ STONE_TO_SCROLL = """
 
 
 def main(path: Path) -> None:
-    source = path.read_text(encoding="utf-8")
+    source = java_source(path.read_text(encoding="utf-8"))
     if source.count("public static class ScrollToStone extends Recipe") != 1:
         raise SystemExit("Scroll.java: original scroll-to-stone mapping not found exactly once")
     if "public static class StoneToScroll" in source:
