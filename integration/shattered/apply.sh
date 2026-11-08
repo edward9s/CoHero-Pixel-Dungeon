@@ -58,6 +58,22 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndVictoryCongrats.java"
     python "$patches/patch_menu_pane.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/MenuPane.java"
+
+    # Keep the five Blast-style alchemy changes in isolated SPD source patches.
+    python "$patches/patch_alchemy_scroll.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/scrolls/Scroll.java"
+    python "$patches/patch_alchemy_recipe.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/Recipe.java"
+    python "$patches/patch_alchemy_liquid_metal.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/LiquidMetal.java"
+    python "$patches/patch_alchemy_arcane_resin.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/ArcaneResin.java"
+    python "$patches/patch_alchemy_quick_recipe.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/QuickRecipe.java"
+    python "$patches/patch_alchemy_journal.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndJournal.java"
+    python "$patches/patch_alchemy_document_page.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/journal/DocumentPage.java"
     python "$patches/patch_wndsettings.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndSettings.java"
     python "$patches/patch_level_mobs.py" \
