@@ -11,6 +11,9 @@ public final class CoHeroSettings {
     /** Show the original Shattered title/victory support buttons and first Worn Key prompt. */
     public static final boolean SHOW_SHATTERED_SUPPORT = false;
 
+    /** Allows converting two Stones of Enchantment into one Scroll of Upgrade. */
+    public static final boolean ENABLE_ENCHANTMENT_STONE_REVERSE_ALCHEMY = false;
+
     private static final String ENEMY_SPAWN_MULTIPLIER_QUARTERS =
             "cohero_default_enemy_spawn_multiplier_quarters";
     private static final String DEBUG_LOG =
