@@ -3,9 +3,11 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 
 def main(path: Path) -> None:
-    source = path.read_text(encoding="utf-8")
+    source = java_source(path.read_text(encoding="utf-8"))
     anchor = "\t\t\tWndJournal.AlchemyTab.currentPageIdx = document().pageIdx(page());"
     replacement = (
         "\t\t\tint originalIndex = document().pageIdx(page());\n"
