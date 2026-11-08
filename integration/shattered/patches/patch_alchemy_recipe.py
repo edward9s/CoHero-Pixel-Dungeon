@@ -3,6 +3,8 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 
 def replace_once(source: str, old: str, new: str, label: str) -> str:
     count = source.count(old)
@@ -12,7 +14,7 @@ def replace_once(source: str, old: str, new: str, label: str) -> str:
 
 
 def main(path: Path) -> None:
-    source = path.read_text(encoding="utf-8")
+    source = java_source(path.read_text(encoding="utf-8"))
     source = replace_once(
         source,
         "\tprivate static Recipe[] twoIngredientRecipes = new Recipe[]{\n",
