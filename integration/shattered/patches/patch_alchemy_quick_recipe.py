@@ -8,6 +8,8 @@ from java_patch import java_source
 
 def main(path: Path) -> None:
     source = java_source(path.read_text(encoding="utf-8"))
+    if "\t\t\tcase 9:\n" in source:
+        raise SystemExit("QuickRecipe.java: reverse-runestone guide already present")
     anchor = "\t\t\tcase 8:\n"
     replacement = (
         "\t\t\tcase 9:\n"
