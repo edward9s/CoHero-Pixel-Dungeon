@@ -3,9 +3,11 @@
 from pathlib import Path
 import sys
 
+from java_patch import java_source
+
 
 def main(path: Path) -> None:
-    source = path.read_text(encoding="utf-8")
+    source = java_source(path.read_text(encoding="utf-8"))
     old = ("\t\t\t\t\t&& ingredients.get(0).cursedKnown\n"
            "\t\t\t\t\t&& !ingredients.get(0).cursed;")
     new = "\t\t\t\t\t&& ingredients.get(0).cursedKnown;"
