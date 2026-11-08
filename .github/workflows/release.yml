@@ -188,6 +188,9 @@ jobs:
       - name: Test CoHero version label UI integration
         run: python cohero/scripts/test_version_display.py cohero --upstream spd-cohero
 
+      - name: Verify CoHero alchemy recipes and guide
+        run: python cohero/scripts/test_alchemy_sync.py cohero --upstream spd-cohero
+
       - name: Verify CoHero source isolation
         shell: bash
         run: |
