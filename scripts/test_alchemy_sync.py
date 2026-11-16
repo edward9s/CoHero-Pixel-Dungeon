@@ -60,6 +60,7 @@ def test_patch_application(repo: Path, upstream: Path) -> None:
     require(scroll, "!(first instanceof StoneOfEnchantment)", "Scroll.java")
     require(scroll, "first.getClass() == second.getClass()", "Scroll.java")
     require(scroll, "stone.quantity(stone.quantity() - 1);", "Scroll.java")
+    require(scroll, "return 6;", "Scroll.java")
 
     recipe = patched["Recipe.java"]
     require(recipe, "new Scroll.StoneToScroll(),", "Recipe.java")
@@ -116,6 +117,10 @@ def test_messages(repo: Path) -> None:
         for key in MESSAGE_KEYS:
             if keys.count(key) != 1:
                 raise AssertionError(f"{locale.name}: expected one {key}")
+        reverse_body = next(line for line in locale.read_text(encoding="utf-8").splitlines()
+                            if line.startswith("cohero.alchemy.reverse_stones.body="))
+        if "6" not in reverse_body:
+            raise AssertionError(f"{locale.name}: reverse alchemy energy cost missing")
 
 
 def main() -> None:
