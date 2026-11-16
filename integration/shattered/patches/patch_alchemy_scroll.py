@@ -35,7 +35,7 @@ STONE_TO_SCROLL = """
 
 \t\t@Override
 \t\tpublic int cost(ArrayList<Item> ingredients) {
-\t\t\treturn 0;
+\t\t\treturn 6;
 \t\t}
 
 \t\t@Override
