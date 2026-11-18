@@ -68,6 +68,12 @@ public final class CoHeroSettingsTab extends Component {
                 enemySpawnValue.text(enemySpawnValueText());
                 layoutEnemySpawnValue();
             }
+
+            @Override
+            protected void onDragPreview(int value) {
+                enemySpawnValue.text(formatEnemySpawnMultiplier(value));
+                layoutEnemySpawnValue();
+            }
         };
         enemySpawnSlider.setSelectedValue(enemySpawnMultiplierQuarters());
         add(enemySpawnSlider);
@@ -190,10 +196,11 @@ public final class CoHeroSettingsTab extends Component {
     }
 
     private String enemySpawnValueText() {
-        return String.format(
-                Locale.ENGLISH,
-                "%.2fx",
-                enemySpawnMultiplierQuarters() / 4f);
+        return formatEnemySpawnMultiplier(enemySpawnMultiplierQuarters());
+    }
+
+    private String formatEnemySpawnMultiplier(int quarters) {
+        return String.format(Locale.ENGLISH, "%.2fx", quarters / 4f);
     }
 
     private int enemySpawnMultiplierQuarters() {
