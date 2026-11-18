@@ -76,6 +76,8 @@ case "$phase" in
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/journal/DocumentPage.java"
     python "$patches/patch_wndsettings.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/windows/WndSettings.java"
+    python "$patches/patch_option_slider.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/ui/OptionSlider.java"
     python "$patches/patch_level_mobs.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/levels/Level.java"
     python "$patches/patch_mob_cohero.py" \

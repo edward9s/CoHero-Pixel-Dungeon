@@ -464,6 +464,73 @@ def test_non_java_patch_resilience():
 
 
 
+def test_spawn_slider_preview_patch():
+    source = (
+        "class OptionSlider {\n"
+        "\tprivate int selectedVal;\n"
+        "\tprotected abstract void onChange();\n"
+        "\t\tthis.selectedVal = val;\n"
+        "\t\t\t\tsliderNode.brightness(1.5f);\n"
+        "\t\t\t\t\tselectedVal = minVal + Math.round((sliderNode.x - x) / tickDist);\n"
+        "\t\t\tprotected void onDrag( PointerEvent event ) {\n"
+        "\t\t\t\tif (pressed) {\n"
+        "\t\t\t\t\tPointF p = camera().screenToCamera((int) event.current.x, (int) event.current.y);\n"
+        "\t\t\t\t\tsliderNode.x = GameMath.gate(sliderBG.x - 2, p.x - sliderNode.width()/2, sliderBG.x + sliderBG.width() - 2);\n"
+        "\t\t\t\t}\n"
+        "\t\t\t}\n"
+        "}\n"
+    )
+    patched = run_patch("patch_option_slider.py", source)
+    if patched.count("previewDragValue();") != 2:
+        raise AssertionError("Slider must preview once on press and once per drag event")
+    for expected in (
+        "protected void onDragPreview(int value) {}",
+        "if (value != previewVal)",
+        "previewVal = selectedVal;",
+        "onDragPreview(value);",
+    ):
+        if expected not in patched:
+            raise AssertionError(f"Missing slider preview hook: {expected}")
+    if "onChange();\n\t\t\t\t\tpreviewDragValue();" in patched:
+        raise AssertionError("Slider release must keep the original commit-only callback")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "OptionSlider.java"
+        target.write_text(patched, encoding="utf-8")
+        result = subprocess.run(
+            [sys.executable, str(patch_dir / "patch_option_slider.py"), str(target)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            raise AssertionError("Reapplying slider patch must fail fast")
+
+    settings_tab = (root / "core/src/main/java/com/spd/cohero/CoHeroSettingsTab.java").read_text(
+        encoding="utf-8"
+    )
+    for expected in (
+        "protected void onDragPreview(int value)",
+        "enemySpawnValue.text(formatEnemySpawnMultiplier(value));",
+        "CoHeroSettings.setDefaultEnemySpawnMultiplierQuarters(value);",
+        "companion.setEnemySpawnMultiplierQuarters(value);",
+    ):
+        if expected not in settings_tab:
+            raise AssertionError(f"CoHero slider behavior missing: {expected}")
+    if "formatEnemySpawnMultiplier(enemySpawnMultiplierQuarters())" not in settings_tab:
+        raise AssertionError("Slider preview and committed value must share a formatter")
+
+    surge = (root / "core/src/main/java/com/spd/cohero/CompanionEnemySurge.java").read_text(
+        encoding="utf-8"
+    )
+    for expected in (
+        "MIN_MULTIPLIER_QUARTERS = 4;",
+        "MAX_MULTIPLIER_QUARTERS = 16;",
+        "DEFAULT_MULTIPLIER_QUARTERS = 6;",
+    ):
+        if expected not in surge:
+            raise AssertionError(f"Existing enemy spawn range changed: {expected}")
+
+
 def test_combo_attack_patch():
     with tempfile.TemporaryDirectory() as tmp:
         source = Path(tmp) / "Char.java"
@@ -489,6 +556,7 @@ def test_combo_attack_patch():
         raise AssertionError("Combo attack hook is missing from apply.sh")
 
 
+test_spawn_slider_preview_patch()
 test_combo_attack_patch()
 test_helper()
 test_warding_patch()
