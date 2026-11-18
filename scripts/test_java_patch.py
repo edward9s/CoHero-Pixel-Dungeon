@@ -476,6 +476,8 @@ def test_spawn_slider_preview_patch():
         "\t\t\t\tif (pressed) {\n"
         "\t\t\t\t\tPointF p = camera().screenToCamera((int) event.current.x, (int) event.current.y);\n"
         "\t\t\t\t\tsliderNode.x = GameMath.gate(sliderBG.x - 2, p.x - sliderNode.width()/2, sliderBG.x + sliderBG.width() - 2);\n"
+        "\t\t\t\t}\n"
+        "\t\t\t}\n"
         "}\n"
     )
     patched = run_patch("patch_option_slider.py", source)
