@@ -39,6 +39,14 @@ def main(path: Path) -> None:
         "Recipe.java: wand ingredients",
     )
 
+    source = replace_once(
+        source,
+        "\tprivate static Recipe[] oneIngredientRecipes = new Recipe[]{\n",
+        "\tprivate static Recipe[] oneIngredientRecipes = new Recipe[]{\n"
+        "\t\tnew Scroll.ExoticToScroll(),\n",
+        "Recipe.java: exotic reverse one-ingredient registration",
+    )
+
     path.write_text(source, encoding="utf-8")
     print("patched Recipe.java: reverse recipe, cursed missile/wand inputs")
 

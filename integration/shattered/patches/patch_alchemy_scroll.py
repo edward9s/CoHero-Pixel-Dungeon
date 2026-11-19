@@ -61,6 +61,39 @@ STONE_TO_SCROLL = """
 """
 
 
+EXOTIC_TO_SCROLL = """
+\tpublic static class ExoticToScroll extends Recipe {
+\t\t@Override
+\t\tpublic boolean testIngredients(ArrayList<Item> ingredients) {
+\t\t\treturn ingredients.size() == 1
+\t\t\t\t\t&& ingredients.get(0) instanceof ExoticScroll
+\t\t\t\t\t&& ingredients.get(0).quantity() > 0
+\t\t\t\t\t&& ExoticScroll.exoToReg.containsKey(ingredients.get(0).getClass());
+\t\t}
+\t\t@Override
+\t\tpublic int cost(ArrayList<Item> ingredients) {
+\t\t\treturn 6;
+\t\t}
+\t\t@Override
+\t\tpublic Item brew(ArrayList<Item> ingredients) {
+\t\t\tif (!testIngredients(ingredients)) return null;
+\t\t\tExoticScroll exotic = (ExoticScroll) ingredients.get(0);
+\t\t\tScroll scroll = Reflection.newInstance(ExoticScroll.exoToReg.get(exotic.getClass()));
+\t\t\texotic.quantity(exotic.quantity() - 1);
+\t\t\tscroll.identify();
+\t\t\treturn scroll;
+\t\t}
+\t\t@Override
+\t\tpublic Item sampleOutput(ArrayList<Item> ingredients) {
+\t\t\tif (!testIngredients(ingredients)) return null;
+\t\t\tExoticScroll exotic = (ExoticScroll) ingredients.get(0);
+\t\t\treturn exotic.isKnown()
+\t\t\t\t\t? Reflection.newInstance(ExoticScroll.exoToReg.get(exotic.getClass()))
+\t\t\t\t\t: new Scroll.PlaceHolder();
+\t\t}
+\t}
+"""
+
 def main(path: Path) -> None:
     source = java_source(path.read_text(encoding="utf-8"))
     if source.count("public static class ScrollToStone extends Recipe") != 1:
@@ -70,7 +103,7 @@ def main(path: Path) -> None:
     if not source.endswith("\t}\n}\n"):
         raise SystemExit("Scroll.java: unexpected class ending")
 
-    path.write_text(source[:-2] + "\n" + STONE_TO_SCROLL + "}\n", encoding="utf-8")
+    path.write_text(source[:-2] + "\n" + STONE_TO_SCROLL + EXOTIC_TO_SCROLL + "}\n", encoding="utf-8")
     print("patched Scroll.java: reverse runestone alchemy")
 
 

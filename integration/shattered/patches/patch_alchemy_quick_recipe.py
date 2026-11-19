@@ -29,7 +29,24 @@ def main(path: Path) -> None:
     )
     if source.count(anchor) != 1:
         raise SystemExit("QuickRecipe.java: expected one original case 8")
-    path.write_text(source.replace(anchor, replacement, 1), encoding="utf-8")
+    source = source.replace(anchor, replacement, 1)
+    guide_anchor = "\t\t\t\treturn result;\n\t\t\tcase 5:\n"
+    guide_replacement = (
+        "\t\t\t\tresult.add(null);\n"
+        "\t\t\t\tr = new Scroll.ExoticToScroll();\n"
+        "\t\t\t\tfor (Class<? extends ExoticScroll> cls : ExoticScroll.exoToReg.keySet()) {\n"
+        "\t\t\t\t\tExoticScroll exotic = Reflection.newInstance(cls);\n"
+        "\t\t\t\t\tArrayList<Item> inputs = new ArrayList<>(Arrays.asList(exotic));\n"
+        "\t\t\t\t\tresult.add(new QuickRecipe(r, inputs, r.sampleOutput(inputs)));\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\treturn result;\n"
+        "\t\t\tcase 5:\n"
+    )
+    if source.count(guide_anchor) != 1:
+        raise SystemExit("QuickRecipe.java: expected one exotic-scroll guide anchor")
+    source = source.replace(guide_anchor, guide_replacement, 1)
+
+    path.write_text(source, encoding="utf-8")
     print("patched QuickRecipe.java: one runestone icon with quantity 2")
 
 
