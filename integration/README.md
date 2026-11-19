@@ -27,7 +27,9 @@ alchemy guide page, with one runestone icon displaying quantity 2. Two matching
 runestones make one identified scroll for 6 alchemical energy; enchantment
 stones cannot be reversed by default. One exotic scroll can also be reversed
 into its corresponding identified regular scroll for 6 energy, with recipes
-listed alongside exotic-scroll alchemy in the guide. The compile-time
+listed alongside exotic-scroll alchemy in the guide. Similarly, one exotic
+potion can be converted into its corresponding identified regular potion for
+4 energy; the recipes appear on the existing exotic-potion alchemy guide page. The compile-time
 `CoHeroSettings.ENABLE_ENCHANTMENT_STONE_REVERSE_ALCHEMY` switch (default
 `false`) controls the enchantment-stone exception.
 

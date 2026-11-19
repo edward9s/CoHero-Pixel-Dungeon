@@ -10,6 +10,7 @@ import tempfile
 SOURCE_ROOT = "core/src/main/java/com/shatteredpixel/shatteredpixeldungeon"
 PATCHES = (
     ("patch_alchemy_scroll.py", "items/scrolls/Scroll.java"),
+    ("patch_alchemy_exotic_potion.py", "items/potions/exotic/ExoticPotion.java"),
     ("patch_alchemy_recipe.py", "items/Recipe.java"),
     ("patch_alchemy_liquid_metal.py", "items/LiquidMetal.java"),
     ("patch_alchemy_arcane_resin.py", "items/ArcaneResin.java"),
@@ -53,6 +54,15 @@ def test_patch_application(repo: Path, upstream: Path) -> None:
             if repeat.returncode == 0 or copy.read_bytes() != content:
                 raise AssertionError(f"{script}: duplicate application was not rejected")
 
+    exotic = patched["ExoticPotion.java"]
+    require(exotic, "class ExoticToPotion extends Recipe", "ExoticPotion.java")
+    require(exotic, "exoToReg.containsKey(ingredients.get(0).getClass())", "ExoticPotion.java")
+    require(exotic, "return 4;", "ExoticPotion.java")
+    require(exotic, "exotic.quantity(exotic.quantity() - 1);", "ExoticPotion.java")
+    require(exotic, "potion.identify();", "ExoticPotion.java")
+    require(exotic, "exotic.isKnown()", "ExoticPotion.java")
+    require(exotic, "new Potion.PlaceHolder()", "ExoticPotion.java")
+
     scroll = patched["Scroll.java"]
     require(scroll, "class StoneToScroll extends Recipe", "Scroll.java")
     require(scroll, "class ExoticToScroll extends Recipe", "Scroll.java")
@@ -70,6 +80,7 @@ def test_patch_application(repo: Path, upstream: Path) -> None:
     recipe = patched["Recipe.java"]
     require(recipe, "new Scroll.StoneToScroll(),", "Recipe.java")
     require(recipe, "new Scroll.ExoticToScroll(),", "Recipe.java")
+    require(recipe, "new ExoticPotion.ExoticToPotion(),", "Recipe.java")
     require(recipe,
             "item instanceof MissileWeapon && item.isUpgradable();",
             "Recipe.java")
@@ -88,6 +99,8 @@ def test_patch_application(repo: Path, upstream: Path) -> None:
     quick = patched["QuickRecipe.java"]
     require(quick, "case 9:", "QuickRecipe.java")
     require(quick, "new Scroll.ExoticToScroll()", "QuickRecipe.java")
+    require(quick, "new ExoticPotion.ExoticToPotion()", "QuickRecipe.java")
+    require(quick, "ExoticPotion.exoToReg.keySet()", "QuickRecipe.java")
     require(quick, "ExoticScroll.exoToReg.keySet()", "QuickRecipe.java")
     require(quick, "r.sampleOutput(inputs)", "QuickRecipe.java")
     require(quick, "r.testIngredients(recipeInputs)", "QuickRecipe.java")

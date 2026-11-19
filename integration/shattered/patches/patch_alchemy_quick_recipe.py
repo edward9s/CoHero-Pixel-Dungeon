@@ -46,6 +46,23 @@ def main(path: Path) -> None:
         raise SystemExit("QuickRecipe.java: expected one exotic-scroll guide anchor")
     source = source.replace(guide_anchor, guide_replacement, 1)
 
+
+    potion_anchor = "\t\t\t\treturn result;\n\t\t\tcase 4:\n"
+    potion_replacement = (
+        "\t\t\t\tresult.add(null);\n"
+        "\t\t\t\tr = new ExoticPotion.ExoticToPotion();\n"
+        "\t\t\t\tfor (Class<? extends ExoticPotion> cls : ExoticPotion.exoToReg.keySet()) {\n"
+        "\t\t\t\t\tExoticPotion exotic = Reflection.newInstance(cls);\n"
+        "\t\t\t\t\tArrayList<Item> inputs = new ArrayList<>(Arrays.asList(exotic));\n"
+        "\t\t\t\t\tresult.add(new QuickRecipe(r, inputs, r.sampleOutput(inputs)));\n"
+        "\t\t\t\t}\n"
+        "\t\t\t\treturn result;\n"
+        "\t\t\tcase 4:\n"
+    )
+    if source.count(potion_anchor) != 1:
+        raise SystemExit("QuickRecipe.java: expected one exotic-potion guide anchor")
+    source = source.replace(potion_anchor, potion_replacement, 1)
+
     path.write_text(source, encoding="utf-8")
     print("patched QuickRecipe.java: one runestone icon with quantity 2")
 

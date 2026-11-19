@@ -62,6 +62,8 @@ case "$phase" in
     # Keep the five Blast-style alchemy changes in isolated SPD source patches.
     python "$patches/patch_alchemy_scroll.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/scrolls/Scroll.java"
+    python "$patches/patch_alchemy_exotic_potion.py" \
+      "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/potions/exotic/ExoticPotion.java"
     python "$patches/patch_alchemy_recipe.py" \
       "$upstream/core/src/main/java/com/shatteredpixel/shatteredpixeldungeon/items/Recipe.java"
     python "$patches/patch_alchemy_liquid_metal.py" \

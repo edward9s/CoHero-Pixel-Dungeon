@@ -43,7 +43,8 @@ def main(path: Path) -> None:
         source,
         "\tprivate static Recipe[] oneIngredientRecipes = new Recipe[]{\n",
         "\tprivate static Recipe[] oneIngredientRecipes = new Recipe[]{\n"
-        "\t\tnew Scroll.ExoticToScroll(),\n",
+        "\t\tnew Scroll.ExoticToScroll(),\n"
+        "\t\tnew ExoticPotion.ExoticToPotion(),\n",
         "Recipe.java: exotic reverse one-ingredient registration",
     )
 
