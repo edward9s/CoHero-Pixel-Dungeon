@@ -55,6 +55,11 @@ def test_patch_application(repo: Path, upstream: Path) -> None:
 
     scroll = patched["Scroll.java"]
     require(scroll, "class StoneToScroll extends Recipe", "Scroll.java")
+    require(scroll, "class ExoticToScroll extends Recipe", "Scroll.java")
+    require(scroll, "ExoticScroll.exoToReg.containsKey", "Scroll.java")
+    require(scroll, "ExoticScroll.exoToReg.get(exotic.getClass())", "Scroll.java")
+    require(scroll, "exotic.quantity(exotic.quantity() - 1);", "Scroll.java")
+    require(scroll, "exotic.isKnown()", "Scroll.java")
     require(scroll, "ScrollToStone.stones.keySet()", "Scroll.java")
     require(scroll, "ENABLE_ENCHANTMENT_STONE_REVERSE_ALCHEMY", "Scroll.java")
     require(scroll, "!(first instanceof StoneOfEnchantment)", "Scroll.java")
@@ -64,6 +69,7 @@ def test_patch_application(repo: Path, upstream: Path) -> None:
 
     recipe = patched["Recipe.java"]
     require(recipe, "new Scroll.StoneToScroll(),", "Recipe.java")
+    require(recipe, "new Scroll.ExoticToScroll(),", "Recipe.java")
     require(recipe,
             "item instanceof MissileWeapon && item.isUpgradable();",
             "Recipe.java")
@@ -81,6 +87,9 @@ def test_patch_application(repo: Path, upstream: Path) -> None:
 
     quick = patched["QuickRecipe.java"]
     require(quick, "case 9:", "QuickRecipe.java")
+    require(quick, "new Scroll.ExoticToScroll()", "QuickRecipe.java")
+    require(quick, "ExoticScroll.exoToReg.keySet()", "QuickRecipe.java")
+    require(quick, "r.sampleOutput(inputs)", "QuickRecipe.java")
     require(quick, "r.testIngredients(recipeInputs)", "QuickRecipe.java")
     require(quick, "Item output = r.sampleOutput(recipeInputs);", "QuickRecipe.java")
     require(quick, "new ArrayList<>(Arrays.asList(stone.quantity(2)))", "QuickRecipe.java")

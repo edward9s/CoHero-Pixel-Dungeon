@@ -24,8 +24,10 @@ bash cohero/integration/shattered/apply.sh messages spd cohero
 
 The Shattered integration includes reverse runestone alchemy and its original-style
 alchemy guide page, with one runestone icon displaying quantity 2. Two matching
-runestones make one identified scroll at no energy cost; enchantment stones
-cannot be reversed by default. The compile-time
+runestones make one identified scroll for 6 alchemical energy; enchantment
+stones cannot be reversed by default. One exotic scroll can also be reversed
+into its corresponding identified regular scroll for 6 energy, with recipes
+listed alongside exotic-scroll alchemy in the guide. The compile-time
 `CoHeroSettings.ENABLE_ENCHANTMENT_STONE_REVERSE_ALCHEMY` switch (default
 `false`) controls the enchantment-stone exception.
 
