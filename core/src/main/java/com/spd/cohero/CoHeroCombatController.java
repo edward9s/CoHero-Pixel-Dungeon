@@ -745,7 +745,7 @@ final class CoHeroCombatController {
         int level = weapon.buffedLvl();
         float average = (weapon.min(level) + weapon.max(level)) / 2f;
         average = weapon.augment.damageFactor(average);
-        average += RingOfForce.armedDamageBonus(owner);
+        average += RingOfForce.coHeroArmedAverageDamage(owner, weapon);
         int excessStrength = owner.STR() - weapon.STRReq();
         if (excessStrength > 0) {
             average += excessStrength / 2f;
