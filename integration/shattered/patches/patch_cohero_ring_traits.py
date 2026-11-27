@@ -20,13 +20,13 @@ arcana = java_source(arcana_path.read_text(encoding="utf-8"))
 # Huntress intrinsic Ring of Arcana +0. Weapon enchantments and armor glyphs both
 # already use this single upstream multiplier, so keep the trait centralized here.
 arcana_old = """\tpublic static float enchantPowerMultiplier(Char target ){
-\t\treturn (float)Math.pow(1.175f, getBuffedBonus(target, Arcana.class));
+\t\treturn enchantPowerMultiplier(getBuffedBonus(target, Arcana.class));
 \t}
 """
 arcana_new = """\tpublic static float enchantPowerMultiplier(Char target ){
 \t\tint bonus = getBuffedBonus(target, Arcana.class)
 \t\t\t\t+ com.spd.cohero.CoHeroClassTraits.huntressArcanaBonus(target);
-\t\treturn (float)Math.pow(1.175f, bonus);
+\t\treturn enchantPowerMultiplier(bonus);
 \t}
 """
 arcana = replace_once(
