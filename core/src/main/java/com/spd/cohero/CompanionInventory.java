@@ -705,7 +705,7 @@ public final class CompanionInventory {
         int max = value.levelKnown ? value.max() : value.max(0);
         int strengthRequirement = value.levelKnown ? value.STRReq() : value.STRReq(0);
         float averageDamage = value.augment.damageFactor((min + max) / 2f);
-        averageDamage += RingOfForce.armedDamageBonus(owner);
+        averageDamage += RingOfForce.coHeroArmedAverageDamage(owner, value);
         int excessStrength = Math.max(0, owner.STR() - strengthRequirement);
         averageDamage += excessStrength / 2f;
         return averageDamage / Math.max(0.01f, owner.meleeAttackDelay(value));
