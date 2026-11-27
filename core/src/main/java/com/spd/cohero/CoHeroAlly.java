@@ -416,7 +416,7 @@ public class CoHeroAlly extends DirectableAlly {
 
         int damage = attackWeapon.damageRoll(this);
         if (!(attackWeapon instanceof MissileWeapon)) {
-            damage += RingOfForce.armedDamageBonus(this);
+            damage += RingOfForce.armedDamageBonus(this, attackWeapon);
         }
         int excessStrength = STR() - attackWeapon.STRReq();
         if (excessStrength > 0) {
@@ -562,7 +562,7 @@ public class CoHeroAlly extends DirectableAlly {
     public void damage(int damage, Object source) {
         int adjusted = (int) Math.ceil(
                 Math.max(0, damage)
-                        * RingOfTenacity.damageMultiplier(this)
+                        * RingOfTenacity.effectiveDamageMultiplier(this)
                         * CoHeroClassTraits.intrinsicTenacityDamageMultiplier(this));
         super.damage(adjusted, source);
         if (adjusted > 0 && isAlive()) {
