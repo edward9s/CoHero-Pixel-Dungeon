@@ -14,14 +14,17 @@ anchor = """\tpublic static int armedDamageBonus( Char ch, KindOfWeapon wep ){
 \t\tint level = getBuffedBonus( ch, Force.class );
 \t\tint min = level;
 \t\tint max = level;
+\t\t//scales from 1-1 to 1-3 bonus dmg per lvl, based on weapon tier
 \t\tif (wep instanceof MeleeWeapon){
 \t\t\tmax = (int)(level * (((MeleeWeapon) wep).tier+1)/2f);
 \t\t} else if (wep instanceof MissileWeapon){
 \t\t\tmax = (int)(level * (((MissileWeapon) wep).tier+1)/2f);
 \t\t}
+
 \t\tif (max >= min) {
 \t\t\treturn Random.NormalIntRange(min, max);
 \t\t} else {
+\t\t\t//cursed, negative numbers, so max is lower
 \t\t\treturn Random.NormalIntRange(max, min);
 \t\t}
 \t}
@@ -48,7 +51,7 @@ addition = """
 \t}
 """
 
-if "coHeroUnarmedMinDamage" in text or "coHeroUnarmedMaxDamage" in text:
+if any(name in text for name in ("coHeroArmedAverageDamage", "coHeroUnarmedMinDamage", "coHeroUnarmedMaxDamage")):
     raise SystemExit("CoHero Ring of Force damage seam is already present")
 text = java_source(insert_after_code_once(text, anchor, addition, "Ring of Force"))
 path.write_text(text, encoding="utf-8")
